@@ -1,0 +1,29 @@
+# EV-YYYYMMDD-NNN - Title
+
+## Metadata
+
+- Source class:
+- Capture date:
+- Device family:
+- Firmware/app/runtime versions:
+- Acquisition method:
+- Artifact class:
+- Redaction mode:
+- Publication status:
+
+## Summary
+
+Describe the observation without private identifiers.
+
+## Evidence
+
+Link redacted payloads, screenshots, logs, or hashes.
+
+## Claims Supported
+
+| Claim id | Claim | Status |
+| --- | --- | --- |
+
+## Falsification Criteria
+
+State what observation would disprove the claim.
