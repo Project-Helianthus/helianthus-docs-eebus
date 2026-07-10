@@ -513,6 +513,21 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("claim_status must be 'evidence-backed'", result.stderr)
 
+    def test_uppercase_markdown_extension_cannot_bypass_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "unowned-claim.MD"
+            page.write_text(
+                "# Unowned Protocol Claim\n\n"
+                "VR940f supports an invented SHIP/SPINE behavior without evidence metadata.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("missing YAML front matter", result.stderr)
+
     def test_scaffold_body_is_locked_against_asserted_behavior(self) -> None:
         claims = (
             "VR940f uses TLS pairing with myVaillant.",

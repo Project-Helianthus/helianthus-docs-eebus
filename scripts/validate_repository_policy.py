@@ -69,7 +69,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "137edf5c0e68433f10c4740c6c4ac06d6c283466d3d42577211fe60f511aa71e"
+CI_LOCAL_SHA256 = "a9ae15e1411eacd20281c3f5b779c31622dcbb420da8e2804a11c64b461e1725"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -670,7 +670,9 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"README/development policy: missing required declaration {required!r}")
 
     seen_sources: dict[str, str] = {}
-    for path in sorted(root.rglob("*.md")):
+    for path in sorted(
+        path for path in root.rglob("*") if path.is_file() and path.suffix.lower() == ".md"
+    ):
         if ".git" in path.parts:
             continue
         if ".pytest_cache" in path.parts:
