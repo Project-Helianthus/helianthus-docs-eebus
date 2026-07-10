@@ -161,6 +161,22 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("must assign default ownership", result.stderr)
 
+    def test_specific_codeowners_rule_must_retain_owner(self) -> None:
+        for rule in ("/protocols/** @someoneelse", "*.md @someoneelse"):
+            with self.subTest(rule=rule):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    codeowners = repo / ".github" / "CODEOWNERS"
+                    codeowners.write_text(
+                        codeowners.read_text(encoding="utf-8") + rule + "\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("must retain", result.stderr)
+
     def test_symlinked_markdown_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -344,6 +360,22 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertIn("private artifact location/reference field is forbidden", result.stderr)
             self.assertIn("private IPv4 address found", result.stderr)
 
+    def test_root_publishable_page_gets_privacy_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            readme = repo / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\nSerial number: DEVICE-123456\nMAC address: 00:11:22:33:44:55\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("populated sensitive field", result.stderr)
+            self.assertIn("MAC address found", result.stderr)
+
     def test_private_artifact_retained_value_cannot_smuggle_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -426,6 +458,12 @@ class PolicyValidatorTests(unittest.TestCase):
             "step shell": lambda text: text.replace(
                 "        run: ./scripts/ci_local.sh\n",
                 "        shell: custom {0}\n        run: ./scripts/ci_local.sh\n",
+                1,
+            ),
+            "dependency condition": lambda text: text.replace(
+                "        run: python -m pip install -r requirements-ci.txt\n",
+                "        if: ${{ false }}\n"
+                "        run: python -m pip install -r requirements-ci.txt\n",
                 1,
             ),
             "missing dependency install": lambda text: text.replace(
@@ -528,6 +566,18 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("binary or non-UTF-8 publishable artifact is forbidden", result.stderr)
+
+    def test_required_owner_domain_directory_must_exist(self) -> None:
+        for directory in ("architecture", "api"):
+            with self.subTest(directory=directory):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    shutil.rmtree(repo / directory)
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("path-domain owner must be a directory", result.stderr)
 
 
 if __name__ == "__main__":

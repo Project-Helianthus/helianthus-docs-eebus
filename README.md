@@ -70,6 +70,8 @@ rollout, or command routing as current behavior in this repository.
 ## Start Here
 
 - [development/contributing.md](development/contributing.md)
+- [architecture/README.md](architecture/README.md)
+- [api/README.md](api/README.md)
 - [protocols/ship-spine-overview.md](protocols/ship-spine-overview.md)
 - [devices/vr940f.md](devices/vr940f.md)
 - [evidence/README.md](evidence/README.md)

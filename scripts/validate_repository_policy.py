@@ -227,6 +227,11 @@ def check_repository(root: Path) -> list[str]:
         ]
         if not broad_rules or VALID_OWNER not in broad_rules[-1][1:]:
             errors.append(f".github/CODEOWNERS: must assign default ownership to {VALID_OWNER}")
+        for fields in active_rules:
+            if len(fields) < 2 or VALID_OWNER not in fields[1:]:
+                errors.append(
+                    f".github/CODEOWNERS: rule {fields[0]!r} must retain {VALID_OWNER}"
+                )
 
     issue_template = root / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
     if not issue_template.exists():
@@ -376,11 +381,12 @@ def check_repository(root: Path) -> list[str]:
                 for step in steps:
                     if isinstance(step, dict) and isinstance(step.get("run"), str):
                         run_commands.append(step["run"].strip())
-                        if step["run"].strip() == "./scripts/ci_local.sh" and any(
-                            key in step for key in ("if", "continue-on-error", "shell")
-                        ):
+                        if step["run"].strip() in {
+                            "./scripts/ci_local.sh",
+                            "python -m pip install -r requirements-ci.txt",
+                        } and any(key in step for key in ("if", "continue-on-error", "shell")):
                             errors.append(
-                                ".github/workflows/docs-ci.yml: local CI step must be unconditional"
+                                ".github/workflows/docs-ci.yml: validator steps must be unconditional"
                             )
         if "./scripts/ci_local.sh" not in run_commands:
             errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh exactly")
@@ -501,6 +507,9 @@ def check_repository(root: Path) -> list[str]:
         if PREMATURE_COMPLETION_PATTERN.search(page_text):
             errors.append(f"{rel}: premature MSP-DOCS-E2/CLEAN completion claim")
 
+        if rel in ROOT_MD:
+            errors.extend(_privacy_errors(page_text, rel))
+
     for top in PUBLISHABLE_DOMAINS:
         domain_root = root / top
         if not domain_root.exists() or domain_root in symlinks:
@@ -518,8 +527,10 @@ def check_repository(root: Path) -> list[str]:
 
     for directory in ["protocols", "architecture", "api", "devices", "evidence", "re-notes"]:
         dir_path = root / directory
-        if dir_path.exists() and not dir_path.is_dir():
+        if not dir_path.is_dir() or dir_path.is_symlink():
             errors.append(f"{directory}: path-domain owner must be a directory")
+        elif not any(path.is_file() and not path.is_symlink() for path in dir_path.rglob("*.md")):
+            errors.append(f"{directory}: path-domain owner must contain a canonical Markdown page")
 
     ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     for path in sorted(
