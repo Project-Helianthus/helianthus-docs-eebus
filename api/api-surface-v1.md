@@ -191,16 +191,17 @@ participate in the projection and fingerprint. Package, import, and symbol
 arrays remain in canonical order, and type-parameter arrays retain declaration
 order. Object member input order does not participate.
 
-Serialize the projection as UTF-8 JSON with keys sorted by Unicode code point,
+Fingerprinting occurs only after validation has accepted `schema_version` as
+the exact JSON integer token `1`. Alternate numeric spellings such as `1.0` and
+`1e0` fail validation and are not canonicalized for fingerprinting. Serialize
+the projection as UTF-8 JSON with keys sorted by Unicode code point,
 `ensure_ascii` disabled, no insignificant whitespace, and separators `,` and
-`:`. Normalize every schema-equivalent version number to the integer token `1`
-before serialization. The compatibility fingerprint is the lowercase
-hexadecimal SHA-256 digest of those bytes. The fingerprint is computed
-externally; v1 has no self-referential hash field. Corpus tests pin known
-digests for both positive fixtures and prove that changing only `fixture` or a
-correctly derived `signature` does not change the digest. Fingerprinting refuses
-any package path rejected by package-path validation and returns no digest for
-that document.
+`:`. The compatibility fingerprint is the lowercase hexadecimal SHA-256 digest
+of those bytes. The fingerprint is computed externally; v1 has no
+self-referential hash field. Corpus tests pin known digests for both positive
+fixtures and prove that changing only `fixture` or a correctly derived
+`signature` does not change the digest. Fingerprinting refuses any package path
+rejected by package-path validation and returns no digest for that document.
 
 The fingerprint is an integrity summary of the complete compatibility
 projection and changes for any projected data change, whether additive or

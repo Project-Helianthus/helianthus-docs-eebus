@@ -395,10 +395,16 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "package-level `imports`",
             "single json integer token `1`",
             "every original numeric token spelling",
+            "fingerprinting occurs only after validation has accepted `schema_version` as the exact json integer token `1`",
+            "alternate numeric spellings such as `1.0` and `1e0` fail validation and are not canonicalized for fingerprinting",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
+        self.assertNotIn(
+            "normalize every schema-equivalent version number",
+            normalized,
+        )
 
     def test_reference_pins_identity_aware_v1_evolution_policy(self) -> None:
         text = REFERENCE.read_text(encoding="utf-8")
