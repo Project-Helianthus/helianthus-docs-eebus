@@ -4,7 +4,8 @@
   "schema_id": "helianthus.eebus.api-surface.v1",
   "schema_version": 1,
   "title": "Helianthus eeBUS Go API surface v1",
-  "description": "Closed, deterministic representation of an eeBUS Go public API surface.",
+  "description": "Closed deterministic representation and corpus contract for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
+  "$comment": "Before emission, an AST-backed producer must prove Go syntax, canonical spelling, and semantic consistency. Consumers may rely only on the representation and corpus invariants declared here.",
   "type": "object",
   "required": [
     "schema_id",
@@ -17,6 +18,7 @@
       "const": "helianthus.eebus.api-surface.v1"
     },
     "schema_version": {
+      "type": "integer",
       "const": 1
     },
     "fixture": {

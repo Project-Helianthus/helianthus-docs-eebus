@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 import shlex
@@ -31,14 +32,16 @@ REQUIRED_POSITIVE_FIXTURES = {
     "kinds-types-signatures.json",
 }
 REQUIRED_NEGATIVE_FIXTURES = {
-    "malformed.json",
-    "duplicate-json-key.json",
     "duplicate-identity.json",
-    "invalid-ordering.json",
+    "duplicate-json-key.json",
+    "implementation-dependency-type.json",
     "internal-package.json",
+    "invalid-ordering.json",
+    "malformed.json",
+    "non-nfc.json",
     "unexported-declaration.json",
     "unexported-receiver.json",
-    "implementation-dependency-type.json",
+    "unknown-field.json",
 }
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
 
@@ -59,6 +62,12 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def load_json_strict(path: Path) -> Any:
     text = path.read_bytes().decode("utf-8")
     return json.loads(text, object_pairs_hook=_unique_object)
+
+
+def load_first_json_value(path: Path) -> tuple[Any, str]:
+    text = path.read_bytes().decode("utf-8")
+    document, end = json.JSONDecoder().raw_decode(text.lstrip())
+    return document, text.lstrip()[end:]
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -145,6 +154,22 @@ def replace_first_symbol_value(path: Path, key: str, value: str) -> None:
     )
 
 
+def write_json(path: Path, document: Any) -> None:
+    path.write_text(
+        json.dumps(document, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def find_symbol(document: dict[str, Any], kind: str) -> dict[str, Any]:
+    return next(
+        symbol
+        for package in document["packages"]
+        for symbol in package["symbols"]
+        if symbol["kind"] == kind
+    )
+
+
 class APISurfaceV1ContractTests(unittest.TestCase):
     def require_file(self, path: Path) -> None:
         self.assertTrue(path.is_file(), f"missing regular file: {path.relative_to(REPO)}")
@@ -156,6 +181,30 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         self.assertTrue(positive, "missing positive API surface v1 fixtures")
         self.assertTrue(negative, "missing negative API surface v1 fixtures")
         return positive, negative
+
+    def assert_document_mutation_rejected(
+        self,
+        mutation: Any,
+        category: str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = (
+                repo
+                / "api"
+                / "fixtures"
+                / "v1"
+                / "positive"
+                / "kinds-types-signatures.json"
+            )
+            document = load_json_strict(target)
+            mutation(document)
+            write_json(target, document)
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(category, result.stderr)
 
     def test_canonical_contract_paths_are_regular_files(self) -> None:
         for path in (SCHEMA, REFERENCE, API_VALIDATOR):
@@ -178,7 +227,10 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             {"schema_id", "schema_version", "packages"}.issubset(schema["required"])
         )
         self.assertEqual(schema["properties"]["schema_id"]["const"], SCHEMA_ID)
+        self.assertEqual(schema["properties"]["schema_version"]["type"], "integer")
         self.assertEqual(schema["properties"]["schema_version"]["const"], SCHEMA_VERSION)
+        self.assertIn("AST-backed producer", schema["$comment"])
+        self.assertIn("does not prove Go semantics", schema["description"])
 
     def test_reference_defines_normative_normalization_and_exclusions(self) -> None:
         self.require_file(REFERENCE)
@@ -187,6 +239,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         self.assertTrue(
             {
                 "Schema Identity and Version",
+                "Producer and Consumer Boundary",
                 "Package Normalization",
                 "Symbol Normalization",
                 "Kind and Type Normalization",
@@ -210,6 +263,10 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "implementation dependency type",
             "no runtime symbol",
             "publishable source",
+            "future ast-backed producer must prove go syntax",
+            "does not parse go",
+            "consumers may rely on the frozen representation and corpus invariants only",
+            "json booleans are not integers",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
@@ -333,6 +390,62 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         )
         self.assertIn("implementation.invalid/", leaked_fields)
 
+    def test_negative_fixtures_retain_the_synthetic_no_runtime_boundary(self) -> None:
+        _, negative = self.require_fixture_sets()
+        for path in negative:
+            with self.subTest(path=path.name):
+                document, remainder = load_first_json_value(path)
+                self.assertEqual(document["schema_id"], SCHEMA_ID)
+                self.assertIs(type(document["schema_version"]), int)
+                self.assertEqual(document["schema_version"], SCHEMA_VERSION)
+                self.assertIs(document["fixture"]["synthetic"], True)
+                self.assertIs(document["fixture"]["runtime_claims"], False)
+                self.assertTrue(document["packages"])
+                self.assertTrue(
+                    all(
+                        package["path"].startswith(SYNTHETIC_PACKAGE_PREFIX)
+                        for package in document["packages"]
+                    )
+                )
+                if path.name == "malformed.json":
+                    self.assertEqual(remainder.strip(), "!")
+                else:
+                    self.assertFalse(remainder.strip())
+
+    def test_validator_enforces_negative_fixture_boundaries(self) -> None:
+        cases = {
+            "schema version": lambda document: document.__setitem__("schema_version", True),
+            "synthetic marker": lambda document: document["fixture"].__setitem__(
+                "synthetic", False
+            ),
+            "runtime marker": lambda document: document["fixture"].__setitem__(
+                "runtime_claims", True
+            ),
+            "package path": lambda document: document["packages"][0].__setitem__(
+                "path", "example.invalid/non-synthetic/negative"
+            ),
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = (
+                        repo
+                        / "api"
+                        / "fixtures"
+                        / "v1"
+                        / "negative"
+                        / "duplicate-identity.json"
+                    )
+                    document = load_json_strict(target)
+                    mutation(document)
+                    write_json(target, document)
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("negative fixture boundary mismatch", result.stderr)
+
     def test_validator_accepts_the_corpus_deterministically(self) -> None:
         self.require_file(API_VALIDATOR)
         first = run_validator(REPO)
@@ -378,12 +491,239 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             self.assertIn(relative_path.as_posix(), result.stderr)
             self.assertIn("utf-8", result.stderr.lower())
 
-    def test_validator_rejects_private_paths_network_data_and_source_contamination(self) -> None:
+    def test_validator_rejects_bool_integer_ambiguity(self) -> None:
+        cases = {
+            "schema version": lambda document: document.__setitem__("schema_version", True),
+            "synthetic marker": lambda document: document["fixture"].__setitem__("synthetic", 1),
+            "runtime marker": lambda document: document["fixture"].__setitem__(
+                "runtime_claims", 0
+            ),
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name):
+                expected = (
+                    "schema identity mismatch"
+                    if name == "schema version"
+                    else "runtime claim or non-synthetic fixture"
+                )
+                self.assert_document_mutation_rejected(mutation, expected)
+
+    def test_validator_rejects_missing_fields_and_invalid_kind(self) -> None:
+        cases = {
+            "root fixture": lambda document: document.pop("fixture"),
+            "package name": lambda document: document["packages"][0].pop("name"),
+            "symbol type": lambda document: document["packages"][0]["symbols"][0].pop(
+                "type"
+            ),
+            "invalid kind": lambda document: document["packages"][0]["symbols"][0].__setitem__(
+                "kind", "function"
+            ),
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name):
+                expected = "invalid symbol kind" if name == "invalid kind" else "missing required field"
+                self.assert_document_mutation_rejected(mutation, expected)
+
+    def test_validator_rejects_empty_collections_and_duplicate_packages(self) -> None:
+        cases = {
+            "packages": (
+                lambda document: document.__setitem__("packages", []),
+                "invalid package collection",
+            ),
+            "symbols": (
+                lambda document: document["packages"][0].__setitem__("symbols", []),
+                "invalid symbol collection",
+            ),
+            "duplicate package": (
+                lambda document: document["packages"].append(
+                    copy.deepcopy(document["packages"][0])
+                ),
+                "duplicate package identity",
+            ),
+        }
+        for name, (mutation, expected) in cases.items():
+            with self.subTest(name=name):
+                self.assert_document_mutation_rejected(mutation, expected)
+
+    def test_validator_rejects_invalid_package_paths(self) -> None:
+        paths = (
+            SYNTHETIC_PACKAGE_PREFIX + "/double",
+            SYNTHETIC_PACKAGE_PREFIX + "../dot",
+            SYNTHETIC_PACKAGE_PREFIX + "back\\slash",
+            SYNTHETIC_PACKAGE_PREFIX + "white space",
+            SYNTHETIC_PACKAGE_PREFIX + "trailing/",
+        )
+        for value in paths:
+            with self.subTest(form=value.rsplit("/", 1)[-1]):
+                self.assert_document_mutation_rejected(
+                    lambda document, value=value: document["packages"][0].__setitem__(
+                        "path", value
+                    ),
+                    "invalid package path",
+                )
+
+    def test_validator_checks_complete_go_identifiers_and_keywords(self) -> None:
+        cases = {
+            "symbol punctuation": lambda document: document["packages"][0]["symbols"][
+                0
+            ].__setitem__("name", "Bad-Name"),
+            "symbol leading digit": lambda document: document["packages"][0]["symbols"][
+                0
+            ].__setitem__("name", "9Bad"),
+            "package keyword": lambda document: document["packages"][0].__setitem__(
+                "name", "func"
+            ),
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name):
+                self.assert_document_mutation_rejected(mutation, "invalid Go identifier")
+
+    def test_validator_enforces_receiver_grammar_and_exported_base(self) -> None:
+        invalid_receivers = ("**Catalog", "pkg.Catalog", "Catalog[T,U]", "Catalog[func]")
+        for receiver in invalid_receivers:
+            with self.subTest(receiver=receiver):
+                self.assert_document_mutation_rejected(
+                    lambda document, receiver=receiver: find_symbol(document, "method").__setitem__(
+                        "receiver", receiver
+                    ),
+                    "invalid receiver",
+                )
+
+        self.assert_document_mutation_rejected(
+            lambda document: find_symbol(document, "method").__setitem__(
+                "receiver", "catalog"
+            ),
+            "unexported receiver",
+        )
+
+    def test_validator_accepts_normalized_generic_receiver_representation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = (
+                repo
+                / "api"
+                / "fixtures"
+                / "v1"
+                / "positive"
+                / "kinds-types-signatures.json"
+            )
+            document = load_json_strict(target)
+            method = find_symbol(document, "method")
+            method["receiver"] = "*Catalog[T, U]"
+            method["signature"] = "func (*Catalog[T, U]) Lookup(string) (Entry, bool)"
+            write_json(target, document)
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validator_leaves_go_syntax_proof_to_the_ast_producer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = (
+                repo
+                / "api"
+                / "fixtures"
+                / "v1"
+                / "positive"
+                / "kinds-types-signatures.json"
+            )
+            document = load_json_strict(target)
+            symbol = find_symbol(document, "const")
+            symbol["type"] = "not-a-go-type"
+            symbol["signature"] = "const MaxEntries not-a-go-type"
+            write_json(target, document)
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validator_rejects_receiver_misuse_and_missing_receiver(self) -> None:
+        cases = {
+            "receiver on function": (
+                lambda document: find_symbol(document, "func").__setitem__(
+                    "receiver", "Catalog"
+                ),
+                "receiver on non-method",
+            ),
+            "missing method receiver": (
+                lambda document: find_symbol(document, "method").pop("receiver"),
+                "missing required field",
+            ),
+        }
+        for name, (mutation, expected) in cases.items():
+            with self.subTest(name=name):
+                self.assert_document_mutation_rejected(mutation, expected)
+
+    def test_validator_rejects_non_normalized_text(self) -> None:
+        values = (" uint16", "uint16 ", "uint  16", "uint\t16", "uint\n16")
+        for value in values:
+            with self.subTest(value=repr(value)):
+                self.assert_document_mutation_rejected(
+                    lambda document, value=value: document["packages"][0]["symbols"][
+                        0
+                    ].__setitem__("type", value),
+                    "invalid normalized text",
+                )
+
+    def test_validator_rejects_portable_cross_field_mismatches(self) -> None:
+        cases = {
+            "declared name": lambda document: find_symbol(document, "func").__setitem__(
+                "signature", "func Different([]Entry) *Catalog"
+            ),
+            "declared receiver": lambda document: find_symbol(document, "method").__setitem__(
+                "receiver", "Catalog"
+            ),
+            "function type prefix": lambda document: find_symbol(document, "func").__setitem__(
+                "type", "[]Entry"
+            ),
+            "declaration kind": lambda document: find_symbol(document, "var").__setitem__(
+                "signature", "const ErrMissing error"
+            ),
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name):
+                self.assert_document_mutation_rejected(mutation, "cross-field mismatch")
+
+    def test_validator_rejects_escaped_controls_and_surrogates_without_crashing(self) -> None:
+        for name, value, expected in (
+            ("control", "uint16\x00", "control character"),
+            ("surrogate", "uint16\ud800", "invalid Unicode scalar value"),
+        ):
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = (
+                        repo
+                        / "api"
+                        / "fixtures"
+                        / "v1"
+                        / "positive"
+                        / "kinds-types-signatures.json"
+                    )
+                    document = load_json_strict(target)
+                    document["packages"][0]["symbols"][0]["type"] = value
+                    target.write_text(
+                        json.dumps(document, ensure_ascii=True, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(expected, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_validator_rejects_each_declared_publication_marker_category(self) -> None:
         self.require_file(API_VALIDATOR)
         positive, _ = self.require_fixture_sets()
         cases = {
             "private path": "/Users/" + "example-user/project/input.go",
             "private network": "peer " + "192." + "168.7.9",
+            "network address": "peer " + "8." + "8.8.8",
+            "private identifier": "account_" + "id: private-account-value",
+            "household data": "household " + "schedule: private-schedule-value",
+            "raw evidence": "raw " + "evidence: private-capture-value",
             "source contamination": "vendor_" + "restricted",
         }
         for expected, value in cases.items():
@@ -397,6 +737,63 @@ class APISurfaceV1ContractTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn(expected, result.stderr.lower())
+                    self.assertNotIn(value, result.stderr)
+
+    def test_publication_markers_cannot_hide_behind_json_escapes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = (
+                repo
+                / "api"
+                / "fixtures"
+                / "v1"
+                / "positive"
+                / "kinds-types-signatures.json"
+            )
+            replace_first_symbol_value(
+                target,
+                "signature",
+                "account_id: synthetic-private-value",
+            )
+            target.write_text(
+                target.read_text(encoding="utf-8").replace(
+                    "account_id",
+                    "account\\u005fid",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("private identifier", result.stderr)
+            self.assertNotIn("synthetic-private-value", result.stderr)
+
+    def test_failure_diagnostics_are_repeatable_and_path_value_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = (
+                repo
+                / "api"
+                / "fixtures"
+                / "v1"
+                / "positive"
+                / "kinds-types-signatures.json"
+            )
+            sensitive_value = "/Users/" + "diagnostic-secret/private.go"
+            replace_first_symbol_value(target, "signature", sensitive_value)
+
+            first = run_validator(repo)
+            second = run_validator(repo)
+
+            self.assertEqual(first.returncode, 1)
+            self.assertEqual((first.stdout, first.stderr), (second.stdout, second.stderr))
+            self.assertNotIn(sensitive_value, first.stderr)
+            self.assertNotIn(str(repo), first.stderr)
+            self.assertNotIn(str(Path(tmp)), first.stderr)
+            for line in first.stderr.splitlines():
+                self.assertRegex(line, r"^api/(?:schema|fixtures)/")
 
     def test_repository_policy_allows_only_canonical_machine_artifact_patterns(self) -> None:
         self.require_file(SCHEMA)
@@ -430,15 +827,29 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                     artifact = repo / relative_path
                     artifact.parent.mkdir(parents=True, exist_ok=True)
                     artifact.write_text("{}\n", encoding="utf-8")
+                    actual_artifact = next(
+                        path
+                        for path in (repo / "api").rglob("*")
+                        if path.is_file() and path.name == artifact.name
+                    )
+                    actual_relative_path = actual_artifact.relative_to(repo).as_posix()
 
                     result = run_policy_validator(repo)
 
                     self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(relative_path, result.stderr)
+                    self.assertIn(actual_relative_path, result.stderr)
                     self.assertRegex(
                         result.stderr,
-                        rf"{re.escape(relative_path)}:.*(?:allowlist|machine artifact|Markdown extension)",
+                        rf"{re.escape(actual_relative_path)}:.*"
+                        r"(?:allowlist|machine artifact|Markdown extension)",
                     )
+                    invented_variant = actual_relative_path.replace(
+                        "/positive/", "/Positive/"
+                    ).replace(
+                        "/negative/", "/Negative/"
+                    )
+                    if invented_variant != actual_relative_path:
+                        self.assertNotIn(invented_variant, result.stderr)
 
     def test_each_negative_fixture_must_remain_invalid(self) -> None:
         self.require_file(API_VALIDATOR)

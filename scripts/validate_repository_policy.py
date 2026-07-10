@@ -78,7 +78,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
-    "api/api-surface-v1.md": "287a0b3a531da66774e0a19833d57360d4646dc94b53c892e0c18ea3a47c58a6",
+    "api/api-surface-v1.md": "aae550ddfe113787180e71c41ef03f2323d1600b21deb65faaca6de0bec72392",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
@@ -800,15 +800,6 @@ def check_repository(root: Path) -> list[str]:
                 if top == "api":
                     if rel not in API_MACHINE_ARTIFACTS:
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
-                        for canonical, noncanonical in (
-                            ("/positive/", "/Positive/"),
-                            ("/negative/", "/Negative/"),
-                        ):
-                            if canonical in rel:
-                                errors.append(
-                                    f"{rel.replace(canonical, noncanonical)}: "
-                                    "case-variant path is not in the API machine artifact allowlist"
-                                )
                         continue
                 elif top in MARKDOWN_ONLY_DOMAINS:
                     errors.append(f"{rel}: substantive documentation must use a Markdown extension")

@@ -19,9 +19,36 @@ SYNTHETIC_PREFIX = "example.invalid/helianthus/synthetic/"
 SCHEMA_REL = Path("api/schema/helianthus.eebus.api-surface.v1.schema.json")
 POSITIVE_REL = Path("api/fixtures/v1/positive")
 NEGATIVE_REL = Path("api/fixtures/v1/negative")
-SCHEMA_SHA256 = "163cd29ffa47ec4ead541e179aeca36974f98086d0d71db507244630717a8001"
+SCHEMA_SHA256 = "480cbdc68aa72cbd34d5301874396c51c8cd1823af93deef5f488eccc6a1ed0c"
 
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
+GO_KEYWORDS = {
+    "break",
+    "case",
+    "chan",
+    "const",
+    "continue",
+    "default",
+    "defer",
+    "else",
+    "fallthrough",
+    "for",
+    "func",
+    "go",
+    "goto",
+    "if",
+    "import",
+    "interface",
+    "map",
+    "package",
+    "range",
+    "return",
+    "select",
+    "struct",
+    "switch",
+    "type",
+    "var",
+}
 REQUIRED_POSITIVE = {"packages-and-symbols.json", "kinds-types-signatures.json"}
 EXPECTED_NEGATIVE = {
     "duplicate-identity.json": "duplicate symbol identity",
@@ -40,6 +67,8 @@ SENSITIVE_CATEGORIES = {
     "private network",
     "network address",
     "private path",
+    "household data",
+    "raw evidence",
     "source contamination",
 }
 
@@ -61,9 +90,12 @@ MAC_PATTERN = re.compile(
 FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])")
 SECRET_PATTERN = re.compile(
     r"\b(?:token|password|passphrase|credential|secret|api[_ -]?key|"
-    r"client[_ -]?secret|serial[_ -]?number)\s*[:=]",
+    r"client[_ -]?secret|serial[_ -]?number|account[_ -]?(?:id|identifier|data))"
+    r"\s*[:=]",
     re.IGNORECASE,
 )
+HOUSEHOLD_PATTERN = re.compile(r"\bhousehold[_ -]+(?:data|schedule)\s*[:=]", re.IGNORECASE)
+RAW_EVIDENCE_PATTERN = re.compile(r"\braw[_ -]+evidence\s*[:=]", re.IGNORECASE)
 SOURCE_CONTAMINATION_PATTERN = re.compile(
     r"\bvendor[_ -]restricted\b|\brestricted[ -]+source\b",
     re.IGNORECASE,
@@ -97,6 +129,10 @@ def _sensitive_diagnostics(text: str) -> set[str]:
         diagnostics.add("private path")
     if MAC_PATTERN.search(text) or FINGERPRINT_PATTERN.search(text) or SECRET_PATTERN.search(text):
         diagnostics.add("private identifier")
+    if HOUSEHOLD_PATTERN.search(text):
+        diagnostics.add("household data")
+    if RAW_EVIDENCE_PATTERN.search(text):
+        diagnostics.add("raw evidence")
     if SOURCE_CONTAMINATION_PATTERN.search(text):
         diagnostics.add("source contamination")
 
@@ -117,6 +153,20 @@ def _sensitive_diagnostics(text: str) -> set[str]:
         except ValueError:
             continue
         diagnostics.add("network address")
+    return diagnostics
+
+
+def _decoded_sensitive_diagnostics(value: Any) -> set[str]:
+    diagnostics: set[str] = set()
+    if isinstance(value, str):
+        return _sensitive_diagnostics(value)
+    if isinstance(value, list):
+        for item in value:
+            diagnostics |= _decoded_sensitive_diagnostics(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            diagnostics |= _sensitive_diagnostics(key)
+            diagnostics |= _decoded_sensitive_diagnostics(item)
     return diagnostics
 
 
@@ -143,6 +193,7 @@ def _load_json(path: Path) -> tuple[Any | None, bytes | None, set[str]]:
     except (json.JSONDecodeError, InvalidConstantError):
         diagnostics.add("malformed JSON")
         return None, raw, diagnostics
+    diagnostics |= _decoded_sensitive_diagnostics(document)
     return document, raw, diagnostics
 
 
@@ -159,13 +210,66 @@ def _is_nfc(value: str) -> bool:
     return value == unicodedata.normalize("NFC", value)
 
 
+def _is_exact_integer(value: Any, expected: int) -> bool:
+    return type(value) is int and value == expected
+
+
+def _has_control(value: str) -> bool:
+    return any(unicodedata.category(char) == "Cc" for char in value)
+
+
+def _has_surrogate(value: str) -> bool:
+    return any(unicodedata.category(char) == "Cs" for char in value)
+
+
+def _text_diagnostics(value: str) -> set[str]:
+    diagnostics: set[str] = set()
+    if _has_surrogate(value):
+        diagnostics.add("invalid Unicode scalar value")
+    elif not _is_nfc(value):
+        diagnostics.add("non-NFC value")
+    if _has_control(value):
+        diagnostics.add("control character")
+    return diagnostics
+
+
+def _is_go_letter(char: str) -> bool:
+    return char == "_" or unicodedata.category(char) in {"Lu", "Ll", "Lt", "Lm", "Lo"}
+
+
+def _is_go_identifier(value: str) -> bool:
+    return (
+        bool(value)
+        and value not in GO_KEYWORDS
+        and _is_go_letter(value[0])
+        and all(_is_go_letter(char) or unicodedata.category(char) == "Nd" for char in value[1:])
+    )
+
+
 def _is_exported(value: str) -> bool:
-    return bool(value) and unicodedata.category(value[0]) == "Lu"
+    return _is_go_identifier(value) and unicodedata.category(value[0]) == "Lu"
 
 
-def _receiver_base(receiver: str) -> str:
-    base = receiver.lstrip("*").split("[", 1)[0]
-    return base.rsplit(".", 1)[-1]
+def _receiver_base(receiver: str) -> str | None:
+    value = receiver[1:] if receiver.startswith("*") else receiver
+    if not value or value.startswith("*"):
+        return None
+
+    if "[" not in value:
+        return value if _is_go_identifier(value) else None
+    if not value.endswith("]") or value.count("[") != 1 or value.count("]") != 1:
+        return None
+
+    base, arguments_text = value[:-1].split("[", 1)
+    arguments = arguments_text.split(", ")
+    if (
+        not _is_go_identifier(base)
+        or not arguments_text
+        or any(not _is_go_identifier(argument) for argument in arguments)
+        or "," in "".join(arguments)
+    ):
+        return None
+    return base
 
 
 def _normalized_text(value: Any) -> bool:
@@ -173,9 +277,37 @@ def _normalized_text(value: Any) -> bool:
         isinstance(value, str)
         and bool(value)
         and value == value.strip()
+        and not _has_surrogate(value)
         and _is_nfc(value)
-        and re.search(r"[\t\r\n]| {2}", value) is None
+        and not _has_control(value)
+        and "  " not in value
     )
+
+
+def _valid_package_path(value: str) -> bool:
+    components = value.split("/")
+    return (
+        not value.startswith("/")
+        and not value.endswith("/")
+        and "\\" not in value
+        and all(component not in {"", ".", ".."} for component in components)
+        and not any(char.isspace() or unicodedata.category(char) in {"Cc", "Cs"} for char in value)
+    )
+
+
+def _expected_signature(
+    kind: str,
+    name: str,
+    receiver: str,
+    type_text: str,
+) -> str | None:
+    if kind in {"const", "type", "var"}:
+        return f"{kind} {name} {type_text}"
+    if kind == "func" and type_text.startswith("func("):
+        return f"func {name}{type_text[4:]}"
+    if kind == "method" and type_text.startswith("func("):
+        return f"func ({receiver}) {name}{type_text[4:]}"
+    return None
 
 
 def _package_order_key(package: dict[str, Any]) -> tuple[bytes, bytes]:
@@ -199,7 +331,10 @@ def _document_diagnostics(document: Any) -> set[str]:
         {"schema_id", "schema_version", "fixture", "packages"},
         {"schema_id", "schema_version", "fixture", "packages"},
     )
-    if document.get("schema_id") != SCHEMA_ID or document.get("schema_version") != SCHEMA_VERSION:
+    if (
+        document.get("schema_id") != SCHEMA_ID
+        or not _is_exact_integer(document.get("schema_version"), SCHEMA_VERSION)
+    ):
         diagnostics.add("schema identity mismatch")
 
     fixture = document.get("fixture")
@@ -235,25 +370,27 @@ def _document_diagnostics(document: Any) -> set[str]:
         if not isinstance(path, str) or not path or not isinstance(name, str) or not name:
             diagnostics.add("invalid package identity")
         else:
-            if not _is_nfc(path) or not _is_nfc(name):
-                diagnostics.add("non-NFC value")
+            diagnostics |= _text_diagnostics(path)
+            diagnostics |= _text_diagnostics(name)
             components = path.split("/")
-            if (
-                path.startswith("/")
-                or path.endswith("/")
-                or "\\" in path
-                or any(component in {"", ".", ".."} for component in components)
-            ):
+            if not _valid_package_path(path):
                 diagnostics.add("invalid package path")
             if "internal" in components:
                 diagnostics.add("internal package")
             if not path.startswith(SYNTHETIC_PREFIX):
                 diagnostics.add("non-synthetic fixture package")
+            if not _is_go_identifier(name):
+                diagnostics.add("invalid Go identifier")
             if path in package_paths:
                 diagnostics.add("duplicate package identity")
             package_paths.add(path)
 
-        if isinstance(path, str) and isinstance(name, str):
+        if (
+            isinstance(path, str)
+            and isinstance(name, str)
+            and not _has_surrogate(path)
+            and not _has_surrogate(name)
+        ):
             sortable_packages.append(package)
 
         if not isinstance(symbols, list) or not symbols:
@@ -273,7 +410,7 @@ def _document_diagnostics(document: Any) -> set[str]:
                 required,
                 {"kind", "receiver", "name", "type", "signature"},
             )
-            if kind not in SYMBOL_KINDS:
+            if not isinstance(kind, str) or kind not in SYMBOL_KINDS:
                 diagnostics.add("invalid symbol kind")
             if kind != "method" and "receiver" in symbol:
                 diagnostics.add("receiver on non-method")
@@ -283,34 +420,57 @@ def _document_diagnostics(document: Any) -> set[str]:
             if not isinstance(symbol_name, str) or not symbol_name:
                 diagnostics.add("invalid symbol name")
             else:
-                if not _is_nfc(symbol_name):
-                    diagnostics.add("non-NFC value")
-                if not _is_exported(symbol_name):
+                diagnostics |= _text_diagnostics(symbol_name)
+                if not _is_go_identifier(symbol_name):
+                    diagnostics.add("invalid Go identifier")
+                elif not _is_exported(symbol_name):
                     diagnostics.add("unexported declaration")
 
             if kind == "method":
-                if not isinstance(receiver, str) or not receiver or re.search(r"\s", receiver):
+                if not isinstance(receiver, str) or not receiver:
                     diagnostics.add("invalid receiver")
                 else:
-                    if not _is_nfc(receiver):
-                        diagnostics.add("non-NFC value")
-                    if not _is_exported(_receiver_base(receiver)):
+                    diagnostics |= _text_diagnostics(receiver)
+                    receiver_base = _receiver_base(receiver)
+                    if receiver_base is None:
+                        diagnostics.add("invalid receiver")
+                    elif not _is_exported(receiver_base):
                         diagnostics.add("unexported receiver")
 
             for field in ("type", "signature"):
                 value = symbol.get(field)
                 if not _normalized_text(value):
                     diagnostics.add("invalid normalized text")
-                    if isinstance(value, str) and not _is_nfc(value):
-                        diagnostics.add("non-NFC value")
+                    if isinstance(value, str):
+                        diagnostics |= _text_diagnostics(value)
                 if isinstance(value, str) and "implementation.invalid/" in value:
                     diagnostics.add("implementation dependency type")
+
+            if (
+                isinstance(kind, str)
+                and kind in SYMBOL_KINDS
+                and isinstance(symbol_name, str)
+                and _is_go_identifier(symbol_name)
+                and isinstance(receiver, str)
+                and (kind != "method" or _receiver_base(receiver) is not None)
+                and _normalized_text(symbol.get("type"))
+                and _normalized_text(symbol.get("signature"))
+            ):
+                expected_signature = _expected_signature(
+                    kind,
+                    symbol_name,
+                    receiver,
+                    symbol["type"],
+                )
+                if expected_signature is None or symbol["signature"] != expected_signature:
+                    diagnostics.add("cross-field mismatch")
 
             if (
                 isinstance(kind, str)
                 and isinstance(receiver, str)
                 and isinstance(symbol_name, str)
                 and isinstance(path, str)
+                and not any(_has_surrogate(value) for value in (kind, receiver, symbol_name, path))
             ):
                 identity = (path, kind, receiver, symbol_name)
                 if identity in symbol_identities:
@@ -322,16 +482,57 @@ def _document_diagnostics(document: Any) -> set[str]:
             try:
                 if symbols != sorted(symbols, key=_symbol_order_key):
                     diagnostics.add("non-canonical ordering")
-            except (KeyError, AttributeError):
+            except (KeyError, AttributeError, TypeError, UnicodeEncodeError):
                 diagnostics.add("invalid symbol shape")
 
     if len(sortable_packages) == len(packages):
         try:
             if packages != sorted(packages, key=_package_order_key):
                 diagnostics.add("non-canonical ordering")
-        except (KeyError, AttributeError):
+        except (KeyError, AttributeError, TypeError, UnicodeEncodeError):
             diagnostics.add("invalid package shape")
     return diagnostics
+
+
+def _first_json_value(raw: bytes | None) -> Any | None:
+    if raw is None:
+        return None
+    try:
+        text = raw.decode("utf-8")
+        document, _ = json.JSONDecoder().raw_decode(text.lstrip())
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return document
+
+
+def _negative_fixture_boundary_diagnostics(document: Any) -> set[str]:
+    if not isinstance(document, dict):
+        return {"negative fixture boundary mismatch"}
+    if (
+        document.get("schema_id") != SCHEMA_ID
+        or not _is_exact_integer(document.get("schema_version"), SCHEMA_VERSION)
+    ):
+        return {"negative fixture boundary mismatch"}
+
+    fixture = document.get("fixture")
+    if (
+        not isinstance(fixture, dict)
+        or fixture.get("synthetic") is not True
+        or fixture.get("runtime_claims") is not False
+    ):
+        return {"negative fixture boundary mismatch"}
+
+    packages = document.get("packages")
+    if not isinstance(packages, list) or not packages:
+        return {"negative fixture boundary mismatch"}
+    if any(
+        not isinstance(package, dict)
+        or not isinstance(package.get("path"), str)
+        or not package["path"].startswith(SYNTHETIC_PREFIX)
+        for package in packages
+    ):
+        return {"negative fixture boundary mismatch"}
+    return set()
 
 
 def _regular_json_files(directory: Path) -> list[Path]:
@@ -364,11 +565,17 @@ def validate_repository(root: Path) -> list[str]:
                 properties = schema.get("properties")
                 if not isinstance(properties, dict):
                     errors.append(f"{schema_rel}: invalid schema shape")
-                elif (
-                    properties.get("schema_id", {}).get("const") != SCHEMA_ID
-                    or properties.get("schema_version", {}).get("const") != SCHEMA_VERSION
-                ):
-                    errors.append(f"{schema_rel}: schema identity mismatch")
+                else:
+                    schema_id = properties.get("schema_id")
+                    schema_version = properties.get("schema_version", {})
+                    if (
+                        not isinstance(schema_id, dict)
+                        or schema_id.get("const") != SCHEMA_ID
+                        or not isinstance(schema_version, dict)
+                        or schema_version.get("type") != "integer"
+                        or not _is_exact_integer(schema_version.get("const"), SCHEMA_VERSION)
+                    ):
+                        errors.append(f"{schema_rel}: schema identity mismatch")
 
     positive_dir = root / POSITIVE_REL
     positive = _regular_json_files(positive_dir)
@@ -400,9 +607,17 @@ def validate_repository(root: Path) -> list[str]:
         if not path.is_file() or path.is_symlink():
             errors.append(f"{rel}: missing regular artifact")
             continue
-        document, _, diagnostics = _load_json(path)
+        document, raw, diagnostics = _load_json(path)
         sensitive = diagnostics & SENSITIVE_CATEGORIES
         for category in sorted(sensitive):
+            errors.append(f"{rel}: {category}")
+        boundary_document = document if document is not None else _first_json_value(raw)
+        if document is None and boundary_document is not None:
+            diagnostics |= _decoded_sensitive_diagnostics(boundary_document)
+            sensitive = diagnostics & SENSITIVE_CATEGORIES
+            for category in sorted(sensitive):
+                errors.append(f"{rel}: {category}")
+        for category in sorted(_negative_fixture_boundary_diagnostics(boundary_document)):
             errors.append(f"{rel}: {category}")
         if document is not None:
             diagnostics |= _document_diagnostics(document)
