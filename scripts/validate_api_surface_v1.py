@@ -14,6 +14,7 @@ from machine_publication_policy import (
     COMPLETE,
     INVALID_UTF8,
     MALFORMED_SENTINEL,
+    NESTING_TOO_DEEP,
     TRAILING_CONTENT,
     JSONObject,
     MachineJSONResult,
@@ -30,7 +31,7 @@ SYNTHETIC_PREFIX = "example.invalid/helianthus/synthetic/"
 SCHEMA_REL = Path("api/schema/helianthus.eebus.api-surface.v1.schema.json")
 POSITIVE_REL = Path("api/fixtures/v1/positive")
 NEGATIVE_REL = Path("api/fixtures/v1/negative")
-SCHEMA_SHA256 = "08987ef7faabea579ccab4f5d296727ee1bab8e087607b467db024ceeea2bb65"
+SCHEMA_SHA256 = "2b428be8c662ff97ad263f5a469ef472fc7cc0d5be8ec530cae62d94bbed13a5"
 
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
 VALUE_KINDS = {"bool", "string", "int", "float", "complex"}
@@ -105,7 +106,11 @@ SYMBOL_FIELDS = {
         "allowed": {"kind", "name", "type", "signature"},
     },
 }
-REQUIRED_POSITIVE = {"packages-and-symbols.json", "kinds-types-signatures.json"}
+REQUIRED_POSITIVE = {
+    "canonical-go-rendering.json",
+    "kinds-types-signatures.json",
+    "packages-and-symbols.json",
+}
 EXPECTED_NEGATIVE_DIAGNOSTICS = {
     "duplicate-identity.json": frozenset({"duplicate symbol identity"}),
     "duplicate-json-key.json": frozenset({"duplicate key"}),
@@ -820,7 +825,7 @@ def _load_machine_json(
     if result.status == INVALID_UTF8:
         return result, raw, {"invalid UTF-8"}
     diagnostics = machine_publication_diagnostics(result)
-    if result.status != COMPLETE:
+    if result.status not in {COMPLETE, NESTING_TOO_DEEP}:
         diagnostics.add("malformed JSON")
     if result.status == TRAILING_CONTENT:
         diagnostics.add("machine publication boundary")

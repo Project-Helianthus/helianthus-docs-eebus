@@ -5,7 +5,7 @@
   "schema_version": 1,
   "title": "Helianthus eeBUS Go API surface v1",
   "description": "Closed deterministic representation and compatibility projection for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
-  "$comment": "Before emission, an AST-backed producer must prove Go syntax, ExactString and source-value correctness, constraints, aliases, dependency visibility, canonical spelling, import use and completeness, and semantic consistency. The producer emits a deterministic canonical qualifier for every imported package referenced by any type, constraint, signature, or value representation. The portable validator checks import structure, order, uniqueness, and paths plus representation and cross-field derivation only.",
+  "$comment": "Machine JSON has a portable maximum container depth of 64. Before emission, a Go 1.24-or-newer AST/type-backed producer applies the normative renderer in api/api-surface-v1.md and proves Go syntax, ExactString and source-value correctness, constraints, aliases, dependency visibility, import use and completeness, and semantic consistency. Qualifiers are allocated from declared package names and full import paths independently of source aliases and order. The portable validator checks import structure, order, uniqueness, and paths plus representation and cross-field derivation only.",
   "type": "object",
   "required": [
     "schema_id",
@@ -82,6 +82,7 @@
     },
     "packageImport": {
       "type": "object",
+      "description": "One exact canonical qualifier-to-full-path allocation produced by the normative package-name/path algorithm.",
       "required": [
         "qualifier",
         "path"
@@ -343,6 +344,7 @@
         },
         "imports": {
           "type": "array",
+          "description": "The complete used non-current package map after deterministic qualifier allocation, sorted by qualifier and path.",
           "items": {
             "$ref": "#/$defs/packageImport"
           }

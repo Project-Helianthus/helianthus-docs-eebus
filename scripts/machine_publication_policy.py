@@ -13,8 +13,10 @@ COMPLETE = "complete"
 MALFORMED_SENTINEL = "malformed-sentinel"
 INVALID_JSON = "invalid-json"
 INVALID_UTF8 = "invalid-utf8"
+NESTING_TOO_DEEP = "nesting-too-deep"
 TRAILING_CONTENT = "trailing-content"
 MALFORMED_SENTINEL_REMAINDER = "\n!\n"
+MAX_MACHINE_JSON_DEPTH = 64
 PRIVATE_IPV4_NETWORKS = (
     ((10, 0, 0, 0), 8),
     ((100, 64, 0, 0), 10),
@@ -45,16 +47,100 @@ FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f
 PORTABLE_DECIMAL_INTEGER_PATTERN = re.compile(r"[+-]?[0-9]+\Z")
 SECRET_PATTERN = re.compile(
     r"\b(?:token|password|passphrase|credential|secret|api[_ -]?key|"
-    r"client[_ -]?secret|serial[_ -]?number|account[_ -]?(?:id|identifier|data))"
+    r"client[_ -]?secret|private[_ -]?key|serial(?:[_ -]?number)?|"
+    r"account[_ -]?(?:id|identifier|data)|local[_ -]?identity|"
+    r"stable[_ -]?peer[_ -]?identifier|pairing[_ -]?history|"
+    r"(?:raw[_ -]+)?(?:ski|ship)(?:[_ -]*(?:id|identifier))?)"
     r"\s*[:=]",
+    re.IGNORECASE,
+)
+PEM_BLOCK_PATTERN = re.compile(
+    r"-----BEGIN [A-Z0-9 ][A-Z0-9 -]*-----",
+    re.IGNORECASE,
+)
+RAW_EEBUS_ID_PATTERN = re.compile(
+    r"`?\b(?:raw[_ -]+)?(?:ski|ship)(?:[_ -]*(?:id|identifier))?\b`?"
+    r"\s*(?::|=|\bis\b)?\s*`?[A-Za-z0-9][A-Za-z0-9._:-]{7,}`?",
+    re.IGNORECASE,
+)
+PRIVATE_ARTIFACT_PATTERN = re.compile(
+    r"\bprivate[_ -]+artifact[_ -]+"
+    r"(?:location|reference|filename|hash|identifier|retained)\s*[:=]",
     re.IGNORECASE,
 )
 HOUSEHOLD_PATTERN = re.compile(r"\bhousehold[_ -]+(?:data|schedule)\s*[:=]", re.IGNORECASE)
 RAW_EVIDENCE_PATTERN = re.compile(r"\braw[_ -]+evidence\s*[:=]", re.IGNORECASE)
 SOURCE_CONTAMINATION_PATTERN = re.compile(
-    r"\bvendor[_ -]restricted\b|\brestricted[ -]+source\b",
+    r"\bvendor[_ -]restricted\b|"
+    r"\brestricted[ -]+source\b|"
+    r"\brestricted[_ -]+(?:documents?|docs?)\b|"
+    r"\brestricted[_ -]+vendor[_ -]+"
+    r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
+    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
+    r"\bsource[_ -]+class\b[\"']?\s*[:=]\s*[\"']?restricted\b",
     re.IGNORECASE,
 )
+
+SENSITIVE_MACHINE_KEYS = {
+    "token",
+    "password",
+    "passphrase",
+    "credential",
+    "secret",
+    "api_key",
+    "client_secret",
+    "private_key",
+    "account_id",
+    "account_identifier",
+    "account_data",
+    "fingerprint",
+    "full_fingerprint",
+    "mac_address",
+    "serial",
+    "serial_number",
+    "local_identity",
+    "stable_peer_identifier",
+    "pairing_history",
+    "ski",
+    "skiid",
+    "ski_id",
+    "ski_identifier",
+    "ship",
+    "shipid",
+    "ship_id",
+    "ship_identifier",
+    "raw_ski",
+    "raw_skiid",
+    "raw_ski_id",
+    "raw_ski_identifier",
+    "raw_ship",
+    "raw_shipid",
+    "raw_ship_id",
+    "raw_ship_identifier",
+}
+PRIVATE_ARTIFACT_MACHINE_KEYS = {
+    "private_artifact_location",
+    "private_artifact_reference",
+    "private_artifact_filename",
+    "private_artifact_hash",
+    "private_artifact_identifier",
+    "private_artifact_retained",
+}
+HOUSEHOLD_MACHINE_KEYS = {"household_data", "household_schedule"}
+RAW_EVIDENCE_MACHINE_KEYS = {"raw_evidence"}
+RESTRICTED_MACHINE_KEYS = {
+    "restricted_document",
+    "restricted_documents",
+    "restricted_doc",
+    "restricted_docs",
+    "restricted_source",
+    "restricted_sources",
+    "restricted_vendor_document",
+    "restricted_vendor_documents",
+    "restricted_vendor_source",
+    "restricted_vendor_sources",
+    "vendor_restricted",
+}
 
 
 class JSONObject(dict[str, Any]):
@@ -94,6 +180,32 @@ def _tracked_object(pairs: list[tuple[str, Any]]) -> JSONObject:
 
 def _reject_constant(_: str) -> None:
     raise InvalidJSONConstantError
+
+
+def _exceeds_machine_json_depth(text: str) -> bool:
+    """Check container depth without recursively parsing attacker-controlled JSON."""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > MAX_MACHINE_JSON_DEPTH:
+                return True
+        elif char in "]}" and depth:
+            depth -= 1
+    return False
 
 
 def has_duplicate_key(value: Any) -> bool:
@@ -144,6 +256,16 @@ def decode_machine_json(
     except UnicodeDecodeError:
         return MachineJSONResult(INVALID_UTF8, None, None, "", False, ())
 
+    if _exceeds_machine_json_depth(text):
+        return MachineJSONResult(
+            NESTING_TOO_DEEP,
+            None,
+            text,
+            text,
+            False,
+            (),
+        )
+
     numeric_lexemes: list[str] = []
 
     def parse_integer(lexeme: str) -> int | UnrepresentableJSONNumber:
@@ -172,7 +294,14 @@ def decode_machine_json(
         start += 1
     try:
         document, end = decoder.raw_decode(text, start)
-    except (json.JSONDecodeError, InvalidJSONConstantError):
+    except (
+        json.JSONDecodeError,
+        InvalidJSONConstantError,
+        DecimalException,
+        OverflowError,
+        RecursionError,
+        ValueError,
+    ):
         return MachineJSONResult(
             INVALID_JSON,
             None,
@@ -253,6 +382,8 @@ def marker_diagnostics(
         diagnostics.add("private path")
     if (
         MAC_PATTERN.search(text)
+        or PEM_BLOCK_PATTERN.search(text)
+        or RAW_EEBUS_ID_PATTERN.search(text)
         or SECRET_PATTERN.search(text)
         or (
             scan_fingerprints
@@ -260,6 +391,8 @@ def marker_diagnostics(
         )
     ):
         diagnostics.add("private identifier")
+    if PRIVATE_ARTIFACT_PATTERN.search(text):
+        diagnostics.add("private path")
     if HOUSEHOLD_PATTERN.search(text):
         diagnostics.add("household data")
     if RAW_EVIDENCE_PATTERN.search(text):
@@ -380,6 +513,22 @@ def _decoded_marker_diagnostics(
         )
         for key, item in _object_pairs(value):
             diagnostics |= marker_diagnostics(key)
+            normalized_key = re.sub(r"[\s-]+", "_", key.strip().lower())
+            if normalized_key in SENSITIVE_MACHINE_KEYS:
+                diagnostics.add("private identifier")
+            if normalized_key in PRIVATE_ARTIFACT_MACHINE_KEYS:
+                diagnostics.add("private path")
+            if normalized_key in HOUSEHOLD_MACHINE_KEYS:
+                diagnostics.add("household data")
+            if normalized_key in RAW_EVIDENCE_MACHINE_KEYS:
+                diagnostics.add("raw evidence")
+            if normalized_key in RESTRICTED_MACHINE_KEYS or (
+                normalized_key == "source_class"
+                and isinstance(item, str)
+                and item.strip().lower().replace("-", "_").replace(" ", "_")
+                in {"restricted", "vendor_restricted"}
+            ):
+                diagnostics.add("source contamination")
             if isinstance(item, str) and key in exemptions:
                 diagnostics |= marker_diagnostics(
                     item,
@@ -397,12 +546,33 @@ def _decoded_marker_diagnostics(
 
 def machine_publication_diagnostics(result: MachineJSONResult) -> set[str]:
     text = result.text or ""
+    status_diagnostics = (
+        {"maximum nesting depth"} if result.status == NESTING_TOO_DEEP else set()
+    )
     if result.document is None:
-        return marker_diagnostics(text)
+        return status_diagnostics | marker_diagnostics(text)
 
-    diagnostics = marker_diagnostics(text, scan_fingerprints=False)
+    diagnostics = status_diagnostics | marker_diagnostics(
+        text,
+        scan_fingerprints=False,
+    )
     diagnostics |= _decoded_marker_diagnostics(result.document)
     for lexeme in result.numeric_lexemes:
         diagnostics |= marker_diagnostics(lexeme)
     diagnostics |= marker_diagnostics(result.remainder)
+
+    # A boundary-invalid tail can still contain complete escaped JSON strings,
+    # keys, duplicate values, or numbers. Decode each complete trailing value
+    # iteratively so publication policy cannot be bypassed with JSON escapes.
+    tail = result.remainder
+    while tail:
+        trailing = decode_machine_json(tail.encode("utf-8"))
+        if trailing.document is None:
+            break
+        diagnostics |= _decoded_marker_diagnostics(trailing.document)
+        for lexeme in trailing.numeric_lexemes:
+            diagnostics |= marker_diagnostics(lexeme)
+        if trailing.status == COMPLETE or len(trailing.remainder) >= len(tail):
+            break
+        tail = trailing.remainder
     return diagnostics

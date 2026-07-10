@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -18,6 +19,8 @@ from machine_publication_policy import (  # noqa: E402
     COMPLETE,
     INVALID_JSON,
     MALFORMED_SENTINEL,
+    MAX_MACHINE_JSON_DEPTH,
+    NESTING_TOO_DEEP,
     TRAILING_CONTENT,
     JSONObject,
     classify_ipv4,
@@ -64,6 +67,48 @@ def write_json(path: Path, document: Any) -> None:
 
 
 class MachinePublicationPolicyTests(unittest.TestCase):
+    def test_portable_depth_limit_precedes_recursive_decoding_and_walks(self) -> None:
+        shadowed = (
+            b'{"safe":"clean","safe":"peer '
+            b'\\u0031\\u0032\\u0037\\u002e0\\u002e0\\u002e1"}'
+        )
+        at_limit = (
+            b"[" * (MAX_MACHINE_JSON_DEPTH - 1)
+            + shadowed
+            + b"]" * (MAX_MACHINE_JSON_DEPTH - 1)
+        )
+        accepted = decode_machine_json(at_limit)
+        self.assertEqual(accepted.status, COMPLETE)
+        self.assertTrue(accepted.duplicate_keys)
+        self.assertEqual(machine_publication_diagnostics(accepted), {"private network"})
+
+        for depth in (MAX_MACHINE_JSON_DEPTH + 1, 2000):
+            with self.subTest(depth=depth):
+                result = decode_machine_json(
+                    b"[" * (depth - 1) + shadowed + b"]" * (depth - 1)
+                )
+                self.assertEqual(result.status, NESTING_TOO_DEEP)
+                self.assertFalse(result.duplicate_keys)
+                self.assertEqual(
+                    machine_publication_diagnostics(result),
+                    {"maximum nesting depth"},
+                )
+
+        braces_in_a_string = json.dumps("[" * 1000).encode("utf-8")
+        self.assertEqual(decode_machine_json(braces_in_a_string).status, COMPLETE)
+
+    def test_decoder_recursion_error_is_a_deterministic_invalid_json_result(self) -> None:
+        with mock.patch.object(
+            json.JSONDecoder,
+            "raw_decode",
+            side_effect=RecursionError,
+        ):
+            first = decode_machine_json(b'{"safe":true}')
+            second = decode_machine_json(b'{"safe":true}')
+        self.assertEqual(first, second)
+        self.assertEqual(first.status, INVALID_JSON)
+        self.assertEqual(machine_publication_diagnostics(first), set())
+
     def test_strict_decode_preserves_duplicate_key_occurrences(self) -> None:
         result = decode_machine_json(b'{"key":"first","key":"second"}\n')
         self.assertEqual(result.status, COMPLETE)
@@ -219,6 +264,49 @@ class MachinePublicationPolicyTests(unittest.TestCase):
         self.assertEqual(result.status, COMPLETE)
         self.assertEqual(machine_publication_diagnostics(result), {"private network"})
 
+    def test_machine_policy_covers_markdown_credential_and_source_categories(self) -> None:
+        cases = (
+            ({"private_key": "synthetic"}, "private identifier"),
+            ({"credential": "synthetic"}, "private identifier"),
+            ({"note": "-----BEGIN CERTIFICATE-----"}, "private identifier"),
+            ({"note": "00:11:22:33:44:55"}, "private identifier"),
+            ({"note": "E" * 40}, "private identifier"),
+            ({"local_identity": "synthetic"}, "private identifier"),
+            ({"stable peer identifier": "synthetic"}, "private identifier"),
+            ({"pairing-history": "synthetic"}, "private identifier"),
+            ({"raw_ski_id": "synthetic"}, "private identifier"),
+            ({"SHIPID": "synthetic"}, "private identifier"),
+            ({"raw SKIID": "synthetic"}, "private identifier"),
+            ({"note": "raw SHIP ID is ABCDEFGH"}, "private identifier"),
+            ({"note": "/home/synthetic/private.json"}, "private path"),
+            ({"private_artifact_reference": "redacted"}, "private path"),
+            ({"private_artifact_retained": "private-store"}, "private path"),
+            ({"note": "peer fd00::1"}, "network address"),
+            ({"restricted_document": "synthetic"}, "source contamination"),
+            ({"note": "restricted-document"}, "source contamination"),
+            ({"note": "restricted vendor documents"}, "source contamination"),
+            ({"note": "paraphrased from restricted material"}, "source contamination"),
+            ({"source_class": "restricted"}, "source contamination"),
+            ({"source-class": "vendor-restricted"}, "source contamination"),
+        )
+        for document, category in cases:
+            with self.subTest(document=document):
+                result = decode_machine_json(json.dumps(document).encode("utf-8"))
+                self.assertIn(category, machine_publication_diagnostics(result))
+
+    def test_escaped_keys_duplicates_and_trailing_values_cannot_bypass_policy(self) -> None:
+        raw = (
+            b'{"pass\\u0077ord":"first","pass\\u0077ord":"second"}'
+            b' {"source_cl\\u0061ss":"restr\\u0069cted"}'
+        )
+        result = decode_machine_json(raw)
+        self.assertEqual(result.status, TRAILING_CONTENT)
+        self.assertTrue(result.duplicate_keys)
+        self.assertEqual(
+            machine_publication_diagnostics(result),
+            {"private identifier", "source contamination"},
+        )
+
     def test_exact_decimal_integer_value_and_derived_signature_exempt_only_fingerprint(self) -> None:
         for value in ("1" * 41, "+" + "2" * 101, "-" + "3" * 101):
             with self.subTest(value=value[:2]):
@@ -368,6 +456,47 @@ class MachinePublicationPolicyTests(unittest.TestCase):
             self.assertEqual(policy.returncode, 1, policy.stderr)
             self.assertIn(expected, api.stderr)
             self.assertIn(expected, policy.stderr)
+
+    def test_both_validators_reject_escaped_keys_shadowed_values_and_tails(self) -> None:
+        mutations = (
+            (
+                lambda text: text.replace(
+                    "{\n",
+                    '{\n  "pass\\u0077ord": "synthetic",\n',
+                    1,
+                ),
+                "private identifier",
+            ),
+            (
+                lambda text: text.replace(
+                    '"name": "TypedLimit",',
+                    '"name": "TypedLimit",\n          "name": "private\\u005fkey: synthetic",',
+                    1,
+                ),
+                "private identifier",
+            ),
+            (
+                lambda text: text
+                + '\n{"source_cl\\u0061ss":"restr\\u0069cted"}\n',
+                "source contamination",
+            ),
+        )
+        for mutate, category in mutations:
+            with self.subTest(category=category), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / POSITIVE_REL
+                artifact.write_text(
+                    mutate(artifact.read_text(encoding="utf-8")),
+                    encoding="utf-8",
+                )
+                for result in (run(API_VALIDATOR, repo), run(POLICY_VALIDATOR, repo)):
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(
+                        f"{POSITIVE_REL.as_posix()}: {category}",
+                        result.stderr,
+                    )
+                    self.assertNotIn("synthetic", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
 
     def test_repository_policy_rejects_second_values_and_escaped_tails(self) -> None:
         for tail in ("{}\n", "\\u0021\n", '"\\u0021"\n'):

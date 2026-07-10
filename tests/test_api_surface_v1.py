@@ -24,6 +24,7 @@ from validate_api_surface_v1 import (  # noqa: E402
     compatibility_projection,
     document_diagnostics,
 )
+from machine_publication_policy import MAX_MACHINE_JSON_DEPTH  # noqa: E402
 
 
 POLICY_VALIDATOR = SCRIPTS / "validate_repository_policy.py"
@@ -39,6 +40,7 @@ SCHEMA_URI = "urn:helianthus:eebus:api-surface:v1"
 SCHEMA_VERSION = 1
 SYNTHETIC_PACKAGE_PREFIX = "example.invalid/helianthus/synthetic/"
 REQUIRED_POSITIVE_FIXTURES = {
+    "canonical-go-rendering.json",
     "packages-and-symbols.json",
     "kinds-types-signatures.json",
 }
@@ -69,6 +71,7 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
+    "canonical-go-rendering.json": "c15cde56b680875ede7043686b5b0b07d8f1210b853ac7b46f5971339be0d50a",
     "kinds-types-signatures.json": "8891fe5afa1c8214cb8d9b6f46f4bfa090aa97293007188f422cab32899f0c8b",
     "packages-and-symbols.json": "6c5784c4295dae25e241c05fa4918386bedfc9f0d4f212e56facd78c7cfd6ba4",
 }
@@ -397,6 +400,16 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "every original numeric token spelling",
             "fingerprinting occurs only after validation has accepted `schema_version` as the exact json integer token `1`",
             "alternate numeric spellings such as `1.0` and `1e0` fail validation and are not canonicalized for fingerprinting",
+            "portable maximum machine-document nesting depth is 64 containers",
+            "parameter and result names are always omitted",
+            "source aliases, dot imports, file order, and import declaration order are ignored",
+            "reserve `_`, every name in `types.universe`",
+            "named.nummethods",
+            "promoted methods are not emitted",
+            "receiver.type_parameters` contains the base declaration names in order",
+            "substitution map keyed by `*types.typeparam` object identity",
+            "render the qualifier allocated to import path `unsafe`",
+            "func normalize[t interface{ ~string \\| ~int }](left.value, right.value, ...t) (t, error)",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
@@ -631,6 +644,60 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             self.assertIn(receiver["base"], types)
             self.assertEqual(len(receiver["type_parameters"]), len(types[receiver["base"]]["type_parameters"]))
             self.assertEqual(method["signature"], derive_signature(method))
+
+    def test_canonical_go_rendering_golden_vectors_are_pinned(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "canonical-go-rendering.json")
+        package = document["packages"][0]
+        self.assertEqual(
+            package["imports"],
+            [
+                {
+                    "qualifier": "shared",
+                    "path": SYNTHETIC_PACKAGE_PREFIX + "collision/a",
+                },
+                {
+                    "qualifier": "shared_2",
+                    "path": SYNTHETIC_PACKAGE_PREFIX + "collision/b",
+                },
+            ],
+        )
+        normalize = find_symbol(document, "func", "Normalize")
+        self.assertEqual(
+            normalize["type"],
+            "func(shared.Value, shared_2.Value, ...T) (T, error)",
+        )
+        self.assertNotIn("left.", normalize["signature"])
+        self.assertNotIn("right.", normalize["signature"])
+
+        aggregate = find_symbol(document, "type", "Aggregate")
+        for vector in (
+            "Embedded",
+            "[3][]map[string]chan<- shared.Item",
+            "<-chan shared_2.Value",
+            "chan T",
+            "func(shared.Value, ...T) (T, error)",
+        ):
+            with self.subTest(vector=vector):
+                self.assertIn(vector, aggregate["type"])
+
+        contract = find_symbol(document, "type", "Contract")
+        self.assertEqual(
+            contract["type"],
+            "interface{ Compare(shared.Value) bool; Embedded; Transform(func(T) T) (T, error) }",
+        )
+        alias = find_symbol(document, "type", "Alias")
+        self.assertEqual((alias["type_form"], alias["type"]), ("alias", "*Aggregate[T]"))
+        method = find_symbol(document, "method", "Apply")
+        self.assertEqual(
+            method["receiver"],
+            {"base": "Aggregate", "pointer": True, "type_parameters": ["T"]},
+        )
+        self.assertEqual(
+            method["type"],
+            "func(shared.Value, ...T) (T, <-chan shared_2.Value)",
+        )
+        for symbol in package["symbols"]:
+            self.assertEqual(symbol["signature"], derive_signature(symbol))
 
     def test_positive_packages_and_symbols_are_canonically_ordered(self) -> None:
         for path in positive_paths():
@@ -1443,6 +1510,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "1" + "0" * 39 + "e-39",
             "1e" + "9" * 40,
             "1e-" + "9" * 40,
+            "9" * 5000,
         )
         for token in tokens:
             with self.subTest(token=token[:12]), tempfile.TemporaryDirectory() as tmp:
@@ -1467,6 +1535,89 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                     self.assertIn("private identifier", result.stderr)
                     self.assertNotIn("Traceback", result.stderr)
                     self.assertNotIn(token, result.stderr)
+
+    def test_depth_failures_match_in_both_validators_and_document_modes(self) -> None:
+        shadowed = (
+            b'{"pass\\u0077ord":"depth-secret-value",'
+            b'"pass\\u0077ord":"shadowed-secret-value"}'
+        )
+        for depth in (MAX_MACHINE_JSON_DEPTH + 1, 2000):
+            with self.subTest(depth=depth), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = repo / POSITIVE_FIXTURES.relative_to(REPO) / "packages-and-symbols.json"
+                target.write_bytes(
+                    b"[" * (depth - 1) + shadowed + b"]" * (depth - 1)
+                )
+                results = (
+                    run_validator(repo),
+                    run_policy_validator(repo),
+                    run_document_validator(target),
+                    run_document_validator(target, corpus=True),
+                )
+                expected_suffix = ": maximum nesting depth"
+                for result in results:
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    matching = [
+                        line
+                        for line in result.stderr.splitlines()
+                        if line.endswith(expected_suffix)
+                    ]
+                    self.assertEqual(len(matching), 1, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertNotIn("depth-secret-value", result.stderr)
+                    self.assertNotIn("shadowed-secret-value", result.stderr)
+
+    def test_depth_limit_is_identical_across_validators_and_document_modes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / positive_paths()[0].relative_to(REPO)
+            document = load_json_strict(target)
+            nested: Any = 0
+            for _ in range(MAX_MACHINE_JSON_DEPTH - 1):
+                nested = [nested]
+            document["extension"] = nested
+            write_json(target, document)
+
+            at_limit = (
+                run_validator(repo),
+                run_policy_validator(repo),
+                run_document_validator(target),
+                run_document_validator(target, corpus=True),
+            )
+            for result in at_limit:
+                self.assertNotIn("maximum nesting depth", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+        for depth in (MAX_MACHINE_JSON_DEPTH + 1, 2000):
+            with self.subTest(depth=depth), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = repo / positive_paths()[0].relative_to(REPO)
+                target.write_bytes(b"[" * depth + b"0" + b"]" * depth)
+                results = (
+                    run_validator(repo),
+                    run_policy_validator(repo),
+                    run_document_validator(target),
+                    run_document_validator(target, corpus=True),
+                )
+                for result in results:
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("maximum nesting depth", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+                self.assertEqual(
+                    run_validator(repo).stderr,
+                    f"{target.relative_to(repo).as_posix()}: maximum nesting depth\n",
+                )
+                self.assertEqual(
+                    run_policy_validator(repo).stderr,
+                    f"{target.relative_to(repo).as_posix()}: maximum nesting depth\n",
+                )
+                expected_document_error = f"{target.name}: maximum nesting depth\n"
+                self.assertEqual(run_document_validator(target).stderr, expected_document_error)
+                self.assertEqual(
+                    run_document_validator(target, corpus=True).stderr,
+                    expected_document_error,
+                )
 
     def test_validator_rejects_boolean_version_ambiguity(self) -> None:
         self.assert_mutation_rejected(
@@ -1496,7 +1647,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
     def test_failure_diagnostics_are_repeatable_path_only_and_value_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
-            target = repo / positive_paths()[0].relative_to(REPO)
+            target = repo / POSITIVE_FIXTURES.relative_to(REPO) / "kinds-types-signatures.json"
             document = load_json_strict(target)
             sensitive = "/Users/" + "diagnostic-secret/private.go"
             symbol = find_symbol(document, "const")
