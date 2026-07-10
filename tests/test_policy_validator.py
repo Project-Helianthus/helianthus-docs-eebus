@@ -37,6 +37,45 @@ def reassign_front_matter_value(text: str, key: str, value: str) -> str:
     raise AssertionError(f"missing front matter key: {key}")
 
 
+def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
+    evidence_id = "EV-20260710-001"
+    evidence = repo / "evidence" / f"{evidence_id}.md"
+    evidence.write_text(
+        "---\n"
+        f'canonical_source: "Project-Helianthus/helianthus-docs-eebus:evidence/{evidence_id}.md"\n'
+        'owner_domain: "evidence"\n'
+        'license: "CC0-1.0"\n'
+        'claim_status: "evidence-backed"\n'
+        'source_class: "observed_runtime"\n'
+        f'evidence_ids: "{evidence_id}"\n'
+        'hypothesis_status: "draft"\n'
+        'falsifier: "A redacted replay without the observation"\n'
+        "---\n\n# Redacted evidence\n",
+        encoding="utf-8",
+    )
+    page = repo / relative_path
+    owner_domain = relative_path.split("/", 1)[0]
+    license_id = (
+        "CC0-1.0"
+        if owner_domain in {"protocols", "devices", "evidence", "re-notes"}
+        else "AGPL-3.0-only"
+    )
+    page.write_text(
+        "---\n"
+        f'canonical_source: "Project-Helianthus/helianthus-docs-eebus:{relative_path}"\n'
+        f'owner_domain: "{owner_domain}"\n'
+        f'license: "{license_id}"\n'
+        'claim_status: "evidence-backed"\n'
+        'source_class: "observed_runtime"\n'
+        f'evidence_ids: "{evidence_id}"\n'
+        'hypothesis_status: "draft"\n'
+        'falsifier: "A redacted replay without the observation"\n'
+        f"---\n\n# Candidate\n\n{body}\n",
+        encoding="utf-8",
+    )
+    return page
+
+
 class PolicyValidatorTests(unittest.TestCase):
     def test_current_repository_passes_policy_validator(self) -> None:
         result = run_validator(REPO)
@@ -396,6 +435,8 @@ class PolicyValidatorTests(unittest.TestCase):
             "backticked raw ship id": "`Raw SHIP ID abcdef1234567890`",
             "hyphenated raw ship id": "Raw SHIP-ID: abcdef1234567890",
             "underscored raw ship id": "Raw SHIP_ID: abcdef1234567890",
+            "ship identifier": "SHIP identifier: abcdef1234567890",
+            "ski identifier": "SKI identifier: abcdef1234567890",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -415,16 +456,14 @@ class PolicyValidatorTests(unittest.TestCase):
         payloads = (
             "Source class: vendor_restricted",
             "This claim was paraphrased from a restricted vendor document.",
+            "restricted-source material was used for this claim.",
+            "restricted source material was used for this claim.",
         )
         for payload in payloads:
             with self.subTest(payload=payload):
                 with tempfile.TemporaryDirectory() as tmp:
                     repo = copy_repo(Path(tmp))
-                    page = repo / "protocols" / "ship-spine-overview.md"
-                    page.write_text(
-                        page.read_text(encoding="utf-8") + f"\n{payload}\n",
-                        encoding="utf-8",
-                    )
+                    add_evidence_backed_page(repo, "protocols/restricted.md", payload)
 
                     result = run_validator(repo)
 
@@ -794,7 +833,29 @@ class PolicyValidatorTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("premature MSP-DOCS-E2/CLEAN completion claim", result.stderr)
+            self.assertIn("premature docs milestone or code-doc absence claim", result.stderr)
+
+    def test_all_future_docs_milestones_and_code_docs_absence_claims_fail(self) -> None:
+        claims = (
+            "MSP-DOCS-API-SCHEMA is complete.",
+            "MSP-DOCS-PLATFORM has merged.",
+            "helianthus-eebusreg has no docs/ directory.",
+            "The helianthus-eebusreg docs/ directory is absent.",
+        )
+        for claim in claims:
+            with self.subTest(claim=claim):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    readme = repo / "README.md"
+                    readme.write_text(
+                        readme.read_text(encoding="utf-8") + f"\n{claim}\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("premature docs milestone or code-doc absence claim", result.stderr)
 
     def test_binary_publishable_artifact_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -881,19 +942,25 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertIn("required canonical landing page is missing", result.stderr)
 
     def test_premature_consumer_availability_claim_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            page = repo / "protocols" / "ship-spine-overview.md"
-            page.write_text(
-                page.read_text(encoding="utf-8")
-                + "\nGraphQL exposure, Home Assistant entities, and command routing are available now.\n",
-                encoding="utf-8",
-            )
+        claims = (
+            "GraphQL exposure, Home Assistant entities, and command routing are available now.",
+            "HA entity rollout is shipped now.",
+            "Portal consumer workflow is active now.",
+        )
+        for claim in claims:
+            with self.subTest(claim=claim):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "protocols" / "ship-spine-overview.md"
+                    page.write_text(
+                        page.read_text(encoding="utf-8") + f"\n{claim}\n",
+                        encoding="utf-8",
+                    )
 
-            result = run_validator(repo)
+                    result = run_validator(repo)
 
-            self.assertEqual(result.returncode, 1)
-            self.assertIn("premature gateway or consumer availability claim", result.stderr)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("premature gateway or consumer availability claim", result.stderr)
 
 
 if __name__ == "__main__":

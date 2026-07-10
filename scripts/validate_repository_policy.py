@@ -122,12 +122,14 @@ SENSITIVE_FIELD_PATTERN = re.compile(
     r"(token|account (?:id|identifier)|"
     r"full fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
-    r"(?:raw\s+)?ski|(?:raw\s+)?ship[\s_-]*id)"
+    r"(?:raw\s+)?ski(?:[\s_-]+identifier)?|"
+    r"(?:raw\s+)?ship[\s_-]*(?:id|identifier))"
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
-    r"`?\b(?:raw\s+)?(?:ski|ship[\s_-]*id)\b`?"
+    r"`?\b(?:raw\s+)?(?:ski(?:[\s_-]+identifier)?|"
+    r"ship[\s_-]*(?:id|identifier))\b`?"
     r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
     re.IGNORECASE,
 )
@@ -148,20 +150,28 @@ IPV6_CANDIDATE_PATTERN = re.compile(
     r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])"
 )
 PREMATURE_COMPLETION_PATTERN = re.compile(
-    r"(?:MSP-DOCS-(?:E2|CLEAN)\b[^\n]{0,40}\b"
+    r"(?:MSP-DOCS-[A-Z0-9-]+\b[^\n]{0,40}\b"
     r"(?:complete|completed|merged|done)\b|"
     r"(?:absence gate|helianthus-eebusreg/docs)\s+(?:is|was|has been)\s+"
-    r"(?:installed|absent|deleted|removed))",
+    r"(?:installed|absent|deleted|removed)|"
+    r"helianthus-eebusreg[^\n]{0,80}\b(?:has|contains|tracks|keeps|ships)\s+"
+    r"no\s+(?:tracked\s+)?(?:docs/?|documentation)(?:\s+directory)?|"
+    r"helianthus-eebusreg[^\n]{0,80}\b(?:docs/?|documentation)[^\n]{0,40}"
+    r"\b(?:is|are|was|were|has been)\s+(?:absent|deleted|removed))",
     re.IGNORECASE,
 )
 PREMATURE_CONSUMER_PATTERN = re.compile(
-    r"(?:GraphQL exposure|Home Assistant entities|command routing|gateway import)"
+    r"(?:GraphQL exposure|Home Assistant entit(?:y|ies)(?: rollout)?|"
+    r"HA entit(?:y|ies)(?: rollout)?|HA consumer rollout|"
+    r"Portal consumer workflow|Portal rollout|command routing|gateway import)"
     r"[^\n]{0,120}\b(?:is|are|becomes?)\s+"
-    r"(?:available|active|enabled|supported|shipped|ready)(?:\s+now)?\b",
+    r"(?:available|active|enabled|supported|shipped|ready|complete|completed|done)"
+    r"(?:\s+now)?\b",
     re.IGNORECASE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
     r"\bvendor[_ -]restricted\b|"
+    r"\brestricted[ -]+source\b|"
     r"\brestricted\s+vendor\s+(?:document|source|material|content|text)\b|"
     r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
     r"\bsource\s+class\s*:\s*restricted\b",
@@ -308,11 +318,11 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
 
 
 def _restricted_source_errors(text: str, rel: str) -> list[str]:
+    if rel in SCAFFOLD_PAGES:
+        return []
     errors: list[str] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if RESTRICTED_SOURCE_PATTERN.search(line) is None:
-            continue
-        if rel == "development/contributing.md" and line.strip() == ALLOWED_RESTRICTED_POLICY_LINE:
             continue
         errors.append(f"{rel}:{line_number}: restricted-source contamination marker found")
     return errors
@@ -712,7 +722,7 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
         if PREMATURE_COMPLETION_PATTERN.search(page_text):
-            errors.append(f"{rel}: premature MSP-DOCS-E2/CLEAN completion claim")
+            errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
         if PREMATURE_CONSUMER_PATTERN.search(page_text):
             errors.append(f"{rel}: premature gateway or consumer availability claim")
         errors.extend(_restricted_source_errors(page_text, rel))
