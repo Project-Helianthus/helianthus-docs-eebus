@@ -460,6 +460,18 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
 
+    def test_concatenated_identity_labels_fail_on_evidence_backed_page(self) -> None:
+        for payload in ("SHIPID: abcdef1234567890", "Raw SKIID: abcdef1234567890"):
+            with self.subTest(payload=payload):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    add_evidence_backed_page(repo, "protocols/candidate.md", payload)
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("populated", result.stderr)
+
     def test_restricted_source_contamination_fails(self) -> None:
         payloads = (
             "Source class: vendor_restricted",
@@ -813,6 +825,27 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("content differs from the reviewed CI entrypoint", result.stderr)
+
+    def test_license_artifact_is_hash_locked(self) -> None:
+        payloads = (
+            "This claim was paraphrased from restricted vendor docs.",
+            "Serial number: DEVICE-123456",
+            "MAC address: 00:11:22:33:44:55",
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    license_file = repo / "LICENSE"
+                    license_file.write_text(
+                        license_file.read_text(encoding="utf-8") + f"\n{payload}\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("content differs from the reviewed license policy", result.stderr)
 
     def test_issue_form_types_and_options_are_enforced(self) -> None:
         mutations = {

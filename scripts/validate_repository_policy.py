@@ -70,6 +70,7 @@ EVIDENCE_SOURCE_CLASSES = {
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
 CI_LOCAL_SHA256 = "137edf5c0e68433f10c4740c6c4ac06d6c283466d3d42577211fe60f511aa71e"
+LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
     "I have read the repository license policy and I accept the Helianthus "
@@ -119,7 +120,7 @@ PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 EEBUS_ID_LABEL_PATTERN = (
-    r"(?:(?:ski|ship)(?:[\s_-]+(?:id|identifier))?)"
+    r"(?:(?:ski|ship)(?:[\s_-]*(?:id|identifier))?)"
 )
 SENSITIVE_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?"
@@ -415,6 +416,8 @@ def check_repository(root: Path) -> list[str]:
         errors.append("LICENSE: missing repository license policy")
     elif license_file not in symlinks:
         text = _read(license_file)
+        if hashlib.sha256(text.encode("utf-8")).hexdigest() != LICENSE_SHA256:
+            errors.append("LICENSE: content differs from the reviewed license policy")
         for required in [
             "CC0-1.0",
             "AGPL-3.0-only",
