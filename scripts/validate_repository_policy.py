@@ -7,6 +7,8 @@ import re
 import sys
 from pathlib import Path
 
+import yaml
+
 REPO_ID = "Project-Helianthus/helianthus-docs-eebus"
 VALID_OWNER = "@d3vi1"
 
@@ -38,7 +40,7 @@ PRIVATE_NETS = [
 
 PLATFORM_LINK_PATTERN = re.compile(
     r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
-    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)(?=[#?)\s]|$)"
+    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)(?=[#?)>\s]|$)"
 )
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
@@ -162,39 +164,112 @@ def check_repository(root: Path) -> list[str]:
             if not rule or rule.startswith("#"):
                 continue
             active_rules.append(rule.split())
-        if not any(
-            fields[0] == "*" and VALID_OWNER in fields[1:]
+        broad_rules = [
+            fields
             for fields in active_rules
-            if fields
-        ):
+            if fields and fields[0] in {"*", "/**", "/"}
+        ]
+        if not broad_rules or VALID_OWNER not in broad_rules[-1][1:]:
             errors.append(f".github/CODEOWNERS: must assign default ownership to {VALID_OWNER}")
 
     issue_template = root / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
     if not issue_template.exists():
         errors.append(".github/ISSUE_TEMPLATE/docs_task.yml: missing standard documentation issue template")
     elif issue_template not in symlinks:
-        text = _read(issue_template)
-        for required in [
-            "What",
-            "Why",
-            "Acceptance Criteria",
-            "Ownership domain",
-            "Provenance",
-            "Smoke test required",
-            "Licensing acknowledgement",
-        ]:
-            if required not in text:
-                errors.append(f".github/ISSUE_TEMPLATE/docs_task.yml: missing {required!r}")
+        try:
+            form = yaml.safe_load(_read(issue_template))
+        except yaml.YAMLError as error:
+            errors.append(f".github/ISSUE_TEMPLATE/docs_task.yml: invalid YAML: {error}")
+            form = None
+        body = form.get("body") if isinstance(form, dict) else None
+        fields = {
+            item.get("id"): item
+            for item in body or []
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        }
+        required_fields = {
+            "what": "What",
+            "why": "Why",
+            "ownership_domain": "Ownership domain",
+            "acceptance": "Acceptance Criteria",
+            "provenance": "Provenance",
+            "dependencies": "Dependencies",
+            "smoke_test": "Smoke test required",
+            "licensing_ack": "Licensing acknowledgement",
+        }
+        for field_id, label in required_fields.items():
+            item = fields.get(field_id)
+            attributes = item.get("attributes") if isinstance(item, dict) else None
+            if not isinstance(attributes, dict) or attributes.get("label") != label:
+                errors.append(
+                    f".github/ISSUE_TEMPLATE/docs_task.yml: missing field {field_id!r} with label {label!r}"
+                )
+        for field_id in {
+            "what",
+            "why",
+            "ownership_domain",
+            "acceptance",
+            "smoke_test",
+        }:
+            item = fields.get(field_id)
+            validations = item.get("validations") if isinstance(item, dict) else None
+            if not isinstance(validations, dict) or validations.get("required") is not True:
+                errors.append(
+                    f".github/ISSUE_TEMPLATE/docs_task.yml: field {field_id!r} must be required"
+                )
+        licensing_item = fields.get("licensing_ack")
+        licensing_attributes = (
+            licensing_item.get("attributes") if isinstance(licensing_item, dict) else None
+        )
+        licensing_options = (
+            licensing_attributes.get("options")
+            if isinstance(licensing_attributes, dict)
+            else None
+        )
+        if not isinstance(licensing_options, list) or not any(
+            isinstance(option, dict) and option.get("required") is True
+            for option in licensing_options
+        ):
+            errors.append(
+                ".github/ISSUE_TEMPLATE/docs_task.yml: licensing acknowledgement must be required"
+            )
 
     workflow = root / ".github" / "workflows" / "docs-ci.yml"
     if not workflow.exists():
         errors.append(".github/workflows/docs-ci.yml: missing GitHub Actions docs CI")
     elif workflow not in symlinks:
-        workflow_text = _read(workflow)
-        if "./scripts/ci_local.sh" not in workflow_text:
-            errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh")
-        if re.search(r"^\s+paths(?:-ignore)?:\s*$", workflow_text, re.MULTILINE):
-            errors.append(".github/workflows/docs-ci.yml: path filters are forbidden")
+        try:
+            workflow_data = yaml.safe_load(_read(workflow))
+        except yaml.YAMLError as error:
+            errors.append(f".github/workflows/docs-ci.yml: invalid YAML: {error}")
+            workflow_data = None
+        triggers = workflow_data.get("on") if isinstance(workflow_data, dict) else None
+        if not isinstance(triggers, dict) or "pull_request" not in triggers:
+            errors.append(".github/workflows/docs-ci.yml: pull_request trigger is required")
+        else:
+            for trigger_name in ("pull_request", "push"):
+                trigger = triggers.get(trigger_name)
+                if isinstance(trigger, dict) and any(
+                    key in trigger for key in ("paths", "paths-ignore")
+                ):
+                    errors.append(".github/workflows/docs-ci.yml: path filters are forbidden")
+        jobs = workflow_data.get("jobs") if isinstance(workflow_data, dict) else None
+        run_commands = []
+        if isinstance(jobs, dict):
+            for job in jobs.values():
+                if not isinstance(job, dict) or not isinstance(job.get("steps"), list):
+                    continue
+                for step in job["steps"]:
+                    if isinstance(step, dict) and isinstance(step.get("run"), str):
+                        run_commands.append(step["run"].strip())
+        if "./scripts/ci_local.sh" not in run_commands:
+            errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh exactly")
+
+    requirements = root / "requirements-ci.txt"
+    if requirements in symlinks or not requirements.exists():
+        errors.append("requirements-ci.txt: missing pinned validator dependencies")
+    elif _read(requirements).splitlines() != ["PyYAML==6.0.3"]:
+        errors.append("requirements-ci.txt: expected exact PyYAML==6.0.3 pin")
 
     readme_path = root / "README.md"
     contributing_path = root / "development" / "contributing.md"
@@ -275,7 +350,7 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
             atx_headings = {
                 match.group(1)
-                for match in re.finditer(r"^##+\s+(.+?)\s*$", page_text, re.MULTILINE)
+                for match in re.finditer(r"^#+\s+(.+?)\s*$", page_text, re.MULTILINE)
             }
             setext_headings = {
                 match.group(1)

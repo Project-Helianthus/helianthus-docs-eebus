@@ -56,6 +56,7 @@ if failed:
 PY
 
 echo "==> validate repository ownership policy"
+python3 -c 'import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__'
 python3 scripts/validate_repository_policy.py
 
 echo "==> run policy validator tests"

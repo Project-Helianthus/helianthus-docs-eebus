@@ -136,6 +136,20 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("must assign default ownership", result.stderr)
 
+    def test_later_codeowners_default_override_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            codeowners = repo / ".github" / "CODEOWNERS"
+            codeowners.write_text(
+                codeowners.read_text(encoding="utf-8") + "* @someoneelse\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("must assign default ownership", result.stderr)
+
     def test_symlinked_markdown_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -196,6 +210,36 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("platform-owned headings", result.stderr)
+
+    def test_cross_seed_cannot_use_h1_platform_heading(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices" / "vr940f.md"
+            page.write_text(
+                page.read_text(encoding="utf-8") + "\n# Requirements\n\n- duplicated\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("platform-owned headings", result.stderr)
+
+    def test_platform_autolink_requires_cross_seed_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "ship-spine-overview.md"
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "\n<https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "blob/main/docs/platform/eebus-raw-first-contract.md>\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("cross_seed_target must match", result.stderr)
 
     def test_platform_link_suffix_must_be_exact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -270,6 +314,56 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("path filters are forbidden", result.stderr)
+
+    def test_workflow_semantic_bypasses_fail(self) -> None:
+        mutations = {
+            "fake command": lambda text: text.replace(
+                "run: ./scripts/ci_local.sh",
+                "run: echo docs-only # ./scripts/ci_local.sh",
+                1,
+            ),
+            "inline paths": lambda text: text.replace(
+                "  pull_request:\n",
+                "  pull_request: {paths: ['**/*.md']}\n",
+                1,
+            ),
+            "inline paths-ignore": lambda text: text.replace(
+                "  pull_request:\n",
+                "  pull_request: {paths-ignore: ['**/*.txt']}\n",
+                1,
+            ),
+            "missing trigger": lambda text: text.replace("  pull_request:\n", "", 1),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    workflow = repo / ".github" / "workflows" / "docs-ci.yml"
+                    workflow.write_text(
+                        mutate(workflow.read_text(encoding="utf-8")),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+
+    def test_issue_form_keyword_stuffing_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            template = repo / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
+            template.write_text(
+                "name: Documentation task\n"
+                "description: What Why Acceptance Criteria Ownership domain Provenance "
+                "Dependencies Smoke test required Licensing acknowledgement\n"
+                "body: []\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("missing field", result.stderr)
 
 
 if __name__ == "__main__":
