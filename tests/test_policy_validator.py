@@ -364,6 +364,23 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("private artifact location/reference field is forbidden", result.stderr)
 
+    def test_private_artifact_metadata_fields_fail(self) -> None:
+        for field in ("filename", "hash", "identifier"):
+            with self.subTest(field=field):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "re-notes" / "template.md"
+                    page.write_text(
+                        page.read_text(encoding="utf-8")
+                        + f"\nPrivate artifact {field}: redacted\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("private artifact location/reference field is forbidden", result.stderr)
+
     def test_sensitive_payload_patterns_fail_in_any_publishable_page(self) -> None:
         cases = {
             "private artifact": "Private artifact location: /tmp/operator/capture.json",
@@ -515,6 +532,20 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("populated sensitive field", result.stderr)
             self.assertIn("MAC address found", result.stderr)
+
+    def test_ipv6_address_fails_in_publishable_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "evidence" / "evidence-template.md"
+            page.write_text(
+                page.read_text(encoding="utf-8") + "\nAddress: fe80::1234%en0\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("IPv6 address found", result.stderr)
 
     def test_private_artifact_retained_value_cannot_smuggle_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

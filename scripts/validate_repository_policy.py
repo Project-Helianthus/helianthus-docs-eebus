@@ -109,7 +109,8 @@ FULL_FINGERPRINT_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
 )
 PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private artifact (?:location|reference)\s*:",
+    r"^\s*(?:[-*]\s*)?private artifact "
+    r"(?:location|reference|filename|hash|identifier)\s*:",
     re.IGNORECASE | re.MULTILINE,
 )
 PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
@@ -141,6 +142,10 @@ SAFE_RETAINED_VALUE_PATTERN = re.compile(
 PRIVATE_PATH_PATTERN = re.compile(
     r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
+)
+IPV6_CANDIDATE_PATTERN = re.compile(
+    r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
+    r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])"
 )
 PREMATURE_COMPLETION_PATTERN = re.compile(
     r"(?:MSP-DOCS-(?:E2|CLEAN)\b[^\n]{0,40}\b"
@@ -289,6 +294,16 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
         if any(addr in net for net in PRIVATE_NETS):
             line = text.count("\n", 0, match.start()) + 1
             errors.append(f"{rel}:{line}: private IPv4 address found")
+    for match in IPV6_CANDIDATE_PATTERN.finditer(text):
+        candidate = match.group(0)
+        address = candidate.split("%", 1)[0]
+        try:
+            parsed = ipaddress.ip_address(address)
+        except ValueError:
+            continue
+        if isinstance(parsed, ipaddress.IPv6Address):
+            line = text.count("\n", 0, match.start()) + 1
+            errors.append(f"{rel}:{line}: IPv6 address found in publishable content")
     return errors
 
 
