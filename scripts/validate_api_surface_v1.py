@@ -191,7 +191,7 @@ def _is_exported(value: str) -> bool:
     return _is_go_identifier(value) and "A" <= value[0] <= "Z"
 
 
-def _normalized_text(value: Any) -> bool:
+def _normalized_text(value: Any, *, allow_repeated_spaces: bool = False) -> bool:
     return (
         isinstance(value, str)
         and bool(value)
@@ -200,7 +200,7 @@ def _normalized_text(value: Any) -> bool:
         and _is_nfc(value)
         and not _has_control(value)
         and not _has_line_or_paragraph_separator(value)
-        and "  " not in value
+        and (allow_repeated_spaces or "  " not in value)
     )
 
 
@@ -341,7 +341,11 @@ def _expected_signature(symbol: dict[str, Any]) -> str | None:
     if kind == "type":
         parameters = _render_type_parameters(symbol.get("type_parameters"))
         type_form = symbol.get("type_form")
-        if parameters is None or type_form not in {"defined", "alias"}:
+        if (
+            parameters is None
+            or not isinstance(type_form, str)
+            or type_form not in {"defined", "alias"}
+        ):
             return None
         operator = " =" if type_form == "alias" else ""
         return f"type {name}{parameters}{operator} {type_text}"
@@ -403,16 +407,19 @@ def compatibility_fingerprint(document: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _document_diagnostics(document: Any) -> set[str]:
+def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
     diagnostics: set[str] = set()
     if not isinstance(document, dict):
         return {"invalid document shape"}
     if _contains_null(document):
         diagnostics.add("null value")
 
+    required_fields = {"schema_id", "schema_version", "packages"}
+    if corpus:
+        required_fields.add("fixture")
     diagnostics |= _check_fields(
         document,
-        {"schema_id", "schema_version", "fixture", "packages"},
+        required_fields,
         {"schema_id", "schema_version", "fixture", "packages"},
     )
     if (
@@ -421,17 +428,21 @@ def _document_diagnostics(document: Any) -> set[str]:
     ):
         diagnostics.add("schema identity mismatch")
 
-    fixture = document.get("fixture")
-    if not isinstance(fixture, dict):
-        diagnostics.add("invalid fixture metadata")
-    else:
-        diagnostics |= _check_fields(
-            fixture,
-            {"synthetic", "runtime_claims"},
-            {"synthetic", "runtime_claims"},
-        )
-        if fixture.get("synthetic") is not True or fixture.get("runtime_claims") is not False:
-            diagnostics.add("runtime claim or non-synthetic fixture")
+    if "fixture" in document:
+        fixture = document.get("fixture")
+        if not isinstance(fixture, dict):
+            diagnostics.add("invalid fixture metadata")
+        else:
+            diagnostics |= _check_fields(
+                fixture,
+                {"synthetic", "runtime_claims"},
+                {"synthetic", "runtime_claims"},
+            )
+            if (
+                fixture.get("synthetic") is not True
+                or fixture.get("runtime_claims") is not False
+            ):
+                diagnostics.add("runtime claim or non-synthetic fixture")
 
     packages = document.get("packages")
     if not isinstance(packages, list) or not packages:
@@ -461,7 +472,7 @@ def _document_diagnostics(document: Any) -> set[str]:
                 diagnostics.add("invalid package path")
             if "internal" in path.split("/"):
                 diagnostics.add("internal package")
-            if not path.startswith(SYNTHETIC_PREFIX):
+            if corpus and not path.startswith(SYNTHETIC_PREFIX):
                 diagnostics.add("non-synthetic fixture package")
             if not _is_go_identifier(name):
                 diagnostics.add("invalid Go identifier")
@@ -494,7 +505,8 @@ def _document_diagnostics(document: Any) -> set[str]:
                 diagnostics.add("invalid symbol shape")
                 continue
             kind = symbol.get("kind")
-            if not isinstance(kind, str) or kind not in SYMBOL_KINDS:
+            valid_kind = isinstance(kind, str) and kind in SYMBOL_KINDS
+            if not valid_kind:
                 diagnostics.add("invalid symbol kind")
                 diagnostics |= _check_fields(
                     symbol,
@@ -517,7 +529,11 @@ def _document_diagnostics(document: Any) -> set[str]:
 
             for field in ("type", "signature"):
                 value = symbol.get(field)
-                if not _normalized_text(value):
+                allow_repeated_spaces = kind == "const" and field == "signature"
+                if not _normalized_text(
+                    value,
+                    allow_repeated_spaces=allow_repeated_spaces,
+                ):
                     diagnostics.add("invalid normalized text")
                     if isinstance(value, str):
                         diagnostics |= _text_diagnostics(value)
@@ -525,7 +541,7 @@ def _document_diagnostics(document: Any) -> set[str]:
                     diagnostics.add("implementation dependency type")
 
             parameter_names: list[str] | None = None
-            if kind in {"func", "type"}:
+            if valid_kind and kind in {"func", "type"}:
                 parameter_diagnostics, parameter_names = _type_parameter_diagnostics(
                     symbol.get("type_parameters")
                 )
@@ -541,9 +557,9 @@ def _document_diagnostics(document: Any) -> set[str]:
                 value = symbol.get("value")
                 if not isinstance(value_kind, str) or value_kind not in VALUE_KINDS:
                     diagnostics.add("invalid value kind")
-                if not isinstance(value, str) or not value:
+                if not _normalized_text(value, allow_repeated_spaces=True):
                     diagnostics.add("invalid constant value")
-                elif _text_diagnostics(value):
+                if isinstance(value, str):
                     diagnostics |= _text_diagnostics(value)
                 type_text = symbol.get("type")
                 if (
@@ -552,16 +568,20 @@ def _document_diagnostics(document: Any) -> set[str]:
                     and value_kind != UNTYPED_VALUE_KINDS[type_text]
                 ):
                     diagnostics.add("cross-field mismatch")
-            if kind == "type" and symbol.get("type_form") not in {"defined", "alias"}:
-                diagnostics.add("invalid type form")
+            if kind == "type":
+                type_form = symbol.get("type_form")
+                if not isinstance(type_form, str) or type_form not in {"defined", "alias"}:
+                    diagnostics.add("invalid type form")
 
             if (
-                isinstance(kind, str)
-                and kind in SYMBOL_KINDS
+                valid_kind
                 and isinstance(symbol_name, str)
                 and _is_go_identifier(symbol_name)
                 and _normalized_text(symbol.get("type"))
-                and _normalized_text(symbol.get("signature"))
+                and _normalized_text(
+                    symbol.get("signature"),
+                    allow_repeated_spaces=kind == "const",
+                )
             ):
                 expected_signature = _expected_signature(symbol)
                 if expected_signature is None or symbol["signature"] != expected_signature:
@@ -575,7 +595,7 @@ def _document_diagnostics(document: Any) -> set[str]:
                         if identity in method_identities:
                             diagnostics.add("duplicate symbol identity")
                         method_identities.add(identity)
-                elif kind in SYMBOL_KINDS - {"method"}:
+                elif valid_kind and kind != "method":
                     identity = (path, symbol_name)
                     if identity in package_symbol_identities:
                         diagnostics.add("duplicate symbol identity")
@@ -596,8 +616,7 @@ def _document_diagnostics(document: Any) -> set[str]:
                                 diagnostics.add("receiver arity mismatch")
 
             if (
-                isinstance(kind, str)
-                and kind in SYMBOL_KINDS
+                valid_kind
                 and isinstance(symbol_name, str)
                 and not _has_surrogate(symbol_name)
                 and (
@@ -625,6 +644,16 @@ def _document_diagnostics(document: Any) -> set[str]:
         except (KeyError, AttributeError, TypeError, UnicodeEncodeError):
             diagnostics.add("invalid package shape")
     return diagnostics
+
+
+def validate_document(path: Path, *, corpus: bool = False) -> list[str]:
+    label = path.name
+    if not path.is_file() or path.is_symlink():
+        return [f"{label}: missing regular artifact"]
+    result, _, diagnostics = _load_machine_json(path)
+    if result is not None and result.status == COMPLETE:
+        diagnostics |= document_diagnostics(result.document, corpus=corpus)
+    return [f"{label}: {category}" for category in sorted(diagnostics)]
 
 
 def _load_machine_json(
@@ -760,7 +789,7 @@ def validate_repository(root: Path) -> list[str]:
             continue
         result, _, diagnostics = _load_machine_json(path)
         if result is not None and result.status == COMPLETE:
-            diagnostics |= _document_diagnostics(result.document)
+            diagnostics |= document_diagnostics(result.document, corpus=True)
         for category in sorted(diagnostics):
             errors.append(f"{rel}: {category}")
 
@@ -788,7 +817,7 @@ def validate_repository(root: Path) -> list[str]:
             expect_malformed_sentinel=expect_malformed,
         )
         if result is not None and result.document is not None:
-            diagnostics |= _document_diagnostics(result.document)
+            diagnostics |= document_diagnostics(result.document, corpus=True)
         expected = EXPECTED_NEGATIVE_DIAGNOSTICS[path.name]
         for category in sorted(expected - diagnostics):
             errors.append(f"{rel}: expected negative category missing: {category}")
@@ -800,15 +829,30 @@ def validate_repository(root: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--repo", type=Path)
+    source.add_argument("--document", type=Path)
+    parser.add_argument(
+        "--corpus",
+        action="store_true",
+        help="require fixture metadata and synthetic package paths in --document mode",
+    )
     args = parser.parse_args()
 
-    errors = validate_repository(args.repo.resolve())
+    if args.document is not None:
+        errors = validate_document(args.document, corpus=args.corpus)
+        success = "api-surface-v1 document: valid"
+    else:
+        if args.corpus:
+            parser.error("--corpus requires --document")
+        root = args.repo or Path(__file__).resolve().parents[1]
+        errors = validate_repository(root.resolve())
+        success = "api-surface-v1: valid"
     for error in errors:
         print(error, file=sys.stderr)
     if errors:
         return 1
-    print("api-surface-v1: valid")
+    print(success)
     return 0
 
 

@@ -25,32 +25,21 @@ echo "==> check for private IPv4 addresses"
 python3 - <<'PY'
 from __future__ import annotations
 
-import ipaddress
 import pathlib
-import re
 import sys
 
-private_nets = [
-    ipaddress.ip_network("10." + "0.0.0/8"),
-    ipaddress.ip_network("172.16." + "0.0/12"),
-    ipaddress.ip_network("192.168." + "0.0/16"),
-    ipaddress.ip_network("100.64." + "0.0/10"),
-    ipaddress.ip_network("169.254." + "0.0/16"),
-]
+sys.path.insert(0, str(pathlib.Path("scripts").resolve()))
+
+from machine_publication_policy import IPV4_CANDIDATE_PATTERN, classify_ipv4
 
 failed = False
-pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
 markdown_suffixes = {".md", ".markdown", ".mdown", ".mkd", ".mkdn"}
 for path in pathlib.Path(".").rglob("*"):
     if not path.is_file() or path.suffix.lower() not in markdown_suffixes:
         continue
     text = path.read_text(encoding="utf-8")
-    for match in pattern.finditer(text):
-        try:
-            addr = ipaddress.ip_address(match.group(0))
-        except ValueError:
-            continue
-        if any(addr in net for net in private_nets):
+    for match in IPV4_CANDIDATE_PATTERN.finditer(text):
+        if classify_ipv4(match.group(0)) == "private network":
             line = text.count("\n", 0, match.start()) + 1
             print(f"{path}:{line}: private IPv4 address found", file=sys.stderr)
             failed = True

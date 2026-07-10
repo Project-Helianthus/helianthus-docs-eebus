@@ -14,7 +14,9 @@ import yaml
 
 from machine_publication_policy import (
     COMPLETE,
+    IPV4_CANDIDATE_PATTERN,
     MALFORMED_SENTINEL,
+    classify_ipv4,
     decode_machine_json,
     machine_publication_diagnostics,
 )
@@ -87,7 +89,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
-    "api/api-surface-v1.md": "8eca52968ccfd5ece15eb3212711b42de440e523404e071e47455e773ee67331",
+    "api/api-surface-v1.md": "bd2ab30908dca4139ab8fd3c0a1f99834b7d89808823dc25bbe8faeef8b859d4",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
@@ -103,7 +105,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "306d9665372f4f2aaee53a54b3e33e575134bcd647e073ded89c2e549710b7a3"
+CI_LOCAL_SHA256 = "ee5413bcb10b811225ff6f5c4bfa998b48f2a67e1282f3e5e74d78f8b87dce7a"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -114,14 +116,6 @@ LICENSE_ACK_LABEL = (
 CONTROL_MD = {
     "AGENTS.md",
 }
-
-PRIVATE_NETS = [
-    ipaddress.ip_network("10." + "0.0.0/8"),
-    ipaddress.ip_network("172.16." + "0.0/12"),
-    ipaddress.ip_network("192.168." + "0.0/16"),
-    ipaddress.ip_network("100.64." + "0.0/10"),
-    ipaddress.ip_network("169.254." + "0.0/16"),
-]
 
 PLATFORM_LINK_PATTERN = re.compile(
     r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
@@ -343,13 +337,8 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
             add("populated raw SKI or SHIP ID", line)
-    ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
-    for match in ipv4_pattern.finditer(text):
-        try:
-            addr = ipaddress.ip_address(match.group(0))
-        except ValueError:
-            continue
-        if any(addr in net for net in PRIVATE_NETS):
+    for match in IPV4_CANDIDATE_PATTERN.finditer(text):
+        if classify_ipv4(match.group(0)) == "private network":
             line = text.count("\n", 0, match.start()) + 1
             add("private IPv4 address found", line)
     for match in IPV6_CANDIDATE_PATTERN.finditer(text):
@@ -869,7 +858,6 @@ def check_repository(root: Path) -> list[str]:
         if not page_path.is_file() or page_path.is_symlink():
             errors.append(f"{required_page}: required canonical landing page is missing")
 
-    ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     for path in sorted(
         p for p in root.rglob("*") if p.is_file() and not p.is_symlink()
     ):
@@ -882,12 +870,8 @@ def check_repository(root: Path) -> list[str]:
             text = _read(path)
         except UnicodeDecodeError:
             continue
-        for match in ipv4_pattern.finditer(text):
-            try:
-                addr = ipaddress.ip_address(match.group(0))
-            except ValueError:
-                continue
-            if any(addr in net for net in PRIVATE_NETS):
+        for match in IPV4_CANDIDATE_PATTERN.finditer(text):
+            if classify_ipv4(match.group(0)) == "private network":
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(f"{rel}:{line}: private IPv4 address found")
 

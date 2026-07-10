@@ -52,6 +52,13 @@ The optional `fixture` object is reserved for this repository's synthetic
 golden corpus. When present, it has exactly `synthetic: true` and
 `runtime_claims: false`. Extracted API documents omit `fixture`.
 
+The portable validator's default document mode validates extracted output:
+`python3 scripts/validate_api_surface_v1.py --document <path>`. In that mode,
+`fixture` may be absent and ordinary public package paths are accepted. The
+explicit `--corpus` document mode, and the repository corpus gate, require the
+closed fixture metadata and the `example.invalid/helianthus/synthetic/`
+package prefix.
+
 ## Package Normalization
 
 Each package has exactly `path`, `name`, and `symbols`. Package paths use
@@ -114,10 +121,14 @@ variable it is the declared type. For a type declaration it is the defined
 underlying type or alias target without the declaration name, parameters, or
 equals sign. For functions and methods it is the receiver-free function type.
 
-`type`, constraints, and signatures are trimmed, single-line NFC text with no
-Unicode `Cc` control characters, `Zl` line separators, `Zp` paragraph
-separators, or repeated spaces. The portable validator enforces those
-representation properties but does not prove Go syntax or constraint meaning.
+`type`, constraints, and non-constant signatures are trimmed, single-line NFC
+text with no Unicode `Cc` control characters, `Zl` line separators, `Zp`
+paragraph separators, or repeated spaces. Constant `value` and `signature`
+fields have the same trimming and Unicode requirements, but preserve repeated
+spaces inside ExactString data. Exact derived-signature equality rejects
+noncanonical spacing outside the embedded constant value. The portable
+validator enforces those representation properties but does not prove Go
+syntax or constraint meaning.
 
 `value` is exactly `go/constant.Value.ExactString`. It remains a JSON string
 for every constant class, even when it represents a boolean or number. The

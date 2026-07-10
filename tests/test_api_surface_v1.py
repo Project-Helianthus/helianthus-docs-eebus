@@ -22,6 +22,7 @@ sys.path.insert(0, str(SCRIPTS))
 from validate_api_surface_v1 import (  # noqa: E402
     compatibility_fingerprint,
     compatibility_projection,
+    document_diagnostics,
 )
 
 
@@ -68,7 +69,7 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
-    "kinds-types-signatures.json": "82bba4b777457194748e2b123a07b055c65de4678ed76f068ed406b0b3426d5a",
+    "kinds-types-signatures.json": "1389d98ef6f7d6ad458cecc89f54f4769f6cd406004f0eaf3a405ab955f45771",
     "packages-and-symbols.json": "492c7ec2e865dc21afd5c0dba9778efa85eed443a105ccdc32efa128717c010e",
 }
 
@@ -111,6 +112,23 @@ def run_validator(repo: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(API_VALIDATOR), "--repo", str(repo)],
         cwd=repo,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+
+def run_document_validator(
+    path: Path,
+    *,
+    corpus: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    command = [sys.executable, str(API_VALIDATOR), "--document", str(path)]
+    if corpus:
+        command.append("--corpus")
+    return subprocess.run(
+        command,
+        cwd=REPO,
         check=False,
         text=True,
         capture_output=True,
@@ -205,6 +223,46 @@ def canonical_fingerprint_independent(document: dict[str, Any]) -> str:
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def document_field_paths(value: Any, path: tuple[str | int, ...] = ()) -> list[tuple[str | int, ...]]:
+    paths: list[tuple[str | int, ...]] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            item_path = path + (key,)
+            paths.append(item_path)
+            paths.extend(document_field_paths(item, item_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            item_path = path + (index,)
+            paths.append(item_path)
+            paths.extend(document_field_paths(item, item_path))
+    return paths
+
+
+def invalid_field_values(value: Any) -> tuple[Any, ...]:
+    if isinstance(value, bool):
+        return (None, 7, [], {}, "wrong")
+    if type(value) is int:
+        return (None, True, 7.5, [], {}, "wrong")
+    if isinstance(value, str):
+        return (None, True, 7, [], {}, "\twrong")
+    if isinstance(value, list):
+        return (None, True, 7, [None], {}, "wrong")
+    if isinstance(value, dict):
+        return (None, True, 7, [], {}, "wrong")
+    raise AssertionError(f"unsupported fixture field type: {type(value)!r}")
+
+
+def replace_document_path(
+    document: dict[str, Any],
+    path: tuple[str | int, ...],
+    replacement: Any,
+) -> None:
+    target: Any = document
+    for component in path[:-1]:
+        target = target[component]
+    target[path[-1]] = replacement
 
 
 class APISurfaceV1ContractTests(unittest.TestCase):
@@ -364,6 +422,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             ),
             "RuneExact": ("untyped rune", "int", "955"),
             "StringExact": ("untyped string", "string", '"line\\n\\"quoted\\""'),
+            "StringSpacesExact": ("untyped string", "string", '"left  right"'),
             "TypedLimit": ("uint64", "int", "18446744073709551615"),
         }
         self.assertEqual(set(constants), set(vectors))
@@ -447,6 +506,56 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual((first.stdout, first.stderr), (second.stdout, second.stderr))
         self.assertEqual(first.stdout.strip(), "api-surface-v1: valid")
+
+    def test_extracted_document_mode_accepts_no_fixture_and_normal_package_path(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        document.pop("fixture")
+        document["packages"][0]["path"] = "github.com/Project-Helianthus/helianthus-eebus/api"
+        self.assertEqual(document_diagnostics(document), set())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "extracted.json"
+            write_json(path, document)
+            result = run_document_validator(path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "api-surface-v1 document: valid")
+
+    def test_extracted_document_mode_rejects_invalid_optional_fixture(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
+        invalid_fixtures = (
+            None,
+            {"synthetic": False, "runtime_claims": False},
+            {"synthetic": True, "runtime_claims": False, "extra": True},
+        )
+        for fixture in invalid_fixtures:
+            with self.subTest(fixture=fixture):
+                document = copy.deepcopy(source)
+                document["fixture"] = fixture
+                self.assertTrue(document_diagnostics(document))
+
+    def test_corpus_mode_requires_fixture_and_synthetic_package_prefix(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        document.pop("fixture")
+        document["packages"][0]["path"] = "github.com/Project-Helianthus/helianthus-eebus/api"
+        self.assertEqual(document_diagnostics(document), set())
+        self.assertEqual(
+            document_diagnostics(document, corpus=True),
+            {"missing required field", "non-synthetic fixture package"},
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "corpus.json"
+            write_json(path, document)
+            result = run_document_validator(path, corpus=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn(str(path.parent), result.stderr)
+            self.assertEqual(
+                set(result.stderr.splitlines()),
+                {
+                    "corpus.json: missing required field",
+                    "corpus.json: non-synthetic fixture package",
+                },
+            )
 
     def test_every_negative_fixture_must_remain_invalid(self) -> None:
         valid_bytes = positive_paths()[0].read_bytes()
@@ -593,6 +702,103 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         typed = find_symbol(document, "const", "TypedLimit")
         self.assertEqual(untyped["signature"], f"const IntegerExact = {untyped['value']}")
         self.assertEqual(typed["signature"], f"const TypedLimit uint64 = {typed['value']}")
+
+    def test_exactstring_repeated_spaces_are_lossless_only_inside_constant_values(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        constant = find_symbol(document, "const", "StringSpacesExact")
+        self.assertEqual(constant["value"], '"left  right"')
+        self.assertEqual(constant["signature"], 'const StringSpacesExact = "left  right"')
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
+
+        cases = (
+            (
+                lambda candidate: find_symbol(candidate, "const", "BooleanDefault").__setitem__(
+                    "signature", "const  BooleanDefault = true"
+                ),
+                "cross-field mismatch",
+            ),
+            (
+                lambda candidate: find_symbol(candidate, "const", "TypedLimit").__setitem__(
+                    "type", "uint64  alias"
+                ),
+                "invalid normalized text",
+            ),
+            (
+                lambda candidate: find_symbol(candidate, "func", "NewCatalog").__setitem__(
+                    "signature", "func  NewCatalog[T any]([]T) *Catalog[T]"
+                ),
+                "invalid normalized text",
+            ),
+            (
+                lambda candidate: find_symbol(candidate, "func", "Convert")["type_parameters"][0].__setitem__(
+                    "constraint", "interface{  any }"
+                ),
+                "invalid normalized text",
+            ),
+        )
+        for mutation, category in cases:
+            with self.subTest(category=category):
+                candidate = copy.deepcopy(document)
+                mutation(candidate)
+                self.assertIn(category, document_diagnostics(candidate, corpus=True))
+
+    def test_constant_value_and_signature_reject_non_lossless_text(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        invalid_values = (
+            ' "trimmed" ',
+            '"control\tcharacter"',
+            '"line\u2028separator"',
+            '"paragraph\u2029separator"',
+            '"non-nfc e\u0301"',
+            '"surrogate \ud800"',
+        )
+        for value in invalid_values:
+            with self.subTest(value=ascii(value)):
+                document = copy.deepcopy(source)
+                constant = find_symbol(document, "const", "StringExact")
+                constant["value"] = value
+                constant["signature"] = derive_signature(constant)
+                diagnostics = document_diagnostics(document, corpus=True)
+                self.assertIn("invalid constant value", diagnostics)
+
+    def test_document_diagnostics_wrong_type_sweep_is_total_and_deterministic(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        mutation_count = 0
+        replacement_types: set[str] = set()
+        for path in document_field_paths(source):
+            target: Any = source
+            for component in path:
+                target = target[component]
+            for replacement in invalid_field_values(target):
+                with self.subTest(path=path, replacement=type(replacement).__name__):
+                    document = copy.deepcopy(source)
+                    replace_document_path(document, path, copy.deepcopy(replacement))
+                    first = document_diagnostics(document, corpus=True)
+                    second = document_diagnostics(document, corpus=True)
+                    self.assertEqual(first, second)
+                    self.assertGreater(len(first), 0)
+                    for category in first:
+                        self.assertNotIn("Traceback", category)
+                        self.assertNotIn(str(REPO), category)
+                        self.assertNotIn(":", category)
+                    mutation_count += 1
+                    if replacement is None:
+                        replacement_types.add("null")
+                    elif isinstance(replacement, bool):
+                        replacement_types.add("bool")
+                    elif isinstance(replacement, (int, float)):
+                        replacement_types.add("number")
+                    elif isinstance(replacement, list):
+                        replacement_types.add("list")
+                    elif isinstance(replacement, dict):
+                        replacement_types.add("object")
+                    elif isinstance(replacement, str):
+                        replacement_types.add("wrong string")
+        self.assertGreater(mutation_count, 700)
+        self.assertEqual(
+            replacement_types,
+            {"null", "bool", "number", "list", "object", "wrong string"},
+        )
 
     def test_validator_rejects_untyped_type_to_value_kind_mismatch(self) -> None:
         self.assert_mutation_rejected(

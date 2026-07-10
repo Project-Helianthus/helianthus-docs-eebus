@@ -147,6 +147,18 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("private IPv4 address found", result.stderr)
 
+    def test_underscore_adjacent_loopback_ipv4_fails_in_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            leak = "_" + "127." + "0.0.1" + "_"
+            page = repo / "README.md"
+            page.write_text(page.read_text(encoding="utf-8") + f"\nLeak: {leak}\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("private IPv4 address found", result.stderr)
+
     def test_wrong_path_domain_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

@@ -60,6 +60,14 @@
         },
         {
           "kind": "const",
+          "name": "StringSpacesExact",
+          "type": "untyped string",
+          "signature": "const StringSpacesExact = \"left  right\"",
+          "value_kind": "string",
+          "value": "\"left  right\""
+        },
+        {
+          "kind": "const",
           "name": "TypedLimit",
           "type": "uint64",
           "signature": "const TypedLimit uint64 = 18446744073709551615",
