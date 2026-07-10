@@ -5,6 +5,7 @@ import argparse
 import ipaddress
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 import yaml
@@ -89,6 +90,11 @@ SENSITIVE_FIELD_PATTERN = re.compile(
     r"(?:raw\s+)?ski|(?:raw\s+)?ship\s*id)"
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
+)
+RAW_EEBUS_ID_PATTERN = re.compile(
+    r"`?\b(?:raw\s+)?(?:ski|ship\s*id|shipid)\b`?"
+    r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
+    re.IGNORECASE,
 )
 SAFE_REDACTED_VALUE_PATTERN = re.compile(
     r"^\s*[<\[(]?(?:redacted|masked|omitted|unknown|not applicable|n/a)[>\])]?[.!]?\s*$",
@@ -235,6 +241,11 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
             errors.append(f"{rel}:{line}: populated sensitive field {field!r}")
+    for match in RAW_EEBUS_ID_PATTERN.finditer(text):
+        value = match.group(1)
+        if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
+            line = text.count("\n", 0, match.start()) + 1
+            errors.append(f"{rel}:{line}: populated raw SKI or SHIP ID")
     ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     for match in ipv4_pattern.finditer(text):
         try:
@@ -256,6 +267,13 @@ def _restricted_source_errors(text: str, rel: str) -> list[str]:
             continue
         errors.append(f"{rel}:{line_number}: restricted-source contamination marker found")
     return errors
+
+
+def _has_forbidden_control(text: str) -> bool:
+    return any(
+        unicodedata.category(char) == "Cc" and char not in "\n\r\t"
+        for char in text
+    )
 
 
 def check_repository(root: Path) -> list[str]:
@@ -609,7 +627,7 @@ def check_repository(root: Path) -> list[str]:
             except UnicodeDecodeError:
                 errors.append(f"{rel}: binary or non-UTF-8 publishable artifact is forbidden")
                 continue
-            if any(ord(char) < 32 and char not in "\n\r\t" for char in text):
+            if _has_forbidden_control(text):
                 errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
             errors.extend(_privacy_errors(text, rel))
             errors.extend(_restricted_source_errors(text, rel))

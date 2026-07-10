@@ -356,6 +356,8 @@ class PolicyValidatorTests(unittest.TestCase):
             "fingerprint": "Fingerprint: 0123456789abcdef0123456789abcdef01234567",
             "short raw ski": "Raw SKI: abcdef1234567890",
             "short raw shipid": "Raw SHIPID: abcdef1234567890",
+            "prose raw ski": "Raw SKI abcdef1234567890",
+            "backticked raw ship id": "`Raw SHIP ID abcdef1234567890`",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -643,6 +645,20 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("control bytes are forbidden", result.stderr)
+
+    def test_del_and_c1_publishable_controls_fail(self) -> None:
+        payloads = (b"payload\x7f\n", "payload\u0085\n".encode("utf-8"))
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / "evidence" / "control.txt"
+                    artifact.write_bytes(payload)
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("control bytes are forbidden", result.stderr)
 
     def test_required_owner_domain_directory_must_exist(self) -> None:
         for directory in ("architecture", "api"):
