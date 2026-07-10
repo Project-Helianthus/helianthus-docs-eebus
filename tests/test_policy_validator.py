@@ -150,6 +150,17 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("must assign default ownership", result.stderr)
 
+    def test_codeowners_inline_comment_cannot_spoof_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            codeowners = repo / ".github" / "CODEOWNERS"
+            codeowners.write_text("* @someoneelse # @d3vi1\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("must assign default ownership", result.stderr)
+
     def test_symlinked_markdown_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -259,6 +270,23 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("cross-seed metadata requires a canonical platform link", result.stderr)
 
+    def test_platform_bare_url_with_period_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "ship-spine-overview.md"
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "blob/main/docs/platform/eebus-raw-first-contract.md.\n"
+                "\n## Requirements\n\n- duplicated\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("cross_seed_target must match", result.stderr)
+
     def test_private_artifact_reference_field_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -297,6 +325,43 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
 
+    def test_non_markdown_publishable_artifact_gets_privacy_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            leak = repo / "evidence" / "leak.txt"
+            leak.write_text(
+                "Private artifact location: /tmp/operator/capture.json\n"
+                "Serial number: DEVICE-123456\n"
+                "MAC address: 00:11:22:33:44:55\n"
+                "-----BEGIN PRIVATE KEY-----\n"
+                "Address: " + "192.168." + "1.42\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("private artifact location/reference field is forbidden", result.stderr)
+            self.assertIn("private IPv4 address found", result.stderr)
+
+    def test_private_artifact_retained_value_cannot_smuggle_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "evidence" / "evidence-template.md"
+            page.write_text(
+                page.read_text(encoding="utf-8").replace(
+                    "Private artifact retained: <yes-or-no>",
+                    "Private artifact retained: yes /tmp/operator/capture.json",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("private artifact retained value must be yes or no", result.stderr)
+
     def test_workflow_path_filter_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -333,6 +398,47 @@ class PolicyValidatorTests(unittest.TestCase):
                 1,
             ),
             "missing trigger": lambda text: text.replace("  pull_request:\n", "", 1),
+            "closed only": lambda text: text.replace(
+                "  pull_request:\n",
+                "  pull_request: {types: [closed]}\n",
+                1,
+            ),
+            "job condition": lambda text: text.replace(
+                "    name: Docs Checks\n",
+                "    name: Docs Checks\n    if: ${{ false }}\n",
+                1,
+            ),
+            "job continue": lambda text: text.replace(
+                "    name: Docs Checks\n",
+                "    name: Docs Checks\n    continue-on-error: true\n",
+                1,
+            ),
+            "step condition": lambda text: text.replace(
+                "        run: ./scripts/ci_local.sh\n",
+                "        if: ${{ false }}\n        run: ./scripts/ci_local.sh\n",
+                1,
+            ),
+            "job needs": lambda text: text.replace(
+                "    name: Docs Checks\n",
+                "    name: Docs Checks\n    needs: never-runs\n",
+                1,
+            ),
+            "step shell": lambda text: text.replace(
+                "        run: ./scripts/ci_local.sh\n",
+                "        shell: custom {0}\n        run: ./scripts/ci_local.sh\n",
+                1,
+            ),
+            "missing dependency install": lambda text: text.replace(
+                "      - name: Install policy validator dependencies\n"
+                "        run: python -m pip install -r requirements-ci.txt\n\n",
+                "",
+                1,
+            ),
+            "wrong runner": lambda text: text.replace(
+                "    runs-on: ubuntu-latest\n",
+                "    runs-on: self-hosted\n",
+                1,
+            ),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):
@@ -364,6 +470,64 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("missing field", result.stderr)
+
+    def test_issue_form_types_and_options_are_enforced(self) -> None:
+        mutations = {
+            "ownership type": lambda text: text.replace(
+                "  - type: dropdown\n    id: ownership_domain",
+                "  - type: input\n    id: ownership_domain",
+                1,
+            ),
+            "smoke type": lambda text: text.replace(
+                "  - type: dropdown\n    id: smoke_test",
+                "  - type: input\n    id: smoke_test",
+                1,
+            ),
+            "smoke options": lambda text: text.replace(
+                '        - "YES"\n',
+                '        - "MAYBE"\n',
+                1,
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    template = repo / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
+                    template.write_text(
+                        mutate(template.read_text(encoding="utf-8")),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+
+    def test_premature_execution_completion_claim_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            readme = repo / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\nMSP-DOCS-CLEAN is complete and the absence gate is installed.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("premature MSP-DOCS-E2/CLEAN completion claim", result.stderr)
+
+    def test_binary_publishable_artifact_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "evidence" / "capture.bin"
+            artifact.write_bytes(b"\x00\xff\x00")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("binary or non-UTF-8 publishable artifact is forbidden", result.stderr)
 
 
 if __name__ == "__main__":

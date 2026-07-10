@@ -14,7 +14,7 @@ license: "CC0-1.0"
 - Firmware/app/runtime versions:
 - Acquisition method:
 - Artifact class:
-- Private artifact retained: yes/no (do not include a location or reference)
+- Private artifact retained: <yes-or-no>
 - Redaction mode:
 - Publication status:
 
