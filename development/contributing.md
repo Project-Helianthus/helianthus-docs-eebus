@@ -66,12 +66,6 @@ public PR descriptions, public review comments, or public ADR rationale. If a
 restricted source influenced investigation, the public record may only say the
 claim was independently confirmed from publishable evidence.
 
-Invalid example:
-
-```text
-This claim was paraphrased from a restricted vendor document.
-```
-
 Valid shape:
 
 ```text

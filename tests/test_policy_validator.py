@@ -68,6 +68,34 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("canonical_source must be", result.stderr)
 
+    def test_front_matter_is_strict_yaml_mapping_with_unique_string_values(self) -> None:
+        mutations = {
+            "malformed": "malformed: [unclosed\n",
+            "duplicate": (
+                'canonical_source: "Project-Helianthus/helianthus-docs-eebus:'
+                'protocols/ship-spine-overview.md"\n'
+            ),
+            "non-mapping": "- canonical_source\n- owner_domain\n",
+            "non-string": "reviewed: true\n",
+        }
+        for name, mutation in mutations.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "protocols" / "ship-spine-overview.md"
+                    text = page.read_text(encoding="utf-8")
+                    closing = text.find("\n---\n", 4)
+                    if name == "non-mapping":
+                        replacement = f"---\n{mutation}---\n"
+                    else:
+                        replacement = text[:closing] + "\n" + mutation + "---\n"
+                    page.write_text(replacement + text[closing + 5 :], encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("YAML front matter", result.stderr)
+
     def test_private_ipv4_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -326,6 +354,8 @@ class PolicyValidatorTests(unittest.TestCase):
             "serial": "Serial number: DEVICE-123456",
             "redaction suffix": "Serial number: redacted DEVICE-123456",
             "fingerprint": "Fingerprint: 0123456789abcdef0123456789abcdef01234567",
+            "short raw ski": "Raw SKI: abcdef1234567890",
+            "short raw shipid": "Raw SHIPID: abcdef1234567890",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -340,6 +370,26 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
+
+    def test_restricted_source_contamination_fails(self) -> None:
+        payloads = (
+            "Source class: vendor_restricted",
+            "This claim was paraphrased from a restricted vendor document.",
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "protocols" / "ship-spine-overview.md"
+                    page.write_text(
+                        page.read_text(encoding="utf-8") + f"\n{payload}\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("restricted-source contamination marker found", result.stderr)
 
     def test_non_markdown_publishable_artifact_gets_privacy_scan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

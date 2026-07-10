@@ -85,7 +85,8 @@ SENSITIVE_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?"
     r"(token|account (?:id|identifier)|"
     r"full fingerprint|mac address|serial(?: number)?|local identity|"
-    r"stable peer identifier|pairing history|household schedule)"
+    r"stable peer identifier|pairing history|household schedule|"
+    r"(?:raw\s+)?ski|(?:raw\s+)?ship\s*id)"
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
@@ -114,6 +115,56 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     r"(?:available|active|enabled|supported|shipped|ready)(?:\s+now)?\b",
     re.IGNORECASE,
 )
+RESTRICTED_SOURCE_PATTERN = re.compile(
+    r"\bvendor[_ -]restricted\b|"
+    r"\brestricted\s+vendor\s+(?:document|source|material|content|text)\b|"
+    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
+    r"\bsource\s+class\s*:\s*restricted\b",
+    re.IGNORECASE,
+)
+ALLOWED_RESTRICTED_POLICY_LINE = (
+    "| `vendor_restricted` | Quarantined; never public text, issue text, PR text, "
+    "review text, or ADR rationale. |"
+)
+
+
+class UniqueKeySafeLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_unique_mapping(
+    loader: UniqueKeySafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict[object, object]:
+    loader.flatten_mapping(node)
+    mapping: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as error:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable key",
+                key_node.start_mark,
+            ) from error
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
 
 
 def _rel(path: Path, root: Path) -> str:
@@ -124,24 +175,21 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _front_matter(text: str) -> dict[str, str] | None:
+def _front_matter(text: str) -> tuple[dict[str, str] | None, str | None]:
     if not text.startswith("---\n"):
-        return None
+        return None, "missing YAML front matter"
     end = text.find("\n---\n", 4)
     if end == -1:
-        return None
-    metadata: dict[str, str] = {}
-    for line in text[4:end].splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        key, sep, value = line.partition(":")
-        if sep != ":":
-            return None
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] == '"':
-            value = value[1:-1]
-        metadata[key.strip()] = value
-    return metadata
+        return None, "unterminated YAML front matter"
+    try:
+        parsed = yaml.load(text[4:end], Loader=UniqueKeySafeLoader)
+    except yaml.YAMLError as error:
+        return None, f"invalid YAML front matter: {error}"
+    if not isinstance(parsed, dict):
+        return None, "YAML front matter must be a mapping"
+    if not all(isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()):
+        return None, "YAML front matter keys and values must be strings"
+    return parsed, None
 
 
 def _is_exempt_markdown(path: Path, root: Path) -> bool:
@@ -196,6 +244,17 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
         if any(addr in net for net in PRIVATE_NETS):
             line = text.count("\n", 0, match.start()) + 1
             errors.append(f"{rel}:{line}: private IPv4 address found")
+    return errors
+
+
+def _restricted_source_errors(text: str, rel: str) -> list[str]:
+    errors: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if RESTRICTED_SOURCE_PATTERN.search(line) is None:
+            continue
+        if rel == "development/contributing.md" and line.strip() == ALLOWED_RESTRICTED_POLICY_LINE:
+            continue
+        errors.append(f"{rel}:{line_number}: restricted-source contamination marker found")
     return errors
 
 
@@ -469,9 +528,9 @@ def check_repository(root: Path) -> list[str]:
             continue
         expected_domain, expected_license = expected
         page_text = _read(path)
-        metadata = _front_matter(page_text)
+        metadata, front_matter_error = _front_matter(page_text)
         if metadata is None:
-            errors.append(f"{rel}: missing YAML front matter")
+            errors.append(f"{rel}: {front_matter_error}")
             continue
         canonical_source = metadata.get("canonical_source")
         expected_source = f"{REPO_ID}:{rel}"
@@ -532,6 +591,7 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: premature MSP-DOCS-E2/CLEAN completion claim")
         if PREMATURE_CONSUMER_PATTERN.search(page_text):
             errors.append(f"{rel}: premature gateway or consumer availability claim")
+        errors.extend(_restricted_source_errors(page_text, rel))
 
         if rel in ROOT_MD:
             errors.extend(_privacy_errors(page_text, rel))
@@ -552,6 +612,7 @@ def check_repository(root: Path) -> list[str]:
             if any(ord(char) < 32 and char not in "\n\r\t" for char in text):
                 errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
             errors.extend(_privacy_errors(text, rel))
+            errors.extend(_restricted_source_errors(text, rel))
             if PREMATURE_CONSUMER_PATTERN.search(text):
                 errors.append(f"{rel}: premature gateway or consumer availability claim")
 
@@ -588,7 +649,7 @@ def check_repository(root: Path) -> list[str]:
     restricted_policy = (root / "development" / "contributing.md")
     if restricted_policy.exists():
         text = _read(restricted_policy)
-        if "`vendor_restricted` | Quarantined" not in text:
+        if text.count(ALLOWED_RESTRICTED_POLICY_LINE) != 1:
             errors.append("development/contributing.md: missing vendor_restricted quarantine marker")
         if "Restricted material must not appear in public repositories" not in text:
             errors.append("development/contributing.md: missing restricted-source quarantine rule")
