@@ -117,19 +117,20 @@ PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?private artifact retained\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
+EEBUS_ID_LABEL_PATTERN = (
+    r"(?:ski(?:[\s_-]+(?:id|identifier))?|ship[\s_-]*(?:id|identifier))"
+)
 SENSITIVE_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?"
     r"(token|account (?:id|identifier)|"
     r"full fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
-    r"(?:raw\s+)?ski(?:[\s_-]+identifier)?|"
-    r"(?:raw\s+)?ship[\s_-]*(?:id|identifier))"
+    rf"(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN})"
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
-    r"`?\b(?:raw\s+)?(?:ski(?:[\s_-]+identifier)?|"
-    r"ship[\s_-]*(?:id|identifier))\b`?"
+    rf"`?\b(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN}\b`?"
     r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
     re.IGNORECASE,
 )

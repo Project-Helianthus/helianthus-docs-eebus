@@ -437,6 +437,11 @@ class PolicyValidatorTests(unittest.TestCase):
             "underscored raw ship id": "Raw SHIP_ID: abcdef1234567890",
             "ship identifier": "SHIP identifier: abcdef1234567890",
             "ski identifier": "SKI identifier: abcdef1234567890",
+            "ski id": "SKI ID: abcdef1234567890",
+            "hyphenated ski id": "SKI-ID: abcdef1234567890",
+            "underscored ski id": "SKI_ID: abcdef1234567890",
+            "raw ski id": "Raw SKI ID abcdef1234567890",
+            "backticked ski id": "`Raw SKI_ID abcdef1234567890`",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
