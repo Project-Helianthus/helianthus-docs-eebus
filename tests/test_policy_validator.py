@@ -535,6 +535,28 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertNotIn(decoded_value, result.stderr)
                     self.assertNotIn(str(repo), result.stderr)
 
+    def test_machine_policy_reports_private_ipv4_once_without_line_number(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            relative_path = "api/fixtures/v1/positive/kinds-types-signatures.json"
+            artifact = repo / relative_path
+            private_ipv4 = "192." + "168.7.9"
+            artifact.write_text(
+                artifact.read_text(encoding="utf-8").replace(
+                    '"signature": "const MaxEntries uint16"',
+                    f'"signature": "peer {private_ipv4}"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            expected = f"{relative_path}: private IPv4 address found"
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertEqual(result.stderr.splitlines().count(expected), 1, result.stderr)
+            self.assertNotRegex(result.stderr, rf"{relative_path}:\d+:")
+
     def test_new_publishable_claim_requires_resolving_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

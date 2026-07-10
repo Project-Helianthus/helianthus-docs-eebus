@@ -927,11 +927,13 @@ def check_repository(root: Path) -> list[str]:
     ):
         if ".git" in path.parts or ".pytest_cache" in path.parts:
             continue
+        rel = _rel(path, root)
+        if rel in API_MACHINE_ARTIFACTS:
+            continue
         try:
             text = _read(path)
         except UnicodeDecodeError:
             continue
-        rel = _rel(path, root)
         for match in ipv4_pattern.finditer(text):
             try:
                 addr = ipaddress.ip_address(match.group(0))
