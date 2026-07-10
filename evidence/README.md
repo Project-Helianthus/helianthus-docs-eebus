@@ -1,3 +1,11 @@
+---
+canonical_source: "Project-Helianthus/helianthus-docs-eebus:evidence/README.md"
+owner_domain: "evidence"
+license: "CC0-1.0"
+claim_status: "no-protocol-claims"
+publication_status: "evidence-policy"
+---
+
 # eeBUS Evidence Catalog
 
 Evidence files in this directory are publishable only after redaction and
@@ -17,7 +25,8 @@ Every evidence entry records:
 - device family;
 - firmware/app/runtime versions when known;
 - acquisition method;
-- private artifact location if one exists outside public git;
+- whether a private artifact is retained (`yes` or `no`), without its location,
+  filename, hash, or identifier;
 - redaction mode;
 - publication status;
 - falsification criteria.

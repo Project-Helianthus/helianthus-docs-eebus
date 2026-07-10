@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Locked execution plans
+    url: https://github.com/Project-Helianthus/helianthus-execution-plans
+    about: Use the plans repo for cross-repo, milestone, architecture, protocol, and API workstreams.

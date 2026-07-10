@@ -1,0 +1,86 @@
+name: Documentation task
+description: Planned documentation work with ownership, provenance, and proof.
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: One sentence describing what this issue implements.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Explain how this connects to protocol, architecture, API, platform, or evidence ownership.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ownership_domain
+    attributes:
+      label: Ownership domain
+      options:
+        - protocols
+        - architecture
+        - api
+        - devices
+        - evidence
+        - re-notes
+        - development
+        - repository-control
+        - cross-seed-candidate
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: List specific, testable conditions.
+      value: |
+        - [ ] ...
+        - [ ] Canonical ownership is declared
+        - [ ] Provenance is publishable or explicitly blocked
+        - [ ] Unit or deterministic checklist validation covers the change
+        - [ ] CI green
+    validations:
+      required: true
+
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Provenance
+      description: Identify evidence ids, source class, and any redaction requirements.
+      placeholder: "Evidence ids, source classes, redaction mode, or state why no protocol claim is made."
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link blocking issues or plans.
+      placeholder: "#123"
+
+  - type: dropdown
+    id: smoke_test
+    attributes:
+      label: Smoke test required
+      description: State whether acceptance requires a runtime or hardware smoke test.
+      options:
+        - "NO"
+        - "YES"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: licensing_ack
+    attributes:
+      label: Licensing acknowledgement
+      description: Confirm the licensing model for submitted material.
+      options:
+        - label: I have read the repository license policy and I accept the Helianthus licensing model for any contribution or reusable material I submit here.
+          required: true

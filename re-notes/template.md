@@ -1,3 +1,11 @@
+---
+canonical_source: "Project-Helianthus/helianthus-docs-eebus:re-notes/template.md"
+owner_domain: "re-notes"
+license: "CC0-1.0"
+claim_status: "no-protocol-claims"
+publication_status: "template"
+---
+
 # eeBUS Reverse-Engineering Note Template
 
 ## Context
@@ -19,7 +27,7 @@ State the smallest falsifiable claim.
 ## Evidence Links
 
 - Evidence ids:
-- Private artifact reference, if any:
+- Private artifact retained: <yes-or-no>
 
 ## Falsifier
 

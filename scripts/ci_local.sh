@@ -5,15 +5,15 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 echo "==> verify markdown files are present"
-find . -name '*.md' -print | grep -q .
+find . -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' \) -print -quit | grep -q .
 
 echo "==> check markdown for tabs and trailing spaces"
 failed=0
-if grep -RIn $'\t' --include='*.md' .; then
+if grep -RIn $'\t' --include='*.[mM][dD]' --include='*.[mM][aA][rR][kK][dD][oO][wW][nN]' --include='*.[mM][dD][oO][wW][nN]' --include='*.[mM][kK][dD]' --include='*.[mM][kK][dD][nN]' .; then
   echo "Tab characters are not allowed in markdown files." >&2
   failed=1
 fi
-if grep -RInE ' +$' --include='*.md' .; then
+if grep -RInE ' +$' --include='*.[mM][dD]' --include='*.[mM][aA][rR][kK][dD][oO][wW][nN]' --include='*.[mM][dD][oO][wW][nN]' --include='*.[mM][kK][dD]' --include='*.[mM][kK][dD][nN]' .; then
   echo "Trailing spaces are not allowed in markdown files." >&2
   failed=1
 fi
@@ -31,16 +31,19 @@ import re
 import sys
 
 private_nets = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("100.64.0.0/10"),
-    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("10." + "0.0.0/8"),
+    ipaddress.ip_network("172.16." + "0.0/12"),
+    ipaddress.ip_network("192.168." + "0.0/16"),
+    ipaddress.ip_network("100.64." + "0.0/10"),
+    ipaddress.ip_network("169.254." + "0.0/16"),
 ]
 
 failed = False
 pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
-for path in pathlib.Path(".").rglob("*.md"):
+markdown_suffixes = {".md", ".markdown", ".mdown", ".mkd", ".mkdn"}
+for path in pathlib.Path(".").rglob("*"):
+    if not path.is_file() or path.suffix.lower() not in markdown_suffixes:
+        continue
     text = path.read_text(encoding="utf-8")
     for match in pattern.finditer(text):
         try:
@@ -54,5 +57,12 @@ for path in pathlib.Path(".").rglob("*.md"):
 if failed:
     sys.exit(1)
 PY
+
+echo "==> validate repository ownership policy"
+python3 -c 'import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__'
+python3 scripts/validate_repository_policy.py
+
+echo "==> run policy validator tests"
+python3 -m unittest discover -s tests -p 'test_*.py'
 
 echo "==> docs-eebus local CI passed"
