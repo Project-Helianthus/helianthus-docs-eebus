@@ -71,8 +71,8 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
-    "canonical-go-rendering.json": "c15cde56b680875ede7043686b5b0b07d8f1210b853ac7b46f5971339be0d50a",
-    "kinds-types-signatures.json": "8891fe5afa1c8214cb8d9b6f46f4bfa090aa97293007188f422cab32899f0c8b",
+    "canonical-go-rendering.json": "7b250d81e6b23e2355b565964a13652683ca5381f0098cf39e3b3db32f12a795",
+    "kinds-types-signatures.json": "0a9d1a5c7fc2398088bf29372e644b667f7717ed3bd489246b60b41c16f1ca19",
     "packages-and-symbols.json": "6c5784c4295dae25e241c05fa4918386bedfc9f0d4f212e56facd78c7cfd6ba4",
 }
 
@@ -293,6 +293,34 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(category, result.stderr)
 
+    def assert_mutation_rejected_in_all_api_modes(
+        self,
+        mutation: Callable[[dict[str, Any]], None],
+        category: str,
+        *,
+        fixture: str = "kinds-types-signatures.json",
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / "api" / "fixtures" / "v1" / "positive" / fixture
+            document = load_json_strict(target)
+            mutation(document)
+            write_json(target, document)
+
+            extracted = Path(tmp) / "extracted.json"
+            document.pop("fixture")
+            write_json(extracted, document)
+
+            results = (
+                run_validator(repo),
+                run_document_validator(target, corpus=True),
+                run_document_validator(extracted),
+            )
+            for result in results:
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(category, result.stderr)
+                self.assertNotIn("cross-field mismatch", result.stderr)
+
     def test_contract_paths_and_exact_fixture_allowlists(self) -> None:
         for path in (SCHEMA, REFERENCE, API_VALIDATOR, POLICY_VALIDATOR, SHARED_POLICY):
             self.assertTrue(path.is_file(), path)
@@ -407,8 +435,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "named.nummethods",
             "promoted methods are not emitted",
             "receiver.type_parameters` contains the base declaration names in order",
+            "an alias can never be a receiver base",
+            "receiver parameter strings must also exactly equal",
             "substitution map keyed by `*types.typeparam` object identity",
             "render the qualifier allocated to import path `unsafe`",
+            "for `types.uint8`, emit `uint8`",
+            "for `types.int32`, emit `int32`",
             "func normalize[t interface{ ~string \\| ~int }](left.value, right.value, ...t) (t, error)",
         )
         for phrase in phrases:
@@ -418,6 +450,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "normalize every schema-equivalent version number",
             normalized,
         )
+        self.assertNotIn("a `*types.basic` is `basic.name()`", normalized)
 
     def test_reference_pins_identity_aware_v1_evolution_policy(self) -> None:
         text = REFERENCE.read_text(encoding="utf-8")
@@ -642,7 +675,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         for method in methods:
             receiver = method["receiver"]
             self.assertIn(receiver["base"], types)
-            self.assertEqual(len(receiver["type_parameters"]), len(types[receiver["base"]]["type_parameters"]))
+            declaration = types[receiver["base"]]
+            self.assertEqual(declaration["type_form"], "defined")
+            self.assertEqual(
+                receiver["type_parameters"],
+                [parameter["name"] for parameter in declaration["type_parameters"]],
+            )
             self.assertEqual(method["signature"], derive_signature(method))
 
     def test_canonical_go_rendering_golden_vectors_are_pinned(self) -> None:
@@ -687,6 +725,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         )
         alias = find_symbol(document, "type", "Alias")
         self.assertEqual((alias["type_form"], alias["type"]), ("alias", "*Aggregate[T]"))
+        self.assertEqual(alias["type_parameters"], aggregate["type_parameters"])
         method = find_symbol(document, "method", "Apply")
         self.assertEqual(
             method["receiver"],
@@ -697,6 +736,28 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "func(shared.Value, ...T) (T, <-chan shared_2.Value)",
         )
         for symbol in package["symbols"]:
+            self.assertEqual(symbol["signature"], derive_signature(symbol))
+
+    def test_canonical_basic_alias_and_underlying_vectors_converge(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "canonical-go-rendering.json")
+        variables = {
+            symbol["name"]: symbol
+            for symbol in document["packages"][0]["symbols"]
+            if symbol["kind"] == "var"
+        }
+        expected = {
+            "FromByte": "uint8",
+            "FromInt32": "int32",
+            "FromRune": "int32",
+            "FromUint8": "uint8",
+        }
+        self.assertEqual(
+            {name: symbol["type"] for name, symbol in variables.items()},
+            expected,
+        )
+        self.assertEqual(variables["FromByte"]["type"], variables["FromUint8"]["type"])
+        self.assertEqual(variables["FromRune"]["type"], variables["FromInt32"]["type"])
+        for symbol in variables.values():
             self.assertEqual(symbol["signature"], derive_signature(symbol))
 
     def test_positive_packages_and_symbols_are_canonically_ordered(self) -> None:
@@ -1169,6 +1230,34 @@ class APISurfaceV1ContractTests(unittest.TestCase):
 
         self.assert_mutation_rejected(mutation, "receiver arity mismatch")
 
+    def test_validator_modes_reject_renamed_and_reordered_receiver_parameters(self) -> None:
+        cases = (["T", "Element"], ["U", "T"])
+        for parameters in cases:
+            with self.subTest(parameters=parameters):
+                def mutation(
+                    document: dict[str, Any],
+                    parameters: list[str] = parameters,
+                ) -> None:
+                    method = find_symbol(document, "method", "Values")
+                    method["receiver"]["type_parameters"] = parameters
+                    method["signature"] = derive_signature(method)
+
+                self.assert_mutation_rejected_in_all_api_modes(
+                    mutation,
+                    "receiver type parameter mismatch",
+                )
+
+    def test_validator_modes_reject_alias_receiver_targets(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            method = find_symbol(document, "method", "Values")
+            method["receiver"]["base"] = "Pair"
+            method["signature"] = derive_signature(method)
+
+        self.assert_mutation_rejected_in_all_api_modes(
+            mutation,
+            "non-defined receiver",
+        )
+
     def test_validator_package_identity_is_independent_of_kind(self) -> None:
         def mutation(document: dict[str, Any]) -> None:
             variable = find_symbol(document, "var")
@@ -1177,18 +1266,37 @@ class APISurfaceV1ContractTests(unittest.TestCase):
 
         self.assert_mutation_rejected(mutation, "duplicate symbol identity")
 
-    def test_validator_method_identity_is_independent_of_pointer_and_receiver_names(self) -> None:
+    def test_validator_method_identity_is_independent_of_pointer_choice(self) -> None:
         def mutation(document: dict[str, Any]) -> None:
             method = find_symbol(document, "method", "Values")
             method["name"] = "Lookup"
             method["receiver"] = {
                 "base": "Catalog",
                 "pointer": False,
-                "type_parameters": ["Element"],
+                "type_parameters": ["T"],
             }
             method["signature"] = derive_signature(method)
 
         self.assert_mutation_rejected(mutation, "duplicate symbol identity")
+
+    def test_pointer_receiver_signature_identity_and_fingerprint_are_coherent(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        package = document["packages"][0]
+        method = find_symbol(document, "method", "Lookup")
+        identity = (package["path"], method["receiver"]["base"], method["name"])
+        signature = method["signature"]
+        fingerprint = compatibility_fingerprint(document)
+
+        method["receiver"]["pointer"] = False
+        method["signature"] = derive_signature(method)
+
+        self.assertEqual(
+            (package["path"], method["receiver"]["base"], method["name"]),
+            identity,
+        )
+        self.assertNotEqual(method["signature"], signature)
+        self.assertNotEqual(compatibility_fingerprint(document), fingerprint)
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
 
     def test_validator_derives_every_kind_signature(self) -> None:
         for kind in SYMBOL_FIELDS:

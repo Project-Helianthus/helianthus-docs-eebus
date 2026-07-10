@@ -50,6 +50,7 @@ SECRET_PATTERN = re.compile(
     r"client[_ -]?secret|private[_ -]?key|serial(?:[_ -]?number)?|"
     r"account[_ -]?(?:id|identifier|data)|local[_ -]?identity|"
     r"stable[_ -]?peer[_ -]?identifier|pairing[_ -]?history|"
+    r"(?:full[_ -]+)?fingerprint|mac[_ -]+address|"
     r"(?:raw[_ -]+)?(?:ski|ship)(?:[_ -]*(?:id|identifier))?)"
     r"\s*[:=]",
     re.IGNORECASE,

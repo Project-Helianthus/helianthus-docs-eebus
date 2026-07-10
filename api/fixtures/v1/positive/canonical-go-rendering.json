@@ -62,12 +62,12 @@
           "kind": "type",
           "name": "Alias",
           "type": "*Aggregate[T]",
-          "signature": "type Alias[T any] = *Aggregate[T]",
+          "signature": "type Alias[T interface{ ~int | ~string }] = *Aggregate[T]",
           "type_form": "alias",
           "type_parameters": [
             {
               "name": "T",
-              "constraint": "any"
+              "constraint": "interface{ ~int | ~string }"
             }
           ]
         },
@@ -91,6 +91,30 @@
           "signature": "type Embedded interface{ Accept(shared_2.Value) error }",
           "type_form": "defined",
           "type_parameters": []
+        },
+        {
+          "kind": "var",
+          "name": "FromByte",
+          "type": "uint8",
+          "signature": "var FromByte uint8"
+        },
+        {
+          "kind": "var",
+          "name": "FromInt32",
+          "type": "int32",
+          "signature": "var FromInt32 int32"
+        },
+        {
+          "kind": "var",
+          "name": "FromRune",
+          "type": "int32",
+          "signature": "var FromRune int32"
+        },
+        {
+          "kind": "var",
+          "name": "FromUint8",
+          "type": "uint8",
+          "signature": "var FromUint8 uint8"
         }
       ]
     }

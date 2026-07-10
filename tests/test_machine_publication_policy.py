@@ -294,6 +294,43 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 result = decode_machine_json(json.dumps(document).encode("utf-8"))
                 self.assertIn(category, machine_publication_diagnostics(result))
 
+    def test_decoded_assignment_labels_cover_case_and_separator_forms(self) -> None:
+        labels = (
+            "fingerprint: synthetic-value",
+            "FINGERPRINT = synthetic-value",
+            "full fingerprint: synthetic-value",
+            "FULL-FINGERPRINT=synthetic-value",
+            "full_fingerprint : synthetic-value",
+            "mac address: synthetic-value",
+            "MAC-ADDRESS = synthetic-value",
+            "mac_address: synthetic-value",
+        )
+        for label in labels:
+            with self.subTest(label=label.split(":", 1)[0]):
+                result = decode_machine_json(
+                    json.dumps({"note": label}).encode("utf-8")
+                )
+                self.assertEqual(
+                    machine_publication_diagnostics(result),
+                    {"private identifier"},
+                )
+
+    def test_escaped_shadowed_assignment_labels_remain_private(self) -> None:
+        escaped_labels = (
+            r"fingerpr\u0069nt: synthetic-value",
+            r"FULL\u005fFINGERPRINT=synthetic-value",
+            r"MAC\u0020ADDRESS: synthetic-value",
+        )
+        for label in escaped_labels:
+            with self.subTest(label=label):
+                raw = f'{{"note":"clean","note":"{label}"}}'.encode("utf-8")
+                result = decode_machine_json(raw)
+                self.assertTrue(result.duplicate_keys)
+                self.assertEqual(
+                    machine_publication_diagnostics(result),
+                    {"private identifier"},
+                )
+
     def test_escaped_keys_duplicates_and_trailing_values_cannot_bypass_policy(self) -> None:
         raw = (
             b'{"pass\\u0077ord":"first","pass\\u0077ord":"second"}'
@@ -496,6 +533,35 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                         result.stderr,
                     )
                     self.assertNotIn("synthetic", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_both_validators_reject_escaped_shadowed_assignment_labels(self) -> None:
+        escaped_labels = (
+            r"fingerpr\u0069nt: diagnostic-sensitive-value",
+            r"FULL\u002dFINGERPRINT=diagnostic-sensitive-value",
+            r"MAC\u005fADDRESS: diagnostic-sensitive-value",
+        )
+        for label in escaped_labels:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / POSITIVE_REL
+                text = artifact.read_text(encoding="utf-8")
+                value = "18446744073709551615"
+                needle = f'          "value": "{value}"'
+                replacement = (
+                    f'{needle},\n'
+                    f'          "value": "{label}"'
+                )
+                artifact.write_text(
+                    text.replace(needle, replacement, 1),
+                    encoding="utf-8",
+                )
+
+                expected = f"{POSITIVE_REL.as_posix()}: private identifier"
+                for result in (run(API_VALIDATOR, repo), run(POLICY_VALIDATOR, repo)):
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(expected, result.stderr)
+                    self.assertNotIn("diagnostic-sensitive-value", result.stderr)
                     self.assertNotIn("Traceback", result.stderr)
 
     def test_repository_policy_rejects_second_values_and_escaped_tails(self) -> None:

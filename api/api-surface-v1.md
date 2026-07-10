@@ -18,9 +18,10 @@ no protocol or consumer behavior is declared available.
 This milestone freezes the JSON representation, producer algorithm, and
 synthetic corpus invariants. The portable validator checks strict JSON, closed
 field sets, normalized text, identifier rules, type-parameter uniqueness,
-receiver resolution and arity, declaration identity, cross-field signature
-derivation, import structure and identity, ordering, exact exclusions,
-publication markers, and fixture boundaries. It does not parse Go.
+receiver resolution to defined types, canonical receiver parameter names and
+arity, declaration identity, cross-field signature derivation, import structure
+and identity, ordering, exact exclusions, publication markers, and fixture
+boundaries. It does not parse Go.
 
 Before emitting this format, a future AST-backed producer must prove Go syntax
 and apply the normative selection, qualifier allocation, and rendering
@@ -179,12 +180,25 @@ function. `types.TypeString` with that qualifier may be used only where its
 result is byte-for-byte identical to these rules. Unsupported or invalid type
 nodes reject the declaration.
 
-- A `*types.Basic` is `Basic.Name()` (`bool`, `int`, `string`, the other
-  numeric builtins, or an untyped name). This deliberately normalizes source
-  `byte` and `rune` occurrences to `uint8` and `int32`; untyped rune constants
-  remain `untyped rune`. If `Basic.Kind()` is `types.UnsafePointer`, ignore
-  `Basic.Name()` and render the qualifier allocated to import path `unsafe`
-  followed by `.Pointer`, including any collision suffix.
+- Dispatch a `*types.Basic` by `Basic.Kind()`. For `types.Uint8`, emit `uint8`;
+  for `types.Int32`, emit `int32`; and for `types.UnsafePointer`, render the
+  qualifier allocated to import path `unsafe` followed by `.Pointer`, including
+  any collision suffix. For every other supported basic kind, emit
+  `Basic.Name()`. The `Uint8` and `Int32` overrides are mandatory and apply
+  regardless of `Basic.Name()`, so source `byte`/`uint8` and source
+  `rune`/`int32` respectively converge. `types.UntypedRune` is not overridden
+  and remains `untyped rune`.
+
+  A `go/types` probe that type-checks package variables with
+  `types.Config.GoVersion` set to `go1.24` observes the following API values.
+  This is why a renderer based only on `Basic.Name()` is not canonical:
+
+  | Source declaration | `Basic.Kind()` | `Basic.Name()` | `types.TypeString` | v1 rendering |
+  |---|---|---|---|---|
+  | `var FromByte byte` | `types.Uint8` | `byte` | `byte` | `uint8` |
+  | `var FromUint8 uint8` | `types.Uint8` | `uint8` | `uint8` | `uint8` |
+  | `var FromRune rune` | `types.Int32` | `rune` | `rune` | `int32` |
+  | `var FromInt32 int32` | `types.Int32` | `int32` | `int32` | `int32` |
 - A `*types.Named` or `*types.Alias` occurrence is `Name` for the current or
   universe package and `qualifier.Name` otherwise. Non-empty type arguments
   follow as `[T, U]`, rendered recursively. Alias identity is preserved at an
@@ -232,11 +246,11 @@ signature type parameters omitted, rendered as above.
 Declaration `type_parameters` retain the declared order and names and render
 each constraint by the same rules. A method receiver is derived from the
 declared receiver type after stripping one optional pointer. The remainder must
-be a `*types.Named` whose `Origin()` is the selected local defined type. Its
-type-argument count and `Signature.RecvTypeParams()` count must both equal the
-base declaration's `Named.TypeParams()` count, and each receiver type argument
-must be the receiver type parameter at the same index; otherwise reject the
-method.
+be a `*types.Named` whose `Origin()` is the selected local defined type; an
+alias can never be a receiver base. Its type-argument count and
+`Signature.RecvTypeParams()` count must both equal the base declaration's
+`Named.TypeParams()` count, and each receiver type argument must be the receiver
+type parameter at the same index; otherwise reject the method.
 
 For a generic method, build a substitution map keyed by `*types.TypeParam`
 object identity. Receiver parameter at index `i` maps to the base declaration
@@ -289,12 +303,17 @@ the closed object `{base,pointer,type_parameters}`. `base` is an exported,
 unqualified portable ASCII identifier, `pointer` is a JSON boolean, and
 `type_parameters` is an always-present ordered array of unique portable ASCII
 identifiers. The base must resolve to a type declaration in the same package,
-and receiver arity must equal that declaration's type-parameter arity.
+that declaration must have `type_form: defined`, and receiver arity must equal
+that declaration's type-parameter arity. The receiver parameter strings must
+also exactly equal the resolved declaration's type-parameter names in
+declaration order. Renamed or reordered strings and alias bases are invalid.
 
 Package-scope declaration identity is `(package path, name)`, independent of
 kind. A constant, variable, type, and function therefore cannot reuse the same
 package-scope name. Method identity is `(package path, receiver.base, name)`,
-independent of pointer choice, receiver parameter names, or receiver spelling.
+independent of pointer choice. Canonical receiver parameter names participate
+in representation, signature derivation, and the compatibility fingerprint,
+but are not an additional method-identity component.
 
 All package, symbol, type-parameter, and receiver identifiers use the portable
 ASCII Go identifier subset and exclude Go keywords. Exported declaration and
@@ -419,10 +438,13 @@ disappear and the allocated qualifiers are `shared` and `shared_2`. Its
 parameter/result variants, but the golden type omits every parameter/result
 name. Its source receiver binds `R` for the declaration parameter `T`, while
 the receiver object, method type, and signature use the canonical declaration
-name `T`. The fixture also pins aliases, defined
-types, builtins, pointers, arrays, slices, maps, all channel directions,
-structs, interfaces, functions, variadics, embedded types, type parameters,
-constraints, and generic receivers.
+name `T`. Its generic `Alias` repeats `Aggregate`'s constraint before
+instantiating `Aggregate[T]`, so that declaration is type-checkable rather than
+merely renderable. The `FromByte`, `FromRune`, `FromUint8`, and `FromInt32`
+vectors pin the `Basic.Kind()` normalization above. The fixture also pins
+aliases, defined types, builtins, pointers, arrays, slices, maps, all channel
+directions, structs, interfaces, functions, variadics, embedded types, type
+parameters, constraints, and generic receivers.
 
 The input/output facts represented by that fixture are exact golden vectors:
 
@@ -432,6 +454,9 @@ The input/output facts represented by that fixture are exact golden vectors:
 | `func Normalize[T interface{ ~string \| ~int }](first left.Value, second right.Value, rest ...T) (result T, err error)` | `type` is `func(shared.Value, shared_2.Value, ...T) (T, error)` and the sorted constraint is `interface{ ~int \| ~string }` |
 | `func Normalize[T interface{ ~string \| ~int }](left.Value, right.Value, ...T) (T, error)` | The identical canonical `type`; only the declaration name and type-parameter fields remain named |
 | `type Aggregate[T interface{ ~string \| ~int }] ...` with `func (a *Aggregate[R]) Apply(value left.Value, rest ...R) (result R, updates <-chan right.Value)` | receiver is `{base: Aggregate, pointer: true, type_parameters: [T]}`, `type` is `func(shared.Value, ...T) (T, <-chan shared_2.Value)`, and the signature uses `*Aggregate[T]` |
+| `type Alias[T interface{ ~string \| ~int }] = *Aggregate[T]` | the alias constraint is identical to `Aggregate`'s canonical constraint, so every permitted `T` satisfies the instantiated target |
+| `var FromByte byte` and `var FromUint8 uint8` | both `type` fields and signatures use `uint8` |
+| `var FromRune rune` and `var FromInt32 int32` | both `type` fields and signatures use `int32` |
 
 The exact negative allowlist has ten filenames. Each fixture retains the valid
 schema identity, canonical version token, synthetic marker, no-runtime marker,
@@ -494,7 +519,10 @@ at least 40 digits, and every repository credential/identifier assignment
 label: token, password, passphrase, credential, secret, API key, client secret,
 private key, account ID/identifier/data, fingerprint, MAC address, serial,
 local identity, stable peer identifier, pairing history, and raw or ordinary
-SKI/SHIP ID forms. It also recognizes household-data/schedule labels,
+SKI/SHIP ID forms. Assignment labels are case-insensitive; spaces, hyphens,
+and underscores are equivalent separators where a label has multiple words,
+including `full fingerprint` and `mac address`. It also recognizes
+household-data/schedule labels,
 raw-evidence labels, the explicit `vendor[_ -]restricted` and
 `restricted[ -]+source` grammars, restricted-vendor document/source/material
 forms, restricted-paraphrase forms, restricted document/source keys, and a

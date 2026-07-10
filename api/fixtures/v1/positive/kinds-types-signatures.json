@@ -133,9 +133,9 @@
           "kind": "method",
           "name": "Values",
           "type": "func() (T, U)",
-          "signature": "func (Pair[T, U]) Values() (T, U)",
+          "signature": "func (Tuple[T, U]) Values() (T, U)",
           "receiver": {
-            "base": "Pair",
+            "base": "Tuple",
             "pointer": false,
             "type_parameters": [
               "T",
@@ -162,6 +162,23 @@
           "type": "struct{ First T; Second U }",
           "signature": "type Pair[T any, U any] = struct{ First T; Second U }",
           "type_form": "alias",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "any"
+            },
+            {
+              "name": "U",
+              "constraint": "any"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "Tuple",
+          "type": "struct{ First T; Second U }",
+          "signature": "type Tuple[T any, U any] struct{ First T; Second U }",
+          "type_form": "defined",
           "type_parameters": [
             {
               "name": "T",

@@ -760,6 +760,8 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                     declaration = type_declarations.get(base)
                     if declaration is None:
                         diagnostics.add("unresolved receiver")
+                    elif declaration.get("type_form") != "defined":
+                        diagnostics.add("non-defined receiver")
                     else:
                         declared_parameters = declaration.get("type_parameters")
                         if isinstance(declared_parameters, list) and isinstance(
@@ -767,6 +769,17 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                         ):
                             if len(receiver["type_parameters"]) != len(declared_parameters):
                                 diagnostics.add("receiver arity mismatch")
+                            else:
+                                declared_names = [
+                                    parameter.get("name")
+                                    for parameter in declared_parameters
+                                    if isinstance(parameter, dict)
+                                ]
+                                if (
+                                    len(declared_names) == len(declared_parameters)
+                                    and receiver["type_parameters"] != declared_names
+                                ):
+                                    diagnostics.add("receiver type parameter mismatch")
 
             if (
                 valid_kind
