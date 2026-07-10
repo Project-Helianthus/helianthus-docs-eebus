@@ -5,15 +5,15 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 echo "==> verify markdown files are present"
-find . -type f -iname '*.md' -print -quit | grep -q .
+find . -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' \) -print -quit | grep -q .
 
 echo "==> check markdown for tabs and trailing spaces"
 failed=0
-if grep -RIn $'\t' --include='*.[mM][dD]' .; then
+if grep -RIn $'\t' --include='*.[mM][dD]' --include='*.[mM][aA][rR][kK][dD][oO][wW][nN]' --include='*.[mM][dD][oO][wW][nN]' --include='*.[mM][kK][dD]' --include='*.[mM][kK][dD][nN]' .; then
   echo "Tab characters are not allowed in markdown files." >&2
   failed=1
 fi
-if grep -RInE ' +$' --include='*.[mM][dD]' .; then
+if grep -RInE ' +$' --include='*.[mM][dD]' --include='*.[mM][aA][rR][kK][dD][oO][wW][nN]' --include='*.[mM][dD][oO][wW][nN]' --include='*.[mM][kK][dD]' --include='*.[mM][kK][dD][nN]' .; then
   echo "Trailing spaces are not allowed in markdown files." >&2
   failed=1
 fi
@@ -40,8 +40,9 @@ private_nets = [
 
 failed = False
 pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
+markdown_suffixes = {".md", ".markdown", ".mdown", ".mkd", ".mkdn"}
 for path in pathlib.Path(".").rglob("*"):
-    if not path.is_file() or path.suffix.lower() != ".md":
+    if not path.is_file() or path.suffix.lower() not in markdown_suffixes:
         continue
     text = path.read_text(encoding="utf-8")
     for match in pattern.finditer(text):

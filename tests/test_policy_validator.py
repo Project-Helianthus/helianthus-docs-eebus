@@ -528,6 +528,30 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("missing YAML front matter", result.stderr)
 
+    def test_common_markdown_extensions_cannot_bypass_provenance(self) -> None:
+        for suffix in (".markdown", ".mdown", ".mkd", ".mkdn"):
+            with self.subTest(suffix=suffix):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "protocols" / f"unowned-claim{suffix}"
+                    page.write_text("# Invented claim\n", encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("missing YAML front matter", result.stderr)
+
+    def test_substantive_domain_rejects_non_markdown_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "unowned-claim.txt"
+            page.write_text("VR940f supports an invented behavior.\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("substantive documentation must use a Markdown extension", result.stderr)
+
     def test_scaffold_body_is_locked_against_asserted_behavior(self) -> None:
         claims = (
             "VR940f uses TLS pairing with myVaillant.",

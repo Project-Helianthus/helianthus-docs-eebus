@@ -23,6 +23,15 @@ PUBLISHABLE_DOMAINS = {
     "api": ("api", "AGPL-3.0-only"),
     "development": ("development", "AGPL-3.0-only"),
 }
+MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdown", ".mkd", ".mkdn"}
+MARKDOWN_ONLY_DOMAINS = {
+    "protocols",
+    "devices",
+    "architecture",
+    "api",
+    "development",
+    "re-notes",
+}
 
 ROOT_MD = {
     "README.md": ("repository", "AGPL-3.0-only"),
@@ -69,7 +78,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "a9ae15e1411eacd20281c3f5b779c31622dcbb420da8e2804a11c64b461e1725"
+CI_LOCAL_SHA256 = "16a75a3490321afa297fa319ddfb51dc884581600c9fb9ddf149e08e3918ba9c"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -671,7 +680,9 @@ def check_repository(root: Path) -> list[str]:
 
     seen_sources: dict[str, str] = {}
     for path in sorted(
-        path for path in root.rglob("*") if path.is_file() and path.suffix.lower() == ".md"
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in MARKDOWN_SUFFIXES
     ):
         if ".git" in path.parts:
             continue
@@ -767,6 +778,9 @@ def check_repository(root: Path) -> list[str]:
             if path.is_symlink():
                 continue
             rel = _rel(path, root)
+            if top in MARKDOWN_ONLY_DOMAINS and path.suffix.lower() not in MARKDOWN_SUFFIXES:
+                errors.append(f"{rel}: substantive documentation must use a Markdown extension")
+                continue
             try:
                 text = _read(path)
             except UnicodeDecodeError:
