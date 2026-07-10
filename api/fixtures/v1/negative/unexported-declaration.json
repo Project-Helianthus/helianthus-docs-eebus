@@ -14,7 +14,9 @@
           "kind": "type",
           "name": "example",
           "type": "struct{}",
-          "signature": "type example struct{}"
+          "signature": "type example struct{}",
+          "type_form": "defined",
+          "type_parameters": []
         }
       ]
     }

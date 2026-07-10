@@ -9,152 +9,178 @@ claim_status: "no-protocol-claims"
 # eeBUS Go API Surface v1
 
 This page defines the documentation-owned input contract for a future public
-API extractor. It defines representation and normalization only. No runtime
-symbol is asserted to exist, and no protocol or consumer behavior is declared
-available.
+API extractor. It defines representation, derivation, normalization, and
+compatibility fingerprinting only. No runtime symbol is asserted to exist, and
+no protocol or consumer behavior is declared available.
 
 ## Producer and Consumer Boundary
 
-This milestone freezes the JSON representation and the synthetic corpus
-invariants. The corpus validator checks strict JSON, normalized text, declared
-field relationships, ordering, exclusions with precise markers, and fixture
-boundaries. It does not parse Go and does not prove that a `type` or
-`signature` string is legal or canonically spelled Go.
+This milestone freezes the JSON representation and synthetic corpus
+invariants. The portable validator checks strict JSON, closed field sets,
+normalized text, identifier rules, type-parameter uniqueness, receiver
+resolution and arity, declaration identity, cross-field signature derivation,
+ordering, exact exclusions, publication markers, and fixture boundaries. It
+does not parse Go.
 
 Before emitting this format, a future AST-backed producer must prove Go syntax,
-canonical spelling, exported status, dependency visibility, and semantic
-cross-field consistency. It must derive `kind`, `name`, `receiver`, `type`, and
-`signature` from the same declaration. The corpus validator independently
-rejects the string-level mismatches described below, but that portable check is
-not a substitute for AST validation. Consumers may rely on the frozen
-representation and corpus invariants only; they must not treat validation by
-this repository as proof that a Go declaration exists.
+canonical source spelling, `go/constant.Value.ExactString` and source-value
+correctness, generic constraints and cross-parameter references, defined and
+alias declarations, exported dependency visibility, and semantic consistency.
+It must derive every field for a symbol from the same declaration. Portable
+validation is not proof that a Go declaration exists. Consumers may rely on the
+frozen representation and corpus invariants only.
 
 Normative machine artifacts use strict UTF-8 JSON. Duplicate object keys,
-non-UTF-8 input, and fields not declared by the closed schema are invalid.
+non-UTF-8 input, JSON constants outside RFC 8259, nulls, and fields not declared
+by the closed schema are invalid.
 
 ## Schema Identity and Version
 
 The stable schema identity is `helianthus.eebus.api-surface.v1`, the schema URI
 is `urn:helianthus:eebus:api-surface:v1`, and `schema_version` has the constant
-integer value `1`. A document contains `schema_id`, `schema_version`, and
-`packages`. Under JSON Schema draft 2020-12 semantics, the JSON numbers `1` and
-`1.0` are schema-equivalent: both have zero fractional part, satisfy the
-`integer` type, and compare equal to the constant `1`. Consumers must accept any
-schema-equivalent JSON number, including those two spellings. JSON booleans are
-not numbers and are always rejected.
+integer value `1`. The version remains v1 because this contract is unmerged and
+has no consumers.
 
-Canonical producers and every committed fixture must emit the single JSON token
-`1` for `schema_version`. This producer canonicalization does not narrow the
-schema-equivalent numeric forms that a consumer accepts.
+Under JSON Schema draft 2020-12 semantics, the JSON numbers `1` and `1.0` are
+schema-equivalent: both have zero fractional part, satisfy the `integer` type,
+and compare equal to the constant `1`. Consumers must accept any
+schema-equivalent JSON number. JSON booleans are not numbers and are always
+rejected. Canonical producers and every committed fixture emit the single JSON
+token `1`.
 
 The optional `fixture` object is reserved for this repository's synthetic
-golden corpus. When present, it must state `synthetic: true` and
-`runtime_claims: false`. Extracted API documents omit this fixture marker.
+golden corpus. When present, it has exactly `synthetic: true` and
+`runtime_claims: false`. Extracted API documents omit `fixture`.
 
 ## Package Normalization
 
-Each package is represented by the closed fields `path`, `name`, and `symbols`.
-Package paths use Unicode Normalization Form C (NFC), forward slashes, no empty,
-dot, dot-dot, or `internal` package component, no whitespace or control
-character, and no local filesystem location. Package names use the portable
-ASCII Go identifier subset `[A-Za-z_][A-Za-z0-9_]*` and must not be Go
-keywords.
+Each package has exactly `path`, `name`, and `symbols`. Package paths use
+Unicode Normalization Form C (NFC), forward slashes, no empty, dot, dot-dot, or
+`internal` component, no whitespace or control character, and no local
+filesystem location. Package names use the portable ASCII Go identifier subset
+`[A-Za-z_][A-Za-z0-9_]*` and must not be Go keywords.
 
 Source layout, file names, build-cache paths, comments, and formatting do not
 participate in package identity. A package path may occur only once.
 
 ## Symbol Normalization
 
-The only symbol kinds are `const`, `func`, `method`, `type`, and `var`. Symbol
-names use the portable ASCII Go identifier subset
-`[A-Za-z_][A-Za-z0-9_]*`, must not be Go keywords, and are exported only when
-their first byte is in ASCII `A-Z`.
+`symbols` is a `oneOf` union of five closed object shapes. Every shape requires
+`kind`, `name`, `type`, and `signature`; no field accepts null.
 
-Methods additionally carry the normalized receiver spelling. The allowed
-receiver representation is an optional single `*`, an exported unqualified
-base identifier, and an optional bracketed list of identifiers separated by
-comma-space, for example `*Catalog` or `Catalog[T, U]`. The receiver base and
-every generic receiver identifier use `[A-Za-z_][A-Za-z0-9_]*`, exclude Go
-keywords, and the base is exported only when its first byte is in ASCII `A-Z`.
-Non-method symbols must not carry a receiver.
+| Kind | Additional required fields | Meaning |
+|---|---|---|
+| `const` | `value_kind`, `value` | Semantic constant type and exact value |
+| `var` | none | Package variable |
+| `type` | `type_form`, `type_parameters` | Defined type or alias |
+| `func` | `type_parameters` | Package function |
+| `method` | `receiver` | Method with a structured receiver |
 
-This ASCII subset is a deliberate v1 portability constraint. Go source permits
-broader Unicode identifiers, but Unicode category assignments can change across
-Unicode database versions. V1 validation therefore never consults the Python
-Unicode database for package names, symbol names, receiver bases, or generic
-receiver identifiers. Unicode remains permitted in normalized `type` and
-`signature` text where identifier classification is not inferred.
+`value_kind` is one of `bool`, `string`, `int`, `float`, or `complex` and
+records the structural `go/constant` kind. The semantic constant types include
+`untyped bool`, `untyped rune`, `untyped int`, `untyped float`,
+`untyped complex`, and `untyped string`; an untyped rune has structural
+`value_kind` `int`.
 
-Exact symbol identity is the tuple `(package path, kind, receiver, name)`, with
-the receiver represented by the empty string for non-method declarations. Two
-symbols with the same identity are invalid even when their types or signatures
-differ.
+`type_form` is `defined` or `alias`. Every type and function has an
+always-present ordered `type_parameters` array, including an empty array for a
+non-generic declaration. Each parameter is the closed object `{name,
+constraint}`. Names are unique within the declaration.
+
+A method has no declaration-level `type_parameters` field. Its `receiver` is
+the closed object `{base,pointer,type_parameters}`. `base` is an exported,
+unqualified portable ASCII identifier, `pointer` is a JSON boolean, and
+`type_parameters` is an always-present ordered array of unique portable ASCII
+identifiers. The base must resolve to a type declaration in the same package,
+and receiver arity must equal that declaration's type-parameter arity.
+
+Package-scope declaration identity is `(package path, name)`, independent of
+kind. A constant, variable, type, and function therefore cannot reuse the same
+package-scope name. Method identity is `(package path, receiver.base, name)`,
+independent of pointer choice, receiver parameter names, or receiver spelling.
+
+All package, symbol, type-parameter, and receiver identifiers use the portable
+ASCII Go identifier subset and exclude Go keywords. Exported declaration and
+receiver names begin with ASCII `A-Z`. This deliberate v1 portability
+constraint never consults the Python Unicode database for identifier
+classification. Unicode remains permitted in normalized type, constraint,
+value, and signature text where identifier classification is not inferred.
 
 ## Kind and Type Normalization
 
-`type` is the producer-supplied canonical Go type spelling for the declaration.
-It is the declared type for constants and variables, the underlying declaration
-form for types, and the receiver-free function type for functions and methods.
-It is trimmed, single-line NFC text with no Unicode `Cc` control characters,
-`Zl` line separators, `Zp` paragraph separators, or repeated spaces. The
-corpus validator enforces those text properties but does not prove Go type
-syntax.
+`type` is the producer-supplied canonical semantic Go type. For a constant it
+is the semantic type, including the six untyped forms listed above. For a
+variable it is the declared type. For a type declaration it is the defined
+underlying type or alias target without the declaration name, parameters, or
+equals sign. For functions and methods it is the receiver-free function type.
 
-Only public contract types may appear. The AST-backed producer is responsible
-for excluding a declaration that exposes an implementation dependency type.
-The corpus validator machine-checks the exact synthetic sentinel
-`implementation.invalid/` in `type` and `signature`; it does not infer real
-dependency visibility from arbitrary text.
+`type`, constraints, and signatures are trimmed, single-line NFC text with no
+Unicode `Cc` control characters, `Zl` line separators, `Zp` paragraph
+separators, or repeated spaces. The portable validator enforces those
+representation properties but does not prove Go syntax or constraint meaning.
+
+`value` is exactly `go/constant.Value.ExactString`. It remains a JSON string
+for every constant class, even when it represents a boolean or number. The
+future AST producer proves ExactString and source-value correctness; the
+portable validator enforces the field shape, untyped type-to-kind mapping, and
+signature derivation.
+
+Only public contract types may appear. The future producer excludes declarations
+that expose implementation dependencies. The portable validator checks the
+exact synthetic sentinel `implementation.invalid/` in type-bearing fields and
+signatures; it does not infer real dependency visibility from arbitrary text.
 
 ## Signature Normalization
 
-`signature` is the producer-supplied canonical declaration spelling without a
-body, comments, source positions, or source formatting. It includes the
-declaration kind and name, and includes the receiver for a method. It is
-trimmed, single-line NFC text with no Unicode `Cc` control characters, `Zl`
-line separators, or `Zp` paragraph separators, and one ASCII space where
-separation is required.
+`signature` is a deterministic, source-like declaration without a body,
+comments, source positions, or source formatting. It is derived as follows:
 
-The corpus validator enforces portable string-level consistency. For `const`,
-`type`, and `var`, `signature` is exactly `kind`, one space, `name`, one space,
-and `type`. For `func`, `type` begins with `func(` and `signature` inserts the
-declared name after `func`. For `method`, it additionally inserts the exact
-declared receiver in parentheses. Any mismatch is rejected. Legal Go syntax
-and canonical Go spelling remain producer obligations.
+- untyped constant: `const Name = Value`;
+- typed constant: `const Name Type = Value`;
+- variable: `var Name Type`;
+- defined type: `type Name[parameters] Type`;
+- alias: `type Name[parameters] = Type`;
+- function: insert `Name[parameters]` after `func` in the receiver-free
+  function type;
+- method: render the structured receiver exactly, then insert the method name
+  after it in the receiver-free function type.
 
-Parameter names are omitted unless they are required to distinguish a legal Go
-type expression. The AST-backed producer ensures equivalent source declarations
-produce identical type and signature strings.
+Empty parameter lists omit brackets. Declaration parameters render in order as
+`Name Constraint`, separated by comma-space. Receiver parameters render only
+their ordered names, so a generic receiver is `Base[T, U]`; `pointer: true`
+adds the single leading `*`. The value is intentionally duplicated in constant
+signatures so a signature is never an invalid pseudo-declaration.
+
+## Compatibility Fingerprint
+
+The compatibility projection is the complete document after removing the root
+`fixture` field and every symbol's derived `signature` field. No other field is
+removed. Package and symbol arrays remain in canonical order, and type-parameter
+arrays retain declaration order. Object member input order does not participate.
+
+Serialize the projection as UTF-8 JSON with keys sorted by Unicode code point,
+`ensure_ascii` disabled, no insignificant whitespace, and separators `,` and
+`:`. Normalize every schema-equivalent version number to the integer token `1`
+before serialization. The compatibility fingerprint is the lowercase
+hexadecimal SHA-256 digest of those bytes. The fingerprint is computed
+externally; v1 has no self-referential hash field. Corpus tests pin known
+digests for both positive fixtures and prove that changing only `fixture` or a
+correctly derived `signature` does not change the digest.
 
 ## Canonical Ordering
 
 Packages are sorted by the bytewise UTF-8 tuple `(path, name)`. Symbols within
-each package are sorted by the bytewise UTF-8 tuple `(kind, receiver, name)`,
-using an empty receiver for non-method declarations. Sorting is ascending and
-is performed after NFC normalization. Input order is never preserved.
+each package are sorted by the bytewise UTF-8 tuple `(kind, receiver.base or
+empty, name)`. Sorting is ascending and occurs after NFC normalization. Pointer
+choice and receiver parameter spelling do not participate in ordering.
 
 ## Exclusions
 
-The corpus contract excludes:
-
-- fields for formatting, comments, source positions, file names, or build
-  metadata;
-- every path with an internal package component;
-- every unexported declaration;
-- every method on an unexported receiver;
-- the exact `implementation.invalid/` synthetic dependency sentinel;
-- malformed, duplicate-keyed, non-NFC, duplicate-identity, or unsorted input.
-
-Closed fields make source formatting, comments, positions, file names, and
-build metadata unrepresentable. The corpus validator also rejects invalid Go
-identifier strings outside the portable ASCII subset, keywords, invalid
-receiver representations, empty package or symbol collections, duplicate
-package paths, invalid path forms, control characters, Unicode line or
-paragraph separators, invalid Unicode scalar values, and the portable
-cross-field mismatches defined above. The future producer owns exclusions that
-require Go semantic knowledge, including whether a real dependency is
-implementation-only.
+The corpus excludes formatting, comments, source positions, file names, build
+metadata, internal package paths, unexported declarations, methods on
+unexported or unresolved receivers, implementation dependency types,
+duplicate identities, duplicate type-parameter names, malformed or duplicate
+JSON keys, non-NFC text, nulls, unknown fields, and non-canonical ordering.
 
 Exclusion is deterministic and applies to the complete declaration. A rejected
 or excluded declaration is never partially represented.
@@ -164,89 +190,51 @@ or excluded declaration is never partially represented.
 Files under `api/fixtures/v1/positive/` and `api/fixtures/v1/negative/` are
 synthetic. Their package paths begin with
 `example.invalid/helianthus/synthetic/`; no runtime symbol, package, or
-availability claim is implied. Positive fixtures cover all symbol kinds,
-normalized types and signatures, and canonical ordering.
+availability claim is implied. Positive fixtures cover all five kinds, typed
+and all untyped constant classes including rune, exact large values, generic
+defined and alias types, cross-parameter function constraints, value and
+pointer generic receivers, and canonical package and symbol ordering.
 
-Each negative fixture retains the valid schema identity, canonical version token
-`1`, `synthetic: true`, `runtime_claims: false`, and synthetic package-path
-prefix while targeting its named rejection category. Even the malformed fixture
-begins with a complete boundary-valid JSON document before its intentional
-trailing syntax error.
+The exact negative allowlist has ten filenames. Each fixture retains the valid
+schema identity, canonical version token, synthetic marker, no-runtime marker,
+and synthetic package prefix while producing exactly its approved diagnostic
+set. The duplicate-key fixture duplicates only `schema_id`, with equal values;
+strict recovery retains every occurrence for boundary and publication checks.
 
-The canonical duplicate-key fixture duplicates only `schema_id`, and both
-occurrences equal `helianthus.eebus.api-surface.v1`. Duplicate-key recovery
-retains every occurrence solely for boundary and publication checks. Every
-occurrence of `schema_id`, `schema_version`, fixture markers, package
-collections, and package paths must satisfy the synthetic no-runtime boundary;
-a conflicting or shadowed invalid occurrence is rejected.
-
-The validator defines the complete expected diagnostic set for every negative
-fixture. Intended companion categories are explicit, and any missing expected
-category or unrelated added category rejects the corpus. Diagnostics are
-deterministically ordered and include only the repository-relative artifact path
-and a category; they never echo input values or absolute paths.
+Ordinary machine artifacts contain exactly one complete JSON value followed
+only by JSON whitespace. The canonical malformed fixture alone contains one
+complete, boundary-valid JSON value followed by the exact remainder `\n!\n`.
+Any other tail, a second JSON value, or escaped content in a tail is a boundary
+and publication failure. Diagnostics are deterministic, repository-relative,
+category-only, and never echo input values or absolute paths.
 
 ## Privacy and Source Restrictions
 
-Extractor inputs must come from a publishable source. The corpus validator uses
-an exact marker/category policy to avoid broad content inference. It scans the
-raw UTF-8 JSON text and every decoded object-key and value occurrence, including
-values shadowed by a duplicate key. The reproducible marker contract is:
+Both validators import `scripts/machine_publication_policy.py` for strict,
+duplicate-preserving JSON decoding, decoded key and value traversal, malformed
+tail classification, and machine publication markers. The shared policy scans
+raw UTF-8 JSON and every decoded string occurrence, including shadowed duplicate
+values and escaped content.
 
-- `private path` recognizes only these case-sensitive, regex-equivalent forms
-  (non-capturing groups keep the examples from being path literals):
-  `/(?:Users)/[^/\s]+/`, `/(?:home)/[^/\s]+/`,
-  `/(?:tmp)/[^\s]+`, `/(?:var)/folders/[^\s]+`, and
-  `[A-Za-z]:\\(?:Users)\\[^\\\s]+\\`. The first two require one
-  non-empty user component and a following slash; the temporary forms consume
-  one or more non-whitespace characters; the Windows form accepts either drive
-  letter case but requires the literal component spelling `Users`.
-- IPv4 candidates are word-bounded four dot-separated groups of one to three
-  decimal digits. After standard-library address parsing, an address for which
-  `is_private`, `is_loopback`, or `is_link_local` is true is `private network`;
-  every other valid IPv4 address is `network address`. IPv6 candidates use the
-  exact grammar `(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}` followed by zero
-  to four hexadecimal digits, an optional `%[A-Za-z0-9_.-]+` zone suffix, and
-  `(?![0-9A-Fa-f:])`. After removing the zone suffix, every candidate accepted
-  by standard-library address parsing is `network address` regardless of scope.
-  Invalid IPv4 or IPv6 candidates do not match.
-- `private identifier` recognizes a MAC address written as six two-hexadecimal
-  groups with each separator independently a colon or hyphen, or as three
-  four-hexadecimal groups separated by dots, in either case with no adjacent
-  hexadecimal character. It also recognizes a contiguous fingerprint of 40 or
-  more hexadecimal digits when neither adjacent character is hexadecimal.
-- Assignment labels are case-insensitive under Python `re.IGNORECASE`, begin at
-  a regex word boundary, and must be followed by zero or more Unicode
-  whitespace characters and then `:` or `=`. The exact private identifier
-  labels are `token`, `password`, `passphrase`, `credential`, `secret`, `api`
-  plus zero or one `_`, hyphen, or ASCII-space separator plus `key`, `client`
-  plus the same optional separator plus `secret`, `serial` plus the same
-  optional separator plus `number`, and `account` plus the same optional
-  separator plus one of `id`, `identifier`, or `data`.
-- The `household data` category recognizes under the same case and word-boundary
-  rules the label `household`, one or more `_`, hyphen, or ASCII-space
-  separators, then `data` or `schedule`, followed by the assignment delimiter
-  defined above. The `raw evidence` category recognizes `raw`, the same
-  one-or-more separator rule, then `evidence`, followed by that delimiter.
-- `source contamination` recognizes only the Python `re.IGNORECASE`,
-  word-bounded marker grammars `vendor[_ -]restricted` and
-  `restricted[ -]+source`. The first permits exactly one underscore, hyphen, or
-  ASCII space; the second permits one or more ASCII spaces or hyphens in any
-  sequence. No other phrase is inferred as a restricted-source marker.
+The shared marker contract recognizes the documented private path forms, MAC
+addresses, contiguous hexadecimal fingerprints of at least 40 digits,
+credential assignment labels, household-data labels, raw-evidence labels, the
+exact restricted-source marker grammars `vendor[_ -]restricted` and
+`restricted[ -]+source`, and valid IPv4 and IPv6 candidates.
 
-Diagnostics contain only the repository-relative artifact path and category;
-they never echo matched values or absolute temporary paths. The AST-backed
-producer must additionally exclude private or restricted material that cannot
-be identified reliably through this precise marker policy.
+IPv4 candidates use the exact pattern
+`(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])`. Octets are parsed
+manually as decimal values from zero through 255, including leading-zero
+spellings. The fixed private table is exactly `10/8`, `100.64/10`, `127/8`,
+`169.254/16`, `172.16/12`, and `192.168/16`. Every other valid IPv4 candidate,
+including reserved or special-use space, is classified as `network address`.
+Classification never uses `ipaddress.is_private`.
 
-The repository publication validator independently parses every allowlisted JSON
-machine artifact with strict, duplicate-preserving semantics. It recursively
-applies the repository's publication, no-runtime, restricted-source, privacy,
-and control policies to every decoded key and string value occurrence, including
-JSON-escaped text and values shadowed by duplicate keys. For the intentionally
-malformed negative fixture, it also scans the complete strict JSON value before
-the trailing invalid input. Machine-artifact diagnostics use the actual
-repository-relative path and a fixed category only.
+IPv6 candidates use the exact shared grammar with an optional
+`%[A-Za-z0-9_.-]+` zone suffix. After removing that suffix, every candidate
+accepted as IPv6 by the standard library is `network address`, regardless of
+scope. General Markdown publication policy remains repository-specific and is
+not part of this machine contract.
 
 This contract remains canonical in `helianthus-docs-eebus/api`. Code
 repositories consume or link to it and do not duplicate this specification.

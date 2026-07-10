@@ -4,14 +4,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import ipaddress
-import json
 import re
 import sys
 import unicodedata
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import yaml
+
+from machine_publication_policy import (
+    COMPLETE,
+    MALFORMED_SENTINEL,
+    decode_machine_json,
+    machine_publication_diagnostics,
+)
 
 REPO_ID = "Project-Helianthus/helianthus-docs-eebus"
 VALID_OWNER = "@d3vi1"
@@ -48,6 +54,7 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
 }
+MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
 ROOT_MD = {
     "README.md": ("repository", "AGPL-3.0-only"),
@@ -80,7 +87,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
-    "api/api-surface-v1.md": "3df15cfbc18082062ecc33b76c5c06310b6da6cbe97ba2f76db7ef6f9be1b754",
+    "api/api-surface-v1.md": "8eca52968ccfd5ece15eb3212711b42de440e523404e071e47455e773ee67331",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
@@ -219,59 +226,6 @@ ALLOWED_RESTRICTED_POLICY_LINE = (
 
 class UniqueKeySafeLoader(yaml.SafeLoader):
     pass
-
-
-class JSONObject(dict[str, Any]):
-    def __init__(self, pairs: list[tuple[str, Any]]) -> None:
-        super().__init__(pairs)
-        self.pairs = tuple(pairs)
-
-
-class InvalidJSONConstantError(ValueError):
-    pass
-
-
-def _tracked_json_object(pairs: list[tuple[str, Any]]) -> JSONObject:
-    return JSONObject(pairs)
-
-
-def _reject_json_constant(_: str) -> None:
-    raise InvalidJSONConstantError
-
-
-def _decode_json_for_policy(text: str) -> Any | None:
-    decoder = json.JSONDecoder(
-        object_pairs_hook=_tracked_json_object,
-        parse_constant=_reject_json_constant,
-        strict=True,
-    )
-    try:
-        return decoder.decode(text)
-    except (json.JSONDecodeError, InvalidJSONConstantError):
-        # The canonical malformed negative fixture has a strict, complete JSON
-        # value followed by invalid trailing input. Scan that decoded value too.
-        try:
-            document, _ = decoder.raw_decode(text.lstrip())
-        except (json.JSONDecodeError, InvalidJSONConstantError):
-            return None
-        return document
-
-
-def _decoded_json_text_occurrences(value: Any) -> Iterator[str]:
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, list):
-        for item in value:
-            yield from _decoded_json_text_occurrences(item)
-    elif isinstance(value, JSONObject):
-        for key, item in value.pairs:
-            yield key
-            yield from _decoded_json_text_occurrences(item)
-    elif isinstance(value, dict):
-        for key, item in value.items():
-            if isinstance(key, str):
-                yield key
-            yield from _decoded_json_text_occurrences(item)
 
 
 def _construct_unique_mapping(
@@ -435,25 +389,19 @@ def _has_forbidden_control(text: str) -> bool:
     )
 
 
-def _categorical_publication_errors(text: str, rel: str) -> list[str]:
-    errors: list[str] = []
-    if _has_forbidden_control(text):
-        errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
-    errors.extend(_privacy_errors(text, rel, category_only=True))
-    errors.extend(_restricted_source_errors(text, rel, category_only=True))
-    if PREMATURE_COMPLETION_PATTERN.search(text):
-        errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-    if PREMATURE_CONSUMER_PATTERN.search(text):
-        errors.append(f"{rel}: premature gateway or consumer availability claim")
-    return errors
-
-
 def _machine_artifact_errors(text: str, rel: str) -> list[str]:
-    errors = _categorical_publication_errors(text, rel)
-    document = _decode_json_for_policy(text)
-    if document is not None:
-        for occurrence in _decoded_json_text_occurrences(document):
-            errors.extend(_categorical_publication_errors(occurrence, rel))
+    allow_sentinel = rel == MALFORMED_API_FIXTURE
+    result = decode_machine_json(
+        text.encode("utf-8"),
+        allow_malformed_sentinel=allow_sentinel,
+    )
+    expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
+    errors = [
+        f"{rel}: {category}"
+        for category in sorted(machine_publication_diagnostics(result))
+    ]
+    if result.status != expected_status:
+        errors.append(f"{rel}: machine publication boundary")
     return errors
 
 

@@ -12,10 +12,14 @@
       "symbols": [
         {
           "kind": "method",
-          "receiver": "*example",
           "name": "Read",
           "type": "func() error",
-          "signature": "func (*example) Read() error"
+          "signature": "func (*example) Read() error",
+          "receiver": {
+            "base": "example",
+            "pointer": true,
+            "type_parameters": []
+          }
         }
       ]
     }

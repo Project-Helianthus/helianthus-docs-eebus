@@ -14,7 +14,8 @@
           "kind": "func",
           "name": "Open",
           "type": "func(implementation.invalid/private.Client) error",
-          "signature": "func Open(implementation.invalid/private.Client) error"
+          "signature": "func Open(implementation.invalid/private.Client) error",
+          "type_parameters": []
         }
       ]
     }

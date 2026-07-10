@@ -4,8 +4,8 @@
   "schema_id": "helianthus.eebus.api-surface.v1",
   "schema_version": 1,
   "title": "Helianthus eeBUS Go API surface v1",
-  "description": "Closed deterministic representation and corpus contract for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
-  "$comment": "Before emission, an AST-backed producer must prove Go syntax, canonical spelling, and semantic consistency. Consumers may rely only on the representation and corpus invariants declared here.",
+  "description": "Closed deterministic representation and compatibility projection for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
+  "$comment": "Before emission, an AST-backed producer must prove Go syntax, ExactString and source-value correctness, constraints, aliases, dependency visibility, canonical spelling, and semantic consistency. The portable validator checks representation and cross-field derivation only.",
   "type": "object",
   "required": [
     "schema_id",
@@ -86,6 +86,217 @@
         }
       }
     },
+    "typeParameter": {
+      "type": "object",
+      "required": [
+        "name",
+        "constraint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/asciiGoIdentifier"
+        },
+        "constraint": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "required": [
+        "base",
+        "pointer",
+        "type_parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "pointer": {
+          "type": "boolean"
+        },
+        "type_parameters": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/asciiGoIdentifier"
+          }
+        }
+      }
+    },
+    "constSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "value_kind",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "const"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value_kind": {
+          "enum": [
+            "bool",
+            "string",
+            "int",
+            "float",
+            "complex"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "varSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "var"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "typeSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "type_form",
+        "type_parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "type"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type_form": {
+          "enum": [
+            "defined",
+            "alias"
+          ]
+        },
+        "type_parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeParameter"
+          }
+        }
+      }
+    },
+    "funcSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "type_parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "func"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type_parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeParameter"
+          }
+        }
+      }
+    },
+    "methodSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "receiver"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "method"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receiver": {
+          "$ref": "#/$defs/receiver"
+        }
+      }
+    },
     "package": {
       "type": "object",
       "required": [
@@ -112,64 +323,21 @@
       }
     },
     "symbol": {
-      "type": "object",
-      "required": [
-        "kind",
-        "name",
-        "type",
-        "signature"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "enum": [
-            "const",
-            "func",
-            "method",
-            "type",
-            "var"
-          ]
-        },
-        "receiver": {
-          "type": "string",
-          "pattern": "^\\*?[A-Za-z_][A-Za-z0-9_]*(?:\\[[A-Za-z_][A-Za-z0-9_]*(?:, [A-Za-z_][A-Za-z0-9_]*)*\\])?$"
-        },
-        "name": {
-          "$ref": "#/$defs/exportedAsciiGoIdentifier"
-        },
-        "type": {
-          "type": "string",
-          "minLength": 1
-        },
-        "signature": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "allOf": [
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "kind": {
-                "const": "method"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "then": {
-            "required": [
-              "receiver"
-            ]
-          },
-          "else": {
-            "not": {
-              "required": [
-                "receiver"
-              ]
-            }
-          }
+          "$ref": "#/$defs/constSymbol"
+        },
+        {
+          "$ref": "#/$defs/funcSymbol"
+        },
+        {
+          "$ref": "#/$defs/methodSymbol"
+        },
+        {
+          "$ref": "#/$defs/typeSymbol"
+        },
+        {
+          "$ref": "#/$defs/varSymbol"
         }
       ]
     }

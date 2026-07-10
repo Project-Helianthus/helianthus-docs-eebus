@@ -14,7 +14,9 @@
           "kind": "type",
           "name": "E\u0301tat",
           "type": "struct{}",
-          "signature": "type E\u0301tat struct{}"
+          "signature": "type E\u0301tat struct{}",
+          "type_form": "defined",
+          "type_parameters": []
         }
       ]
     }

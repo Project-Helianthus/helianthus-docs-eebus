@@ -12,28 +12,144 @@
       "symbols": [
         {
           "kind": "const",
-          "name": "MaxEntries",
-          "type": "uint16",
-          "signature": "const MaxEntries uint16"
+          "name": "BooleanDefault",
+          "type": "untyped bool",
+          "signature": "const BooleanDefault = true",
+          "value_kind": "bool",
+          "value": "true"
+        },
+        {
+          "kind": "const",
+          "name": "ComplexExact",
+          "type": "untyped complex",
+          "signature": "const ComplexExact = (12345678901234567890123456789/10000000000000000000000000000 + 98765432109876543210987654321/10000000000000000000000000000i)",
+          "value_kind": "complex",
+          "value": "(12345678901234567890123456789/10000000000000000000000000000 + 98765432109876543210987654321/10000000000000000000000000000i)"
+        },
+        {
+          "kind": "const",
+          "name": "FloatExact",
+          "type": "untyped float",
+          "signature": "const FloatExact = 12345678901234567890123456789/10000000000000000000000000000",
+          "value_kind": "float",
+          "value": "12345678901234567890123456789/10000000000000000000000000000"
+        },
+        {
+          "kind": "const",
+          "name": "IntegerExact",
+          "type": "untyped int",
+          "signature": "const IntegerExact = 123456789012345678901234567890123456789",
+          "value_kind": "int",
+          "value": "123456789012345678901234567890123456789"
+        },
+        {
+          "kind": "const",
+          "name": "RuneExact",
+          "type": "untyped rune",
+          "signature": "const RuneExact = 955",
+          "value_kind": "int",
+          "value": "955"
+        },
+        {
+          "kind": "const",
+          "name": "StringExact",
+          "type": "untyped string",
+          "signature": "const StringExact = \"line\\n\\\"quoted\\\"\"",
+          "value_kind": "string",
+          "value": "\"line\\n\\\"quoted\\\"\""
+        },
+        {
+          "kind": "const",
+          "name": "TypedLimit",
+          "type": "uint64",
+          "signature": "const TypedLimit uint64 = 18446744073709551615",
+          "value_kind": "int",
+          "value": "18446744073709551615"
+        },
+        {
+          "kind": "func",
+          "name": "Convert",
+          "type": "func(S) []T",
+          "signature": "func Convert[T any, S interface{ ~[]T }](S) []T",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "any"
+            },
+            {
+              "name": "S",
+              "constraint": "interface{ ~[]T }"
+            }
+          ]
         },
         {
           "kind": "func",
           "name": "NewCatalog",
-          "type": "func([]Entry) *Catalog",
-          "signature": "func NewCatalog([]Entry) *Catalog"
+          "type": "func([]T) *Catalog[T]",
+          "signature": "func NewCatalog[T any]([]T) *Catalog[T]",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "any"
+            }
+          ]
         },
         {
           "kind": "method",
-          "receiver": "*Catalog",
           "name": "Lookup",
-          "type": "func(string) (Entry, bool)",
-          "signature": "func (*Catalog) Lookup(string) (Entry, bool)"
+          "type": "func(string) (T, bool)",
+          "signature": "func (*Catalog[T]) Lookup(string) (T, bool)",
+          "receiver": {
+            "base": "Catalog",
+            "pointer": true,
+            "type_parameters": [
+              "T"
+            ]
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Values",
+          "type": "func() (T, U)",
+          "signature": "func (Pair[T, U]) Values() (T, U)",
+          "receiver": {
+            "base": "Pair",
+            "pointer": false,
+            "type_parameters": [
+              "T",
+              "U"
+            ]
+          }
         },
         {
           "kind": "type",
-          "name": "Entry",
-          "type": "struct{ Name string; Value any }",
-          "signature": "type Entry struct{ Name string; Value any }"
+          "name": "Catalog",
+          "type": "struct{ Entries []T }",
+          "signature": "type Catalog[T any] struct{ Entries []T }",
+          "type_form": "defined",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "any"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "Pair",
+          "type": "struct{ First T; Second U }",
+          "signature": "type Pair[T any, U any] = struct{ First T; Second U }",
+          "type_form": "alias",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "any"
+            },
+            {
+              "name": "U",
+              "constraint": "any"
+            }
+          ]
         },
         {
           "kind": "var",

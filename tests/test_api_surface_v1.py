@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 import shlex
@@ -11,12 +12,22 @@ import tempfile
 import unicodedata
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 REPO = Path(__file__).resolve().parents[1]
-POLICY_VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
-API_VALIDATOR = REPO / "scripts" / "validate_api_surface_v1.py"
+SCRIPTS = REPO / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+
+from validate_api_surface_v1 import (  # noqa: E402
+    compatibility_fingerprint,
+    compatibility_projection,
+)
+
+
+POLICY_VALIDATOR = SCRIPTS / "validate_repository_policy.py"
+API_VALIDATOR = SCRIPTS / "validate_api_surface_v1.py"
+SHARED_POLICY = SCRIPTS / "machine_publication_policy.py"
 SCHEMA = REPO / "api" / "schema" / "helianthus.eebus.api-surface.v1.schema.json"
 REFERENCE = REPO / "api" / "api-surface-v1.md"
 POSITIVE_FIXTURES = REPO / "api" / "fixtures" / "v1" / "positive"
@@ -26,7 +37,6 @@ SCHEMA_ID = "helianthus.eebus.api-surface.v1"
 SCHEMA_URI = "urn:helianthus:eebus:api-surface:v1"
 SCHEMA_VERSION = 1
 SYNTHETIC_PACKAGE_PREFIX = "example.invalid/helianthus/synthetic/"
-
 REQUIRED_POSITIVE_FIXTURES = {
     "packages-and-symbols.json",
     "kinds-types-signatures.json",
@@ -43,7 +53,24 @@ REQUIRED_NEGATIVE_FIXTURES = {
     "unexported-receiver.json",
     "unknown-field.json",
 }
-SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
+SYMBOL_FIELDS = {
+    "const": {"kind", "name", "type", "signature", "value_kind", "value"},
+    "func": {"kind", "name", "type", "signature", "type_parameters"},
+    "method": {"kind", "name", "type", "signature", "receiver"},
+    "type": {
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "type_form",
+        "type_parameters",
+    },
+    "var": {"kind", "name", "type", "signature"},
+}
+KNOWN_FINGERPRINTS = {
+    "kinds-types-signatures.json": "82bba4b777457194748e2b123a07b055c65de4678ed76f068ed406b0b3426d5a",
+    "packages-and-symbols.json": "492c7ec2e865dc21afd5c0dba9778efa85eed443a105ccdc32efa128717c010e",
+}
 
 
 class DuplicateJSONKeyError(ValueError):
@@ -54,26 +81,29 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise DuplicateJSONKeyError(f"duplicate key {key!r}")
+            raise DuplicateJSONKeyError(key)
         result[key] = value
     return result
 
 
 def load_json_strict(path: Path) -> Any:
-    text = path.read_bytes().decode("utf-8")
-    return json.loads(text, object_pairs_hook=_unique_object)
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object)
 
 
 def load_first_json_value(path: Path) -> tuple[Any, str]:
-    text = path.read_bytes().decode("utf-8")
-    document, end = json.JSONDecoder().raw_decode(text.lstrip())
-    return document, text.lstrip()[end:]
+    text = path.read_text(encoding="utf-8")
+    start = len(text) - len(text.lstrip(" \t\r\n"))
+    document, end = json.JSONDecoder().raw_decode(text, start)
+    return document, text[end:]
 
 
 def copy_repo(tmp_path: Path) -> Path:
     destination = tmp_path / "repo"
-    ignore = shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__")
-    shutil.copytree(REPO, destination, ignore=ignore)
+    shutil.copytree(
+        REPO,
+        destination,
+        ignore=shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__"),
+    )
     return destination
 
 
@@ -105,23 +135,55 @@ def negative_path(name: str, root: Path = REPO) -> Path:
     return root / "api" / "fixtures" / "v1" / "negative" / name
 
 
-def symbol_identity(package: dict[str, Any], symbol: dict[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        package["path"],
-        symbol["kind"],
-        symbol.get("receiver", ""),
-        symbol["name"],
+def write_json(path: Path, document: Any) -> None:
+    path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def find_symbol(document: dict[str, Any], kind: str, name: str | None = None) -> dict[str, Any]:
+    return next(
+        symbol
+        for package in document["packages"]
+        for symbol in package["symbols"]
+        if symbol["kind"] == kind and (name is None or symbol["name"] == name)
     )
 
 
+def render_parameters(parameters: list[dict[str, str]]) -> str:
+    if not parameters:
+        return ""
+    return "[" + ", ".join(f"{item['name']} {item['constraint']}" for item in parameters) + "]"
+
+
+def derive_signature(symbol: dict[str, Any]) -> str:
+    kind = symbol["kind"]
+    name = symbol["name"]
+    type_text = symbol["type"]
+    if kind == "const":
+        if type_text.startswith("untyped "):
+            return f"const {name} = {symbol['value']}"
+        return f"const {name} {type_text} = {symbol['value']}"
+    if kind == "var":
+        return f"var {name} {type_text}"
+    if kind == "type":
+        equals = " =" if symbol["type_form"] == "alias" else ""
+        return f"type {name}{render_parameters(symbol['type_parameters'])}{equals} {type_text}"
+    if kind == "func":
+        return f"func {name}{render_parameters(symbol['type_parameters'])}{type_text[4:]}"
+    receiver = symbol["receiver"]
+    arguments = (
+        "[" + ", ".join(receiver["type_parameters"]) + "]"
+        if receiver["type_parameters"]
+        else ""
+    )
+    pointer = "*" if receiver["pointer"] else ""
+    return f"func ({pointer}{receiver['base']}{arguments}) {name}{type_text[4:]}"
+
+
 def symbol_order_key(symbol: dict[str, Any]) -> tuple[bytes, bytes, bytes]:
+    receiver = symbol.get("receiver", {})
     return tuple(
         value.encode("utf-8")
-        for value in (
-            symbol["kind"],
-            symbol.get("receiver", ""),
-            symbol["name"],
-        )
+        for value in (symbol["kind"], receiver.get("base", ""), symbol["name"])
     )
 
 
@@ -129,1073 +191,600 @@ def package_order_key(package: dict[str, Any]) -> tuple[bytes, bytes]:
     return (package["path"].encode("utf-8"), package["name"].encode("utf-8"))
 
 
-def receiver_base(receiver: str) -> str:
-    base = receiver.lstrip("*").split("[", 1)[0]
-    return base.rsplit(".", 1)[-1]
-
-
-def is_exported(name: str) -> bool:
-    return bool(name) and "A" <= name[0] <= "Z"
-
-
-def first_positive(root: Path = REPO) -> Path:
-    paths = positive_paths(root)
-    if not paths:
-        raise AssertionError("no positive API surface v1 fixture exists")
-    return paths[0]
-
-
-def replace_first_symbol_value(path: Path, key: str, value: str) -> None:
-    document = load_json_strict(path)
-    document["packages"][0]["symbols"][0][key] = value
-    path.write_text(
-        json.dumps(document, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
-def write_json(path: Path, document: Any) -> None:
-    path.write_text(
-        json.dumps(document, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
-def find_symbol(document: dict[str, Any], kind: str) -> dict[str, Any]:
-    return next(
-        symbol
-        for package in document["packages"]
-        for symbol in package["symbols"]
-        if symbol["kind"] == kind
-    )
+def canonical_fingerprint_independent(document: dict[str, Any]) -> str:
+    projection = copy.deepcopy(document)
+    projection.pop("fixture", None)
+    for package in projection["packages"]:
+        for symbol in package["symbols"]:
+            symbol.pop("signature")
+    encoded = json.dumps(
+        projection,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class APISurfaceV1ContractTests(unittest.TestCase):
-    def require_file(self, path: Path) -> None:
-        self.assertTrue(path.is_file(), f"missing regular file: {path.relative_to(REPO)}")
-        self.assertFalse(path.is_symlink(), f"symlink is forbidden: {path.relative_to(REPO)}")
-
-    def require_fixture_sets(self) -> tuple[list[Path], list[Path]]:
-        positive = positive_paths()
-        negative = sorted(NEGATIVE_FIXTURES.glob("*.json"))
-        self.assertTrue(positive, "missing positive API surface v1 fixtures")
-        self.assertTrue(negative, "missing negative API surface v1 fixtures")
-        return positive, negative
-
-    def assert_document_mutation_rejected(
+    def assert_mutation_rejected(
         self,
-        mutation: Any,
+        mutation: Callable[[dict[str, Any]], None],
         category: str,
+        *,
+        fixture: str = "kinds-types-signatures.json",
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
-            target = (
-                repo
-                / "api"
-                / "fixtures"
-                / "v1"
-                / "positive"
-                / "kinds-types-signatures.json"
-            )
+            target = repo / "api" / "fixtures" / "v1" / "positive" / fixture
             document = load_json_strict(target)
             mutation(document)
             write_json(target, document)
-
             result = run_validator(repo)
-
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(category, result.stderr)
 
-    def test_canonical_contract_paths_are_regular_files(self) -> None:
-        for path in (SCHEMA, REFERENCE, API_VALIDATOR):
-            with self.subTest(path=path.relative_to(REPO)):
-                self.require_file(path)
+    def test_contract_paths_and_exact_fixture_allowlists(self) -> None:
+        for path in (SCHEMA, REFERENCE, API_VALIDATOR, POLICY_VALIDATOR, SHARED_POLICY):
+            self.assertTrue(path.is_file(), path)
+            self.assertFalse(path.is_symlink(), path)
+        self.assertEqual({path.name for path in positive_paths()}, REQUIRED_POSITIVE_FIXTURES)
+        self.assertEqual(
+            {path.name for path in NEGATIVE_FIXTURES.glob("*.json")},
+            REQUIRED_NEGATIVE_FIXTURES,
+        )
 
-        positive, negative = self.require_fixture_sets()
-        self.assertTrue(REQUIRED_POSITIVE_FIXTURES.issubset({path.name for path in positive}))
-        self.assertTrue(REQUIRED_NEGATIVE_FIXTURES.issubset({path.name for path in negative}))
-
-    def test_schema_has_stable_identity_version_and_closed_root(self) -> None:
-        self.require_file(SCHEMA)
+    def test_schema_identity_version_and_closed_root_are_stable(self) -> None:
         schema = load_json_strict(SCHEMA)
-
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertEqual(schema["$id"], SCHEMA_URI)
+        self.assertEqual(schema["schema_id"], SCHEMA_ID)
+        self.assertEqual(schema["schema_version"], SCHEMA_VERSION)
         self.assertEqual(schema["type"], "object")
         self.assertIs(schema["additionalProperties"], False)
-        self.assertTrue(
-            {"schema_id", "schema_version", "packages"}.issubset(schema["required"])
-        )
+        self.assertEqual(set(schema["required"]), {"schema_id", "schema_version", "packages"})
         self.assertEqual(schema["properties"]["schema_id"]["const"], SCHEMA_ID)
-        self.assertEqual(schema["properties"]["schema_version"]["type"], "integer")
-        self.assertEqual(schema["properties"]["schema_version"]["const"], SCHEMA_VERSION)
-        self.assertEqual(
-            schema["$defs"]["asciiGoIdentifier"]["pattern"],
-            "^[A-Za-z_][A-Za-z0-9_]*$",
-        )
-        self.assertEqual(
-            schema["$defs"]["exportedAsciiGoIdentifier"]["pattern"],
-            "^[A-Z][A-Za-z0-9_]*$",
-        )
-        self.assertIn("func", schema["$defs"]["asciiGoIdentifier"]["not"]["enum"])
-        self.assertEqual(
-            schema["$defs"]["package"]["properties"]["name"]["$ref"],
-            "#/$defs/asciiGoIdentifier",
-        )
-        self.assertEqual(
-            schema["$defs"]["symbol"]["properties"]["name"]["$ref"],
-            "#/$defs/exportedAsciiGoIdentifier",
-        )
-        self.assertIn(
-            "[A-Za-z_]",
-            schema["$defs"]["symbol"]["properties"]["receiver"]["pattern"],
-        )
-        self.assertIn("AST-backed producer", schema["$comment"])
-        self.assertIn("does not prove Go semantics", schema["description"])
+        self.assertEqual(schema["properties"]["schema_version"], {"type": "integer", "const": 1})
 
-    def test_reference_defines_normative_normalization_and_exclusions(self) -> None:
-        self.require_file(REFERENCE)
-        text = REFERENCE.read_bytes().decode("utf-8")
-        headings = set(re.findall(r"^## (.+?)\s*$", text, re.MULTILINE))
-        self.assertTrue(
-            {
-                "Schema Identity and Version",
-                "Producer and Consumer Boundary",
-                "Package Normalization",
-                "Symbol Normalization",
-                "Kind and Type Normalization",
-                "Signature Normalization",
-                "Canonical Ordering",
-                "Exclusions",
-                "Synthetic Golden Fixtures",
-                "Privacy and Source Restrictions",
-            }.issubset(headings)
-        )
+    def test_schema_uses_a_closed_oneof_for_every_symbol_kind(self) -> None:
+        schema = load_json_strict(SCHEMA)
+        definitions = schema["$defs"]
+        refs = {item["$ref"] for item in definitions["symbol"]["oneOf"]}
+        expected_refs = {
+            f"#/$defs/{kind}Symbol" for kind in ("const", "func", "method", "type", "var")
+        }
+        self.assertEqual(refs, expected_refs)
+        for kind, fields in SYMBOL_FIELDS.items():
+            definition = definitions[f"{kind}Symbol"]
+            with self.subTest(kind=kind):
+                self.assertEqual(set(definition["required"]), fields)
+                self.assertEqual(set(definition["properties"]), fields)
+                self.assertIs(definition["additionalProperties"], False)
 
-        normalized = " ".join(text.lower().split())
-        for phrase in (
-            SCHEMA_ID,
-            "utf-8",
-            "unicode normalization form c",
-            "bytewise",
-            "internal package",
-            "unexported declaration",
-            "unexported receiver",
-            "implementation dependency type",
-            "no runtime symbol",
-            "publishable source",
+    def test_schema_closes_type_parameters_and_structured_receivers(self) -> None:
+        definitions = load_json_strict(SCHEMA)["$defs"]
+        parameter = definitions["typeParameter"]
+        receiver = definitions["receiver"]
+        self.assertEqual(set(parameter["required"]), {"name", "constraint"})
+        self.assertEqual(set(parameter["properties"]), {"name", "constraint"})
+        self.assertIs(parameter["additionalProperties"], False)
+        self.assertEqual(set(receiver["required"]), {"base", "pointer", "type_parameters"})
+        self.assertEqual(set(receiver["properties"]), {"base", "pointer", "type_parameters"})
+        self.assertIs(receiver["additionalProperties"], False)
+        self.assertEqual(receiver["properties"]["pointer"]["type"], "boolean")
+        self.assertIs(receiver["properties"]["type_parameters"]["uniqueItems"], True)
+        self.assertNotIn("type_parameters", definitions["methodSymbol"]["properties"])
+
+    def test_schema_and_fixtures_contain_no_null_contract_values(self) -> None:
+        def visit(value: Any) -> None:
+            self.assertIsNotNone(value)
+            if isinstance(value, dict):
+                for item in value.values():
+                    visit(item)
+            elif isinstance(value, list):
+                for item in value:
+                    visit(item)
+
+        visit(load_json_strict(SCHEMA))
+        for path in positive_paths():
+            visit(load_json_strict(path))
+
+    def test_reference_records_every_approved_boundary(self) -> None:
+        normalized = " ".join(REFERENCE.read_text(encoding="utf-8").lower().split())
+        phrases = (
+            "oneof` union of five closed object shapes",
+            "package-scope declaration identity is `(package path, name)`",
+            "method identity is `(package path, receiver.base, name)`",
+            "go/constant.value.exactstring",
+            "untyped rune has structural `value_kind` `int`",
+            "type_form` is `defined` or `alias`",
             "future ast-backed producer must prove go syntax",
             "does not parse go",
-            "consumers may rely on the frozen representation and corpus invariants only",
-            "json booleans are not numbers",
-            "consumers must accept any schema-equivalent json number",
-            "canonical producers and every committed fixture must emit the single json token `1`",
-            "[a-za-z_][a-za-z0-9_]*",
-            "deliberate v1 portability constraint",
-            "never consults the python unicode database",
-            "complete expected diagnostic set",
-        ):
+            "receiver arity must equal",
+            "compatibility projection",
+            "no self-referential hash field",
+            "exact remainder `\\n!\\n`",
+            "classification never uses `ipaddress.is_private`",
+        )
+        for phrase in phrases:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
 
-    def test_reference_reproduces_the_publication_marker_contract(self) -> None:
-        self.require_file(REFERENCE)
-        normalized = " ".join(REFERENCE.read_text(encoding="utf-8").lower().split())
-        for phrase in (
-            "raw utf-8 json text and every decoded object-key and value occurrence",
-            "case-sensitive, regex-equivalent forms",
-            "`/(?:users)/[^/\\s]+/`",
-            "`/(?:home)/[^/\\s]+/`",
-            "`/(?:tmp)/[^\\s]+`",
-            "`/(?:var)/folders/[^\\s]+`",
-            "`[a-za-z]:\\\\(?:users)\\\\[^\\\\\\s]+\\\\`",
-            "four dot-separated groups of one to three decimal digits",
-            "is_private`, `is_loopback`, or `is_link_local",
-            "`%[a-za-z0-9_.-]+` zone suffix",
-            "40 or more hexadecimal digits",
-            "assignment labels are case-insensitive under python `re.ignorecase`",
-            "identifier labels are `token`, `password`, `passphrase`, `credential`,",
-            "zero or one `_`, hyphen, or ascii-space separator",
-            "one or more `_`, hyphen, or ascii-space separators",
-            "`vendor[_ -]restricted` and `restricted[ -]+source`",
-        ):
-            with self.subTest(phrase=phrase):
-                self.assertIn(phrase, normalized)
-
-    def test_positive_fixtures_are_explicitly_synthetic_and_make_no_runtime_claim(self) -> None:
-        positive, _ = self.require_fixture_sets()
-        for path in positive:
-            with self.subTest(path=path.name):
-                document = load_json_strict(path)
-                self.assertEqual(document["schema_id"], SCHEMA_ID)
-                self.assertEqual(document["schema_version"], SCHEMA_VERSION)
-                self.assertRegex(
-                    path.read_text(encoding="utf-8"),
-                    r'(?m)^  "schema_version": 1,$',
-                )
-                self.assertIs(document["fixture"]["synthetic"], True)
-                self.assertIs(document["fixture"]["runtime_claims"], False)
-                self.assertTrue(document["packages"])
-                for package in document["packages"]:
-                    self.assertTrue(
-                        package["path"].startswith(SYNTHETIC_PACKAGE_PREFIX),
-                        f"{path.name} uses a non-synthetic package path",
-                    )
-
-                raw = path.read_text(encoding="utf-8").lower()
-                self.assertNotIn("github.com/project-helianthus/helianthus-eebusreg", raw)
-                self.assertNotIn("vendor_" + "restricted", raw)
-                self.assertNotIn("restricted" + " source", raw)
-
-    def test_positive_fixtures_cover_normalized_fields_kinds_and_ordering(self) -> None:
-        positive, _ = self.require_fixture_sets()
-        seen_kinds: set[str] = set()
-        package_count = 0
-        symbol_count = 0
-
-        for path in positive:
-            document = load_json_strict(path)
-            packages = document["packages"]
-            self.assertEqual(packages, sorted(packages, key=package_order_key), path.name)
-            package_count += len(packages)
-            for package in packages:
-                self.assertEqual(package["path"], unicodedata.normalize("NFC", package["path"]))
-                self.assertEqual(package["name"], unicodedata.normalize("NFC", package["name"]))
-                self.assertNotRegex(package["path"], r"(?:^|/)(?:\.|\.\.|internal)(?:/|$)")
-                symbols = package["symbols"]
-                self.assertEqual(symbols, sorted(symbols, key=symbol_order_key), path.name)
-                identities = [symbol_identity(package, symbol) for symbol in symbols]
-                self.assertEqual(len(identities), len(set(identities)), path.name)
-
-                for symbol in symbols:
-                    seen_kinds.add(symbol["kind"])
-                    symbol_count += 1
-                    self.assertTrue(is_exported(symbol["name"]))
-                    self.assertEqual(symbol["name"], unicodedata.normalize("NFC", symbol["name"]))
-                    self.assertTrue(symbol["type"])
-                    self.assertTrue(symbol["signature"])
-                    for field in ("type", "signature"):
-                        self.assertEqual(symbol[field], symbol[field].strip())
-                        self.assertNotRegex(symbol[field], r"[\t\r\n]| {2}")
-                    if symbol["kind"] == "method":
-                        self.assertTrue(is_exported(receiver_base(symbol["receiver"])))
-                    else:
-                        self.assertNotIn("receiver", symbol)
-
-        self.assertGreaterEqual(package_count, 2)
-        self.assertGreaterEqual(symbol_count, len(SYMBOL_KINDS))
-        self.assertEqual(seen_kinds, SYMBOL_KINDS)
-
-    def test_negative_fixtures_target_each_required_failure_mode(self) -> None:
-        _, negative = self.require_fixture_sets()
-        self.assertTrue(REQUIRED_NEGATIVE_FIXTURES.issubset({path.name for path in negative}))
-
-        with self.assertRaises(json.JSONDecodeError):
-            load_json_strict(negative_path("malformed.json"))
-        with self.assertRaises(DuplicateJSONKeyError):
-            load_json_strict(negative_path("duplicate-json-key.json"))
-
-        duplicate = load_json_strict(negative_path("duplicate-identity.json"))
-        duplicate_ids = [
-            symbol_identity(package, symbol)
-            for package in duplicate["packages"]
-            for symbol in package["symbols"]
-        ]
-        self.assertNotEqual(len(duplicate_ids), len(set(duplicate_ids)))
-
-        unordered = load_json_strict(negative_path("invalid-ordering.json"))
-        ordering_is_invalid = unordered["packages"] != sorted(
-            unordered["packages"], key=package_order_key
-        ) or any(
-            package["symbols"] != sorted(package["symbols"], key=symbol_order_key)
-            for package in unordered["packages"]
-        )
-        self.assertTrue(ordering_is_invalid)
-
-        internal = load_json_strict(negative_path("internal-package.json"))
-        self.assertTrue(
-            any("internal" in package["path"].split("/") for package in internal["packages"])
-        )
-
-        unexported = load_json_strict(negative_path("unexported-declaration.json"))
-        self.assertTrue(
-            any(
-                not is_exported(symbol["name"])
-                for package in unexported["packages"]
-                for symbol in package["symbols"]
-            )
-        )
-
-        receiver = load_json_strict(negative_path("unexported-receiver.json"))
-        self.assertTrue(
-            any(
-                symbol["kind"] == "method"
-                and not is_exported(receiver_base(symbol["receiver"]))
-                for package in receiver["packages"]
-                for symbol in package["symbols"]
-            )
-        )
-
-        leakage = load_json_strict(negative_path("implementation-dependency-type.json"))
-        leaked_fields = "\n".join(
-            symbol[field]
-            for package in leakage["packages"]
-            for symbol in package["symbols"]
-            for field in ("type", "signature")
-        )
-        self.assertIn("implementation.invalid/", leaked_fields)
-
-    def test_negative_fixtures_retain_the_synthetic_no_runtime_boundary(self) -> None:
-        _, negative = self.require_fixture_sets()
-        for path in negative:
+    def test_positive_fixtures_are_synthetic_and_boundary_valid(self) -> None:
+        for path in positive_paths():
             with self.subTest(path=path.name):
                 document, remainder = load_first_json_value(path)
+                self.assertFalse(remainder.strip())
                 self.assertEqual(document["schema_id"], SCHEMA_ID)
                 self.assertIs(type(document["schema_version"]), int)
-                self.assertEqual(document["schema_version"], SCHEMA_VERSION)
-                self.assertRegex(
-                    path.read_text(encoding="utf-8"),
-                    r'(?m)^  "schema_version": 1,$',
-                )
-                self.assertIs(document["fixture"]["synthetic"], True)
-                self.assertIs(document["fixture"]["runtime_claims"], False)
-                self.assertTrue(document["packages"])
+                self.assertEqual(document["schema_version"], 1)
+                self.assertEqual(document["fixture"], {"synthetic": True, "runtime_claims": False})
                 self.assertTrue(
                     all(
                         package["path"].startswith(SYNTHETIC_PACKAGE_PREFIX)
                         for package in document["packages"]
                     )
                 )
-                if path.name == "malformed.json":
-                    self.assertEqual(remainder.strip(), "!")
-                else:
-                    self.assertFalse(remainder.strip())
 
-    def test_validator_enforces_negative_fixture_boundaries(self) -> None:
-        cases = {
-            "schema version": lambda document: document.__setitem__("schema_version", True),
-            "synthetic marker": lambda document: document["fixture"].__setitem__(
-                "synthetic", False
-            ),
-            "runtime marker": lambda document: document["fixture"].__setitem__(
-                "runtime_claims", True
-            ),
-            "package path": lambda document: document["packages"][0].__setitem__(
-                "path", "example.invalid/non-synthetic/negative"
-            ),
+    def test_positive_symbols_use_the_exact_per_kind_field_matrix(self) -> None:
+        seen: set[str] = set()
+        for path in positive_paths():
+            document = load_json_strict(path)
+            for package in document["packages"]:
+                for symbol in package["symbols"]:
+                    seen.add(symbol["kind"])
+                    self.assertEqual(set(symbol), SYMBOL_FIELDS[symbol["kind"]])
+        self.assertEqual(seen, set(SYMBOL_FIELDS))
+
+    def test_positive_corpus_covers_exactstring_constant_vectors(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        constants = {
+            symbol["name"]: symbol
+            for symbol in document["packages"][0]["symbols"]
+            if symbol["kind"] == "const"
         }
-        for name, mutation in cases.items():
-            with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = (
-                        repo
-                        / "api"
-                        / "fixtures"
-                        / "v1"
-                        / "negative"
-                        / "duplicate-identity.json"
-                    )
-                    document = load_json_strict(target)
-                    mutation(document)
-                    write_json(target, document)
-
-                    result = run_validator(repo)
-
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn("negative fixture boundary mismatch", result.stderr)
-
-    def test_duplicate_key_boundaries_check_every_occurrence(self) -> None:
-        valid_path = SYNTHETIC_PACKAGE_PREFIX + "negative"
-        cases = {
-            "conflicting schema identity": lambda text: text.replace(
-                f'"schema_id": "{SCHEMA_ID}"',
-                '"schema_id": "invalid.synthetic.schema"',
-                1,
+        vectors = {
+            "BooleanDefault": ("untyped bool", "bool", "true"),
+            "ComplexExact": (
+                "untyped complex",
+                "complex",
+                "(12345678901234567890123456789/10000000000000000000000000000 + "
+                "98765432109876543210987654321/10000000000000000000000000000i)",
             ),
-            "shadowed schema version": lambda text: text.replace(
-                '"schema_version": 1,',
-                '"schema_version": false,\n  "schema_version": 1,',
-                1,
+            "FloatExact": (
+                "untyped float",
+                "float",
+                "12345678901234567890123456789/10000000000000000000000000000",
             ),
-            "shadowed fixture marker": lambda text: text.replace(
-                '"synthetic": true,',
-                '"synthetic": false,\n    "synthetic": true,',
-                1,
+            "IntegerExact": (
+                "untyped int",
+                "int",
+                "123456789012345678901234567890123456789",
             ),
-            "shadowed package path": lambda text: text.replace(
-                f'"path": "{valid_path}"',
-                f'"path": "example.invalid/non-synthetic/negative",\n'
-                f'      "path": "{valid_path}"',
-                1,
-            ),
+            "RuneExact": ("untyped rune", "int", "955"),
+            "StringExact": ("untyped string", "string", '"line\\n\\"quoted\\""'),
+            "TypedLimit": ("uint64", "int", "18446744073709551615"),
         }
-        for name, mutation in cases.items():
+        self.assertEqual(set(constants), set(vectors))
+        for name, (type_text, value_kind, value) in vectors.items():
             with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = negative_path("duplicate-json-key.json", repo)
-                    target.write_text(
-                        mutation(target.read_text(encoding="utf-8")),
-                        encoding="utf-8",
-                    )
+                symbol = constants[name]
+                self.assertEqual((symbol["type"], symbol["value_kind"], symbol["value"]), (type_text, value_kind, value))
+                self.assertEqual(symbol["signature"], derive_signature(symbol))
 
-                    result = run_validator(repo)
+    def test_positive_corpus_covers_generics_aliases_and_cross_parameter_constraints(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        convert = find_symbol(document, "func", "Convert")
+        catalog = find_symbol(document, "type", "Catalog")
+        pair = find_symbol(document, "type", "Pair")
+        self.assertEqual(convert["type_parameters"][1], {"name": "S", "constraint": "interface{ ~[]T }"})
+        self.assertEqual(catalog["type_form"], "defined")
+        self.assertEqual(pair["type_form"], "alias")
+        self.assertTrue(catalog["type_parameters"])
+        self.assertTrue(pair["type_parameters"])
+        for symbol in (convert, catalog, pair):
+            self.assertEqual(symbol["signature"], derive_signature(symbol))
 
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn("negative fixture boundary mismatch", result.stderr)
+    def test_positive_corpus_covers_value_and_pointer_generic_receivers(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        methods = [
+            symbol
+            for symbol in document["packages"][0]["symbols"]
+            if symbol["kind"] == "method"
+        ]
+        self.assertEqual({method["receiver"]["pointer"] for method in methods}, {False, True})
+        types = {
+            symbol["name"]: symbol
+            for symbol in document["packages"][0]["symbols"]
+            if symbol["kind"] == "type"
+        }
+        for method in methods:
+            receiver = method["receiver"]
+            self.assertIn(receiver["base"], types)
+            self.assertEqual(len(receiver["type_parameters"]), len(types[receiver["base"]]["type_parameters"]))
+            self.assertEqual(method["signature"], derive_signature(method))
 
-    def test_publication_markers_cannot_hide_in_a_shadowed_duplicate_value(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            target = negative_path("duplicate-json-key.json", repo)
-            original = '"signature": "type Example struct{}"'
-            hidden = (
-                '"signature": "account\\u005fid: hidden-synthetic-value",\n'
-                '          "signature": "type Example struct{}"'
-            )
-            target.write_text(
-                target.read_text(encoding="utf-8").replace(original, hidden, 1),
-                encoding="utf-8",
-            )
+    def test_positive_packages_and_symbols_are_canonically_ordered(self) -> None:
+        for path in positive_paths():
+            document = load_json_strict(path)
+            self.assertEqual(document["packages"], sorted(document["packages"], key=package_order_key))
+            for package in document["packages"]:
+                self.assertEqual(package["symbols"], sorted(package["symbols"], key=symbol_order_key))
+                self.assertEqual(package["path"], unicodedata.normalize("NFC", package["path"]))
 
-            result = run_validator(repo)
+    def test_negative_fixtures_retain_exact_boundary_and_no_runtime_markers(self) -> None:
+        for path in sorted(NEGATIVE_FIXTURES.glob("*.json")):
+            with self.subTest(path=path.name):
+                document, remainder = load_first_json_value(path)
+                self.assertEqual(document["schema_id"], SCHEMA_ID)
+                self.assertEqual(document["schema_version"], 1)
+                self.assertEqual(document["fixture"], {"synthetic": True, "runtime_claims": False})
+                self.assertTrue(document["packages"])
+                self.assertTrue(
+                    all(package["path"].startswith(SYNTHETIC_PACKAGE_PREFIX) for package in document["packages"])
+                )
+                self.assertEqual(remainder, "\n!\n" if path.name == "malformed.json" else "\n")
 
-            self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn("private identifier", result.stderr)
-            self.assertNotIn("hidden-synthetic-value", result.stderr)
-            self.assertNotIn(str(repo), result.stderr)
+    def test_negative_duplicate_identity_is_cross_kind_package_identity(self) -> None:
+        document = load_json_strict(negative_path("duplicate-identity.json"))
+        symbols = document["packages"][0]["symbols"]
+        self.assertEqual({symbol["kind"] for symbol in symbols}, {"type", "var"})
+        self.assertEqual({symbol["name"] for symbol in symbols}, {"Example"})
 
-    def test_validator_accepts_the_corpus_deterministically(self) -> None:
-        self.require_file(API_VALIDATOR)
+    def test_negative_duplicate_key_and_malformed_shapes_are_exact(self) -> None:
+        with self.assertRaises(DuplicateJSONKeyError):
+            load_json_strict(negative_path("duplicate-json-key.json"))
+        with self.assertRaises(json.JSONDecodeError):
+            load_json_strict(negative_path("malformed.json"))
+        document, remainder = load_first_json_value(negative_path("malformed.json"))
+        self.assertIsInstance(document, dict)
+        self.assertEqual(remainder, "\n!\n")
+
+    def test_standalone_validator_accepts_corpus_deterministically(self) -> None:
         first = run_validator(REPO)
         second = run_validator(REPO)
         self.assertEqual(first.returncode, 0, first.stderr)
-        self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual((first.stdout, first.stderr), (second.stdout, second.stderr))
+        self.assertEqual(first.stdout.strip(), "api-surface-v1: valid")
 
-    def test_validator_rejects_duplicate_keys_in_schema_and_fixture_json(self) -> None:
-        self.require_file(API_VALIDATOR)
-        self.require_file(SCHEMA)
-        positive, _ = self.require_fixture_sets()
+    def test_every_negative_fixture_must_remain_invalid(self) -> None:
+        valid_bytes = positive_paths()[0].read_bytes()
+        for path in sorted(NEGATIVE_FIXTURES.glob("*.json")):
+            with self.subTest(path=path.name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = repo / path.relative_to(REPO)
+                target.write_bytes(valid_bytes)
+                result = run_validator(repo)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(path.relative_to(REPO).as_posix(), result.stderr)
 
-        targets = [SCHEMA.relative_to(REPO), positive[0].relative_to(REPO)]
-        for relative_path in targets:
-            with self.subTest(path=relative_path):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    path = repo / relative_path
-                    original = path.read_text(encoding="utf-8")
-                    path.write_text(
-                        original.replace("{", '{\n  "schema_id": "duplicate",', 1),
-                        encoding="utf-8",
-                    )
+    def test_negative_fixtures_reject_unrelated_added_diagnostics(self) -> None:
+        for fixture_name in ("duplicate-identity.json", "malformed.json"):
+            with self.subTest(fixture=fixture_name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = negative_path(fixture_name, repo)
+                document, _ = load_first_json_value(target)
+                document["extra"] = "synthetic"
+                write_json(target, document)
+                if fixture_name == "malformed.json":
+                    target.write_text(target.read_text(encoding="utf-8") + "!\n", encoding="utf-8")
+                result = run_validator(repo)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("unexpected negative category: unknown field", result.stderr)
 
-                    result = run_validator(repo)
+    def test_validator_rejects_a_null_at_every_structural_level(self) -> None:
+        mutations = (
+            lambda document: document.__setitem__("fixture", None),
+            lambda document: document["packages"][0].__setitem__("name", None),
+            lambda document: find_symbol(document, "const").__setitem__("value", None),
+            lambda document: find_symbol(document, "method")["receiver"]["type_parameters"].__setitem__(0, None),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                self.assert_mutation_rejected(mutation, "null value")
 
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(relative_path.as_posix(), result.stderr)
-                    self.assertIn("duplicate key", result.stderr.lower())
+    def test_validator_enforces_each_per_kind_required_field(self) -> None:
+        cases = (
+            ("const", "value"),
+            ("func", "type_parameters"),
+            ("method", "receiver"),
+            ("type", "type_form"),
+            ("var", "signature"),
+        )
+        for kind, field in cases:
+            with self.subTest(kind=kind, field=field):
+                self.assert_mutation_rejected(
+                    lambda document, kind=kind, field=field: find_symbol(document, kind).pop(field),
+                    "missing required field",
+                )
+
+    def test_validator_rejects_cross_kind_extra_fields(self) -> None:
+        cases = (
+            ("const", "type_parameters", []),
+            ("func", "receiver", {"base": "Catalog", "pointer": False, "type_parameters": ["T"]}),
+            ("method", "type_parameters", []),
+            ("type", "value", "1"),
+            ("var", "value_kind", "int"),
+        )
+        for kind, field, value in cases:
+            with self.subTest(kind=kind, field=field):
+                self.assert_mutation_rejected(
+                    lambda document, kind=kind, field=field, value=value: find_symbol(document, kind).__setitem__(field, value),
+                    "unknown field",
+                )
+
+    def test_validator_rejects_duplicate_declaration_type_parameter_names(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            symbol = find_symbol(document, "func", "Convert")
+            symbol["type_parameters"][1]["name"] = "T"
+            symbol["signature"] = derive_signature(symbol)
+
+        self.assert_mutation_rejected(mutation, "duplicate type parameter")
+
+    def test_validator_rejects_duplicate_receiver_type_parameter_names(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            symbol = find_symbol(document, "method", "Values")
+            symbol["receiver"]["type_parameters"] = ["T", "T"]
+            symbol["signature"] = derive_signature(symbol)
+
+        self.assert_mutation_rejected(mutation, "duplicate type parameter")
+
+    def test_validator_preserves_ascii_identifier_and_keyword_rules(self) -> None:
+        cases = (
+            lambda document: find_symbol(document, "type").__setitem__("name", "Bad-Name"),
+            lambda document: find_symbol(document, "func")["type_parameters"][0].__setitem__("name", "func"),
+            lambda document: find_symbol(document, "method")["receiver"].__setitem__("base", "9Bad"),
+        )
+        for mutation in cases:
+            with self.subTest(mutation=mutation):
+                self.assert_mutation_rejected(mutation, "invalid")
+
+    def test_validator_rejects_unresolved_receivers(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            method = find_symbol(document, "method", "Lookup")
+            method["receiver"]["base"] = "Missing"
+            method["signature"] = derive_signature(method)
+
+        self.assert_mutation_rejected(mutation, "unresolved receiver")
+
+    def test_validator_rejects_receiver_arity_mismatch(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            method = find_symbol(document, "method", "Lookup")
+            method["receiver"]["type_parameters"] = []
+            method["signature"] = derive_signature(method)
+
+        self.assert_mutation_rejected(mutation, "receiver arity mismatch")
+
+    def test_validator_package_identity_is_independent_of_kind(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            variable = find_symbol(document, "var")
+            variable["name"] = "Catalog"
+            variable["signature"] = derive_signature(variable)
+
+        self.assert_mutation_rejected(mutation, "duplicate symbol identity")
+
+    def test_validator_method_identity_is_independent_of_pointer_and_receiver_names(self) -> None:
+        def mutation(document: dict[str, Any]) -> None:
+            method = find_symbol(document, "method", "Values")
+            method["name"] = "Lookup"
+            method["receiver"] = {
+                "base": "Catalog",
+                "pointer": False,
+                "type_parameters": ["Element"],
+            }
+            method["signature"] = derive_signature(method)
+
+        self.assert_mutation_rejected(mutation, "duplicate symbol identity")
+
+    def test_validator_derives_every_kind_signature(self) -> None:
+        for kind in SYMBOL_FIELDS:
+            with self.subTest(kind=kind):
+                self.assert_mutation_rejected(
+                    lambda document, kind=kind: find_symbol(document, kind).__setitem__(
+                        "signature", "var Different invalid"
+                    ),
+                    "cross-field mismatch",
+                )
+
+    def test_validator_derives_untyped_and_typed_constant_signatures(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        untyped = find_symbol(document, "const", "IntegerExact")
+        typed = find_symbol(document, "const", "TypedLimit")
+        self.assertEqual(untyped["signature"], f"const IntegerExact = {untyped['value']}")
+        self.assertEqual(typed["signature"], f"const TypedLimit uint64 = {typed['value']}")
+
+    def test_validator_rejects_untyped_type_to_value_kind_mismatch(self) -> None:
+        self.assert_mutation_rejected(
+            lambda document: find_symbol(document, "const", "RuneExact").__setitem__("value_kind", "string"),
+            "cross-field mismatch",
+        )
+
+    def test_validator_leaves_go_syntax_and_exactstring_proof_to_ast_producer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / "api" / "fixtures" / "v1" / "positive" / "kinds-types-signatures.json"
+            document = load_json_strict(target)
+            constant = find_symbol(document, "const", "TypedLimit")
+            constant["type"] = "not-a-go-type"
+            constant["value"] = "not a go constant"
+            constant["signature"] = derive_signature(constant)
+            function = find_symbol(document, "func", "Convert")
+            function["type_parameters"][0]["constraint"] = "not a constraint"
+            function["signature"] = derive_signature(function)
+            write_json(target, document)
+            result = run_validator(repo)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_symbol_ordering_uses_receiver_base_not_pointer_or_parameter_spelling(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        lookup = find_symbol(document, "method", "Lookup")
+        original = symbol_order_key(lookup)
+        lookup["receiver"]["pointer"] = False
+        lookup["receiver"]["type_parameters"] = ["Element"]
+        self.assertEqual(symbol_order_key(lookup), original)
+
+    def test_known_compatibility_fingerprints_are_pinned_independently(self) -> None:
+        for path in positive_paths():
+            document = load_json_strict(path)
+            expected = KNOWN_FINGERPRINTS[path.name]
+            with self.subTest(path=path.name):
+                self.assertEqual(canonical_fingerprint_independent(document), expected)
+                self.assertEqual(compatibility_fingerprint(document), expected)
+
+    def test_projection_excludes_only_fixture_and_derived_signature(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
+        projection = compatibility_projection(document)
+        self.assertNotIn("fixture", projection)
+        for package in projection["packages"]:
+            for symbol in package["symbols"]:
+                self.assertNotIn("signature", symbol)
+        source_symbol = find_symbol(document, "const")
+        projected_symbol = next(
+            symbol
+            for package in projection["packages"]
+            for symbol in package["symbols"]
+            if symbol["kind"] == "const"
+        )
+        self.assertEqual(set(projected_symbol), set(source_symbol) - {"signature"})
+
+    def test_fingerprint_ignores_fixture_and_signature_but_changes_for_contract_fields(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
+        expected = compatibility_fingerprint(document)
+        derived_only = copy.deepcopy(document)
+        derived_only["fixture"] = {"synthetic": False, "runtime_claims": True}
+        find_symbol(derived_only, "func")["signature"] = "not derived"
+        self.assertEqual(compatibility_fingerprint(derived_only), expected)
+        changed = copy.deepcopy(document)
+        find_symbol(changed, "const")["value"] = "4"
+        self.assertNotEqual(compatibility_fingerprint(changed), expected)
+
+    def test_fingerprint_canonicalizes_schema_equivalent_version_numbers(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
+        equivalent = copy.deepcopy(document)
+        equivalent["schema_version"] = 1.0
+        self.assertEqual(compatibility_fingerprint(equivalent), compatibility_fingerprint(document))
+
+    def test_schema_has_no_self_referential_fingerprint_field(self) -> None:
+        schema = load_json_strict(SCHEMA)
+        self.assertNotIn("fingerprint", schema["properties"])
+        self.assertNotIn("hash", schema["properties"])
+
+    def test_duplicate_key_boundaries_check_every_occurrence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = negative_path("duplicate-json-key.json", repo)
+            text = target.read_text(encoding="utf-8")
+            target.write_text(
+                text.replace(
+                    f'"schema_id": "{SCHEMA_ID}",\n  "schema_id": "{SCHEMA_ID}"',
+                    f'"schema_id": "wrong",\n  "schema_id": "{SCHEMA_ID}"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            result = run_validator(repo)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("negative fixture boundary mismatch", result.stderr)
 
     def test_validator_rejects_non_utf8_machine_artifacts(self) -> None:
-        self.require_file(API_VALIDATOR)
-        positive, _ = self.require_fixture_sets()
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
-            relative_path = positive[0].relative_to(REPO)
-            (repo / relative_path).write_bytes(b'{"schema_id":"broken","value":"\xff"}\n')
-
+            target = repo / positive_paths()[0].relative_to(REPO)
+            target.write_bytes(b"\xff")
             result = run_validator(repo)
-
             self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn(relative_path.as_posix(), result.stderr)
-            self.assertIn("utf-8", result.stderr.lower())
-
-    def test_validator_rejects_bool_integer_ambiguity(self) -> None:
-        cases = {
-            "schema version": lambda document: document.__setitem__("schema_version", True),
-            "synthetic marker": lambda document: document["fixture"].__setitem__("synthetic", 1),
-            "runtime marker": lambda document: document["fixture"].__setitem__(
-                "runtime_claims", 0
-            ),
-        }
-        for name, mutation in cases.items():
-            with self.subTest(name=name):
-                expected = (
-                    "schema identity mismatch"
-                    if name == "schema version"
-                    else "runtime claim or non-synthetic fixture"
-                )
-                self.assert_document_mutation_rejected(mutation, expected)
+            self.assertIn("invalid UTF-8", result.stderr)
 
     def test_validator_accepts_schema_equivalent_numeric_version(self) -> None:
-        targets = (
-            Path("api/fixtures/v1/positive/kinds-types-signatures.json"),
-            Path("api/fixtures/v1/negative/duplicate-identity.json"),
-        )
-        for relative_path in targets:
-            with self.subTest(relative_path=relative_path.as_posix()):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = repo / relative_path
-                    document = load_json_strict(target)
-                    document["schema_version"] = 1.0
-                    write_json(target, document)
-
-                    result = run_validator(repo)
-
-                    self.assertEqual(result.returncode, 0, result.stderr)
-
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
-            target = first_positive(repo)
+            target = repo / positive_paths()[0].relative_to(REPO)
             target.write_text(
-                target.read_text(encoding="utf-8").replace(
-                    '"schema_version": 1,',
-                    '"schema_version": 1e0,',
-                    1,
-                ),
+                target.read_text(encoding="utf-8").replace('"schema_version": 1,', '"schema_version": 1.0,', 1),
                 encoding="utf-8",
             )
-
             result = run_validator(repo)
-
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_validator_does_not_round_non_integral_schema_version(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            target = first_positive(repo)
-            target.write_text(
-                target.read_text(encoding="utf-8").replace(
-                    '"schema_version": 1,',
-                    '"schema_version": 1.0000000000000001,',
-                    1,
-                ),
-                encoding="utf-8",
-            )
+    def test_validator_rejects_boolean_version_ambiguity(self) -> None:
+        self.assert_mutation_rejected(
+            lambda document: document.__setitem__("schema_version", True),
+            "schema identity mismatch",
+        )
 
-            result = run_validator(repo)
-
-            self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn("schema identity mismatch", result.stderr)
-
-    def test_validator_rejects_missing_fields_and_invalid_kind(self) -> None:
-        cases = {
-            "root fixture": lambda document: document.pop("fixture"),
-            "package name": lambda document: document["packages"][0].pop("name"),
-            "symbol type": lambda document: document["packages"][0]["symbols"][0].pop(
-                "type"
-            ),
-            "invalid kind": lambda document: document["packages"][0]["symbols"][0].__setitem__(
-                "kind", "function"
-            ),
-        }
-        for name, mutation in cases.items():
-            with self.subTest(name=name):
-                expected = "invalid symbol kind" if name == "invalid kind" else "missing required field"
-                self.assert_document_mutation_rejected(mutation, expected)
-
-    def test_validator_rejects_wrong_root_package_and_symbol_types(self) -> None:
+    def test_publication_markers_are_scanned_raw_and_after_json_decoding(self) -> None:
         cases = (
-            ("root", "invalid document shape"),
-            ("package", "invalid package shape"),
-            ("symbol", "invalid symbol shape"),
+            ("private path", "/Users/" + "synthetic-user/input.go"),
+            ("private network", "peer " + "127." + "0.0.1"),
+            ("network address", "peer " + "203." + "0.113.1"),
+            ("private identifier", "account_" + "id: synthetic"),
+            ("household data", "household_" + "schedule: synthetic"),
+            ("raw evidence", "raw-" + "evidence: synthetic"),
+            ("source contamination", "vendor_" + "restricted"),
         )
-        for level, expected in cases:
-            with self.subTest(level=level):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = first_positive(repo)
-                    document = load_json_strict(target)
-                    if level == "root":
-                        document = []
-                    elif level == "package":
-                        document["packages"][0] = []
-                    else:
-                        document["packages"][0]["symbols"][0] = []
-                    write_json(target, document)
+        for category, value in cases:
+            with self.subTest(category=category):
+                def mutation(document: dict[str, Any], value: str = value) -> None:
+                    symbol = find_symbol(document, "const", "TypedLimit")
+                    symbol["value"] = value
+                    symbol["signature"] = derive_signature(symbol)
 
-                    result = run_validator(repo)
+                self.assert_mutation_rejected(mutation, category)
 
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(expected, result.stderr)
-
-    def test_validator_rejects_empty_collections_and_duplicate_packages(self) -> None:
-        cases = {
-            "packages": (
-                lambda document: document.__setitem__("packages", []),
-                "invalid package collection",
-            ),
-            "symbols": (
-                lambda document: document["packages"][0].__setitem__("symbols", []),
-                "invalid symbol collection",
-            ),
-            "duplicate package": (
-                lambda document: document["packages"].append(
-                    copy.deepcopy(document["packages"][0])
-                ),
-                "duplicate package identity",
-            ),
-        }
-        for name, (mutation, expected) in cases.items():
-            with self.subTest(name=name):
-                self.assert_document_mutation_rejected(mutation, expected)
-
-    def test_validator_rejects_invalid_package_paths(self) -> None:
-        paths = (
-            SYNTHETIC_PACKAGE_PREFIX + "/double",
-            SYNTHETIC_PACKAGE_PREFIX + "../dot",
-            SYNTHETIC_PACKAGE_PREFIX + "back\\slash",
-            SYNTHETIC_PACKAGE_PREFIX + "white space",
-            SYNTHETIC_PACKAGE_PREFIX + "trailing/",
-        )
-        for value in paths:
-            with self.subTest(form=value.rsplit("/", 1)[-1]):
-                self.assert_document_mutation_rejected(
-                    lambda document, value=value: document["packages"][0].__setitem__(
-                        "path", value
-                    ),
-                    "invalid package path",
-                )
-
-    def test_validator_checks_complete_go_identifiers_and_keywords(self) -> None:
-        cases = {
-            "symbol punctuation": lambda document: document["packages"][0]["symbols"][
-                0
-            ].__setitem__("name", "Bad-Name"),
-            "symbol leading digit": lambda document: document["packages"][0]["symbols"][
-                0
-            ].__setitem__("name", "9Bad"),
-            "package keyword": lambda document: document["packages"][0].__setitem__(
-                "name", "func"
-            ),
-        }
-        for name, mutation in cases.items():
-            with self.subTest(name=name):
-                self.assert_document_mutation_rejected(mutation, "invalid Go identifier")
-
-    def test_unicode_database_versions_cannot_change_identifier_acceptance(self) -> None:
-        # U+1C89 changed from unassigned to an uppercase letter in Unicode 16.0.
-        version_sensitive = "\u1c89"
-        cases = {
-            "package name": (
-                lambda document: document["packages"][0].__setitem__(
-                    "name", version_sensitive + "package"
-                ),
-                "invalid Go identifier",
-            ),
-            "symbol name": (
-                lambda document: find_symbol(document, "type").__setitem__(
-                    "name", version_sensitive + "Symbol"
-                ),
-                "invalid Go identifier",
-            ),
-            "receiver base": (
-                lambda document: find_symbol(document, "method").__setitem__(
-                    "receiver", "*" + version_sensitive + "Catalog"
-                ),
-                "invalid receiver",
-            ),
-            "generic receiver identifier": (
-                lambda document: find_symbol(document, "method").__setitem__(
-                    "receiver", "*Catalog[" + version_sensitive + "T]"
-                ),
-                "invalid receiver",
-            ),
-        }
-        for name, (mutation, expected) in cases.items():
-            with self.subTest(name=name):
-                self.assert_document_mutation_rejected(mutation, expected)
-
-    def test_validator_enforces_receiver_grammar_and_exported_base(self) -> None:
-        invalid_receivers = ("**Catalog", "pkg.Catalog", "Catalog[T,U]", "Catalog[func]")
-        for receiver in invalid_receivers:
-            with self.subTest(receiver=receiver):
-                self.assert_document_mutation_rejected(
-                    lambda document, receiver=receiver: find_symbol(document, "method").__setitem__(
-                        "receiver", receiver
-                    ),
-                    "invalid receiver",
-                )
-
-        self.assert_document_mutation_rejected(
-            lambda document: find_symbol(document, "method").__setitem__(
-                "receiver", "catalog"
-            ),
-            "unexported receiver",
-        )
-
-    def test_validator_accepts_normalized_generic_receiver_representation(self) -> None:
+    def test_failure_diagnostics_are_repeatable_path_only_and_value_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
-            target = (
-                repo
-                / "api"
-                / "fixtures"
-                / "v1"
-                / "positive"
-                / "kinds-types-signatures.json"
-            )
+            target = repo / positive_paths()[0].relative_to(REPO)
             document = load_json_strict(target)
-            method = find_symbol(document, "method")
-            method["receiver"] = "*Catalog[T, U]"
-            method["signature"] = "func (*Catalog[T, U]) Lookup(string) (Entry, bool)"
-            write_json(target, document)
-
-            result = run_validator(repo)
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_validator_leaves_go_syntax_proof_to_the_ast_producer(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            target = (
-                repo
-                / "api"
-                / "fixtures"
-                / "v1"
-                / "positive"
-                / "kinds-types-signatures.json"
-            )
-            document = load_json_strict(target)
+            sensitive = "/Users/" + "diagnostic-secret/private.go"
             symbol = find_symbol(document, "const")
-            symbol["type"] = "not-a-go-type"
-            symbol["signature"] = "const MaxEntries not-a-go-type"
+            symbol["value"] = sensitive
+            symbol["signature"] = derive_signature(symbol)
             write_json(target, document)
-
-            result = run_validator(repo)
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_validator_rejects_receiver_misuse_and_missing_receiver(self) -> None:
-        cases = {
-            "receiver on function": (
-                lambda document: find_symbol(document, "func").__setitem__(
-                    "receiver", "Catalog"
-                ),
-                "receiver on non-method",
-            ),
-            "missing method receiver": (
-                lambda document: find_symbol(document, "method").pop("receiver"),
-                "missing required field",
-            ),
-        }
-        for name, (mutation, expected) in cases.items():
-            with self.subTest(name=name):
-                self.assert_document_mutation_rejected(mutation, expected)
-
-    def test_validator_rejects_non_normalized_text(self) -> None:
-        values = (" uint16", "uint16 ", "uint  16", "uint\t16", "uint\n16")
-        for value in values:
-            with self.subTest(value=repr(value)):
-                self.assert_document_mutation_rejected(
-                    lambda document, value=value: document["packages"][0]["symbols"][
-                        0
-                    ].__setitem__("type", value),
-                    "invalid normalized text",
-                )
-
-    def test_validator_rejects_portable_cross_field_mismatches(self) -> None:
-        cases = {
-            "declared name": lambda document: find_symbol(document, "func").__setitem__(
-                "signature", "func Different([]Entry) *Catalog"
-            ),
-            "declared receiver": lambda document: find_symbol(document, "method").__setitem__(
-                "receiver", "Catalog"
-            ),
-            "function type prefix": lambda document: find_symbol(document, "func").__setitem__(
-                "type", "[]Entry"
-            ),
-            "declaration kind": lambda document: find_symbol(document, "var").__setitem__(
-                "signature", "const ErrMissing error"
-            ),
-        }
-        for name, mutation in cases.items():
-            with self.subTest(name=name):
-                self.assert_document_mutation_rejected(mutation, "cross-field mismatch")
-
-    def test_validator_rejects_escaped_controls_and_surrogates_without_crashing(self) -> None:
-        for name, value, expected in (
-            ("control", "uint16\x00", "control character"),
-            ("line separator", "uint16\u2028string", "line or paragraph separator"),
-            ("paragraph separator", "uint16\u2029string", "line or paragraph separator"),
-            ("surrogate", "uint16\ud800", "invalid Unicode scalar value"),
-        ):
-            with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = (
-                        repo
-                        / "api"
-                        / "fixtures"
-                        / "v1"
-                        / "positive"
-                        / "kinds-types-signatures.json"
-                    )
-                    document = load_json_strict(target)
-                    document["packages"][0]["symbols"][0]["type"] = value
-                    target.write_text(
-                        json.dumps(document, ensure_ascii=True, indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-
-                    result = run_validator(repo)
-
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(expected, result.stderr)
-                    self.assertNotIn("Traceback", result.stderr)
-
-    def test_validator_rejects_each_declared_publication_marker_category(self) -> None:
-        self.require_file(API_VALIDATOR)
-        positive, _ = self.require_fixture_sets()
-        cases = (
-            ("macOS user path", "private path", "/Users/" + "example-user/project/input.go"),
-            ("Unix home path", "private path", "/home/" + "example-user/project/input.go"),
-            ("temporary path", "private path", "/tmp/" + "synthetic/input.go"),
-            ("macOS temporary path", "private path", "/var/" + "folders/synthetic/input.go"),
-            ("Windows user path", "private path", "C:\\Users\\example-user\\input.go"),
-            ("private IPv4", "private network", "peer " + "192." + "168.7.9"),
-            ("other IPv4", "network address", "peer " + "8." + "8.8.8"),
-            ("IPv6", "network address", "peer 2001:" + "db8::1"),
-            ("account label", "private identifier", "account_" + "id: private-account-value"),
-            ("household label", "household data", "household " + "schedule: private-schedule-value"),
-            ("raw label", "raw evidence", "raw " + "evidence: private-capture-value"),
-            ("restricted marker", "source contamination", "vendor_" + "restricted"),
-        )
-        for name, expected, value in cases:
-            with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = repo / positive[0].relative_to(REPO)
-                    replace_first_symbol_value(target, "signature", value)
-
-                    result = run_validator(repo)
-
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(expected, result.stderr.lower())
-                    self.assertNotIn(value, result.stderr)
-
-    def test_publication_marker_threshold_case_and_separators_match_the_contract(self) -> None:
-        cases = (
-            ("fingerprint below threshold", "a" * 39, None),
-            ("invalid IPv4", "999.999.999.999", None),
-            ("fingerprint at threshold", "a" * 40, "private identifier"),
-            ("mixed-case private label", "ClIeNt-SeCrEt = synthetic", "private identifier"),
-            ("household underscore", "HoUsEhOlD_ScHeDuLe: synthetic", "household data"),
-            ("raw hyphen", "RaW-EvIdEnCe=synthetic", "raw evidence"),
-            ("vendor marker", "VeNdOr-ReStRiCtEd", "source contamination"),
-            ("source marker", "ReStRiCtEd- -SoUrCe", "source contamination"),
-        )
-        for name, value, expected in cases:
-            with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = (
-                        repo
-                        / "api"
-                        / "fixtures"
-                        / "v1"
-                        / "positive"
-                        / "kinds-types-signatures.json"
-                    )
-                    document = load_json_strict(target)
-                    symbol = find_symbol(document, "const")
-                    symbol["type"] = value
-                    symbol["signature"] = f'const {symbol["name"]} {value}'
-                    write_json(target, document)
-
-                    result = run_validator(repo)
-
-                    if expected is None:
-                        self.assertEqual(result.returncode, 0, result.stderr)
-                    else:
-                        self.assertEqual(result.returncode, 1, result.stderr)
-                        self.assertIn(expected, result.stderr)
-                        self.assertNotIn(value, result.stderr)
-
-    def test_publication_markers_cannot_hide_behind_json_escapes(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            target = (
-                repo
-                / "api"
-                / "fixtures"
-                / "v1"
-                / "positive"
-                / "kinds-types-signatures.json"
-            )
-            replace_first_symbol_value(
-                target,
-                "signature",
-                "account_id: synthetic-private-value",
-            )
-            target.write_text(
-                target.read_text(encoding="utf-8").replace(
-                    "account_id",
-                    "account\\u005fid",
-                    1,
-                ),
-                encoding="utf-8",
-            )
-
-            result = run_validator(repo)
-
-            self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn("private identifier", result.stderr)
-            self.assertNotIn("synthetic-private-value", result.stderr)
-
-    def test_failure_diagnostics_are_repeatable_and_path_value_safe(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            target = (
-                repo
-                / "api"
-                / "fixtures"
-                / "v1"
-                / "positive"
-                / "kinds-types-signatures.json"
-            )
-            sensitive_value = "/Users/" + "diagnostic-secret/private.go"
-            replace_first_symbol_value(target, "signature", sensitive_value)
-
             first = run_validator(repo)
             second = run_validator(repo)
-
-            self.assertEqual(first.returncode, 1)
             self.assertEqual((first.stdout, first.stderr), (second.stdout, second.stderr))
-            self.assertNotIn(sensitive_value, first.stderr)
+            self.assertNotIn(sensitive, first.stderr)
             self.assertNotIn(str(repo), first.stderr)
-            self.assertNotIn(str(Path(tmp)), first.stderr)
             for line in first.stderr.splitlines():
                 self.assertRegex(line, r"^api/(?:schema|fixtures)/")
 
-    def test_repository_policy_allows_only_canonical_machine_artifact_patterns(self) -> None:
-        self.require_file(SCHEMA)
-        positive, negative = self.require_fixture_sets()
-        allowed = {SCHEMA.relative_to(REPO)} | {
-            path.relative_to(REPO) for path in positive + negative
+    def test_repository_policy_accepts_only_the_exact_api_machine_allowlist(self) -> None:
+        expected = {SCHEMA.relative_to(REPO)} | {
+            path.relative_to(REPO)
+            for path in list(positive_paths()) + list(NEGATIVE_FIXTURES.glob("*.json"))
         }
         actual = {
             path.relative_to(REPO)
             for path in (REPO / "api").rglob("*")
             if path.is_file() and path.suffix.lower() not in {".md", ".markdown", ".mdown", ".mkd", ".mkdn"}
         }
-        self.assertEqual(actual, allowed)
-
+        self.assertEqual(actual, expected)
         result = run_policy_validator(REPO)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_repository_policy_still_rejects_rogue_api_machine_artifacts(self) -> None:
-        rogue_paths = (
-            "api/api-surface-v1.json",
-            "api/schema/extra.json",
-            "api/fixtures/v2/positive/extra.json",
-            "api/fixtures/v1/positive/nested/extra.json",
-            "api/fixtures/v1/Positive/extra.json",
-            "api/fixtures/v1/negative/extra.txt",
-        )
-        for relative_path in rogue_paths:
-            with self.subTest(relative_path=relative_path):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    artifact = repo / relative_path
-                    artifact.parent.mkdir(parents=True, exist_ok=True)
-                    artifact.write_text("{}\n", encoding="utf-8")
-                    actual_artifact = next(
-                        path
-                        for path in (repo / "api").rglob("*")
-                        if path.is_file() and path.name == artifact.name
-                    )
-                    actual_relative_path = actual_artifact.relative_to(repo).as_posix()
+    def test_repository_policy_rejects_rogue_api_machine_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / "api" / "schema" / "extra.json"
+            target.write_text("{}\n", encoding="utf-8")
+            result = run_policy_validator(repo)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("api/schema/extra.json: path is not in the API machine artifact allowlist", result.stderr)
 
-                    result = run_policy_validator(repo)
-
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(actual_relative_path, result.stderr)
-                    self.assertRegex(
-                        result.stderr,
-                        rf"{re.escape(actual_relative_path)}:.*"
-                        r"(?:allowlist|machine artifact|Markdown extension)",
-                    )
-                    invented_variant = actual_relative_path.replace(
-                        "/positive/", "/Positive/"
-                    ).replace(
-                        "/negative/", "/Negative/"
-                    )
-                    if invented_variant != actual_relative_path:
-                        self.assertNotIn(invented_variant, result.stderr)
-
-    def test_each_negative_fixture_must_remain_invalid(self) -> None:
-        self.require_file(API_VALIDATOR)
-        positive, negative = self.require_fixture_sets()
-        valid_bytes = positive[0].read_bytes()
-        for path in negative:
-            with self.subTest(path=path.name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    relative_path = path.relative_to(REPO)
-                    (repo / relative_path).write_bytes(valid_bytes)
-
-                    result = run_validator(repo)
-
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(relative_path.as_posix(), result.stderr)
-
-    def test_negative_fixture_rejects_unrelated_added_diagnostic(self) -> None:
-        cases = (
-            ("duplicate-identity.json", False),
-            ("malformed.json", True),
-        )
-        for fixture_name, retain_malformed_suffix in cases:
-            with self.subTest(fixture_name=fixture_name):
-                with tempfile.TemporaryDirectory() as tmp:
-                    repo = copy_repo(Path(tmp))
-                    target = negative_path(fixture_name, repo)
-                    if retain_malformed_suffix:
-                        document, _ = load_first_json_value(target)
-                    else:
-                        document = load_json_strict(target)
-                    document["unrelated_invalidity"] = "synthetic-marker"
-                    write_json(target, document)
-                    if retain_malformed_suffix:
-                        target.write_text(
-                            target.read_text(encoding="utf-8") + "!\n",
-                            encoding="utf-8",
-                        )
-
-                    result = run_validator(repo)
-
-                    self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(
-                        f"api/fixtures/v1/negative/{fixture_name}: "
-                        "unexpected negative category: unknown field",
-                        result.stderr,
-                    )
-                    self.assertNotIn("synthetic-marker", result.stderr)
-
-    def test_ci_local_invokes_api_surface_validator_before_unit_tests(self) -> None:
-        ci_local = REPO / "scripts" / "ci_local.sh"
-        lines = ci_local.read_text(encoding="utf-8").splitlines()
+    def test_ci_local_runs_api_validator_before_unit_tests(self) -> None:
+        lines = (REPO / "scripts" / "ci_local.sh").read_text(encoding="utf-8").splitlines()
         commands = [
             (index, shlex.split(line))
             for index, line in enumerate(lines)
             if line.strip() and not line.lstrip().startswith("#")
         ]
-        invocations = [
-            index
-            for index, command in commands
-            if "scripts/validate_api_surface_v1.py" in command
-        ]
-        unit_test_lines = [
-            index
-            for index, command in commands
-            if command[:3] == ["python3", "-m", "unittest"]
-        ]
-
-        self.assertEqual(len(invocations), 1, "ci_local.sh must invoke the API validator once")
-        self.assertEqual(len(unit_test_lines), 1, "ci_local.sh must invoke unittest once")
-        self.assertLess(invocations[0], unit_test_lines[0])
+        validator_lines = [index for index, command in commands if "scripts/validate_api_surface_v1.py" in command]
+        test_lines = [index for index, command in commands if command[:3] == ["python3", "-m", "unittest"]]
+        self.assertEqual(len(validator_lines), 1)
+        self.assertEqual(len(test_lines), 1)
+        self.assertLess(validator_lines[0], test_lines[0])
 
 
 if __name__ == "__main__":

@@ -14,13 +14,15 @@
           "kind": "type",
           "name": "Example",
           "type": "struct{}",
-          "signature": "type Example struct{}"
+          "signature": "type Example struct{}",
+          "type_form": "defined",
+          "type_parameters": []
         },
         {
-          "kind": "type",
+          "kind": "var",
           "name": "Example",
-          "type": "struct{}",
-          "signature": "type Example struct{}"
+          "type": "int",
+          "signature": "var Example int"
         }
       ]
     }

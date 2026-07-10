@@ -495,16 +495,16 @@ class PolicyValidatorTests(unittest.TestCase):
     def test_machine_policy_decodes_escaped_shadowed_publication_claims(self) -> None:
         cases = (
             (
-                "runtime availability",
-                "Portal consumer workflow is av\\u0061ilable now.",
-                "Portal consumer workflow is available now.",
-                "premature gateway or consumer availability claim",
+                "private identifier",
+                "account\\u005fid: synthetic",
+                "account_id: synthetic",
+                "private identifier",
             ),
             (
-                "broader restricted source",
-                "This claim used restricted vendor docum\\u0065nts.",
-                "This claim used restricted vendor documents.",
-                "restricted-source contamination marker found",
+                "restricted source",
+                "vendor\\u005frestricted",
+                "vendor_restricted",
+                "source contamination",
             ),
         )
         relative_path = "api/fixtures/v1/negative/duplicate-json-key.json"
@@ -543,7 +543,7 @@ class PolicyValidatorTests(unittest.TestCase):
             private_ipv4 = "192." + "168.7.9"
             artifact.write_text(
                 artifact.read_text(encoding="utf-8").replace(
-                    '"signature": "const MaxEntries uint16"',
+                    '"signature": "const TypedLimit uint64 = 18446744073709551615"',
                     f'"signature": "peer {private_ipv4}"',
                     1,
                 ),
@@ -552,7 +552,7 @@ class PolicyValidatorTests(unittest.TestCase):
 
             result = run_validator(repo)
 
-            expected = f"{relative_path}: private IPv4 address found"
+            expected = f"{relative_path}: private network"
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertEqual(result.stderr.splitlines().count(expected), 1, result.stderr)
             self.assertNotRegex(result.stderr, rf"{relative_path}:\d+:")

@@ -13,14 +13,18 @@
         {
           "kind": "const",
           "name": "EndpointCount",
-          "type": "int",
-          "signature": "const EndpointCount int"
+          "type": "untyped int",
+          "signature": "const EndpointCount = 3",
+          "value_kind": "int",
+          "value": "3"
         },
         {
           "kind": "type",
           "name": "Snapshot",
           "type": "struct{ Version uint32 }",
-          "signature": "type Snapshot struct{ Version uint32 }"
+          "signature": "type Snapshot struct{ Version uint32 }",
+          "type_form": "defined",
+          "type_parameters": []
         }
       ]
     },
@@ -32,14 +36,35 @@
           "kind": "func",
           "name": "Build",
           "type": "func(Config) (Client, error)",
-          "signature": "func Build(Config) (Client, error)"
+          "signature": "func Build(Config) (Client, error)",
+          "type_parameters": []
         },
         {
           "kind": "method",
-          "receiver": "*Client",
           "name": "Close",
           "type": "func() error",
-          "signature": "func (*Client) Close() error"
+          "signature": "func (*Client) Close() error",
+          "receiver": {
+            "base": "Client",
+            "pointer": true,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "type",
+          "name": "Client",
+          "type": "struct{}",
+          "signature": "type Client struct{}",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Config",
+          "type": "struct{ Retry uint8 }",
+          "signature": "type Config = struct{ Retry uint8 }",
+          "type_form": "alias",
+          "type_parameters": []
         },
         {
           "kind": "var",

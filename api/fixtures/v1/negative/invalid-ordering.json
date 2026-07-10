@@ -14,7 +14,9 @@
           "kind": "type",
           "name": "Zeta",
           "type": "struct{}",
-          "signature": "type Zeta struct{}"
+          "signature": "type Zeta struct{}",
+          "type_form": "defined",
+          "type_parameters": []
         }
       ]
     },
@@ -26,7 +28,9 @@
           "kind": "type",
           "name": "Alpha",
           "type": "struct{}",
-          "signature": "type Alpha struct{}"
+          "signature": "type Alpha struct{}",
+          "type_form": "defined",
+          "type_parameters": []
         }
       ]
     }
