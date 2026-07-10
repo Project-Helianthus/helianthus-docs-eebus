@@ -284,14 +284,35 @@ redefinition.
 Both validators import `scripts/machine_publication_policy.py` for strict,
 duplicate-preserving JSON decoding, decoded key and value traversal, malformed
 tail classification, and machine publication markers. The shared policy scans
-raw UTF-8 JSON and every decoded string occurrence, including shadowed duplicate
-values and escaped content.
+raw UTF-8 JSON and every decoded occurrence, including keys, strings, numeric
+data, shadowed duplicate values, and escaped content. When no decoded structure
+is available, fingerprint detection remains fail-closed over the complete raw
+text. When decoding succeeds, the raw scan still applies every non-fingerprint
+marker class to the complete text, while fingerprint classification uses the
+decoded structure plus any undecoded trailing content instead of blindly
+classifying digit runs in the JSON rendering.
 
 The shared marker contract recognizes the documented private path forms, MAC
 addresses, contiguous hexadecimal fingerprints of at least 40 digits,
 credential assignment labels, household-data labels, raw-evidence labels, the
 exact restricted-source marker grammars `vendor[_ -]restricted` and
 `restricted[ -]+source`, and valid IPv4 and IPv6 candidates.
+
+Full fingerprints remain prohibited in every ordinary decoded key, string,
+number, package or import path, symbol name, type, constraint, receiver,
+signature, and constant representation, including duplicate or shadowed data.
+The only context-aware fingerprint diagnosis exemption is the exact decimal
+integer occurrence in `packages[*].symbols[*].value`, and the identical suffix
+occurrence in that symbol's exactly derived source-like `signature`, when the
+closed symbol object has `kind` equal to `const`, `value_kind` equal to `int`,
+and `value` matches `[+-]?[0-9]+` using ASCII digits. Any duplicate key in the
+object or an ancestor disables the exemption. The exemption suppresses only a
+fingerprint diagnosis for those two exact spans: private paths, network
+addresses, credentials, source contamination, and every other marker class
+still scan the complete value and signature. Hexadecimal-looking text,
+malformed decimal text, float, complex, and string constants,
+all-digit data in any other slot, and a signature not exactly derived from the
+same value are not exempt.
 
 IPv4 candidates use the exact pattern
 `(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])`. Octets are parsed

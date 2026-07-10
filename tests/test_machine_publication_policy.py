@@ -192,6 +192,134 @@ class MachinePublicationPolicyTests(unittest.TestCase):
         self.assertEqual(result.status, COMPLETE)
         self.assertEqual(machine_publication_diagnostics(result), {"private network"})
 
+    def test_exact_decimal_integer_value_and_derived_signature_exempt_only_fingerprint(self) -> None:
+        for value in ("1" * 41, "+" + "2" * 101, "-" + "3" * 101):
+            with self.subTest(value=value[:2]):
+                document = {
+                    "packages": [
+                        {
+                            "symbols": [
+                                {
+                                    "kind": "const",
+                                    "name": "Large",
+                                    "type": "untyped int",
+                                    "signature": f"const Large = {value}",
+                                    "value_kind": "int",
+                                    "value": value,
+                                }
+                            ]
+                        }
+                    ]
+                }
+                result = decode_machine_json(json.dumps(document).encode("utf-8"))
+                self.assertEqual(machine_publication_diagnostics(result), set())
+
+    def test_large_digit_data_outside_exact_integer_slots_remains_private(self) -> None:
+        digits = "4" * 50
+        documents = (
+            {"data": digits},
+            {digits: "data"},
+            {"data": int(digits)},
+            {
+                "packages": [
+                    {
+                        "symbols": [
+                            {
+                                "kind": "const",
+                                "name": "Text",
+                                "type": "untyped string",
+                                "signature": f'const Text = "{digits}"',
+                                "value_kind": "string",
+                                "value": f'"{digits}"',
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+        for document in documents:
+            with self.subTest(document=document):
+                result = decode_machine_json(json.dumps(document).encode("utf-8"))
+                self.assertIn(
+                    "private identifier",
+                    machine_publication_diagnostics(result),
+                )
+
+    def test_hex_and_malformed_integer_text_are_not_exempt(self) -> None:
+        for value in ("A" * 40, "5" * 50 + "g", "0x" + "B" * 40):
+            with self.subTest(value=value[:3]):
+                document = {
+                    "packages": [
+                        {
+                            "symbols": [
+                                {
+                                    "kind": "const",
+                                    "name": "Invalid",
+                                    "type": "untyped int",
+                                    "signature": f"const Invalid = {value}",
+                                    "value_kind": "int",
+                                    "value": value,
+                                }
+                            ]
+                        }
+                    ]
+                }
+                result = decode_machine_json(json.dumps(document).encode("utf-8"))
+                self.assertIn(
+                    "private identifier",
+                    machine_publication_diagnostics(result),
+                )
+
+    def test_duplicate_shadowed_integer_value_fails_closed(self) -> None:
+        fingerprint = "C" * 40
+        raw = (
+            '{"packages":[{"symbols":[{'
+            '"kind":"const","name":"Shadowed","type":"untyped int",'
+            '"signature":"const Shadowed = 1","value_kind":"int",'
+            f'"value":"1","value":"{fingerprint}"'
+            "}]}]}"
+        ).encode("utf-8")
+        result = decode_machine_json(raw)
+        self.assertTrue(result.duplicate_keys)
+        self.assertIn("private identifier", machine_publication_diagnostics(result))
+
+    def test_other_markers_and_non_value_signature_fingerprints_are_not_exempt(self) -> None:
+        value = "6" * 50
+        cases = (
+            ("/Users/synthetic/type/", "private path"),
+            ("peer-" + ipv4(127, 0, 0, 1), "private network"),
+            ("token=synthetic", "private identifier"),
+            ("vendor_restricted", "source contamination"),
+        )
+        for type_text, category in cases:
+            with self.subTest(category=category):
+                document = {
+                    "packages": [
+                        {
+                            "symbols": [
+                                {
+                                    "kind": "const",
+                                    "name": "Large",
+                                    "type": type_text,
+                                    "signature": f"const Large {type_text} = {value}",
+                                    "value_kind": "int",
+                                    "value": value,
+                                }
+                            ]
+                        }
+                    ]
+                }
+                result = decode_machine_json(json.dumps(document).encode("utf-8"))
+                self.assertIn(category, machine_publication_diagnostics(result))
+
+        fingerprint = "D" * 40
+        document["packages"][0]["symbols"][0]["name"] = fingerprint
+        document["packages"][0]["symbols"][0]["signature"] = (
+            f"const {fingerprint} vendor_restricted = {value}"
+        )
+        result = decode_machine_json(json.dumps(document).encode("utf-8"))
+        self.assertIn("private identifier", machine_publication_diagnostics(result))
+
     def test_both_validators_report_the_same_shared_marker_category(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

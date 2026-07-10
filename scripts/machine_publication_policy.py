@@ -42,6 +42,7 @@ MAC_PATTERN = re.compile(
     r")(?![0-9A-Fa-f])"
 )
 FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])")
+PORTABLE_DECIMAL_INTEGER_PATTERN = re.compile(r"[+-]?[0-9]+\Z")
 SECRET_PATTERN = re.compile(
     r"\b(?:token|password|passphrase|credential|secret|api[_ -]?key|"
     r"client[_ -]?secret|serial[_ -]?number|account[_ -]?(?:id|identifier|data))"
@@ -194,11 +195,33 @@ def classify_ipv4(candidate: str) -> str | None:
     return "private network" if private else "network address"
 
 
-def marker_diagnostics(text: str) -> set[str]:
+def _has_unexempted_fingerprint(
+    text: str,
+    exempt_spans: tuple[tuple[int, int], ...],
+) -> bool:
+    return any(
+        not any(start <= match.start() and match.end() <= end for start, end in exempt_spans)
+        for match in FINGERPRINT_PATTERN.finditer(text)
+    )
+
+
+def marker_diagnostics(
+    text: str,
+    *,
+    fingerprint_exempt_spans: tuple[tuple[int, int], ...] = (),
+    scan_fingerprints: bool = True,
+) -> set[str]:
     diagnostics: set[str] = set()
     if PRIVATE_PATH_PATTERN.search(text):
         diagnostics.add("private path")
-    if MAC_PATTERN.search(text) or FINGERPRINT_PATTERN.search(text) or SECRET_PATTERN.search(text):
+    if (
+        MAC_PATTERN.search(text)
+        or SECRET_PATTERN.search(text)
+        or (
+            scan_fingerprints
+            and _has_unexempted_fingerprint(text, fingerprint_exempt_spans)
+        )
+    ):
         diagnostics.add("private identifier")
     if HOUSEHOLD_PATTERN.search(text):
         diagnostics.add("household data")
@@ -223,9 +246,124 @@ def marker_diagnostics(text: str) -> set[str]:
     return diagnostics
 
 
+def _object_pairs(value: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
+    if isinstance(value, JSONObject):
+        return value.pairs
+    return tuple(value.items())
+
+
+def _has_local_duplicate_key(value: dict[str, Any]) -> bool:
+    keys = [key for key, _ in _object_pairs(value)]
+    return len(keys) != len(set(keys))
+
+
+def _is_symbol_path(path: tuple[str | int, ...]) -> bool:
+    return (
+        len(path) == 4
+        and path[0] == "packages"
+        and type(path[1]) is int
+        and path[2] == "symbols"
+        and type(path[3]) is int
+    )
+
+
+def _integer_constant_fingerprint_exemptions(
+    value: dict[str, Any],
+    path: tuple[str | int, ...],
+    *,
+    duplicate_context: bool,
+) -> dict[str, tuple[tuple[int, int], ...]]:
+    fields = _object_pairs(value)
+    if (
+        duplicate_context
+        or not _is_symbol_path(path)
+        or {key for key, _ in fields}
+        != {"kind", "name", "type", "signature", "value_kind", "value"}
+    ):
+        return {}
+
+    symbol = dict(fields)
+    if symbol.get("kind") != "const" or symbol.get("value_kind") != "int":
+        return {}
+    name = symbol.get("name")
+    type_text = symbol.get("type")
+    signature = symbol.get("signature")
+    constant_value = symbol.get("value")
+    if not all(
+        isinstance(item, str)
+        for item in (name, type_text, signature, constant_value)
+    ):
+        return {}
+    if PORTABLE_DECIMAL_INTEGER_PATTERN.fullmatch(constant_value) is None:
+        return {}
+
+    if type_text.startswith("untyped "):
+        expected_signature = f"const {name} = {constant_value}"
+    else:
+        expected_signature = f"const {name} {type_text} = {constant_value}"
+    if signature != expected_signature:
+        return {}
+
+    value_start = len(signature) - len(constant_value)
+    return {
+        "value": ((0, len(constant_value)),),
+        "signature": ((value_start, len(signature)),),
+    }
+
+
+def _decoded_marker_diagnostics(
+    value: Any,
+    path: tuple[str | int, ...] = (),
+    *,
+    duplicate_context: bool = False,
+) -> set[str]:
+    if isinstance(value, str):
+        return marker_diagnostics(value)
+    if isinstance(value, bool) or value is None:
+        return set()
+    if isinstance(value, (int, Decimal)):
+        return marker_diagnostics(str(value))
+    if isinstance(value, list):
+        diagnostics: set[str] = set()
+        for index, item in enumerate(value):
+            diagnostics |= _decoded_marker_diagnostics(
+                item,
+                path + (index,),
+                duplicate_context=duplicate_context,
+            )
+        return diagnostics
+    if isinstance(value, dict):
+        diagnostics = set()
+        local_duplicate = _has_local_duplicate_key(value)
+        child_duplicate_context = duplicate_context or local_duplicate
+        exemptions = _integer_constant_fingerprint_exemptions(
+            value,
+            path,
+            duplicate_context=child_duplicate_context,
+        )
+        for key, item in _object_pairs(value):
+            diagnostics |= marker_diagnostics(key)
+            if isinstance(item, str) and key in exemptions:
+                diagnostics |= marker_diagnostics(
+                    item,
+                    fingerprint_exempt_spans=exemptions[key],
+                )
+            else:
+                diagnostics |= _decoded_marker_diagnostics(
+                    item,
+                    path + (key,),
+                    duplicate_context=child_duplicate_context,
+                )
+        return diagnostics
+    return set()
+
+
 def machine_publication_diagnostics(result: MachineJSONResult) -> set[str]:
-    diagnostics = marker_diagnostics(result.text or "")
-    if result.document is not None:
-        for occurrence in decoded_text_occurrences(result.document):
-            diagnostics |= marker_diagnostics(occurrence)
+    text = result.text or ""
+    if result.document is None:
+        return marker_diagnostics(text)
+
+    diagnostics = marker_diagnostics(text, scan_fingerprints=False)
+    diagnostics |= _decoded_marker_diagnostics(result.document)
+    diagnostics |= marker_diagnostics(result.remainder)
     return diagnostics

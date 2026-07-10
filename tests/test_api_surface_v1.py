@@ -69,7 +69,7 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
-    "kinds-types-signatures.json": "e1d287a3519fbe8fe97adbab6dc0fb0d93ad50536b15f296df33248d420a3400",
+    "kinds-types-signatures.json": "8891fe5afa1c8214cb8d9b6f46f4bfa090aa97293007188f422cab32899f0c8b",
     "packages-and-symbols.json": "6c5784c4295dae25e241c05fa4918386bedfc9f0d4f212e56facd78c7cfd6ba4",
 }
 
@@ -497,7 +497,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "IntegerExact": (
                 "untyped int",
                 "int",
-                "123456789012345678901234567890123456789",
+                "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901",
             ),
             "RuneExact": ("untyped rune", "int", "955"),
             "StringDecomposedExact": ("untyped string", "string", '"Cafe\u0301"'),
@@ -511,6 +511,76 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 symbol = constants[name]
                 self.assertEqual((symbol["type"], symbol["value_kind"], symbol["value"]), (type_text, value_kind, value))
                 self.assertEqual(symbol["signature"], derive_signature(symbol))
+
+    def test_large_decimal_integer_constants_pass_every_machine_validation_mode(self) -> None:
+        for digit_count in (41, 101):
+            with self.subTest(digit_count=digit_count), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = repo / POSITIVE_FIXTURES.relative_to(REPO) / "kinds-types-signatures.json"
+                document = load_json_strict(target)
+                constant = find_symbol(document, "const", "IntegerExact")
+                constant["value"] = "7" * digit_count
+                constant["signature"] = derive_signature(constant)
+                write_json(target, document)
+
+                api = run_validator(repo)
+                policy = run_policy_validator(repo)
+                document_mode = run_document_validator(target, corpus=True)
+                self.assertEqual(api.returncode, 0, api.stderr)
+                self.assertEqual(policy.returncode, 0, policy.stderr)
+                self.assertEqual(document_mode.returncode, 0, document_mode.stderr)
+                self.assertRegex(compatibility_fingerprint(document), r"^[0-9a-f]{64}$")
+
+    def test_large_digit_string_and_non_decimal_integer_text_remain_private(self) -> None:
+        cases = (
+            (
+                "StringExact",
+                "string",
+                '"' + "8" * 50 + '"',
+            ),
+            ("IntegerExact", "int", "A" * 40),
+            ("IntegerExact", "int", "9" * 50 + "g"),
+        )
+        for name, value_kind, value in cases:
+            with self.subTest(name=name, value=value[:3]):
+                def mutation(
+                    document: dict[str, Any],
+                    name: str = name,
+                    value_kind: str = value_kind,
+                    value: str = value,
+                ) -> None:
+                    constant = find_symbol(document, "const", name)
+                    constant["value_kind"] = value_kind
+                    constant["value"] = value
+                    constant["signature"] = derive_signature(constant)
+
+                self.assert_mutation_rejected(mutation, "private identifier")
+
+    def test_duplicate_shadowed_fingerprint_is_rejected_by_both_validators(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / POSITIVE_FIXTURES.relative_to(REPO) / "kinds-types-signatures.json"
+            document = load_json_strict(target)
+            value = find_symbol(document, "const", "IntegerExact")["value"]
+            fingerprint = "F" * 40
+            target.write_text(
+                target.read_text(encoding="utf-8").replace(
+                    f'          "value": "{value}"',
+                    (
+                        f'          "value": "{value}",\n'
+                        f'          "value": "{fingerprint}"'
+                    ),
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            api = run_validator(repo)
+            policy = run_policy_validator(repo)
+            for result in (api, policy):
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private identifier", result.stderr)
+            self.assertIn("duplicate key", api.stderr)
 
     def test_positive_corpus_covers_generics_aliases_and_cross_parameter_constraints(self) -> None:
         document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
