@@ -393,6 +393,8 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "fixture forbidden in extracted document",
             "exactstring byte sequence, including decomposed non-nfc unicode",
             "package-level `imports`",
+            "single json integer token `1`",
+            "every original numeric token spelling",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
@@ -1375,11 +1377,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             compatibility_fingerprint(second),
         )
 
-    def test_fingerprint_canonicalizes_schema_equivalent_version_numbers(self) -> None:
+    def test_fingerprint_does_not_canonicalize_invalid_schema_version_numbers(self) -> None:
         document = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
-        equivalent = copy.deepcopy(document)
-        equivalent["schema_version"] = 1.0
-        self.assertEqual(compatibility_fingerprint(equivalent), compatibility_fingerprint(document))
+        invalid = copy.deepcopy(document)
+        invalid["schema_version"] = 1.0
+        self.assertIn("schema identity mismatch", document_diagnostics(invalid, corpus=True))
+        self.assertNotEqual(compatibility_fingerprint(invalid), compatibility_fingerprint(document))
 
     def test_schema_has_no_self_referential_fingerprint_field(self) -> None:
         schema = load_json_strict(SCHEMA)
@@ -1412,16 +1415,52 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("invalid UTF-8", result.stderr)
 
-    def test_validator_accepts_schema_equivalent_numeric_version(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = copy_repo(Path(tmp))
-            target = repo / positive_paths()[0].relative_to(REPO)
-            target.write_text(
-                target.read_text(encoding="utf-8").replace('"schema_version": 1,', '"schema_version": 1.0,', 1),
-                encoding="utf-8",
-            )
-            result = run_validator(repo)
-            self.assertEqual(result.returncode, 0, result.stderr)
+    def test_validator_requires_exact_integer_schema_version_token(self) -> None:
+        for token in ("1.0", "1e0"):
+            with self.subTest(token=token), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = repo / positive_paths()[0].relative_to(REPO)
+                target.write_text(
+                    target.read_text(encoding="utf-8").replace(
+                        '"schema_version": 1,',
+                        f'"schema_version": {token},',
+                        1,
+                    ),
+                    encoding="utf-8",
+                )
+                for result in (run_validator(repo), run_document_validator(target, corpus=True)):
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("schema identity mismatch", result.stderr)
+
+    def test_long_numeric_tokens_fail_closed_in_both_validators_and_document_modes(self) -> None:
+        tokens = (
+            "1" + "0" * 39 + "e-39",
+            "1e" + "9" * 40,
+            "1e-" + "9" * 40,
+        )
+        for token in tokens:
+            with self.subTest(token=token[:12]), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                target = repo / positive_paths()[0].relative_to(REPO)
+                target.write_text(
+                    target.read_text(encoding="utf-8").replace(
+                        '"schema_version": 1,',
+                        f'"schema_version": {token},',
+                        1,
+                    ),
+                    encoding="utf-8",
+                )
+                results = (
+                    run_validator(repo),
+                    run_policy_validator(repo),
+                    run_document_validator(target),
+                    run_document_validator(target, corpus=True),
+                )
+                for result in results:
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("private identifier", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertNotIn(token, result.stderr)
 
     def test_validator_rejects_boolean_version_ambiguity(self) -> None:
         self.assert_mutation_rejected(

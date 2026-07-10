@@ -5,7 +5,7 @@ import ipaddress
 import json
 import re
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 from typing import Any, Iterator
 
 
@@ -70,12 +70,18 @@ class InvalidJSONConstantError(ValueError):
 
 
 @dataclass(frozen=True)
+class UnrepresentableJSONNumber:
+    """Opaque fail-closed value for a valid number outside local numeric limits."""
+
+
+@dataclass(frozen=True)
 class MachineJSONResult:
     status: str
     document: Any | None
     text: str | None
     remainder: str
     duplicate_keys: bool
+    numeric_lexemes: tuple[str, ...]
 
     @property
     def boundary_valid(self) -> bool:
@@ -136,12 +142,29 @@ def decode_machine_json(
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
-        return MachineJSONResult(INVALID_UTF8, None, None, "", False)
+        return MachineJSONResult(INVALID_UTF8, None, None, "", False, ())
+
+    numeric_lexemes: list[str] = []
+
+    def parse_integer(lexeme: str) -> int | UnrepresentableJSONNumber:
+        numeric_lexemes.append(lexeme)
+        try:
+            return int(lexeme, 10)
+        except (ValueError, OverflowError):
+            return UnrepresentableJSONNumber()
+
+    def parse_decimal(lexeme: str) -> Decimal | UnrepresentableJSONNumber:
+        numeric_lexemes.append(lexeme)
+        try:
+            return Decimal(lexeme)
+        except (DecimalException, ValueError):
+            return UnrepresentableJSONNumber()
 
     decoder = json.JSONDecoder(
         object_pairs_hook=_tracked_object,
         parse_constant=_reject_constant,
-        parse_float=Decimal,
+        parse_float=parse_decimal,
+        parse_int=parse_integer,
         strict=True,
     )
     start = 0
@@ -150,7 +173,14 @@ def decode_machine_json(
     try:
         document, end = decoder.raw_decode(text, start)
     except (json.JSONDecodeError, InvalidJSONConstantError):
-        return MachineJSONResult(INVALID_JSON, None, text, text[start:], False)
+        return MachineJSONResult(
+            INVALID_JSON,
+            None,
+            text,
+            text[start:],
+            False,
+            tuple(numeric_lexemes),
+        )
 
     remainder = text[end:]
     duplicate_keys = has_duplicate_key(document)
@@ -160,7 +190,14 @@ def decode_machine_json(
         status = MALFORMED_SENTINEL
     else:
         status = TRAILING_CONTENT
-    return MachineJSONResult(status, document, text, remainder, duplicate_keys)
+    return MachineJSONResult(
+        status,
+        document,
+        text,
+        remainder,
+        duplicate_keys,
+        tuple(numeric_lexemes),
+    )
 
 
 def parse_ipv4(candidate: str) -> tuple[int, int, int, int] | None:
@@ -321,8 +358,8 @@ def _decoded_marker_diagnostics(
         return marker_diagnostics(value)
     if isinstance(value, bool) or value is None:
         return set()
-    if isinstance(value, (int, Decimal)):
-        return marker_diagnostics(str(value))
+    if isinstance(value, (int, Decimal, UnrepresentableJSONNumber)):
+        return set()
     if isinstance(value, list):
         diagnostics: set[str] = set()
         for index, item in enumerate(value):
@@ -365,5 +402,7 @@ def machine_publication_diagnostics(result: MachineJSONResult) -> set[str]:
 
     diagnostics = marker_diagnostics(text, scan_fingerprints=False)
     diagnostics |= _decoded_marker_diagnostics(result.document)
+    for lexeme in result.numeric_lexemes:
+        diagnostics |= marker_diagnostics(lexeme)
     diagnostics |= marker_diagnostics(result.remainder)
     return diagnostics

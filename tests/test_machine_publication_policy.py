@@ -80,6 +80,33 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 self.assertTrue(result.boundary_valid)
         self.assertEqual(decode_machine_json(b"\xc2\xa0{\"ok\":true}").status, INVALID_JSON)
 
+    def test_numeric_lexemes_drive_long_identifier_diagnostics(self) -> None:
+        tokens = (
+            "7" * 40,
+            "0." + "8" * 40,
+            "1" + "0" * 39 + "e-39",
+            "1e" + "9" * 40,
+            "1e-" + "9" * 40,
+        )
+        for token in tokens:
+            with self.subTest(token=token[:12]):
+                result = decode_machine_json(f'{{"value":{token}}}'.encode("ascii"))
+                self.assertEqual(result.status, COMPLETE)
+                self.assertEqual(result.numeric_lexemes, (token,))
+                self.assertEqual(
+                    machine_publication_diagnostics(result),
+                    {"private identifier"},
+                )
+
+    def test_ordinary_numeric_lexemes_are_preserved_without_markers(self) -> None:
+        result = decode_machine_json(b'{"values":[0,-12,1.25,6.02e23,1e-5]}')
+        self.assertEqual(result.status, COMPLETE)
+        self.assertEqual(
+            result.numeric_lexemes,
+            ("0", "-12", "1.25", "6.02e23", "1e-5"),
+        )
+        self.assertEqual(machine_publication_diagnostics(result), set())
+
     def test_only_exact_malformed_sentinel_is_boundary_valid_when_enabled(self) -> None:
         canonical = b'{"ok":true}\n!\n'
         enabled = decode_machine_json(canonical, allow_malformed_sentinel=True)

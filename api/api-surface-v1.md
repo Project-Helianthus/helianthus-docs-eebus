@@ -45,12 +45,11 @@ is `urn:helianthus:eebus:api-surface:v1`, and `schema_version` has the constant
 integer value `1`. The v1 designation identifies the initial version of this
 contract.
 
-Under JSON Schema draft 2020-12 semantics, the JSON numbers `1` and `1.0` are
-schema-equivalent: both have zero fractional part, satisfy the `integer` type,
-and compare equal to the constant `1`. Consumers must accept any
-schema-equivalent JSON number. JSON booleans are not numbers and are always
-rejected. Canonical producers and every committed fixture emit the single JSON
-token `1`.
+The machine contract is representation-strict at this identity boundary:
+producers and consumers must use the single JSON integer token `1`. Decimal or
+scientific spellings such as `1.0` and `1e0`, and JSON booleans, are rejected
+even when a general JSON Schema implementation would consider a numeric value
+equivalent to the constant.
 
 The representation-level schema keeps `fixture` optional because it describes
 both extracted documents and this repository's synthetic golden corpus. In the
@@ -289,8 +288,11 @@ data, shadowed duplicate values, and escaped content. When no decoded structure
 is available, fingerprint detection remains fail-closed over the complete raw
 text. When decoding succeeds, the raw scan still applies every non-fingerprint
 marker class to the complete text, while fingerprint classification uses the
-decoded structure plus any undecoded trailing content instead of blindly
-classifying digit runs in the JSON rendering.
+decoded structure, every original numeric token spelling, and any undecoded
+trailing content instead of blindly classifying digit runs in the JSON
+rendering. Numeric classification never relies on a reformatted decoded value;
+valid numbers outside the decoder's representable range fail closed without
+exposing their value in diagnostics.
 
 The shared marker contract recognizes the documented private path forms, MAC
 addresses, contiguous hexadecimal fingerprints of at least 40 digits,

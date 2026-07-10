@@ -7,7 +7,6 @@ import json
 import re
 import sys
 import unicodedata
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -139,9 +138,7 @@ def _is_nfc(value: str) -> bool:
 
 
 def _is_schema_integer(value: Any, expected: int) -> bool:
-    return (type(value) is int and value == expected) or (
-        isinstance(value, Decimal) and value == Decimal(expected)
-    ) or (type(value) is float and value == float(expected))
+    return type(value) is int and value == expected
 
 
 def _has_control(value: str) -> bool:
