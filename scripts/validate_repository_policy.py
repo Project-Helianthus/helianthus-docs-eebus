@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
 import re
 import sys
@@ -46,6 +47,18 @@ SCAFFOLD_PAGES = {
     "evidence/evidence-template.md": "template",
     "re-notes/template.md": "template",
     "development/contributing.md": "contribution-policy",
+}
+
+SCAFFOLD_BODY_SHA256 = {
+    "README.md": "d5d7ec16ada1c9ae97de0982dbd66c105cc8ad68f5c2e1b6a586c082a83a6070",
+    "protocols/ship-spine-overview.md": "b47f043024d94af8457da2a4eaf5f8f26e094d60cb5ce7fa4205d69231a16ed7",
+    "architecture/README.md": "11408edfec08a0f808c566721ddc5d4fc7d3770a0a9901feaf94f81b2bf2570b",
+    "api/README.md": "b47ba6582dd6477db2298272bb38086eb02846db4c284c85362e2d7052457255",
+    "devices/vr940f.md": "8ebb4fdb88f30c111a0ce1474289fc3f6afde46397c72765e05939268b99d1b1",
+    "evidence/README.md": "f5f3f8e39708d3319b52f6975672ece2d7dfe8d8432d89902eef2884b5a08079",
+    "evidence/evidence-template.md": "8f24eda4dcc0adf50878d15065eeb4d3475975fe0ee141b977bd6acca2aab6d7",
+    "re-notes/template.md": "1504fa2706c93a1ca5378a9fc8706da4519df0e77ee2ae4ec981fc3b56ee9f6f",
+    "development/contributing.md": "328d2420e9cfa941184600212a8975be7cf405ae3f40b6c88109ff76349b1bfb",
 }
 
 EVIDENCE_SOURCE_CLASSES = {
@@ -108,12 +121,12 @@ SENSITIVE_FIELD_PATTERN = re.compile(
     r"(token|account (?:id|identifier)|"
     r"full fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
-    r"(?:raw\s+)?ski|(?:raw\s+)?ship[\s-]*id)"
+    r"(?:raw\s+)?ski|(?:raw\s+)?ship[\s_-]*id)"
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
-    r"`?\b(?:raw\s+)?(?:ski|ship[\s-]*id)\b`?"
+    r"`?\b(?:raw\s+)?(?:ski|ship[\s_-]*id)\b`?"
     r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
     re.IGNORECASE,
 )
@@ -141,12 +154,6 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     r"[^\n]{0,120}\b(?:is|are|becomes?)\s+"
     r"(?:available|active|enabled|supported|shipped|ready)(?:\s+now)?\b",
     re.IGNORECASE,
-)
-ASSERTIVE_PROTOCOL_PATTERN = re.compile(
-    r"^.*\b(?:eebus|ship|spine|vr940f|myvaillant|gateway|device|runtime)\b"
-    r".*\b(?:exposes?|emits?|advertises?|reports?|returns?|supports?|connects?|"
-    r"publishes?|implements?)\b.*$",
-    re.IGNORECASE | re.MULTILINE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
     r"\bvendor[_ -]restricted\b|"
@@ -321,8 +328,9 @@ def _provenance_errors(
                 f"{rel}: publication_status must be {expected_scaffold_status!r}"
             )
         body = text.split("\n---\n", 1)[1]
-        if ASSERTIVE_PROTOCOL_PATTERN.search(body):
-            errors.append(f"{rel}: no-protocol-claims scaffold contains an asserted behavior")
+        body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        if body_hash != SCAFFOLD_BODY_SHA256[rel]:
+            errors.append(f"{rel}: scaffold body differs from the reviewed no-claim content")
         return errors
 
     if claim_status != "evidence-backed":

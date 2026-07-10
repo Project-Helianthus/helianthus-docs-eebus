@@ -378,6 +378,7 @@ class PolicyValidatorTests(unittest.TestCase):
             "prose raw ski": "Raw SKI abcdef1234567890",
             "backticked raw ship id": "`Raw SHIP ID abcdef1234567890`",
             "hyphenated raw ship id": "Raw SHIP-ID: abcdef1234567890",
+            "underscored raw ship id": "Raw SHIP_ID: abcdef1234567890",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -433,6 +434,29 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("claim_status must be 'evidence-backed'", result.stderr)
+
+    def test_scaffold_body_is_locked_against_asserted_behavior(self) -> None:
+        claims = (
+            "VR940f uses TLS pairing with myVaillant.",
+            "VR940f has a stable peer identity after pairing.",
+            "The gateway pairs with the remote.",
+            "The gateway discovers peers.",
+            "SHIP negotiates identity security.",
+        )
+        for claim in claims:
+            with self.subTest(claim=claim):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "protocols" / "ship-spine-overview.md"
+                    page.write_text(
+                        page.read_text(encoding="utf-8") + f"\n{claim}\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("scaffold body differs", result.stderr)
 
     def test_evidence_backed_claim_requires_existing_evidence_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
