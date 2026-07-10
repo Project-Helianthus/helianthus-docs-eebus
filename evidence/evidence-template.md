@@ -1,3 +1,9 @@
+---
+canonical_source: "Project-Helianthus/helianthus-docs-eebus:evidence/evidence-template.md"
+owner_domain: "evidence"
+license: "CC0-1.0"
+---
+
 # EV-YYYYMMDD-NNN - Title
 
 ## Metadata

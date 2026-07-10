@@ -1,3 +1,9 @@
+---
+canonical_source: "Project-Helianthus/helianthus-docs-eebus:evidence/README.md"
+owner_domain: "evidence"
+license: "CC0-1.0"
+---
+
 # eeBUS Evidence Catalog
 
 Evidence files in this directory are publishable only after redaction and

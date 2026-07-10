@@ -1,0 +1,31 @@
+Helianthus eeBUS Documentation License Policy
+
+This repository uses two publication lanes.
+
+1. Reverse-engineered protocol knowledge
+
+Material under `protocols/`, `devices/`, `evidence/`, and `re-notes/` that
+records eeBUS/SHIP/SPINE protocol behavior, wire/runtime observations,
+device facts, evidence, hypotheses, or reverse-engineered protocol knowledge
+is published under CC0-1.0 public-domain dedication.
+
+This lane exists so independently reverse-engineered protocol knowledge remains
+public, mirrorable, reusable, and redistributable by the community.
+
+2. Helianthus implementation documentation
+
+Helianthus-specific architecture, API, development, process, repository policy,
+and runtime integration documentation is published under AGPL-3.0 unless a more
+specific file-level notice says otherwise.
+
+This includes `README.md`, `development/`, `architecture/`, `api/`, repository
+control files, CI scripts, and validation tooling.
+
+Inbound contribution rule:
+
+By submitting material for inclusion in this repository, contributors confirm
+that the submitted material can be published under the applicable lane above.
+Do not submit restricted-source material, private identifiers, credentials,
+account data, household schedules, private network addresses, full device
+fingerprints, or material that cannot legally be published under the applicable
+public license.

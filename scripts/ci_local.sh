@@ -31,11 +31,11 @@ import re
 import sys
 
 private_nets = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("100.64.0.0/10"),
-    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("10." + "0.0.0/8"),
+    ipaddress.ip_network("172.16." + "0.0/12"),
+    ipaddress.ip_network("192.168." + "0.0/16"),
+    ipaddress.ip_network("100.64." + "0.0/10"),
+    ipaddress.ip_network("169.254." + "0.0/16"),
 ]
 
 failed = False
@@ -54,5 +54,11 @@ for path in pathlib.Path(".").rglob("*.md"):
 if failed:
     sys.exit(1)
 PY
+
+echo "==> validate repository ownership policy"
+python3 scripts/validate_repository_policy.py
+
+echo "==> run policy validator tests"
+python3 -m unittest discover -s tests -p 'test_*.py'
 
 echo "==> docs-eebus local CI passed"

@@ -1,3 +1,9 @@
+---
+canonical_source: "Project-Helianthus/helianthus-docs-eebus:re-notes/template.md"
+owner_domain: "re-notes"
+license: "CC0-1.0"
+---
+
 # eeBUS Reverse-Engineering Note Template
 
 ## Context

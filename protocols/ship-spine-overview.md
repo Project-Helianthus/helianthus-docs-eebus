@@ -1,3 +1,9 @@
+---
+canonical_source: "Project-Helianthus/helianthus-docs-eebus:protocols/ship-spine-overview.md"
+owner_domain: "protocols"
+license: "CC0-1.0"
+---
+
 # SHIP/SPINE Overview For Helianthus eeBUS
 
 ## Scope
