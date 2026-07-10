@@ -69,6 +69,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
+CI_LOCAL_SHA256 = "137edf5c0e68433f10c4740c6c4ac06d6c283466d3d42577211fe60f511aa71e"
 
 LICENSE_ACK_LABEL = (
     "I have read the repository license policy and I accept the Helianthus "
@@ -118,7 +119,7 @@ PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 EEBUS_ID_LABEL_PATTERN = (
-    r"(?:ski(?:[\s_-]+(?:id|identifier))?|ship[\s_-]*(?:id|identifier))"
+    r"(?:(?:ski|ship)(?:[\s_-]+(?:id|identifier))?)"
 )
 SENSITIVE_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?"
@@ -152,7 +153,7 @@ IPV6_CANDIDATE_PATTERN = re.compile(
 )
 PREMATURE_COMPLETION_PATTERN = re.compile(
     r"(?:MSP-DOCS-[A-Z0-9-]+\b[^\n]{0,40}\b"
-    r"(?:complete|completed|merged|done)\b|"
+    r"(?:complete|completed|merged|done|ready|available|shipped|landed)\b|"
     r"(?:absence gate|helianthus-eebusreg/docs)\s+(?:is|was|has been)\s+"
     r"(?:installed|absent|deleted|removed)|"
     r"helianthus-eebusreg[^\n]{0,80}\b(?:has|contains|tracks|keeps|ships)\s+"
@@ -165,15 +166,17 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     r"(?:GraphQL exposure|Home Assistant entit(?:y|ies)(?: rollout)?|"
     r"HA entit(?:y|ies)(?: rollout)?|HA consumer rollout|"
     r"Portal consumer workflow|Portal rollout|command routing|gateway import)"
-    r"[^\n]{0,120}\b(?:is|are|becomes?)\s+"
-    r"(?:available|active|enabled|supported|shipped|ready|complete|completed|done)"
+    r"[^\n]{0,120}\b(?:(?:is|are|was|were|becomes?)|"
+    r"(?:has|have)(?:\s+been)?)\s+"
+    r"(?:available|active|enabled|supported|shipped|ready|complete|completed|done|landed)"
     r"(?:\s+now)?\b",
     re.IGNORECASE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
     r"\bvendor[_ -]restricted\b|"
     r"\brestricted[ -]+source\b|"
-    r"\brestricted\s+vendor\s+(?:document|source|material|content|text)\b|"
+    r"\brestricted\s+vendor\s+"
+    r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
     r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
     r"\bsource\s+class\s*:\s*restricted\b",
     re.IGNORECASE,
@@ -401,6 +404,12 @@ def check_repository(root: Path) -> list[str]:
             symlinks.add(path)
             errors.append(f"{_rel(path, root)}: symlinks are forbidden")
 
+    ci_local = root / "scripts" / "ci_local.sh"
+    if not ci_local.is_file() or ci_local.is_symlink():
+        errors.append("scripts/ci_local.sh: missing regular CI entrypoint")
+    elif hashlib.sha256(ci_local.read_bytes()).hexdigest() != CI_LOCAL_SHA256:
+        errors.append("scripts/ci_local.sh: content differs from the reviewed CI entrypoint")
+
     license_file = root / "LICENSE"
     if not license_file.exists():
         errors.append("LICENSE: missing repository license policy")
@@ -442,6 +451,20 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(
                     f".github/CODEOWNERS: rule {fields[0]!r} must retain {VALID_OWNER}"
                 )
+
+    issue_config = root / ".github" / "ISSUE_TEMPLATE" / "config.yml"
+    if not issue_config.exists():
+        errors.append(".github/ISSUE_TEMPLATE/config.yml: missing")
+    elif issue_config not in symlinks:
+        try:
+            issue_config_data = yaml.load(_read(issue_config), Loader=UniqueKeySafeLoader)
+        except yaml.YAMLError as error:
+            errors.append(f".github/ISSUE_TEMPLATE/config.yml: invalid YAML: {error}")
+            issue_config_data = None
+        if not isinstance(issue_config_data, dict):
+            errors.append(".github/ISSUE_TEMPLATE/config.yml: root must be a mapping")
+        elif issue_config_data.get("blank_issues_enabled") is not False:
+            errors.append(".github/ISSUE_TEMPLATE/config.yml: blank issues must be disabled")
 
     issue_template = root / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
     if not issue_template.exists():

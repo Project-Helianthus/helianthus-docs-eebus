@@ -442,6 +442,9 @@ class PolicyValidatorTests(unittest.TestCase):
             "underscored ski id": "SKI_ID: abcdef1234567890",
             "raw ski id": "Raw SKI ID abcdef1234567890",
             "backticked ski id": "`Raw SKI_ID abcdef1234567890`",
+            "bare ship": "SHIP: abcdef1234567890",
+            "raw bare ship": "Raw SHIP abcdef1234567890",
+            "backticked bare ship": "`Raw SHIP abcdef1234567890`",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -463,6 +466,8 @@ class PolicyValidatorTests(unittest.TestCase):
             "This claim was paraphrased from a restricted vendor document.",
             "restricted-source material was used for this claim.",
             "restricted source material was used for this claim.",
+            "This claim used restricted vendor documents.",
+            "restricted vendor docs.",
         )
         for payload in payloads:
             with self.subTest(payload=payload):
@@ -777,6 +782,38 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("invalid YAML", result.stderr)
 
+    def test_issue_config_is_strict_and_disables_blank_issues(self) -> None:
+        mutations = {
+            "missing": None,
+            "enabled": "blank_issues_enabled: true\n",
+            "duplicate": "blank_issues_enabled: false\nblank_issues_enabled: true\n",
+        }
+        for name, replacement in mutations.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    config = repo / ".github" / "ISSUE_TEMPLATE" / "config.yml"
+                    if replacement is None:
+                        config.unlink()
+                    else:
+                        config.write_text(replacement, encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn(".github/ISSUE_TEMPLATE/config.yml", result.stderr)
+
+    def test_ci_entrypoint_is_hash_locked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            ci_local = repo / "scripts" / "ci_local.sh"
+            ci_local.write_text("#!/usr/bin/env bash\necho bypassed\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("content differs from the reviewed CI entrypoint", result.stderr)
+
     def test_issue_form_types_and_options_are_enforced(self) -> None:
         mutations = {
             "ownership type": lambda text: text.replace(
@@ -844,6 +881,7 @@ class PolicyValidatorTests(unittest.TestCase):
         claims = (
             "MSP-DOCS-API-SCHEMA is complete.",
             "MSP-DOCS-PLATFORM has merged.",
+            "MSP-DOCS-E2 is ready.",
             "helianthus-eebusreg has no docs/ directory.",
             "The helianthus-eebusreg docs/ directory is absent.",
         )
@@ -951,6 +989,9 @@ class PolicyValidatorTests(unittest.TestCase):
             "GraphQL exposure, Home Assistant entities, and command routing are available now.",
             "HA entity rollout is shipped now.",
             "Portal consumer workflow is active now.",
+            "GraphQL exposure has shipped.",
+            "Home Assistant entities have been enabled.",
+            "gateway import has been enabled.",
         )
         for claim in claims:
             with self.subTest(claim=claim):
