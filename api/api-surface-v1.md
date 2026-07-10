@@ -19,16 +19,20 @@ This milestone freezes the JSON representation and synthetic corpus
 invariants. The portable validator checks strict JSON, closed field sets,
 normalized text, identifier rules, type-parameter uniqueness, receiver
 resolution and arity, declaration identity, cross-field signature derivation,
-ordering, exact exclusions, publication markers, and fixture boundaries. It
-does not parse Go.
+import structure and identity, ordering, exact exclusions, publication markers,
+and fixture boundaries. It does not parse Go.
 
 Before emitting this format, a future AST-backed producer must prove Go syntax,
 canonical source spelling, `go/constant.Value.ExactString` and source-value
 correctness, generic constraints and cross-parameter references, defined and
 alias declarations, exported dependency visibility, and semantic consistency.
-It must derive every field for a symbol from the same declaration. Portable
-validation is not proof that a Go declaration exists. Consumers may rely on the
-frozen representation and corpus invariants only.
+It must derive every field for a symbol from the same declaration and emit a
+deterministic canonical qualifier for every imported package referenced by any
+type, constraint, signature, or value representation. Proving import use and
+completeness is producer-owned. Portable validation checks import structure,
+ordering, uniqueness, and path rules only; it is not proof that a Go declaration
+or import exists. Consumers may rely on the frozen representation and corpus
+invariants only.
 
 Normative machine artifacts use strict UTF-8 JSON. Duplicate object keys,
 non-UTF-8 input, JSON constants outside RFC 8259, nulls, and fields not declared
@@ -48,28 +52,39 @@ schema-equivalent JSON number. JSON booleans are not numbers and are always
 rejected. Canonical producers and every committed fixture emit the single JSON
 token `1`.
 
-The optional `fixture` object is reserved for this repository's synthetic
-golden corpus. When present, it has exactly `synthetic: true` and
-`runtime_claims: false`. Extracted API documents omit `fixture`.
+The representation-level schema keeps `fixture` optional because it describes
+both extracted documents and this repository's synthetic golden corpus. In the
+corpus it has exactly `synthetic: true` and `runtime_claims: false`. Extracted
+API documents omit `fixture`.
 
 The portable validator's default document mode validates extracted output:
 `python3 scripts/validate_api_surface_v1.py --document <path>`. In that mode,
-`fixture` may be absent and ordinary public package paths are accepted. The
-explicit `--corpus` document mode, and the repository corpus gate, require the
-closed fixture metadata and the `example.invalid/helianthus/synthetic/`
-package prefix.
+any `fixture` field is rejected as `fixture forbidden in extracted document`,
+and ordinary public package paths are accepted. The explicit `--corpus`
+document mode, and the repository corpus gate, require the exact closed fixture
+metadata and the `example.invalid/helianthus/synthetic/` prefix for every
+package and imported package path. These modes are mutually exclusive trust
+boundaries over the same representation schema.
 
 ## Package Normalization
 
-Each package has exactly `path`, `name`, and `symbols`. Package paths use
-Unicode Normalization Form C (NFC), forward slashes, no empty, dot, dot-dot, or
-`internal` component, and no whitespace or control character. They cannot start
-or end with `/` or contain `\`. Windows drive-absolute forms beginning with one
-uppercase or lowercase ASCII letter followed by `:/` or `:\` are invalid.
-Colons in otherwise valid package/import path strings remain permitted when
-they do not form that leading drive-absolute prefix. Package names use the
-portable ASCII Go identifier subset `[A-Za-z_][A-Za-z0-9_]*` and must not be Go
-keywords.
+Each package has exactly `path`, `name`, `imports`, and `symbols`. `imports` is
+required and always present, including an empty array. Each entry is the closed
+object `{qualifier,path}`. A qualifier uses the portable ASCII Go identifier
+subset `[A-Za-z_][A-Za-z0-9_]*`, is not a Go keyword, and cannot be the blank
+identifier `_`. An imported path follows the same rules as the current package
+path, cannot contain an `internal` component, and cannot equal the current
+package path. Qualifiers are unique within a package, and imported paths are
+independently unique within a package.
+
+Package and imported paths use Unicode Normalization Form C (NFC), forward
+slashes, no empty, dot, dot-dot, or `internal` component, and no whitespace or
+control character. They cannot start or end with `/` or contain `\`. Windows
+drive-absolute forms beginning with one uppercase or lowercase ASCII letter
+followed by `:/` or `:\` are invalid. Colons in otherwise valid package/import
+path strings remain permitted when they do not form that leading drive-absolute
+prefix. Package names use the portable ASCII Go identifier subset and must not
+be Go keywords.
 
 Source layout, file names, build-cache paths, comments, and formatting do not
 participate in package identity. A package path may occur only once.
@@ -128,11 +143,13 @@ equals sign. For functions and methods it is the receiver-free function type.
 `type`, constraints, and non-constant signatures are trimmed, single-line NFC
 text with no Unicode `Cc` control characters, `Zl` line separators, `Zp`
 paragraph separators, or repeated spaces. Constant `value` and `signature`
-fields have the same trimming and Unicode requirements, but preserve repeated
-spaces inside ExactString data. Exact derived-signature equality rejects
-noncanonical spacing outside the embedded constant value. The portable
-validator enforces those representation properties but does not prove Go
-syntax or constraint meaning.
+remain trimmed and reject actual `Cc`, `Zl`, `Zp`, and surrogate code points,
+but deliberately skip NFC and repeated-space normalization. This preserves the
+ExactString byte sequence, including decomposed non-NFC Unicode, in both
+`value` and the value-derived substring of `signature`. Exact derived-signature
+equality rejects any change outside or inside that duplicated value. The
+portable validator enforces those representation properties but does not prove
+Go syntax or constraint meaning.
 
 `value` is exactly `go/constant.Value.ExactString`. It remains a JSON string
 for every constant class, even when it represents a boolean or number. The
@@ -170,8 +187,10 @@ signatures so a signature is never an invalid pseudo-declaration.
 
 The compatibility projection is the complete document after removing the root
 `fixture` field and every symbol's derived `signature` field. No other field is
-removed. Package and symbol arrays remain in canonical order, and type-parameter
-arrays retain declaration order. Object member input order does not participate.
+removed: package-level `imports`, including each qualifier-to-path identity,
+participate in the projection and fingerprint. Package, import, and symbol
+arrays remain in canonical order, and type-parameter arrays retain declaration
+order. Object member input order does not participate.
 
 Serialize the projection as UTF-8 JSON with keys sorted by Unicode code point,
 `ensure_ascii` disabled, no insignificant whitespace, and separators `,` and
@@ -186,10 +205,12 @@ that document.
 
 ## Canonical Ordering
 
-Packages are sorted by the bytewise UTF-8 tuple `(path, name)`. Symbols within
-each package are sorted by the bytewise UTF-8 tuple `(kind, receiver.base or
-empty, name)`. Sorting is ascending and occurs after NFC normalization. Pointer
-choice and receiver parameter spelling do not participate in ordering.
+Packages are sorted by the bytewise UTF-8 tuple `(path, name)`. Imports within a
+package are sorted by the bytewise UTF-8 tuple `(qualifier, path)`. Symbols
+within each package are sorted by the bytewise UTF-8 tuple `(kind,
+receiver.base or empty, name)`. Sorting is ascending and occurs after NFC
+normalization of fields for which NFC is required. Pointer choice and receiver
+parameter spelling do not participate in ordering.
 
 ## Exclusions
 
@@ -197,7 +218,8 @@ The corpus excludes formatting, comments, source positions, file names, build
 metadata, internal package paths, unexported declarations, methods on
 unexported or unresolved receivers, implementation dependency types,
 duplicate identities, duplicate type-parameter names, malformed or duplicate
-JSON keys, non-NFC text, nulls, unknown fields, and non-canonical ordering.
+JSON keys, non-NFC text outside ExactString-derived constant data, nulls,
+unknown fields, and non-canonical ordering.
 
 Exclusion is deterministic and applies to the complete declaration. A rejected
 or excluded declaration is never partially represented.
@@ -207,10 +229,12 @@ or excluded declaration is never partially represented.
 Files under `api/fixtures/v1/positive/` and `api/fixtures/v1/negative/` are
 synthetic. Their package paths begin with
 `example.invalid/helianthus/synthetic/`; no runtime symbol, package, or
-availability claim is implied. Positive fixtures cover all five kinds, typed
-and all untyped constant classes including rune, exact large values, generic
-defined and alias types, cross-parameter function constraints, value and
-pointer generic receivers, and canonical package and symbol ordering.
+availability claim is implied. Imported package paths use the same synthetic
+prefix. Positive fixtures cover all five kinds, typed and all untyped constant
+classes including rune, exact large values, decomposed Unicode ExactString
+data, a synthetic import mapping used by a constraint, generic defined and
+alias types, cross-parameter function constraints, value and pointer generic
+receivers, and canonical package, import, and symbol ordering.
 
 The exact negative allowlist has ten filenames. Each fixture retains the valid
 schema identity, canonical version token, synthetic marker, no-runtime marker,
@@ -224,6 +248,23 @@ complete, boundary-valid JSON value followed by the exact remainder `\n!\n`.
 Any other tail, a second JSON value, or escaped content in a tail is a boundary
 and publication failure. Diagnostics are deterministic, repository-relative,
 category-only, and never echo input values or absolute paths.
+
+## Post-Merge Evolution Policy
+
+After v1 publication, data additions of new package or symbol identities within
+the unchanged v1 shape are additive. Removals or compatibility-projection
+changes are compatibility-breaking data changes detectable by fingerprint or
+semantic diff.
+
+After v1 publication, any schema field, requiredness, enum, normalization,
+identity, order, compatibility projection, fingerprint, or diagnostic-contract
+change requires v2 and parallel artifacts. The v1 schema, reference, validator,
+and corpus remain available beside the new version.
+
+Only nonnormative clarification and validator fixes that enforce
+already-normative behavior without changing valid-document or fingerprint
+semantics may patch v1. v1 is additive-only as a contract; there is no silent
+redefinition.
 
 ## Privacy and Source Restrictions
 

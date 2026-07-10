@@ -9,6 +9,7 @@
     {
       "path": "example.invalid/helianthus/synthetic/alpha",
       "name": "alpha",
+      "imports": [],
       "symbols": [
         {
           "kind": "const",
@@ -31,6 +32,7 @@
     {
       "path": "example.invalid/helianthus/synthetic/beta",
       "name": "beta",
+      "imports": [],
       "symbols": [
         {
           "kind": "func",

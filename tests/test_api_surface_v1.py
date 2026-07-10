@@ -69,8 +69,8 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
-    "kinds-types-signatures.json": "1389d98ef6f7d6ad458cecc89f54f4769f6cd406004f0eaf3a405ab955f45771",
-    "packages-and-symbols.json": "492c7ec2e865dc21afd5c0dba9778efa85eed443a105ccdc32efa128717c010e",
+    "kinds-types-signatures.json": "e1d287a3519fbe8fe97adbab6dc0fb0d93ad50536b15f296df33248d420a3400",
+    "packages-and-symbols.json": "6c5784c4295dae25e241c05fa4918386bedfc9f0d4f212e56facd78c7cfd6ba4",
 }
 
 
@@ -209,6 +209,13 @@ def package_order_key(package: dict[str, Any]) -> tuple[bytes, bytes]:
     return (package["path"].encode("utf-8"), package["name"].encode("utf-8"))
 
 
+def import_order_key(package_import: dict[str, str]) -> tuple[bytes, bytes]:
+    return (
+        package_import["qualifier"].encode("utf-8"),
+        package_import["path"].encode("utf-8"),
+    )
+
+
 def canonical_fingerprint_independent(document: dict[str, Any]) -> str:
     projection = copy.deepcopy(document)
     projection.pop("fixture", None)
@@ -334,6 +341,22 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         self.assertIs(receiver["properties"]["type_parameters"]["uniqueItems"], True)
         self.assertNotIn("type_parameters", definitions["methodSymbol"]["properties"])
 
+    def test_schema_requires_closed_package_imports_but_keeps_fixture_optional(self) -> None:
+        schema = load_json_strict(SCHEMA)
+        package = schema["$defs"]["package"]
+        package_import = schema["$defs"]["packageImport"]
+        self.assertEqual(set(package["required"]), {"path", "name", "imports", "symbols"})
+        self.assertEqual(set(package["properties"]), {"path", "name", "imports", "symbols"})
+        self.assertEqual(
+            package["properties"]["imports"]["items"]["$ref"],
+            "#/$defs/packageImport",
+        )
+        self.assertEqual(set(package_import["required"]), {"qualifier", "path"})
+        self.assertEqual(set(package_import["properties"]), {"qualifier", "path"})
+        self.assertIs(package_import["additionalProperties"], False)
+        self.assertNotIn("fixture", schema["required"])
+        self.assertIn("fixture", schema["properties"])
+
     def test_schema_and_fixtures_contain_no_null_contract_values(self) -> None:
         def visit(value: Any) -> None:
             self.assertIsNotNone(value)
@@ -366,6 +389,26 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "classification never uses `ipaddress.is_private`",
             "windows drive-absolute forms",
             "colons in otherwise valid package/import path strings remain permitted",
+            "proving import use and completeness is producer-owned",
+            "fixture forbidden in extracted document",
+            "exactstring byte sequence, including decomposed non-nfc unicode",
+            "package-level `imports`",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, normalized)
+
+    def test_reference_pins_post_merge_v1_evolution_policy(self) -> None:
+        text = REFERENCE.read_text(encoding="utf-8")
+        normalized = " ".join(text.lower().split())
+        self.assertIn("## Post-Merge Evolution Policy", text)
+        phrases = (
+            "data additions of new package or symbol identities within the unchanged v1 shape are additive",
+            "removals or compatibility-projection changes are compatibility-breaking data changes",
+            "requires v2 and parallel artifacts",
+            "only nonnormative clarification and validator fixes",
+            "without changing valid-document or fingerprint semantics may patch v1",
+            "v1 is additive-only as a contract; there is no silent redefinition",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
@@ -386,6 +429,14 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                         for package in document["packages"]
                     )
                 )
+                for package in document["packages"]:
+                    self.assertIn("imports", package)
+                    self.assertTrue(
+                        all(
+                            package_import["path"].startswith(SYNTHETIC_PACKAGE_PREFIX)
+                            for package_import in package["imports"]
+                        )
+                    )
 
     def test_positive_symbols_use_the_exact_per_kind_field_matrix(self) -> None:
         seen: set[str] = set()
@@ -423,6 +474,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 "123456789012345678901234567890123456789",
             ),
             "RuneExact": ("untyped rune", "int", "955"),
+            "StringDecomposedExact": ("untyped string", "string", '"Cafe\u0301"'),
             "StringExact": ("untyped string", "string", '"line\\n\\"quoted\\""'),
             "StringSpacesExact": ("untyped string", "string", '"left  right"'),
             "TypedLimit": ("uint64", "int", "18446744073709551615"),
@@ -439,6 +491,16 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         convert = find_symbol(document, "func", "Convert")
         catalog = find_symbol(document, "type", "Catalog")
         pair = find_symbol(document, "type", "Pair")
+        self.assertEqual(
+            document["packages"][0]["imports"],
+            [
+                {
+                    "qualifier": "ext",
+                    "path": "example.invalid/helianthus/synthetic/external",
+                }
+            ],
+        )
+        self.assertEqual(convert["type_parameters"][0], {"name": "T", "constraint": "ext.Element"})
         self.assertEqual(convert["type_parameters"][1], {"name": "S", "constraint": "interface{ ~[]T }"})
         self.assertEqual(catalog["type_form"], "defined")
         self.assertEqual(pair["type_form"], "alias")
@@ -471,6 +533,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             document = load_json_strict(path)
             self.assertEqual(document["packages"], sorted(document["packages"], key=package_order_key))
             for package in document["packages"]:
+                self.assertEqual(package["imports"], sorted(package["imports"], key=import_order_key))
                 self.assertEqual(package["symbols"], sorted(package["symbols"], key=symbol_order_key))
                 self.assertEqual(package["path"], unicodedata.normalize("NFC", package["path"]))
 
@@ -485,6 +548,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertTrue(
                     all(package["path"].startswith(SYNTHETIC_PACKAGE_PREFIX) for package in document["packages"])
                 )
+                self.assertTrue(all("imports" in package for package in document["packages"]))
                 self.assertEqual(remainder, "\n!\n" if path.name == "malformed.json" else "\n")
 
     def test_negative_duplicate_identity_is_cross_kind_package_identity(self) -> None:
@@ -563,18 +627,44 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertEqual(result.stdout.strip(), "api-surface-v1 document: valid")
                 self.assertRegex(compatibility_fingerprint(document), r"^[0-9a-f]{64}$")
 
-    def test_extracted_document_mode_rejects_invalid_optional_fixture(self) -> None:
+    def test_extracted_document_mode_rejects_every_fixture_value(self) -> None:
         source = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
-        invalid_fixtures = (
+        fixture_values = (
+            {"synthetic": True, "runtime_claims": False},
             None,
             {"synthetic": False, "runtime_claims": False},
             {"synthetic": True, "runtime_claims": False, "extra": True},
         )
-        for fixture in invalid_fixtures:
-            with self.subTest(fixture=fixture):
+        for fixture in fixture_values:
+            with self.subTest(fixture=fixture), tempfile.TemporaryDirectory() as tmp:
                 document = copy.deepcopy(source)
                 document["fixture"] = fixture
-                self.assertTrue(document_diagnostics(document))
+                self.assertEqual(
+                    document_diagnostics(document),
+                    {"fixture forbidden in extracted document"},
+                )
+                path = Path(tmp) / "extracted.json"
+                write_json(path, document)
+                result = run_document_validator(path)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(
+                    result.stderr,
+                    "extracted.json: fixture forbidden in extracted document\n",
+                )
+
+    def test_valid_corpus_document_is_rejected_by_extracted_mode_only(self) -> None:
+        path = POSITIVE_FIXTURES / "kinds-types-signatures.json"
+        document = load_json_strict(path)
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
+        self.assertEqual(
+            document_diagnostics(document),
+            {"fixture forbidden in extracted document"},
+        )
+        corpus_result = run_document_validator(path, corpus=True)
+        extracted_result = run_document_validator(path)
+        self.assertEqual(corpus_result.returncode, 0, corpus_result.stderr)
+        self.assertEqual(extracted_result.returncode, 1)
+        self.assertIn("fixture forbidden in extracted document", extracted_result.stderr)
 
     def test_corpus_mode_requires_fixture_and_synthetic_package_prefix(self) -> None:
         document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
@@ -599,6 +689,39 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                     "corpus.json: non-synthetic fixture package",
                 },
             )
+
+    def test_corpus_mode_requires_exact_fixture_and_synthetic_import_paths(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        invalid_fixtures = (
+            None,
+            {"synthetic": False, "runtime_claims": False},
+            {"synthetic": True, "runtime_claims": False, "extra": True},
+        )
+        for fixture in invalid_fixtures:
+            with self.subTest(fixture=fixture), tempfile.TemporaryDirectory() as tmp:
+                document = copy.deepcopy(source)
+                document["fixture"] = fixture
+                diagnostics = document_diagnostics(document, corpus=True)
+                self.assertTrue(
+                    diagnostics
+                    & {
+                        "invalid fixture metadata",
+                        "runtime claim or non-synthetic fixture",
+                        "unknown field",
+                    }
+                )
+                path = Path(tmp) / "corpus.json"
+                write_json(path, document)
+                result = run_document_validator(path, corpus=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertNotIn("fixture forbidden in extracted document", result.stderr)
+
+        imported = copy.deepcopy(source)
+        imported["packages"][0]["imports"][0]["path"] = "example.com/public/dependency"
+        self.assertIn(
+            "non-synthetic fixture package",
+            document_diagnostics(imported, corpus=True),
+        )
 
     def test_every_negative_fixture_must_remain_invalid(self) -> None:
         valid_bytes = positive_paths()[0].read_bytes()
@@ -629,12 +752,86 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         mutations = (
             lambda document: document.__setitem__("fixture", None),
             lambda document: document["packages"][0].__setitem__("name", None),
+            lambda document: document["packages"][0]["imports"][0].__setitem__("path", None),
             lambda document: find_symbol(document, "const").__setitem__("value", None),
             lambda document: find_symbol(document, "method")["receiver"]["type_parameters"].__setitem__(0, None),
         )
         for mutation in mutations:
             with self.subTest(mutation=mutation):
                 self.assert_mutation_rejected(mutation, "null value")
+
+    def test_validator_enforces_import_shape_identity_paths_and_order(self) -> None:
+        cases: tuple[tuple[str, Callable[[dict[str, Any]], None]], ...] = (
+            (
+                "missing required field",
+                lambda document: document["packages"][0].pop("imports"),
+            ),
+            (
+                "invalid import qualifier",
+                lambda document: document["packages"][0]["imports"][0].__setitem__(
+                    "qualifier", "_"
+                ),
+            ),
+            (
+                "invalid import path",
+                lambda document: document["packages"][0]["imports"][0].__setitem__(
+                    "path", "/absolute/dependency"
+                ),
+            ),
+            (
+                "internal import",
+                lambda document: document["packages"][0]["imports"][0].__setitem__(
+                    "path", "example.invalid/helianthus/synthetic/internal/dependency"
+                ),
+            ),
+            (
+                "self import",
+                lambda document: document["packages"][0]["imports"][0].__setitem__(
+                    "path", document["packages"][0]["path"]
+                ),
+            ),
+            (
+                "duplicate import qualifier",
+                lambda document: document["packages"][0]["imports"].append(
+                    {
+                        "qualifier": "ext",
+                        "path": "example.invalid/helianthus/synthetic/zeta",
+                    }
+                ),
+            ),
+            (
+                "duplicate import path",
+                lambda document: document["packages"][0]["imports"].append(
+                    {
+                        "qualifier": "zed",
+                        "path": document["packages"][0]["imports"][0]["path"],
+                    }
+                ),
+            ),
+            (
+                "non-canonical import ordering",
+                lambda document: document["packages"][0]["imports"].append(
+                    {
+                        "qualifier": "aaa",
+                        "path": "example.invalid/helianthus/synthetic/another",
+                    }
+                ),
+            ),
+            (
+                "unknown field",
+                lambda document: document["packages"][0]["imports"][0].__setitem__(
+                    "extra", True
+                ),
+            ),
+        )
+        for category, mutation in cases:
+            with self.subTest(category=category):
+                self.assert_mutation_rejected(mutation, category)
+
+    def test_portable_validator_leaves_import_use_and_completeness_to_producer(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        document["packages"][0]["imports"] = []
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
 
     def test_validator_enforces_each_per_kind_required_field(self) -> None:
         cases = (
@@ -792,7 +989,6 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             '"control\tcharacter"',
             '"line\u2028separator"',
             '"paragraph\u2029separator"',
-            '"non-nfc e\u0301"',
             '"surrogate \ud800"',
         )
         for value in invalid_values:
@@ -804,9 +1000,62 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 diagnostics = document_diagnostics(document, corpus=True)
                 self.assertIn("invalid constant value", diagnostics)
 
+    def test_decomposed_exactstring_is_byte_lossless_in_round_trip_and_fingerprint(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        constant = find_symbol(document, "const", "StringDecomposedExact")
+        self.assertEqual(constant["value"], '"Cafe\u0301"')
+        self.assertNotEqual(constant["value"], unicodedata.normalize("NFC", constant["value"]))
+        self.assertEqual(constant["signature"], derive_signature(constant))
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
+        self.assertIn(b"Cafe\xcc\x81", (POSITIVE_FIXTURES / "kinds-types-signatures.json").read_bytes())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "round-trip.json"
+            write_json(path, document)
+            round_tripped = load_json_strict(path)
+            round_trip_constant = find_symbol(
+                round_tripped, "const", "StringDecomposedExact"
+            )
+            self.assertEqual(round_trip_constant["value"], constant["value"])
+            self.assertEqual(round_trip_constant["signature"], constant["signature"])
+            self.assertEqual(
+                compatibility_fingerprint(round_tripped),
+                compatibility_fingerprint(document),
+            )
+
+        normalized = copy.deepcopy(document)
+        normalized_constant = find_symbol(normalized, "const", "StringDecomposedExact")
+        normalized_constant["value"] = unicodedata.normalize(
+            "NFC", normalized_constant["value"]
+        )
+        normalized_constant["signature"] = derive_signature(normalized_constant)
+        self.assertEqual(document_diagnostics(normalized, corpus=True), set())
+        self.assertNotEqual(
+            compatibility_fingerprint(normalized),
+            compatibility_fingerprint(document),
+        )
+
+    def test_non_constant_type_signature_and_constraint_fields_remain_nfc(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        mutations = (
+            lambda document: find_symbol(document, "var").__setitem__("type", "Cafe\u0301"),
+            lambda document: find_symbol(document, "func", "NewCatalog").__setitem__(
+                "signature", "func NewCafe\u0301()"
+            ),
+            lambda document: find_symbol(document, "func", "Convert")["type_parameters"][0].__setitem__(
+                "constraint", "Cafe\u0301"
+            ),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                document = copy.deepcopy(source)
+                mutation(document)
+                self.assertIn("non-NFC value", document_diagnostics(document, corpus=True))
+
     def test_document_diagnostics_wrong_type_sweep_is_total_and_deterministic(self) -> None:
         source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
         mutation_count = 0
+        import_mutation_count = 0
         replacement_types: set[str] = set()
         for path in document_field_paths(source):
             target: Any = source
@@ -825,6 +1074,8 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                         self.assertNotIn(str(REPO), category)
                         self.assertNotIn(":", category)
                     mutation_count += 1
+                    if "imports" in path:
+                        import_mutation_count += 1
                     if replacement is None:
                         replacement_types.add("null")
                     elif isinstance(replacement, bool):
@@ -838,6 +1089,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                     elif isinstance(replacement, str):
                         replacement_types.add("wrong string")
         self.assertGreater(mutation_count, 700)
+        self.assertGreater(import_mutation_count, 20)
         self.assertEqual(
             replacement_types,
             {"null", "bool", "number", "list", "object", "wrong string"},
@@ -885,7 +1137,8 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         document = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")
         projection = compatibility_projection(document)
         self.assertNotIn("fixture", projection)
-        for package in projection["packages"]:
+        for source_package, package in zip(document["packages"], projection["packages"]):
+            self.assertEqual(package["imports"], source_package["imports"])
             for symbol in package["symbols"]:
                 self.assertNotIn("signature", symbol)
         source_symbol = find_symbol(document, "const")
@@ -907,6 +1160,31 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         changed = copy.deepcopy(document)
         find_symbol(changed, "const")["value"] = "4"
         self.assertNotEqual(compatibility_fingerprint(changed), expected)
+
+    def test_same_rendered_qualified_type_with_different_import_path_changes_fingerprint(self) -> None:
+        first = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        first_import = first["packages"][0]["imports"][0]
+        first_import["qualifier"] = "foo"
+        first_import["path"] = "example.invalid/helianthus/synthetic/package-a"
+        convert = find_symbol(first, "func", "Convert")
+        convert["type_parameters"][0]["constraint"] = "foo.T"
+        convert["signature"] = derive_signature(convert)
+
+        second = copy.deepcopy(first)
+        second["packages"][0]["imports"][0]["path"] = (
+            "example.invalid/helianthus/synthetic/package-b"
+        )
+
+        self.assertEqual(document_diagnostics(first, corpus=True), set())
+        self.assertEqual(document_diagnostics(second, corpus=True), set())
+        self.assertEqual(
+            find_symbol(first, "func", "Convert")["type_parameters"][0]["constraint"],
+            find_symbol(second, "func", "Convert")["type_parameters"][0]["constraint"],
+        )
+        self.assertNotEqual(
+            compatibility_fingerprint(first),
+            compatibility_fingerprint(second),
+        )
 
     def test_fingerprint_canonicalizes_schema_equivalent_version_numbers(self) -> None:
         document = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")

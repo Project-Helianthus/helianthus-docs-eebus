@@ -10,6 +10,7 @@
     {
       "path": "example.invalid/helianthus/synthetic/negative",
       "name": "negative",
+      "imports": [],
       "symbols": [
         {
           "kind": "type",

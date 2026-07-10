@@ -31,7 +31,7 @@ SYNTHETIC_PREFIX = "example.invalid/helianthus/synthetic/"
 SCHEMA_REL = Path("api/schema/helianthus.eebus.api-surface.v1.schema.json")
 POSITIVE_REL = Path("api/fixtures/v1/positive")
 NEGATIVE_REL = Path("api/fixtures/v1/negative")
-SCHEMA_SHA256 = "81a805b9c1214326fc47794087f7907a47f52d7d1720f69c099f1d445447af82"
+SCHEMA_SHA256 = "08987ef7faabea579ccab4f5d296727ee1bab8e087607b467db024ceeea2bb65"
 
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
 VALUE_KINDS = {"bool", "string", "int", "float", "complex"}
@@ -169,6 +169,17 @@ def _text_diagnostics(value: str) -> set[str]:
     return diagnostics
 
 
+def _lossless_text_diagnostics(value: str) -> set[str]:
+    diagnostics: set[str] = set()
+    if _has_surrogate(value):
+        diagnostics.add("invalid Unicode scalar value")
+    if _has_control(value):
+        diagnostics.add("control character")
+    if _has_line_or_paragraph_separator(value):
+        diagnostics.add("line or paragraph separator")
+    return diagnostics
+
+
 def _contains_null(value: Any) -> bool:
     if value is None:
         return True
@@ -202,6 +213,17 @@ def _normalized_text(value: Any, *, allow_repeated_spaces: bool = False) -> bool
         and not _has_control(value)
         and not _has_line_or_paragraph_separator(value)
         and (allow_repeated_spaces or "  " not in value)
+    )
+
+
+def _lossless_exact_text(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and value == value.strip()
+        and not _has_surrogate(value)
+        and not _has_control(value)
+        and not _has_line_or_paragraph_separator(value)
     )
 
 
@@ -368,6 +390,13 @@ def _package_order_key(package: dict[str, Any]) -> tuple[bytes, bytes]:
     return (package["path"].encode("utf-8"), package["name"].encode("utf-8"))
 
 
+def _import_order_key(package_import: dict[str, Any]) -> tuple[bytes, bytes]:
+    return (
+        package_import["qualifier"].encode("utf-8"),
+        package_import["path"].encode("utf-8"),
+    )
+
+
 def _symbol_order_key(symbol: dict[str, Any]) -> tuple[bytes, bytes, bytes]:
     receiver = symbol.get("receiver")
     receiver_base = receiver.get("base", "") if isinstance(receiver, dict) else ""
@@ -385,7 +414,12 @@ def compatibility_projection(document: dict[str, Any]) -> dict[str, Any]:
             for symbol in package["symbols"]
         ]
         packages.append(
-            {"path": package["path"], "name": package["name"], "symbols": symbols}
+            {
+                "path": package["path"],
+                "name": package["name"],
+                "imports": package["imports"],
+                "symbols": symbols,
+            }
         )
     return {
         "schema_id": document["schema_id"],
@@ -400,13 +434,36 @@ def compatibility_projection(document: dict[str, Any]) -> dict[str, Any]:
 
 def compatibility_fingerprint(document: dict[str, Any]) -> str:
     projection = compatibility_projection(document)
-    if any(
-        not isinstance(package["path"], str)
-        or not package["path"]
-        or not _valid_package_path(package["path"])
-        for package in projection["packages"]
-    ):
-        raise ValueError("invalid package path")
+    for package in projection["packages"]:
+        package_path = package["path"]
+        if (
+            not isinstance(package_path, str)
+            or not package_path
+            or not _valid_package_path(package_path)
+        ):
+            raise ValueError("invalid package path")
+        imports = package["imports"]
+        if not isinstance(imports, list):
+            raise ValueError("invalid import collection")
+        for package_import in imports:
+            if not isinstance(package_import, dict):
+                raise ValueError("invalid import shape")
+            qualifier = package_import.get("qualifier")
+            import_path = package_import.get("path")
+            if (
+                not isinstance(qualifier, str)
+                or not _is_go_identifier(qualifier)
+                or qualifier == "_"
+            ):
+                raise ValueError("invalid import qualifier")
+            if (
+                not isinstance(import_path, str)
+                or not import_path
+                or not _valid_package_path(import_path)
+                or "internal" in import_path.split("/")
+                or import_path == package_path
+            ):
+                raise ValueError("invalid import path")
     encoded = json.dumps(
         projection,
         ensure_ascii=False,
@@ -421,7 +478,12 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
     diagnostics: set[str] = set()
     if not isinstance(document, dict):
         return {"invalid document shape"}
-    if _contains_null(document):
+    null_scope = (
+        document
+        if corpus or "fixture" not in document
+        else {key: value for key, value in document.items() if key != "fixture"}
+    )
+    if _contains_null(null_scope):
         diagnostics.add("null value")
 
     required_fields = {"schema_id", "schema_version", "packages"}
@@ -438,7 +500,9 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
     ):
         diagnostics.add("schema identity mismatch")
 
-    if "fixture" in document:
+    if "fixture" in document and not corpus:
+        diagnostics.add("fixture forbidden in extracted document")
+    elif corpus and "fixture" in document:
         fixture = document.get("fixture")
         if not isinstance(fixture, dict):
             diagnostics.add("invalid fixture metadata")
@@ -468,9 +532,14 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
         if not isinstance(package, dict):
             diagnostics.add("invalid package shape")
             continue
-        diagnostics |= _check_fields(package, {"path", "name", "symbols"}, {"path", "name", "symbols"})
+        diagnostics |= _check_fields(
+            package,
+            {"path", "name", "imports", "symbols"},
+            {"path", "name", "imports", "symbols"},
+        )
         path = package.get("path")
         name = package.get("name")
+        imports = package.get("imports")
         symbols = package.get("symbols")
 
         if not isinstance(path, str) or not path or not isinstance(name, str) or not name:
@@ -497,6 +566,67 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
             and not _has_surrogate(name)
         ):
             sortable_packages.append(package)
+
+        if not isinstance(imports, list):
+            diagnostics.add("invalid import collection")
+        else:
+            import_qualifiers: set[str] = set()
+            import_paths: set[str] = set()
+            sortable_imports: list[dict[str, Any]] = []
+            for package_import in imports:
+                if not isinstance(package_import, dict):
+                    diagnostics.add("invalid import shape")
+                    continue
+                diagnostics |= _check_fields(
+                    package_import,
+                    {"qualifier", "path"},
+                    {"qualifier", "path"},
+                )
+                qualifier = package_import.get("qualifier")
+                import_path = package_import.get("path")
+
+                if (
+                    not isinstance(qualifier, str)
+                    or not _is_go_identifier(qualifier)
+                    or qualifier == "_"
+                ):
+                    diagnostics.add("invalid import qualifier")
+                else:
+                    diagnostics |= _text_diagnostics(qualifier)
+                    if qualifier in import_qualifiers:
+                        diagnostics.add("duplicate import qualifier")
+                    import_qualifiers.add(qualifier)
+
+                if not isinstance(import_path, str) or not import_path:
+                    diagnostics.add("invalid import path")
+                else:
+                    diagnostics |= _text_diagnostics(import_path)
+                    if not _valid_package_path(import_path):
+                        diagnostics.add("invalid import path")
+                    if "internal" in import_path.split("/"):
+                        diagnostics.add("internal import")
+                    if isinstance(path, str) and import_path == path:
+                        diagnostics.add("self import")
+                    if corpus and not import_path.startswith(SYNTHETIC_PREFIX):
+                        diagnostics.add("non-synthetic fixture package")
+                    if import_path in import_paths:
+                        diagnostics.add("duplicate import path")
+                    import_paths.add(import_path)
+
+                if (
+                    isinstance(qualifier, str)
+                    and isinstance(import_path, str)
+                    and not _has_surrogate(qualifier)
+                    and not _has_surrogate(import_path)
+                ):
+                    sortable_imports.append(package_import)
+
+            if len(sortable_imports) == len(imports):
+                try:
+                    if imports != sorted(imports, key=_import_order_key):
+                        diagnostics.add("non-canonical import ordering")
+                except (KeyError, AttributeError, TypeError, UnicodeEncodeError):
+                    diagnostics.add("invalid import shape")
 
         if not isinstance(symbols, list) or not symbols:
             diagnostics.add("invalid symbol collection")
@@ -539,14 +669,20 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
 
             for field in ("type", "signature"):
                 value = symbol.get(field)
-                allow_repeated_spaces = kind == "const" and field == "signature"
-                if not _normalized_text(
-                    value,
-                    allow_repeated_spaces=allow_repeated_spaces,
-                ):
+                lossless = kind == "const" and field == "signature"
+                valid_text = (
+                    _lossless_exact_text(value)
+                    if lossless
+                    else _normalized_text(value)
+                )
+                if not valid_text:
                     diagnostics.add("invalid normalized text")
                     if isinstance(value, str):
-                        diagnostics |= _text_diagnostics(value)
+                        diagnostics |= (
+                            _lossless_text_diagnostics(value)
+                            if lossless
+                            else _text_diagnostics(value)
+                        )
                 if isinstance(value, str) and "implementation.invalid/" in value:
                     diagnostics.add("implementation dependency type")
 
@@ -567,10 +703,10 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                 value = symbol.get("value")
                 if not isinstance(value_kind, str) or value_kind not in VALUE_KINDS:
                     diagnostics.add("invalid value kind")
-                if not _normalized_text(value, allow_repeated_spaces=True):
+                if not _lossless_exact_text(value):
                     diagnostics.add("invalid constant value")
                 if isinstance(value, str):
-                    diagnostics |= _text_diagnostics(value)
+                    diagnostics |= _lossless_text_diagnostics(value)
                 type_text = symbol.get("type")
                 if (
                     isinstance(type_text, str)
@@ -588,9 +724,10 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                 and isinstance(symbol_name, str)
                 and _is_go_identifier(symbol_name)
                 and _normalized_text(symbol.get("type"))
-                and _normalized_text(
-                    symbol.get("signature"),
-                    allow_repeated_spaces=kind == "const",
+                and (
+                    _lossless_exact_text(symbol.get("signature"))
+                    if kind == "const"
+                    else _normalized_text(symbol.get("signature"))
                 )
             ):
                 expected_signature = _expected_signature(symbol)

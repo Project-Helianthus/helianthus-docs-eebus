@@ -9,6 +9,7 @@
     {
       "path": "example.invalid/helianthus/synthetic/zeta",
       "name": "zeta",
+      "imports": [],
       "symbols": [
         {
           "kind": "type",
@@ -23,6 +24,7 @@
     {
       "path": "example.invalid/helianthus/synthetic/alpha",
       "name": "alpha",
+      "imports": [],
       "symbols": [
         {
           "kind": "type",

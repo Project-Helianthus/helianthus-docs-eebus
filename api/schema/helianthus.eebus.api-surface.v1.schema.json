@@ -5,7 +5,7 @@
   "schema_version": 1,
   "title": "Helianthus eeBUS Go API surface v1",
   "description": "Closed deterministic representation and compatibility projection for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
-  "$comment": "Before emission, an AST-backed producer must prove Go syntax, ExactString and source-value correctness, constraints, aliases, dependency visibility, canonical spelling, and semantic consistency. The portable validator checks representation and cross-field derivation only.",
+  "$comment": "Before emission, an AST-backed producer must prove Go syntax, ExactString and source-value correctness, constraints, aliases, dependency visibility, canonical spelling, import use and completeness, and semantic consistency. The producer emits a deterministic canonical qualifier for every imported package referenced by any type, constraint, signature, or value representation. The portable validator checks import structure, order, uniqueness, and paths plus representation and cross-field derivation only.",
   "type": "object",
   "required": [
     "schema_id",
@@ -69,6 +69,33 @@
     "exportedAsciiGoIdentifier": {
       "type": "string",
       "pattern": "^[A-Z][A-Za-z0-9_]*$"
+    },
+    "importQualifier": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/asciiGoIdentifier"
+        }
+      ],
+      "not": {
+        "const": "_"
+      }
+    },
+    "packageImport": {
+      "type": "object",
+      "required": [
+        "qualifier",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "qualifier": {
+          "$ref": "#/$defs/importQualifier"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
     "fixture": {
       "type": "object",
@@ -302,6 +329,7 @@
       "required": [
         "path",
         "name",
+        "imports",
         "symbols"
       ],
       "additionalProperties": false,
@@ -312,6 +340,12 @@
         },
         "name": {
           "$ref": "#/$defs/asciiGoIdentifier"
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/packageImport"
+          }
         },
         "symbols": {
           "type": "array",

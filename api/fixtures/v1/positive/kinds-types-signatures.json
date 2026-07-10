@@ -9,6 +9,12 @@
     {
       "path": "example.invalid/helianthus/synthetic/collections",
       "name": "collections",
+      "imports": [
+        {
+          "qualifier": "ext",
+          "path": "example.invalid/helianthus/synthetic/external"
+        }
+      ],
       "symbols": [
         {
           "kind": "const",
@@ -52,6 +58,14 @@
         },
         {
           "kind": "const",
+          "name": "StringDecomposedExact",
+          "type": "untyped string",
+          "signature": "const StringDecomposedExact = \"Café\"",
+          "value_kind": "string",
+          "value": "\"Café\""
+        },
+        {
+          "kind": "const",
           "name": "StringExact",
           "type": "untyped string",
           "signature": "const StringExact = \"line\\n\\\"quoted\\\"\"",
@@ -78,11 +92,11 @@
           "kind": "func",
           "name": "Convert",
           "type": "func(S) []T",
-          "signature": "func Convert[T any, S interface{ ~[]T }](S) []T",
+          "signature": "func Convert[T ext.Element, S interface{ ~[]T }](S) []T",
           "type_parameters": [
             {
               "name": "T",
-              "constraint": "any"
+              "constraint": "ext.Element"
             },
             {
               "name": "S",
