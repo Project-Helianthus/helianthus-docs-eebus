@@ -36,6 +36,17 @@ PRIVATE_NETS = [
     ipaddress.ip_network("169.254." + "0.0/16"),
 ]
 
+PLATFORM_LINK_PATTERN = re.compile(
+    r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
+    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)"
+)
+FORBIDDEN_CROSS_SEED_HEADINGS = {
+    "requirements",
+    "acceptance criteria",
+    "versioning policy",
+    "approval steps",
+}
+
 
 def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
@@ -111,7 +122,17 @@ def check_repository(root: Path) -> list[str]:
         errors.append(".github/CODEOWNERS: missing")
     else:
         text = _read(codeowners)
-        if VALID_OWNER not in text or "*" not in text:
+        active_rules = []
+        for line in text.splitlines():
+            rule = line.strip()
+            if not rule or rule.startswith("#"):
+                continue
+            active_rules.append(rule.split())
+        if not any(
+            fields[0] == "*" and VALID_OWNER in fields[1:]
+            for fields in active_rules
+            if fields
+        ):
             errors.append(f".github/CODEOWNERS: must assign default ownership to {VALID_OWNER}")
 
     issue_template = root / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
@@ -159,6 +180,12 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"README/development policy: missing required declaration {required!r}")
 
     seen_sources: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if ".git" in path.parts or ".pytest_cache" in path.parts:
+            continue
+        if path.is_symlink():
+            errors.append(f"{_rel(path, root)}: symlinks are forbidden")
+
     for path in sorted(root.rglob("*.md")):
         if ".git" in path.parts:
             continue
@@ -172,7 +199,8 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: publishable markdown path has no registered owner domain")
             continue
         expected_domain, expected_license = expected
-        metadata = _front_matter(_read(path))
+        page_text = _read(path)
+        metadata = _front_matter(page_text)
         if metadata is None:
             errors.append(f"{rel}: missing YAML front matter")
             continue
@@ -188,6 +216,34 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: owner_domain must be {expected_domain!r}")
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
+
+        targets = {
+            f"Project-Helianthus/helianthus-docs-ebus:{target}"
+            for target in PLATFORM_LINK_PATTERN.findall(page_text)
+        }
+        declared_target = metadata.get("cross_seed_target")
+        declared_mode = metadata.get("cross_seed_mode")
+        if targets:
+            if len(targets) != 1:
+                errors.append(f"{rel}: a page may cross-seed exactly one platform target")
+            expected_target = next(iter(targets)) if len(targets) == 1 else None
+            if declared_target != expected_target:
+                errors.append(
+                    f"{rel}: cross_seed_target must match the linked platform page {expected_target!r}"
+                )
+            if declared_mode != "summary-only":
+                errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
+            headings = {
+                match.group(1).strip().lower()
+                for match in re.finditer(r"^##+\s+(.+?)\s*$", page_text, re.MULTILINE)
+            }
+            duplicated = sorted(headings & FORBIDDEN_CROSS_SEED_HEADINGS)
+            if duplicated:
+                errors.append(
+                    f"{rel}: summary-only cross-seed contains platform-owned headings {duplicated}"
+                )
+        elif declared_target is not None or declared_mode is not None:
+            errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
     for directory in ["protocols", "architecture", "api", "devices", "evidence", "re-notes"]:
         dir_path = root / directory
@@ -219,6 +275,18 @@ def check_repository(root: Path) -> list[str]:
             errors.append("development/contributing.md: missing vendor_restricted quarantine marker")
         if "Restricted material must not appear in public repositories" not in text:
             errors.append("development/contributing.md: missing restricted-source quarantine rule")
+
+    forbidden_private_reference_phrases = (
+        "private artifact location",
+        "private artifact reference",
+    )
+    for path in [root / "evidence" / "README.md", root / "re-notes" / "template.md"]:
+        if not path.exists():
+            continue
+        lowered = _read(path).lower()
+        for phrase in forbidden_private_reference_phrases:
+            if phrase in lowered:
+                errors.append(f"{_rel(path, root)}: forbidden public private-artifact field {phrase!r}")
 
     return errors
 

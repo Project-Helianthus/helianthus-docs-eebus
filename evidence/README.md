@@ -23,7 +23,8 @@ Every evidence entry records:
 - device family;
 - firmware/app/runtime versions when known;
 - acquisition method;
-- private artifact location if one exists outside public git;
+- whether a private artifact is retained (`yes` or `no`), without its location,
+  filename, hash, or identifier;
 - redaction mode;
 - publication status;
 - falsification criteria.

@@ -125,6 +125,76 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("Smoke test required", result.stderr)
 
+    def test_commented_codeowners_rule_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            codeowners = repo / ".github" / "CODEOWNERS"
+            codeowners.write_text("# * @d3vi1\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("must assign default ownership", result.stderr)
+
+    def test_symlinked_markdown_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            outside = Path(tmp) / "outside.md"
+            outside.write_text("outside\n", encoding="utf-8")
+            symlink = repo / "protocols" / "symlinked.md"
+            try:
+                symlink.symlink_to(outside)
+            except OSError as error:
+                self.skipTest(f"symlinks unavailable: {error}")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("symlinks are forbidden", result.stderr)
+
+    def test_platform_link_requires_cross_seed_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices" / "vr940f.md"
+            text = page.read_text(encoding="utf-8")
+            page.write_text(
+                text.replace("cross_seed_target:", "cross_seed_target_missing:", 1),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("cross_seed_target must match", result.stderr)
+
+    def test_cross_seed_cannot_duplicate_platform_requirements(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices" / "vr940f.md"
+            page.write_text(
+                page.read_text(encoding="utf-8") + "\n## Acceptance Criteria\n\n- duplicated\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("platform-owned headings", result.stderr)
+
+    def test_private_artifact_reference_field_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "re-notes" / "template.md"
+            page.write_text(
+                page.read_text(encoding="utf-8") + "\n- Private artifact reference:\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("forbidden public private-artifact field", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

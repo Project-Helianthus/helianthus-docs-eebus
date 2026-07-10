@@ -25,7 +25,7 @@ State the smallest falsifiable claim.
 ## Evidence Links
 
 - Evidence ids:
-- Private artifact reference, if any:
+- Private artifact retained: yes/no (do not include a location or reference)
 
 ## Falsifier
 
