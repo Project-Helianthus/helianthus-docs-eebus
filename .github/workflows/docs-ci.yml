@@ -2,30 +2,10 @@ name: Docs CI
 
 on:
   pull_request:
-    paths:
-      - "**/*.md"
-      - "**/*.py"
-      - "**/*.yml"
-      - "**/*.yaml"
-      - "LICENSE"
-      - "Makefile"
-      - "scripts/**"
-      - "tests/**"
-      - ".github/**"
   push:
     branches:
       - main
       - "issue/**"
-    paths:
-      - "**/*.md"
-      - "**/*.py"
-      - "**/*.yml"
-      - "**/*.yaml"
-      - "LICENSE"
-      - "Makefile"
-      - "scripts/**"
-      - "tests/**"
-      - ".github/**"
 
 jobs:
   docs-checks:

@@ -38,7 +38,7 @@ PRIVATE_NETS = [
 
 PLATFORM_LINK_PATTERN = re.compile(
     r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
-    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)"
+    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)(?=[#?)\s]|$)"
 )
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
@@ -48,7 +48,10 @@ FORBIDDEN_CROSS_SEED_HEADINGS = {
 }
 PEM_BLOCK_PATTERN = re.compile(r"-----BEGIN [A-Z0-9 ][A-Z0-9 -]*-----")
 MAC_ADDRESS_PATTERN = re.compile(
-    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"
+    r"(?<![0-9A-Fa-f])(?:"
+    r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}|"
+    r"(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}"
+    r")(?![0-9A-Fa-f])"
 )
 FULL_FINGERPRINT_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
@@ -65,7 +68,10 @@ SENSITIVE_FIELD_PATTERN = re.compile(
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
-SAFE_REDACTION_MARKERS = ("redacted", "masked", "omitted", "unknown", "not applicable", "n/a")
+SAFE_REDACTED_VALUE_PATTERN = re.compile(
+    r"^\s*[<\[(]?(?:redacted|masked|omitted|unknown|not applicable|n/a)[>\])]?[.!]?\s*$",
+    re.IGNORECASE,
+)
 
 
 def _rel(path: Path, root: Path) -> str:
@@ -183,8 +189,12 @@ def check_repository(root: Path) -> list[str]:
     workflow = root / ".github" / "workflows" / "docs-ci.yml"
     if not workflow.exists():
         errors.append(".github/workflows/docs-ci.yml: missing GitHub Actions docs CI")
-    elif workflow not in symlinks and "./scripts/ci_local.sh" not in _read(workflow):
-        errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh")
+    elif workflow not in symlinks:
+        workflow_text = _read(workflow)
+        if "./scripts/ci_local.sh" not in workflow_text:
+            errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh")
+        if re.search(r"^\s+paths(?:-ignore)?:\s*$", workflow_text, re.MULTILINE):
+            errors.append(".github/workflows/docs-ci.yml: path filters are forbidden")
 
     readme_path = root / "README.md"
     contributing_path = root / "development" / "contributing.md"
@@ -263,9 +273,19 @@ def check_repository(root: Path) -> list[str]:
                 )
             if declared_mode != "summary-only":
                 errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
-            headings = {
-                re.sub(r"[^a-z0-9]+", " ", match.group(1).lower()).strip()
+            atx_headings = {
+                match.group(1)
                 for match in re.finditer(r"^##+\s+(.+?)\s*$", page_text, re.MULTILINE)
+            }
+            setext_headings = {
+                match.group(1)
+                for match in re.finditer(
+                    r"^([^\n]+)\n(?:=+|-+)\s*$", page_text, re.MULTILINE
+                )
+            }
+            headings = {
+                re.sub(r"[^a-z0-9]+", " ", heading.lower()).strip()
+                for heading in atx_headings | setext_headings
             }
             duplicated = sorted(
                 forbidden
@@ -291,7 +311,7 @@ def check_repository(root: Path) -> list[str]:
         for match in SENSITIVE_FIELD_PATTERN.finditer(page_text):
             field = match.group(1).lower()
             value = match.group(2).lower()
-            if not any(marker in value for marker in SAFE_REDACTION_MARKERS):
+            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
                 line = page_text.count("\n", 0, match.start()) + 1
                 errors.append(f"{rel}:{line}: populated sensitive field {field!r}")
 

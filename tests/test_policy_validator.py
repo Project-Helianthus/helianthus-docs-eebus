@@ -183,6 +183,38 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("platform-owned headings", result.stderr)
 
+    def test_cross_seed_cannot_use_setext_platform_heading(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices" / "vr940f.md"
+            page.write_text(
+                page.read_text(encoding="utf-8") + "\nRequirements\n------------\n\n- duplicated\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("platform-owned headings", result.stderr)
+
+    def test_platform_link_suffix_must_be_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices" / "vr940f.md"
+            page.write_text(
+                page.read_text(encoding="utf-8").replace(
+                    "eebus-raw-first-contract.md)",
+                    "eebus-raw-first-contract.md.bak)",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("cross-seed metadata requires a canonical platform link", result.stderr)
+
     def test_private_artifact_reference_field_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -202,7 +234,9 @@ class PolicyValidatorTests(unittest.TestCase):
             "private artifact": "Private artifact location: /tmp/operator/capture.json",
             "pem": "-----BEGIN PRIVATE KEY-----",
             "mac": "MAC address: 00:11:22:33:44:55",
+            "dotted mac": "Observed peer 0011.2233.4455",
             "serial": "Serial number: DEVICE-123456",
+            "redaction suffix": "Serial number: redacted DEVICE-123456",
             "fingerprint": "Fingerprint: 0123456789abcdef0123456789abcdef01234567",
         }
         for name, payload in cases.items():
@@ -218,6 +252,24 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
+
+    def test_workflow_path_filter_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            workflow = repo / ".github" / "workflows" / "docs-ci.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "  pull_request:\n",
+                    "  pull_request:\n    paths:\n      - '**/*.md'\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("path filters are forbidden", result.stderr)
 
 
 if __name__ == "__main__":
