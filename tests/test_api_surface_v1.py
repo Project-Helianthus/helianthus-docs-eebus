@@ -398,13 +398,25 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
 
-    def test_reference_pins_post_merge_v1_evolution_policy(self) -> None:
+    def test_reference_pins_identity_aware_v1_evolution_policy(self) -> None:
         text = REFERENCE.read_text(encoding="utf-8")
         normalized = " ".join(text.lower().split())
-        self.assertIn("## Post-Merge Evolution Policy", text)
+        self.assertIn("## V1 Evolution Policy", text)
         phrases = (
-            "data additions of new package or symbol identities within the unchanged v1 shape are additive",
-            "removals or compatibility-projection changes are compatibility-breaking data changes",
+            "fingerprint is an integrity summary of the complete compatibility projection",
+            "changes for any projected data change, whether additive or breaking",
+            "hash inequality alone is not the compatibility classifier",
+            "compatibility classification is identity-aware",
+            "new package identity or a new symbol identity while every existing identity projection stays byte-for-byte and semantically equivalent",
+            "import-map additions are additive only when used exclusively by new identities",
+            "do not change the resolution or projection of any existing identity",
+            "breaking data change removes an existing identity or modifies the projection of an existing identity",
+            "qualifier-to-path mapping changes that affect the resolution or projection of existing identities",
+            "additive and breaking classes are non-overlapping",
+            "any projected change that affects an existing identity is breaking",
+            "an additive change is confined to new identities",
+            "any schema change, including a field, requiredness, or enum change",
+            "normalization, identity, order, compatibility-projection, fingerprint, or diagnostic-contract change",
             "requires v2 and parallel artifacts",
             "only nonnormative clarification and validator fixes",
             "without changing valid-document or fingerprint semantics may patch v1",
@@ -413,6 +425,20 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         for phrase in phrases:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
+
+    def test_reference_uses_publication_neutral_initial_v1_rationale(self) -> None:
+        normalized = " ".join(REFERENCE.read_text(encoding="utf-8").lower().split())
+        self.assertIn(
+            "the v1 designation identifies the initial version of this contract",
+            normalized,
+        )
+        for stale in (
+            "this contract is unmerged",
+            "has no consumers",
+            "post-merge evolution policy",
+        ):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, normalized)
 
     def test_positive_fixtures_are_synthetic_and_boundary_valid(self) -> None:
         for path in positive_paths():

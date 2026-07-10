@@ -42,8 +42,8 @@ by the closed schema are invalid.
 
 The stable schema identity is `helianthus.eebus.api-surface.v1`, the schema URI
 is `urn:helianthus:eebus:api-surface:v1`, and `schema_version` has the constant
-integer value `1`. The version remains v1 because this contract is unmerged and
-has no consumers.
+integer value `1`. The v1 designation identifies the initial version of this
+contract.
 
 Under JSON Schema draft 2020-12 semantics, the JSON numbers `1` and `1.0` are
 schema-equivalent: both have zero fractional part, satisfy the `integer` type,
@@ -203,6 +203,11 @@ correctly derived `signature` does not change the digest. Fingerprinting refuses
 any package path rejected by package-path validation and returns no digest for
 that document.
 
+The fingerprint is an integrity summary of the complete compatibility
+projection and changes for any projected data change, whether additive or
+breaking. Hash inequality alone is not the compatibility classifier;
+compatibility classification is identity-aware under the v1 evolution policy.
+
 ## Canonical Ordering
 
 Packages are sorted by the bytewise UTF-8 tuple `(path, name)`. Imports within a
@@ -249,17 +254,25 @@ Any other tail, a second JSON value, or escaped content in a tail is a boundary
 and publication failure. Diagnostics are deterministic, repository-relative,
 category-only, and never echo input values or absolute paths.
 
-## Post-Merge Evolution Policy
+## V1 Evolution Policy
 
-After v1 publication, data additions of new package or symbol identities within
-the unchanged v1 shape are additive. Removals or compatibility-projection
-changes are compatibility-breaking data changes detectable by fingerprint or
-semantic diff.
+Compatibility classification is identity-aware. An additive data change adds a
+new package identity or a new symbol identity while every existing identity
+projection stays byte-for-byte and semantically equivalent. Import-map additions
+are additive only when used exclusively by new identities and do not change the
+resolution or projection of any existing identity.
 
-After v1 publication, any schema field, requiredness, enum, normalization,
-identity, order, compatibility projection, fingerprint, or diagnostic-contract
-change requires v2 and parallel artifacts. The v1 schema, reference, validator,
-and corpus remain available beside the new version.
+A breaking data change removes an existing identity or modifies the projection
+of an existing identity. This includes qualifier-to-path mapping changes that
+affect the resolution or projection of existing identities. The additive and
+breaking classes are non-overlapping: any projected change that affects an
+existing identity is breaking, while an additive change is confined to new
+identities.
+
+Any schema change, including a field, requiredness, or enum change, and any
+normalization, identity, order, compatibility-projection, fingerprint, or
+diagnostic-contract change requires v2 and parallel artifacts. The v1 schema,
+reference, validator, and corpus remain available beside the new version.
 
 Only nonnormative clarification and validator fixes that enforce
 already-normative behavior without changing valid-document or fingerprint
