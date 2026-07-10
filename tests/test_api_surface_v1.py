@@ -603,7 +603,9 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         document = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
         document.pop("fixture")
         document["packages"][0]["path"] = "github.com/Project-Helianthus/helianthus-eebus/api"
+        document["packages"][0]["imports"][0]["path"] = "example.com/public/dependency"
         self.assertEqual(document_diagnostics(document), set())
+        self.assertRegex(compatibility_fingerprint(document), r"^[0-9a-f]{64}$")
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "extracted.json"
@@ -611,6 +613,95 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             result = run_document_validator(path)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), "api-surface-v1 document: valid")
+
+    def test_fingerprint_refuses_every_invalid_extracted_package_path(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        source.pop("fixture")
+        source["packages"][0]["path"] = "example.com/public/api"
+        source["packages"][0]["imports"][0]["path"] = "example.com/public/dependency"
+        cases = (
+            ("wrong type", None, "invalid package path"),
+            ("empty", "", "invalid package path"),
+            ("internal", "example.com/public/internal/api", "internal package"),
+            ("non-NFC", "example.com/cafe\u0301/api", "non-NFC value"),
+            ("whitespace", "example.com/public package/api", "invalid package path"),
+            ("control", "example.com/public/\x01api", "control character"),
+            (
+                "line separator",
+                "example.com/public/\u2028api",
+                "line or paragraph separator",
+            ),
+            (
+                "paragraph separator",
+                "example.com/public/\u2029api",
+                "line or paragraph separator",
+            ),
+            (
+                "surrogate",
+                "example.com/public/\ud800api",
+                "invalid Unicode scalar value",
+            ),
+            ("dot segment", "example.com/public/./api", "invalid package path"),
+            ("dot-dot segment", "example.com/public/../api", "invalid package path"),
+            ("empty segment", "example.com/public//api", "invalid package path"),
+            ("POSIX absolute", "/example.com/public/api", "invalid package path"),
+            ("Windows absolute", "C:/public/api", "invalid package path"),
+            ("backslash", "example.com\\public\\api", "invalid package path"),
+        )
+        for label, package_path, category in cases:
+            with self.subTest(label=label):
+                document = copy.deepcopy(source)
+                document["packages"][0]["path"] = package_path
+                self.assertIn(category, document_diagnostics(document))
+                with self.assertRaisesRegex(ValueError, r"^invalid package path$"):
+                    compatibility_fingerprint(document)
+
+    def test_fingerprint_refuses_every_invalid_extracted_import_path(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        source.pop("fixture")
+        source["packages"][0]["path"] = "example.com/public/api"
+        source["packages"][0]["imports"][0]["path"] = "example.com/public/dependency"
+        cases = (
+            ("wrong type", None, "invalid import path"),
+            ("empty", "", "invalid import path"),
+            ("internal", "example.com/public/internal/dependency", "internal import"),
+            ("non-NFC", "example.com/cafe\u0301/dependency", "non-NFC value"),
+            (
+                "whitespace",
+                "example.com/public package/dependency",
+                "invalid import path",
+            ),
+            ("control", "example.com/public/\x01dependency", "control character"),
+            (
+                "line separator",
+                "example.com/public/\u2028dependency",
+                "line or paragraph separator",
+            ),
+            (
+                "paragraph separator",
+                "example.com/public/\u2029dependency",
+                "line or paragraph separator",
+            ),
+            (
+                "surrogate",
+                "example.com/public/\ud800dependency",
+                "invalid Unicode scalar value",
+            ),
+            ("dot segment", "example.com/public/./dependency", "invalid import path"),
+            ("dot-dot segment", "example.com/public/../dependency", "invalid import path"),
+            ("empty segment", "example.com/public//dependency", "invalid import path"),
+            ("POSIX absolute", "/example.com/public/dependency", "invalid import path"),
+            ("Windows absolute", "C:/public/dependency", "invalid import path"),
+            ("backslash", "example.com\\public\\dependency", "invalid import path"),
+            ("self import", "example.com/public/api", "self import"),
+        )
+        for label, import_path, category in cases:
+            with self.subTest(label=label):
+                document = copy.deepcopy(source)
+                document["packages"][0]["imports"][0]["path"] = import_path
+                self.assertIn(category, document_diagnostics(document))
+                with self.assertRaisesRegex(ValueError, r"^invalid import path$"):
+                    compatibility_fingerprint(document)
 
     def test_document_mode_rejects_drive_absolute_paths_without_fingerprinting(self) -> None:
         source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")

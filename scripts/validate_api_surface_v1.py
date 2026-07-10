@@ -227,19 +227,37 @@ def _lossless_exact_text(value: Any) -> bool:
     )
 
 
-def _valid_package_path(value: str) -> bool:
+def _package_path_diagnostics(
+    value: Any,
+    *,
+    path_kind: str,
+    current_package_path: Any = None,
+) -> set[str]:
+    invalid_category = f"invalid {path_kind} path"
+    internal_category = f"internal {path_kind}"
+    diagnostics: set[str] = set()
+    if not isinstance(value, str) or not value:
+        return {invalid_category}
+
+    diagnostics |= _text_diagnostics(value)
     components = value.split("/")
-    return (
-        not value.startswith("/")
-        and not value.endswith("/")
-        and WINDOWS_DRIVE_ABSOLUTE_PATTERN.match(value) is None
-        and "\\" not in value
-        and all(component not in {"", ".", ".."} for component in components)
-        and not any(
+    if (
+        value.startswith("/")
+        or value.endswith("/")
+        or WINDOWS_DRIVE_ABSOLUTE_PATTERN.match(value) is not None
+        or "\\" in value
+        or any(component in {"", ".", ".."} for component in components)
+        or any(
             char.isspace() or unicodedata.category(char) in {"Cc", "Cs"}
             for char in value
         )
-    )
+    ):
+        diagnostics.add(invalid_category)
+    if "internal" in components:
+        diagnostics.add(internal_category)
+    if path_kind == "import" and value == current_package_path:
+        diagnostics.add("self import")
+    return diagnostics
 
 
 def _type_parameter_diagnostics(value: Any) -> tuple[set[str], list[str] | None]:
@@ -436,11 +454,7 @@ def compatibility_fingerprint(document: dict[str, Any]) -> str:
     projection = compatibility_projection(document)
     for package in projection["packages"]:
         package_path = package["path"]
-        if (
-            not isinstance(package_path, str)
-            or not package_path
-            or not _valid_package_path(package_path)
-        ):
+        if _package_path_diagnostics(package_path, path_kind="package"):
             raise ValueError("invalid package path")
         imports = package["imports"]
         if not isinstance(imports, list):
@@ -456,12 +470,10 @@ def compatibility_fingerprint(document: dict[str, Any]) -> str:
                 or qualifier == "_"
             ):
                 raise ValueError("invalid import qualifier")
-            if (
-                not isinstance(import_path, str)
-                or not import_path
-                or not _valid_package_path(import_path)
-                or "internal" in import_path.split("/")
-                or import_path == package_path
+            if _package_path_diagnostics(
+                import_path,
+                path_kind="import",
+                current_package_path=package_path,
             ):
                 raise ValueError("invalid import path")
     encoded = json.dumps(
@@ -542,15 +554,11 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
         imports = package.get("imports")
         symbols = package.get("symbols")
 
+        diagnostics |= _package_path_diagnostics(path, path_kind="package")
         if not isinstance(path, str) or not path or not isinstance(name, str) or not name:
             diagnostics.add("invalid package identity")
         else:
-            diagnostics |= _text_diagnostics(path)
             diagnostics |= _text_diagnostics(name)
-            if not _valid_package_path(path):
-                diagnostics.add("invalid package path")
-            if "internal" in path.split("/"):
-                diagnostics.add("internal package")
             if corpus and not path.startswith(SYNTHETIC_PREFIX):
                 diagnostics.add("non-synthetic fixture package")
             if not _is_go_identifier(name):
@@ -597,16 +605,12 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                         diagnostics.add("duplicate import qualifier")
                     import_qualifiers.add(qualifier)
 
-                if not isinstance(import_path, str) or not import_path:
-                    diagnostics.add("invalid import path")
-                else:
-                    diagnostics |= _text_diagnostics(import_path)
-                    if not _valid_package_path(import_path):
-                        diagnostics.add("invalid import path")
-                    if "internal" in import_path.split("/"):
-                        diagnostics.add("internal import")
-                    if isinstance(path, str) and import_path == path:
-                        diagnostics.add("self import")
+                diagnostics |= _package_path_diagnostics(
+                    import_path,
+                    path_kind="import",
+                    current_package_path=path,
+                )
+                if isinstance(import_path, str) and import_path:
                     if corpus and not import_path.startswith(SYNTHETIC_PREFIX):
                         diagnostics.add("non-synthetic fixture package")
                     if import_path in import_paths:
