@@ -364,6 +364,8 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "no self-referential hash field",
             "exact remainder `\\n!\\n`",
             "classification never uses `ipaddress.is_private`",
+            "windows drive-absolute forms",
+            "colons in otherwise valid package/import path strings remain permitted",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
@@ -519,6 +521,47 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             result = run_document_validator(path)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), "api-surface-v1 document: valid")
+
+    def test_document_mode_rejects_drive_absolute_paths_without_fingerprinting(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        source.pop("fixture")
+        for package_path in ("C:/module/pkg", "c:/module/pkg", "C:\\module\\pkg"):
+            with self.subTest(package_path=package_path), tempfile.TemporaryDirectory() as tmp:
+                document = copy.deepcopy(source)
+                document["packages"][0]["path"] = package_path
+                path = Path(tmp) / "document.json"
+                write_json(path, document)
+
+                result = run_document_validator(path)
+
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(result.stderr, "document.json: invalid package path\n")
+                self.assertNotIn(str(path.parent), result.stderr)
+                self.assertNotIn(package_path, result.stderr)
+                with self.assertRaisesRegex(ValueError, r"^invalid package path$"):
+                    compatibility_fingerprint(document)
+
+    def test_document_mode_accepts_non_drive_colon_paths_and_fingerprints_them(self) -> None:
+        source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        source.pop("fixture")
+        package_paths = (
+            "C:module/pkg",
+            "cc:/module/pkg",
+            "example.com:8443/module/pkg",
+        )
+        for package_path in package_paths:
+            with self.subTest(package_path=package_path), tempfile.TemporaryDirectory() as tmp:
+                document = copy.deepcopy(source)
+                document["packages"][0]["path"] = package_path
+                path = Path(tmp) / "document.json"
+                write_json(path, document)
+
+                result = run_document_validator(path)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "api-surface-v1 document: valid")
+                self.assertRegex(compatibility_fingerprint(document), r"^[0-9a-f]{64}$")
 
     def test_extracted_document_mode_rejects_invalid_optional_fixture(self) -> None:
         source = load_json_strict(POSITIVE_FIXTURES / "packages-and-symbols.json")

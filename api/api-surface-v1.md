@@ -63,9 +63,13 @@ package prefix.
 
 Each package has exactly `path`, `name`, and `symbols`. Package paths use
 Unicode Normalization Form C (NFC), forward slashes, no empty, dot, dot-dot, or
-`internal` component, no whitespace or control character, and no local
-filesystem location. Package names use the portable ASCII Go identifier subset
-`[A-Za-z_][A-Za-z0-9_]*` and must not be Go keywords.
+`internal` component, and no whitespace or control character. They cannot start
+or end with `/` or contain `\`. Windows drive-absolute forms beginning with one
+uppercase or lowercase ASCII letter followed by `:/` or `:\` are invalid.
+Colons in otherwise valid package/import path strings remain permitted when
+they do not form that leading drive-absolute prefix. Package names use the
+portable ASCII Go identifier subset `[A-Za-z_][A-Za-z0-9_]*` and must not be Go
+keywords.
 
 Source layout, file names, build-cache paths, comments, and formatting do not
 participate in package identity. A package path may occur only once.
@@ -176,7 +180,9 @@ before serialization. The compatibility fingerprint is the lowercase
 hexadecimal SHA-256 digest of those bytes. The fingerprint is computed
 externally; v1 has no self-referential hash field. Corpus tests pin known
 digests for both positive fixtures and prove that changing only `fixture` or a
-correctly derived `signature` does not change the digest.
+correctly derived `signature` does not change the digest. Fingerprinting refuses
+any package path rejected by package-path validation and returns no digest for
+that document.
 
 ## Canonical Ordering
 

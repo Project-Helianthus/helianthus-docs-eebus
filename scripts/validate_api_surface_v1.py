@@ -122,6 +122,7 @@ EXPECTED_NEGATIVE_DIAGNOSTICS = {
     "unknown-field.json": frozenset({"unknown field"}),
 }
 ASCII_GO_IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+WINDOWS_DRIVE_ABSOLUTE_PATTERN = re.compile(r"[A-Za-z]:[/\\]")
 
 
 def _check_fields(value: dict[str, Any], required: set[str], allowed: set[str]) -> set[str]:
@@ -209,6 +210,7 @@ def _valid_package_path(value: str) -> bool:
     return (
         not value.startswith("/")
         and not value.endswith("/")
+        and WINDOWS_DRIVE_ABSOLUTE_PATTERN.match(value) is None
         and "\\" not in value
         and all(component not in {"", ".", ".."} for component in components)
         and not any(
@@ -397,8 +399,16 @@ def compatibility_projection(document: dict[str, Any]) -> dict[str, Any]:
 
 
 def compatibility_fingerprint(document: dict[str, Any]) -> str:
+    projection = compatibility_projection(document)
+    if any(
+        not isinstance(package["path"], str)
+        or not package["path"]
+        or not _valid_package_path(package["path"])
+        for package in projection["packages"]
+    ):
+        raise ValueError("invalid package path")
     encoded = json.dumps(
-        compatibility_projection(document),
+        projection,
         ensure_ascii=False,
         allow_nan=False,
         separators=(",", ":"),
