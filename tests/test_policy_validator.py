@@ -492,6 +492,49 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("restricted-source contamination marker found", result.stderr)
 
+    def test_machine_policy_decodes_escaped_shadowed_publication_claims(self) -> None:
+        cases = (
+            (
+                "runtime availability",
+                "Portal consumer workflow is av\\u0061ilable now.",
+                "Portal consumer workflow is available now.",
+                "premature gateway or consumer availability claim",
+            ),
+            (
+                "broader restricted source",
+                "This claim used restricted vendor docum\\u0065nts.",
+                "This claim used restricted vendor documents.",
+                "restricted-source contamination marker found",
+            ),
+        )
+        relative_path = "api/fixtures/v1/negative/duplicate-json-key.json"
+        original = '"signature": "type Example struct{}"'
+        for name, escaped_value, decoded_value, category in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / relative_path
+                    shadowed = (
+                        f'"signature": "{escaped_value}",\n'
+                        '          "signature": "type Example struct{}"'
+                    )
+                    artifact.write_text(
+                        artifact.read_text(encoding="utf-8").replace(
+                            original,
+                            shadowed,
+                            1,
+                        ),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(f"{relative_path}: {category}", result.stderr)
+                    self.assertNotIn(escaped_value, result.stderr)
+                    self.assertNotIn(decoded_value, result.stderr)
+                    self.assertNotIn(str(repo), result.stderr)
+
     def test_new_publishable_claim_requires_resolving_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

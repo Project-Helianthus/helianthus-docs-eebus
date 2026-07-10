@@ -8,6 +8,7 @@ import json
 import re
 import sys
 import unicodedata
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ SYNTHETIC_PREFIX = "example.invalid/helianthus/synthetic/"
 SCHEMA_REL = Path("api/schema/helianthus.eebus.api-surface.v1.schema.json")
 POSITIVE_REL = Path("api/fixtures/v1/positive")
 NEGATIVE_REL = Path("api/fixtures/v1/negative")
-SCHEMA_SHA256 = "480cbdc68aa72cbd34d5301874396c51c8cd1823af93deef5f488eccc6a1ed0c"
+SCHEMA_SHA256 = "72fa76fc13cfee2f8f6c593bf8cd138a48888adb856a93006ebfac317d1ed05b"
 
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
 GO_KEYWORDS = {
@@ -50,28 +51,20 @@ GO_KEYWORDS = {
     "var",
 }
 REQUIRED_POSITIVE = {"packages-and-symbols.json", "kinds-types-signatures.json"}
-EXPECTED_NEGATIVE = {
-    "duplicate-identity.json": "duplicate symbol identity",
-    "duplicate-json-key.json": "duplicate key",
-    "implementation-dependency-type.json": "implementation dependency type",
-    "internal-package.json": "internal package",
-    "invalid-ordering.json": "non-canonical ordering",
-    "malformed.json": "malformed JSON",
-    "non-nfc.json": "non-NFC value",
-    "unexported-declaration.json": "unexported declaration",
-    "unexported-receiver.json": "unexported receiver",
-    "unknown-field.json": "unknown field",
+EXPECTED_NEGATIVE_DIAGNOSTICS = {
+    "duplicate-identity.json": frozenset({"duplicate symbol identity"}),
+    "duplicate-json-key.json": frozenset({"duplicate key"}),
+    "implementation-dependency-type.json": frozenset({"implementation dependency type"}),
+    "internal-package.json": frozenset({"internal package"}),
+    "invalid-ordering.json": frozenset({"non-canonical ordering"}),
+    "malformed.json": frozenset({"malformed JSON"}),
+    "non-nfc.json": frozenset(
+        {"invalid Go identifier", "invalid normalized text", "non-NFC value"}
+    ),
+    "unexported-declaration.json": frozenset({"unexported declaration"}),
+    "unexported-receiver.json": frozenset({"unexported receiver"}),
+    "unknown-field.json": frozenset({"unknown field"}),
 }
-SENSITIVE_CATEGORIES = {
-    "private identifier",
-    "private network",
-    "network address",
-    "private path",
-    "household data",
-    "raw evidence",
-    "source contamination",
-}
-
 PRIVATE_PATH_PATTERN = re.compile(
     r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
@@ -100,6 +93,7 @@ SOURCE_CONTAMINATION_PATTERN = re.compile(
     r"\bvendor[_ -]restricted\b|\brestricted[ -]+source\b",
     re.IGNORECASE,
 )
+ASCII_GO_IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 class JSONObject(dict[str, Any]):
@@ -200,6 +194,7 @@ def _load_json(path: Path) -> tuple[Any | None, bytes | None, set[str]]:
             text,
             object_pairs_hook=_tracked_object,
             parse_constant=_reject_constant,
+            parse_float=Decimal,
         )
     except (json.JSONDecodeError, InvalidConstantError):
         diagnostics.add("malformed JSON")
@@ -223,8 +218,10 @@ def _is_nfc(value: str) -> bool:
     return value == unicodedata.normalize("NFC", value)
 
 
-def _is_exact_integer(value: Any, expected: int) -> bool:
-    return type(value) is int and value == expected
+def _is_schema_integer(value: Any, expected: int) -> bool:
+    return (type(value) is int and value == expected) or (
+        isinstance(value, Decimal) and value == Decimal(expected)
+    )
 
 
 def _has_control(value: str) -> bool:
@@ -252,21 +249,15 @@ def _text_diagnostics(value: str) -> set[str]:
     return diagnostics
 
 
-def _is_go_letter(char: str) -> bool:
-    return char == "_" or unicodedata.category(char) in {"Lu", "Ll", "Lt", "Lm", "Lo"}
-
-
 def _is_go_identifier(value: str) -> bool:
     return (
-        bool(value)
+        ASCII_GO_IDENTIFIER_PATTERN.fullmatch(value) is not None
         and value not in GO_KEYWORDS
-        and _is_go_letter(value[0])
-        and all(_is_go_letter(char) or unicodedata.category(char) == "Nd" for char in value[1:])
     )
 
 
 def _is_exported(value: str) -> bool:
-    return _is_go_identifier(value) and unicodedata.category(value[0]) == "Lu"
+    return _is_go_identifier(value) and "A" <= value[0] <= "Z"
 
 
 def _receiver_base(receiver: str) -> str | None:
@@ -353,7 +344,7 @@ def _document_diagnostics(document: Any) -> set[str]:
     )
     if (
         document.get("schema_id") != SCHEMA_ID
-        or not _is_exact_integer(document.get("schema_version"), SCHEMA_VERSION)
+        or not _is_schema_integer(document.get("schema_version"), SCHEMA_VERSION)
     ):
         diagnostics.add("schema identity mismatch")
 
@@ -522,6 +513,7 @@ def _first_json_value(raw: bytes | None) -> Any | None:
         document, _ = json.JSONDecoder(
             object_pairs_hook=_tracked_object,
             parse_constant=_reject_constant,
+            parse_float=Decimal,
         ).raw_decode(text.lstrip())
     except (UnicodeDecodeError, json.JSONDecodeError, InvalidConstantError):
         return None
@@ -545,7 +537,7 @@ def _negative_fixture_boundary_diagnostics(document: Any) -> set[str]:
     if not schema_ids or any(value != SCHEMA_ID for value in schema_ids):
         return {"negative fixture boundary mismatch"}
     if not schema_versions or any(
-        not _is_exact_integer(value, SCHEMA_VERSION) for value in schema_versions
+        not _is_schema_integer(value, SCHEMA_VERSION) for value in schema_versions
     ):
         return {"negative fixture boundary mismatch"}
 
@@ -618,7 +610,8 @@ def validate_repository(root: Path) -> list[str]:
                         or schema_id.get("const") != SCHEMA_ID
                         or not isinstance(schema_version, dict)
                         or schema_version.get("type") != "integer"
-                        or not _is_exact_integer(schema_version.get("const"), SCHEMA_VERSION)
+                        or type(schema_version.get("const")) is not int
+                        or schema_version.get("const") != SCHEMA_VERSION
                     ):
                         errors.append(f"{schema_rel}: schema identity mismatch")
 
@@ -641,34 +634,31 @@ def validate_repository(root: Path) -> list[str]:
     negative_dir = root / NEGATIVE_REL
     negative = _regular_json_files(negative_dir)
     negative_names = {path.name for path in negative}
-    for missing in sorted(set(EXPECTED_NEGATIVE) - negative_names):
+    for missing in sorted(set(EXPECTED_NEGATIVE_DIAGNOSTICS) - negative_names):
         errors.append(f"{(NEGATIVE_REL / missing).as_posix()}: missing regular artifact")
-    for unexpected in sorted(negative_names - set(EXPECTED_NEGATIVE)):
+    for unexpected in sorted(negative_names - set(EXPECTED_NEGATIVE_DIAGNOSTICS)):
         errors.append(f"{(NEGATIVE_REL / unexpected).as_posix()}: unknown negative fixture")
     for path in negative:
         rel = path.relative_to(root).as_posix()
-        if path.name not in EXPECTED_NEGATIVE:
+        if path.name not in EXPECTED_NEGATIVE_DIAGNOSTICS:
             continue
         if not path.is_file() or path.is_symlink():
             errors.append(f"{rel}: missing regular artifact")
             continue
         document, raw, diagnostics = _load_json(path)
-        sensitive = diagnostics & SENSITIVE_CATEGORIES
-        for category in sorted(sensitive):
-            errors.append(f"{rel}: {category}")
         boundary_document = document if document is not None else _first_json_value(raw)
         if document is None and boundary_document is not None:
             diagnostics |= _decoded_sensitive_diagnostics(boundary_document)
-            sensitive = diagnostics & SENSITIVE_CATEGORIES
-            for category in sorted(sensitive):
-                errors.append(f"{rel}: {category}")
-        for category in sorted(_negative_fixture_boundary_diagnostics(boundary_document)):
-            errors.append(f"{rel}: {category}")
+        diagnostics |= _negative_fixture_boundary_diagnostics(boundary_document)
         if document is not None:
             diagnostics |= _document_diagnostics(document)
-        expected = EXPECTED_NEGATIVE[path.name]
-        if expected not in diagnostics:
-            errors.append(f"{rel}: expected negative category missing")
+        elif boundary_document is not None:
+            diagnostics |= _document_diagnostics(boundary_document)
+        expected = EXPECTED_NEGATIVE_DIAGNOSTICS[path.name]
+        for category in sorted(expected - diagnostics):
+            errors.append(f"{rel}: expected negative category missing: {category}")
+        for category in sorted(diagnostics - expected):
+            errors.append(f"{rel}: unexpected negative category: {category}")
 
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 

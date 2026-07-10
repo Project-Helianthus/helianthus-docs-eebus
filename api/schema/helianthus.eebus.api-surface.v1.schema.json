@@ -33,6 +33,43 @@
     }
   },
   "$defs": {
+    "asciiGoIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "not": {
+        "enum": [
+          "break",
+          "case",
+          "chan",
+          "const",
+          "continue",
+          "default",
+          "defer",
+          "else",
+          "fallthrough",
+          "for",
+          "func",
+          "go",
+          "goto",
+          "if",
+          "import",
+          "interface",
+          "map",
+          "package",
+          "range",
+          "return",
+          "select",
+          "struct",
+          "switch",
+          "type",
+          "var"
+        ]
+      }
+    },
+    "exportedAsciiGoIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9_]*$"
+    },
     "fixture": {
       "type": "object",
       "required": [
@@ -63,8 +100,7 @@
           "minLength": 1
         },
         "name": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/asciiGoIdentifier"
         },
         "symbols": {
           "type": "array",
@@ -96,11 +132,10 @@
         },
         "receiver": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^\\*?[A-Za-z_][A-Za-z0-9_]*(?:\\[[A-Za-z_][A-Za-z0-9_]*(?:, [A-Za-z_][A-Za-z0-9_]*)*\\])?$"
         },
         "name": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
         },
         "type": {
           "type": "string",

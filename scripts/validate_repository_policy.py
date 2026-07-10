@@ -4,10 +4,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import ipaddress
+import json
 import re
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Any, Iterator
 
 import yaml
 
@@ -78,7 +80,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
-    "api/api-surface-v1.md": "5987ad531d807355345b93b0fd37927175a064fbea90ea6c3dbd7630e589dc71",
+    "api/api-surface-v1.md": "3df15cfbc18082062ecc33b76c5c06310b6da6cbe97ba2f76db7ef6f9be1b754",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
@@ -219,6 +221,59 @@ class UniqueKeySafeLoader(yaml.SafeLoader):
     pass
 
 
+class JSONObject(dict[str, Any]):
+    def __init__(self, pairs: list[tuple[str, Any]]) -> None:
+        super().__init__(pairs)
+        self.pairs = tuple(pairs)
+
+
+class InvalidJSONConstantError(ValueError):
+    pass
+
+
+def _tracked_json_object(pairs: list[tuple[str, Any]]) -> JSONObject:
+    return JSONObject(pairs)
+
+
+def _reject_json_constant(_: str) -> None:
+    raise InvalidJSONConstantError
+
+
+def _decode_json_for_policy(text: str) -> Any | None:
+    decoder = json.JSONDecoder(
+        object_pairs_hook=_tracked_json_object,
+        parse_constant=_reject_json_constant,
+        strict=True,
+    )
+    try:
+        return decoder.decode(text)
+    except (json.JSONDecodeError, InvalidJSONConstantError):
+        # The canonical malformed negative fixture has a strict, complete JSON
+        # value followed by invalid trailing input. Scan that decoded value too.
+        try:
+            document, _ = decoder.raw_decode(text.lstrip())
+        except (json.JSONDecodeError, InvalidJSONConstantError):
+            return None
+        return document
+
+
+def _decoded_json_text_occurrences(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _decoded_json_text_occurrences(item)
+    elif isinstance(value, JSONObject):
+        for key, item in value.pairs:
+            yield key
+            yield from _decoded_json_text_occurrences(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(key, str):
+                yield key
+            yield from _decoded_json_text_occurrences(item)
+
+
 def _construct_unique_mapping(
     loader: UniqueKeySafeLoader,
     node: yaml.MappingNode,
@@ -298,35 +353,42 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
     return None
 
 
-def _privacy_errors(text: str, rel: str) -> list[str]:
+def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
     errors: list[str] = []
+
+    def add(category: str, line: int | None = None) -> None:
+        location = rel if category_only or line is None else f"{rel}:{line}"
+        errors.append(f"{location}: {category}")
+
     if PEM_BLOCK_PATTERN.search(text):
-        errors.append(f"{rel}: PEM block marker found in publishable content")
+        add("PEM block marker found in publishable content")
     if MAC_ADDRESS_PATTERN.search(text):
-        errors.append(f"{rel}: MAC address found in publishable content")
+        add("MAC address found in publishable content")
     if FULL_FINGERPRINT_PATTERN.search(text):
-        errors.append(f"{rel}: full fingerprint or raw SKI found in publishable content")
+        add("full fingerprint or raw SKI found in publishable content")
     if PRIVATE_PATH_PATTERN.search(text):
-        errors.append(f"{rel}: private or identifying filesystem path found")
+        add("private or identifying filesystem path found")
     for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(text):
         line = text.count("\n", 0, match.start()) + 1
-        errors.append(f"{rel}:{line}: private artifact location/reference field is forbidden")
+        add("private artifact location/reference field is forbidden", line)
     for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(text):
         value = match.group(1)
         if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: private artifact retained value must be yes or no")
+            add("private artifact retained value must be yes or no", line)
     for match in SENSITIVE_FIELD_PATTERN.finditer(text):
-        field = match.group(1).lower()
         value = match.group(2)
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: populated sensitive field {field!r}")
+            category = "populated sensitive field"
+            if not category_only:
+                category += f" {match.group(1).lower()!r}"
+            add(category, line)
     for match in RAW_EEBUS_ID_PATTERN.finditer(text):
         value = match.group(1)
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: populated raw SKI or SHIP ID")
+            add("populated raw SKI or SHIP ID", line)
     ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     for match in ipv4_pattern.finditer(text):
         try:
@@ -335,7 +397,7 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
             continue
         if any(addr in net for net in PRIVATE_NETS):
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: private IPv4 address found")
+            add("private IPv4 address found", line)
     for match in IPV6_CANDIDATE_PATTERN.finditer(text):
         candidate = match.group(0)
         address = candidate.split("%", 1)[0]
@@ -345,18 +407,24 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
             continue
         if isinstance(parsed, ipaddress.IPv6Address):
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: IPv6 address found in publishable content")
+            add("IPv6 address found in publishable content", line)
     return errors
 
 
-def _restricted_source_errors(text: str, rel: str) -> list[str]:
+def _restricted_source_errors(
+    text: str,
+    rel: str,
+    *,
+    category_only: bool = False,
+) -> list[str]:
     if rel in SCAFFOLD_PAGES:
         return []
     errors: list[str] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if RESTRICTED_SOURCE_PATTERN.search(line) is None:
             continue
-        errors.append(f"{rel}:{line_number}: restricted-source contamination marker found")
+        location = rel if category_only else f"{rel}:{line_number}"
+        errors.append(f"{location}: restricted-source contamination marker found")
     return errors
 
 
@@ -365,6 +433,28 @@ def _has_forbidden_control(text: str) -> bool:
         unicodedata.category(char) == "Cc" and char != "\n"
         for char in text
     )
+
+
+def _categorical_publication_errors(text: str, rel: str) -> list[str]:
+    errors: list[str] = []
+    if _has_forbidden_control(text):
+        errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
+    errors.extend(_privacy_errors(text, rel, category_only=True))
+    errors.extend(_restricted_source_errors(text, rel, category_only=True))
+    if PREMATURE_COMPLETION_PATTERN.search(text):
+        errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
+    if PREMATURE_CONSUMER_PATTERN.search(text):
+        errors.append(f"{rel}: premature gateway or consumer availability claim")
+    return errors
+
+
+def _machine_artifact_errors(text: str, rel: str) -> list[str]:
+    errors = _categorical_publication_errors(text, rel)
+    document = _decode_json_for_policy(text)
+    if document is not None:
+        for occurrence in _decoded_json_text_occurrences(document):
+            errors.extend(_categorical_publication_errors(occurrence, rel))
+    return errors
 
 
 def _provenance_errors(
@@ -809,14 +899,17 @@ def check_repository(root: Path) -> list[str]:
             except UnicodeDecodeError:
                 errors.append(f"{rel}: binary or non-UTF-8 publishable artifact is forbidden")
                 continue
-            if _has_forbidden_control(text):
-                errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
-            errors.extend(_privacy_errors(text, rel))
-            errors.extend(_restricted_source_errors(text, rel))
-            if PREMATURE_COMPLETION_PATTERN.search(text):
-                errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-            if PREMATURE_CONSUMER_PATTERN.search(text):
-                errors.append(f"{rel}: premature gateway or consumer availability claim")
+            if rel in API_MACHINE_ARTIFACTS:
+                errors.extend(_machine_artifact_errors(text, rel))
+            else:
+                if _has_forbidden_control(text):
+                    errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
+                errors.extend(_privacy_errors(text, rel))
+                errors.extend(_restricted_source_errors(text, rel))
+                if PREMATURE_COMPLETION_PATTERN.search(text):
+                    errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
+                if PREMATURE_CONSUMER_PATTERN.search(text):
+                    errors.append(f"{rel}: premature gateway or consumer availability claim")
 
     for directory, required_page in REQUIRED_DOMAIN_PAGES.items():
         dir_path = root / directory
@@ -856,7 +949,7 @@ def check_repository(root: Path) -> list[str]:
         if "Restricted material must not appear in public repositories" not in text:
             errors.append("development/contributing.md: missing restricted-source quarantine rule")
 
-    return errors
+    return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
 def main() -> int:

@@ -135,7 +135,7 @@ def receiver_base(receiver: str) -> str:
 
 
 def is_exported(name: str) -> bool:
-    return bool(name) and unicodedata.category(name[0]) == "Lu"
+    return bool(name) and "A" <= name[0] <= "Z"
 
 
 def first_positive(root: Path = REPO) -> Path:
@@ -229,6 +229,27 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["schema_id"]["const"], SCHEMA_ID)
         self.assertEqual(schema["properties"]["schema_version"]["type"], "integer")
         self.assertEqual(schema["properties"]["schema_version"]["const"], SCHEMA_VERSION)
+        self.assertEqual(
+            schema["$defs"]["asciiGoIdentifier"]["pattern"],
+            "^[A-Za-z_][A-Za-z0-9_]*$",
+        )
+        self.assertEqual(
+            schema["$defs"]["exportedAsciiGoIdentifier"]["pattern"],
+            "^[A-Z][A-Za-z0-9_]*$",
+        )
+        self.assertIn("func", schema["$defs"]["asciiGoIdentifier"]["not"]["enum"])
+        self.assertEqual(
+            schema["$defs"]["package"]["properties"]["name"]["$ref"],
+            "#/$defs/asciiGoIdentifier",
+        )
+        self.assertEqual(
+            schema["$defs"]["symbol"]["properties"]["name"]["$ref"],
+            "#/$defs/exportedAsciiGoIdentifier",
+        )
+        self.assertIn(
+            "[A-Za-z_]",
+            schema["$defs"]["symbol"]["properties"]["receiver"]["pattern"],
+        )
         self.assertIn("AST-backed producer", schema["$comment"])
         self.assertIn("does not prove Go semantics", schema["description"])
 
@@ -266,7 +287,13 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "future ast-backed producer must prove go syntax",
             "does not parse go",
             "consumers may rely on the frozen representation and corpus invariants only",
-            "json booleans are not integers",
+            "json booleans are not numbers",
+            "consumers must accept any schema-equivalent json number",
+            "canonical producers and every committed fixture must emit the single json token `1`",
+            "[a-za-z_][a-za-z0-9_]*",
+            "deliberate v1 portability constraint",
+            "never consults the python unicode database",
+            "complete expected diagnostic set",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
@@ -302,6 +329,10 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 document = load_json_strict(path)
                 self.assertEqual(document["schema_id"], SCHEMA_ID)
                 self.assertEqual(document["schema_version"], SCHEMA_VERSION)
+                self.assertRegex(
+                    path.read_text(encoding="utf-8"),
+                    r'(?m)^  "schema_version": 1,$',
+                )
                 self.assertIs(document["fixture"]["synthetic"], True)
                 self.assertIs(document["fixture"]["runtime_claims"], False)
                 self.assertTrue(document["packages"])
@@ -422,6 +453,10 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertEqual(document["schema_id"], SCHEMA_ID)
                 self.assertIs(type(document["schema_version"]), int)
                 self.assertEqual(document["schema_version"], SCHEMA_VERSION)
+                self.assertRegex(
+                    path.read_text(encoding="utf-8"),
+                    r'(?m)^  "schema_version": 1,$',
+                )
                 self.assertIs(document["fixture"]["synthetic"], True)
                 self.assertIs(document["fixture"]["runtime_claims"], False)
                 self.assertTrue(document["packages"])
@@ -593,6 +628,58 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 )
                 self.assert_document_mutation_rejected(mutation, expected)
 
+    def test_validator_accepts_schema_equivalent_numeric_version(self) -> None:
+        targets = (
+            Path("api/fixtures/v1/positive/kinds-types-signatures.json"),
+            Path("api/fixtures/v1/negative/duplicate-identity.json"),
+        )
+        for relative_path in targets:
+            with self.subTest(relative_path=relative_path.as_posix()):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = repo / relative_path
+                    document = load_json_strict(target)
+                    document["schema_version"] = 1.0
+                    write_json(target, document)
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = first_positive(repo)
+            target.write_text(
+                target.read_text(encoding="utf-8").replace(
+                    '"schema_version": 1,',
+                    '"schema_version": 1e0,',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validator_does_not_round_non_integral_schema_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = first_positive(repo)
+            target.write_text(
+                target.read_text(encoding="utf-8").replace(
+                    '"schema_version": 1,',
+                    '"schema_version": 1.0000000000000001,',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("schema identity mismatch", result.stderr)
+
     def test_validator_rejects_missing_fields_and_invalid_kind(self) -> None:
         cases = {
             "root fixture": lambda document: document.pop("fixture"),
@@ -687,6 +774,39 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         for name, mutation in cases.items():
             with self.subTest(name=name):
                 self.assert_document_mutation_rejected(mutation, "invalid Go identifier")
+
+    def test_unicode_database_versions_cannot_change_identifier_acceptance(self) -> None:
+        # U+1C89 changed from unassigned to an uppercase letter in Unicode 16.0.
+        version_sensitive = "\u1c89"
+        cases = {
+            "package name": (
+                lambda document: document["packages"][0].__setitem__(
+                    "name", version_sensitive + "package"
+                ),
+                "invalid Go identifier",
+            ),
+            "symbol name": (
+                lambda document: find_symbol(document, "type").__setitem__(
+                    "name", version_sensitive + "Symbol"
+                ),
+                "invalid Go identifier",
+            ),
+            "receiver base": (
+                lambda document: find_symbol(document, "method").__setitem__(
+                    "receiver", "*" + version_sensitive + "Catalog"
+                ),
+                "invalid receiver",
+            ),
+            "generic receiver identifier": (
+                lambda document: find_symbol(document, "method").__setitem__(
+                    "receiver", "*Catalog[" + version_sensitive + "T]"
+                ),
+                "invalid receiver",
+            ),
+        }
+        for name, (mutation, expected) in cases.items():
+            with self.subTest(name=name):
+                self.assert_document_mutation_rejected(mutation, expected)
 
     def test_validator_enforces_receiver_grammar_and_exported_base(self) -> None:
         invalid_receivers = ("**Catalog", "pkg.Catalog", "Catalog[T,U]", "Catalog[func]")
@@ -1021,6 +1141,38 @@ class APISurfaceV1ContractTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn(relative_path.as_posix(), result.stderr)
+
+    def test_negative_fixture_rejects_unrelated_added_diagnostic(self) -> None:
+        cases = (
+            ("duplicate-identity.json", False),
+            ("malformed.json", True),
+        )
+        for fixture_name, retain_malformed_suffix in cases:
+            with self.subTest(fixture_name=fixture_name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = negative_path(fixture_name, repo)
+                    if retain_malformed_suffix:
+                        document, _ = load_first_json_value(target)
+                    else:
+                        document = load_json_strict(target)
+                    document["unrelated_invalidity"] = "synthetic-marker"
+                    write_json(target, document)
+                    if retain_malformed_suffix:
+                        target.write_text(
+                            target.read_text(encoding="utf-8") + "!\n",
+                            encoding="utf-8",
+                        )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(
+                        f"api/fixtures/v1/negative/{fixture_name}: "
+                        "unexpected negative category: unknown field",
+                        result.stderr,
+                    )
+                    self.assertNotIn("synthetic-marker", result.stderr)
 
     def test_ci_local_invokes_api_surface_validator_before_unit_tests(self) -> None:
         ci_local = REPO / "scripts" / "ci_local.sh"

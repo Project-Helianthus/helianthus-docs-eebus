@@ -36,9 +36,17 @@ non-UTF-8 input, and fields not declared by the closed schema are invalid.
 ## Schema Identity and Version
 
 The stable schema identity is `helianthus.eebus.api-surface.v1`, the schema URI
-is `urn:helianthus:eebus:api-surface:v1`, and `schema_version` is the integer
-`1`. A document contains `schema_id`, `schema_version`, and `packages`. The
-version is a JSON integer; JSON booleans are not integers for this contract.
+is `urn:helianthus:eebus:api-surface:v1`, and `schema_version` has the constant
+integer value `1`. A document contains `schema_id`, `schema_version`, and
+`packages`. Under JSON Schema draft 2020-12 semantics, the JSON numbers `1` and
+`1.0` are schema-equivalent: both have zero fractional part, satisfy the
+`integer` type, and compare equal to the constant `1`. Consumers must accept any
+schema-equivalent JSON number, including those two spellings. JSON booleans are
+not numbers and are always rejected.
+
+Canonical producers and every committed fixture must emit the single JSON token
+`1` for `schema_version`. This producer canonicalization does not narrow the
+schema-equivalent numeric forms that a consumer accepts.
 
 The optional `fixture` object is reserved for this repository's synthetic
 golden corpus. When present, it must state `synthetic: true` and
@@ -46,12 +54,12 @@ golden corpus. When present, it must state `synthetic: true` and
 
 ## Package Normalization
 
-Each package is represented by the closed fields `path`, `name`, and
-`symbols`. Package paths and names use Unicode Normalization Form C (NFC).
-Paths use forward slashes, contain no empty, dot, dot-dot, or `internal`
-package component, contain no whitespace or control character, and do not
-include a local filesystem location. Package names are complete Go identifiers
-and must not be Go keywords.
+Each package is represented by the closed fields `path`, `name`, and `symbols`.
+Package paths use Unicode Normalization Form C (NFC), forward slashes, no empty,
+dot, dot-dot, or `internal` package component, no whitespace or control
+character, and no local filesystem location. Package names use the portable
+ASCII Go identifier subset `[A-Za-z_][A-Za-z0-9_]*` and must not be Go
+keywords.
 
 Source layout, file names, build-cache paths, comments, and formatting do not
 participate in package identity. A package path may occur only once.
@@ -59,15 +67,24 @@ participate in package identity. A package path may occur only once.
 ## Symbol Normalization
 
 The only symbol kinds are `const`, `func`, `method`, `type`, and `var`. Symbol
-names use Unicode Normalization Form C and must be exported Go identifiers. The
-complete identifier is validated, including every subsequent Unicode letter or
-decimal digit, and keywords are rejected.
+names use the portable ASCII Go identifier subset
+`[A-Za-z_][A-Za-z0-9_]*`, must not be Go keywords, and are exported only when
+their first byte is in ASCII `A-Z`.
 
 Methods additionally carry the normalized receiver spelling. The allowed
 receiver representation is an optional single `*`, an exported unqualified
-base identifier, and an optional bracketed list of Go identifiers separated by
-comma-space, for example `*Catalog` or `Catalog[T, U]`. Non-method symbols must
-not carry a receiver.
+base identifier, and an optional bracketed list of identifiers separated by
+comma-space, for example `*Catalog` or `Catalog[T, U]`. The receiver base and
+every generic receiver identifier use `[A-Za-z_][A-Za-z0-9_]*`, exclude Go
+keywords, and the base is exported only when its first byte is in ASCII `A-Z`.
+Non-method symbols must not carry a receiver.
+
+This ASCII subset is a deliberate v1 portability constraint. Go source permits
+broader Unicode identifiers, but Unicode category assignments can change across
+Unicode database versions. V1 validation therefore never consults the Python
+Unicode database for package names, symbol names, receiver bases, or generic
+receiver identifiers. Unicode remains permitted in normalized `type` and
+`signature` text where identifier classification is not inferred.
 
 Exact symbol identity is the tuple `(package path, kind, receiver, name)`, with
 the receiver represented by the empty string for non-method declarations. Two
@@ -131,12 +148,13 @@ The corpus contract excludes:
 
 Closed fields make source formatting, comments, positions, file names, and
 build metadata unrepresentable. The corpus validator also rejects invalid Go
-identifier strings, invalid receiver representations, empty package or symbol
-collections, duplicate package paths, invalid path forms, control characters,
-Unicode line or paragraph separators, invalid Unicode scalar values, and the
-portable cross-field mismatches defined above. The future producer owns
-exclusions that require Go semantic knowledge, including whether a real
-dependency is implementation-only.
+identifier strings outside the portable ASCII subset, keywords, invalid
+receiver representations, empty package or symbol collections, duplicate
+package paths, invalid path forms, control characters, Unicode line or
+paragraph separators, invalid Unicode scalar values, and the portable
+cross-field mismatches defined above. The future producer owns exclusions that
+require Go semantic knowledge, including whether a real dependency is
+implementation-only.
 
 Exclusion is deterministic and applies to the complete declaration. A rejected
 or excluded declaration is never partially represented.
@@ -149,11 +167,11 @@ synthetic. Their package paths begin with
 availability claim is implied. Positive fixtures cover all symbol kinds,
 normalized types and signatures, and canonical ordering.
 
-Each negative fixture retains the valid schema identity, integer version,
-`synthetic: true`, `runtime_claims: false`, and synthetic package-path prefix
-while targeting its named rejection category. Even the malformed fixture begins
-with a complete boundary-valid JSON document before its intentional trailing
-syntax error.
+Each negative fixture retains the valid schema identity, canonical version token
+`1`, `synthetic: true`, `runtime_claims: false`, and synthetic package-path
+prefix while targeting its named rejection category. Even the malformed fixture
+begins with a complete boundary-valid JSON document before its intentional
+trailing syntax error.
 
 The canonical duplicate-key fixture duplicates only `schema_id`, and both
 occurrences equal `helianthus.eebus.api-surface.v1`. Duplicate-key recovery
@@ -162,9 +180,11 @@ occurrence of `schema_id`, `schema_version`, fixture markers, package
 collections, and package paths must satisfy the synthetic no-runtime boundary;
 a conflicting or shadowed invalid occurrence is rejected.
 
-The validator emits deterministic categorical diagnostics. Diagnostics include
-only the repository-relative artifact path and a category; they never echo
-input values or absolute paths.
+The validator defines the complete expected diagnostic set for every negative
+fixture. Intended companion categories are explicit, and any missing expected
+category or unrelated added category rejects the corpus. Diagnostics are
+deterministically ordered and include only the repository-relative artifact path
+and a category; they never echo input values or absolute paths.
 
 ## Privacy and Source Restrictions
 
@@ -218,6 +238,15 @@ Diagnostics contain only the repository-relative artifact path and category;
 they never echo matched values or absolute temporary paths. The AST-backed
 producer must additionally exclude private or restricted material that cannot
 be identified reliably through this precise marker policy.
+
+The repository publication validator independently parses every allowlisted JSON
+machine artifact with strict, duplicate-preserving semantics. It recursively
+applies the repository's publication, no-runtime, restricted-source, privacy,
+and control policies to every decoded key and string value occurrence, including
+JSON-escaped text and values shadowed by duplicate keys. For the intentionally
+malformed negative fixture, it also scans the complete strict JSON value before
+the trailing invalid input. Machine-artifact diagnostics use the actual
+repository-relative path and a fixed category only.
 
 This contract remains canonical in `helianthus-docs-eebus/api`. Code
 repositories consume or link to it and do not duplicate this specification.
