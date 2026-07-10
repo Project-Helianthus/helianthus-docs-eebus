@@ -2,6 +2,8 @@
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:README.md"
 owner_domain: "repository"
 license: "AGPL-3.0-only"
+claim_status: "no-protocol-claims"
+publication_status: "ownership-policy"
 ---
 
 # Helianthus eeBUS Documentation

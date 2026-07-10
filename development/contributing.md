@@ -2,6 +2,8 @@
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:development/contributing.md"
 owner_domain: "development"
 license: "AGPL-3.0-only"
+claim_status: "no-protocol-claims"
+publication_status: "contribution-policy"
 ---
 
 # Contributing To Helianthus eeBUS Docs
@@ -35,6 +37,12 @@ platform documentation.
 Each publishable Markdown page must declare unique `canonical_source` metadata
 in front matter. Repository control files such as `AGENTS.md` and GitHub issue
 templates are exempt.
+
+The fixed ownership, policy, and template pages declare
+`claim_status: no-protocol-claims`. Every other publishable page declares
+`claim_status: evidence-backed`, a publishable source class, canonical evidence
+ids, hypothesis status, and an explicit falsifier. Evidence ids must resolve to
+canonical pages under `evidence/`.
 
 The current gateway import remains blocked. Do not document gateway import,
 GraphQL parity, HA consumer rollout, or command routing as active behavior until

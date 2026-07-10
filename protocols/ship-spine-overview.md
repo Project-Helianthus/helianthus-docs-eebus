@@ -2,21 +2,16 @@
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:protocols/ship-spine-overview.md"
 owner_domain: "protocols"
 license: "CC0-1.0"
+claim_status: "no-protocol-claims"
+publication_status: "ownership-landing"
 ---
 
 # SHIP/SPINE Overview For Helianthus eeBUS
 
 ## Scope
 
-This page records Helianthus observations about eeBUS SHIP/SPINE behavior. It
-starts as a placeholder for publishable, redacted runtime evidence from the
-VR940f/myVaillant track.
-
-## Raw-First Rule
-
-Helianthus treats `enbility/eebus-go` as a SHIP/SPINE runtime facade. It is not
-an eBUS-style byte transport. Pairing, trust, SKI, mDNS discovery, sessions,
-entities, features, and usecase claims remain native eeBUS runtime concepts.
+This ownership landing page contains no accepted protocol or runtime behavior.
+Future behavior pages require publishable evidence metadata and a falsifier.
 
 ## Initial Observation Targets
 
@@ -31,5 +26,5 @@ entities, features, and usecase claims remain native eeBUS runtime concepts.
 
 ## Publication Status
 
-No protocol claim on this page is promoted yet. Claims become publishable only
-after evidence ids are linked under `evidence/`.
+No protocol claim is made on this page. Claims become publishable only after
+evidence ids are linked under `evidence/`.

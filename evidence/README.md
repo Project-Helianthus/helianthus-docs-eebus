@@ -2,6 +2,8 @@
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:evidence/README.md"
 owner_domain: "evidence"
 license: "CC0-1.0"
+claim_status: "no-protocol-claims"
+publication_status: "evidence-policy"
 ---
 
 # eeBUS Evidence Catalog

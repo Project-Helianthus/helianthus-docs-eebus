@@ -153,6 +153,25 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("Smoke test required", result.stderr)
 
+    def test_issue_template_requires_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            template = repo / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
+            text = template.read_text(encoding="utf-8")
+            marker = "    id: provenance\n"
+            start = text.index(marker)
+            end = text.index("\n  - type:", start)
+            provenance = text[start:end].replace(
+                "      required: true",
+                "      required: false",
+            )
+            template.write_text(text[:start] + provenance + text[end:], encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("field 'provenance' must be required", result.stderr)
+
     def test_commented_codeowners_rule_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -358,6 +377,7 @@ class PolicyValidatorTests(unittest.TestCase):
             "short raw shipid": "Raw SHIPID: abcdef1234567890",
             "prose raw ski": "Raw SKI abcdef1234567890",
             "backticked raw ship id": "`Raw SHIP ID abcdef1234567890`",
+            "hyphenated raw ship id": "Raw SHIP-ID: abcdef1234567890",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -392,6 +412,50 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("restricted-source contamination marker found", result.stderr)
+
+    def test_new_publishable_claim_requires_resolving_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "invented.md"
+            page.write_text(
+                "---\n"
+                'canonical_source: "Project-Helianthus/helianthus-docs-eebus:protocols/invented.md"\n'
+                'owner_domain: "protocols"\n'
+                'license: "CC0-1.0"\n'
+                'claim_status: "no-protocol-claims"\n'
+                'publication_status: "ownership-landing"\n'
+                "---\n\n"
+                "# Invented claim\n\nVR940f exposes an invented SPINE feature.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("claim_status must be 'evidence-backed'", result.stderr)
+
+    def test_evidence_backed_claim_requires_existing_evidence_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "claim.md"
+            page.write_text(
+                "---\n"
+                'canonical_source: "Project-Helianthus/helianthus-docs-eebus:protocols/claim.md"\n'
+                'owner_domain: "protocols"\n'
+                'license: "CC0-1.0"\n'
+                'claim_status: "evidence-backed"\n'
+                'source_class: "observed_runtime"\n'
+                'evidence_ids: "EV-20260710-001"\n'
+                'hypothesis_status: "draft"\n'
+                'falsifier: "A redacted replay without the observed feature"\n'
+                "---\n\n# Candidate\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("publishable evidence page 'EV-20260710-001.md' is missing", result.stderr)
 
     def test_non_markdown_publishable_artifact_gets_privacy_scan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -561,6 +625,27 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("missing field", result.stderr)
 
+    def test_control_yaml_duplicate_keys_fail(self) -> None:
+        cases = (
+            (".github/ISSUE_TEMPLATE/docs_task.yml", "name: Documentation task\n"),
+            (".github/workflows/docs-ci.yml", "name: Docs CI\n"),
+        )
+        for relative_path, marker in cases:
+            with self.subTest(relative_path=relative_path):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    path = repo / relative_path
+                    text = path.read_text(encoding="utf-8")
+                    path.write_text(
+                        text.replace(marker, marker + "name: Duplicate\n", 1),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("invalid YAML", result.stderr)
+
     def test_issue_form_types_and_options_are_enforced(self) -> None:
         mutations = {
             "ownership type": lambda text: text.replace(
@@ -646,8 +731,24 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("control bytes are forbidden", result.stderr)
 
+    def test_root_publishable_control_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            readme = repo / "README.md"
+            readme.write_bytes(readme.read_bytes() + b"\ncontrol\x7f\n")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("control bytes are forbidden", result.stderr)
+
     def test_del_and_c1_publishable_controls_fail(self) -> None:
-        payloads = (b"payload\x7f\n", "payload\u0085\n".encode("utf-8"))
+        payloads = (
+            b"payload\x09\n",
+            b"payload\x0d\n",
+            b"payload\x7f\n",
+            "payload\u0085\n".encode("utf-8"),
+        )
         for payload in payloads:
             with self.subTest(payload=payload):
                 with tempfile.TemporaryDirectory() as tmp:

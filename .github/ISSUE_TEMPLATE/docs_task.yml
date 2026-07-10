@@ -55,6 +55,8 @@ body:
       label: Provenance
       description: Identify evidence ids, source class, and any redaction requirements.
       placeholder: "Evidence ids, source classes, redaction mode, or state why no protocol claim is made."
+    validations:
+      required: true
 
   - type: input
     id: dependencies

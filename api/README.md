@@ -3,6 +3,7 @@ canonical_source: "Project-Helianthus/helianthus-docs-eebus:api/README.md"
 owner_domain: "api"
 license: "AGPL-3.0-only"
 publication_status: "ownership-landing"
+claim_status: "no-protocol-claims"
 ---
 
 # eeBUS Go API

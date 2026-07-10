@@ -36,6 +36,27 @@ REQUIRED_DOMAIN_PAGES = {
     "re-notes": "re-notes/template.md",
 }
 
+SCAFFOLD_PAGES = {
+    "README.md": "ownership-policy",
+    "protocols/ship-spine-overview.md": "ownership-landing",
+    "architecture/README.md": "ownership-landing",
+    "api/README.md": "ownership-landing",
+    "devices/vr940f.md": "planned-target",
+    "evidence/README.md": "evidence-policy",
+    "evidence/evidence-template.md": "template",
+    "re-notes/template.md": "template",
+    "development/contributing.md": "contribution-policy",
+}
+
+EVIDENCE_SOURCE_CLASSES = {
+    "observed_runtime",
+    "derived_inference",
+    "vendor_public",
+    "app_observation",
+}
+HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
+EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
+
 LICENSE_ACK_LABEL = (
     "I have read the repository license policy and I accept the Helianthus "
     "licensing model for any contribution or reusable material I submit here."
@@ -87,12 +108,12 @@ SENSITIVE_FIELD_PATTERN = re.compile(
     r"(token|account (?:id|identifier)|"
     r"full fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
-    r"(?:raw\s+)?ski|(?:raw\s+)?ship\s*id)"
+    r"(?:raw\s+)?ski|(?:raw\s+)?ship[\s-]*id)"
     r"\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
-    r"`?\b(?:raw\s+)?(?:ski|ship\s*id|shipid)\b`?"
+    r"`?\b(?:raw\s+)?(?:ski|ship[\s-]*id)\b`?"
     r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
     re.IGNORECASE,
 )
@@ -120,6 +141,12 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     r"[^\n]{0,120}\b(?:is|are|becomes?)\s+"
     r"(?:available|active|enabled|supported|shipped|ready)(?:\s+now)?\b",
     re.IGNORECASE,
+)
+ASSERTIVE_PROTOCOL_PATTERN = re.compile(
+    r"^.*\b(?:eebus|ship|spine|vr940f|myvaillant|gateway|device|runtime)\b"
+    r".*\b(?:exposes?|emits?|advertises?|reports?|returns?|supports?|connects?|"
+    r"publishes?|implements?)\b.*$",
+    re.IGNORECASE | re.MULTILINE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
     r"\bvendor[_ -]restricted\b|"
@@ -178,7 +205,7 @@ def _rel(path: Path, root: Path) -> str:
 
 
 def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+    return path.read_bytes().decode("utf-8")
 
 
 def _front_matter(text: str) -> tuple[dict[str, str] | None, str | None]:
@@ -271,9 +298,62 @@ def _restricted_source_errors(text: str, rel: str) -> list[str]:
 
 def _has_forbidden_control(text: str) -> bool:
     return any(
-        unicodedata.category(char) == "Cc" and char not in "\n\r\t"
+        unicodedata.category(char) == "Cc" and char != "\n"
         for char in text
     )
+
+
+def _provenance_errors(
+    root: Path,
+    rel: str,
+    text: str,
+    metadata: dict[str, str],
+) -> list[str]:
+    errors: list[str] = []
+    expected_scaffold_status = SCAFFOLD_PAGES.get(rel)
+    claim_status = metadata.get("claim_status")
+
+    if expected_scaffold_status is not None:
+        if claim_status != "no-protocol-claims":
+            errors.append(f"{rel}: scaffold claim_status must be 'no-protocol-claims'")
+        if metadata.get("publication_status") != expected_scaffold_status:
+            errors.append(
+                f"{rel}: publication_status must be {expected_scaffold_status!r}"
+            )
+        body = text.split("\n---\n", 1)[1]
+        if ASSERTIVE_PROTOCOL_PATTERN.search(body):
+            errors.append(f"{rel}: no-protocol-claims scaffold contains an asserted behavior")
+        return errors
+
+    if claim_status != "evidence-backed":
+        errors.append(f"{rel}: non-scaffold page claim_status must be 'evidence-backed'")
+        return errors
+
+    if metadata.get("source_class") not in EVIDENCE_SOURCE_CLASSES:
+        errors.append(f"{rel}: evidence-backed source_class is missing or not publishable")
+    if metadata.get("hypothesis_status") not in HYPOTHESIS_STATUSES:
+        errors.append(f"{rel}: evidence-backed hypothesis_status is invalid")
+
+    falsifier = metadata.get("falsifier", "").strip()
+    if not falsifier or falsifier.lower() in {"none", "n/a", "unknown", "tbd"}:
+        errors.append(f"{rel}: evidence-backed falsifier must be explicit")
+
+    evidence_ids = [
+        value.strip()
+        for value in metadata.get("evidence_ids", "").split(",")
+        if value.strip()
+    ]
+    if not evidence_ids or any(
+        EVIDENCE_ID_PATTERN.fullmatch(value) is None for value in evidence_ids
+    ):
+        errors.append(f"{rel}: evidence_ids must contain canonical EV-YYYYMMDD-NNN ids")
+    else:
+        for evidence_id in evidence_ids:
+            evidence_path = root / "evidence" / f"{evidence_id}.md"
+            if not evidence_path.is_file() or evidence_path.is_symlink():
+                errors.append(f"{rel}: publishable evidence page {evidence_path.name!r} is missing")
+
+    return errors
 
 
 def check_repository(root: Path) -> list[str]:
@@ -335,7 +415,7 @@ def check_repository(root: Path) -> list[str]:
         errors.append(".github/ISSUE_TEMPLATE/docs_task.yml: missing standard documentation issue template")
     elif issue_template not in symlinks:
         try:
-            form = yaml.safe_load(_read(issue_template))
+            form = yaml.load(_read(issue_template), Loader=UniqueKeySafeLoader)
         except yaml.YAMLError as error:
             errors.append(f".github/ISSUE_TEMPLATE/docs_task.yml: invalid YAML: {error}")
             form = None
@@ -403,6 +483,7 @@ def check_repository(root: Path) -> list[str]:
             "why",
             "ownership_domain",
             "acceptance",
+            "provenance",
             "smoke_test",
         }:
             item = fields.get(field_id)
@@ -437,7 +518,7 @@ def check_repository(root: Path) -> list[str]:
         errors.append(".github/workflows/docs-ci.yml: missing GitHub Actions docs CI")
     elif workflow not in symlinks:
         try:
-            workflow_data = yaml.safe_load(_read(workflow))
+            workflow_data = yaml.load(_read(workflow), Loader=UniqueKeySafeLoader)
         except yaml.YAMLError as error:
             errors.append(f".github/workflows/docs-ci.yml: invalid YAML: {error}")
             workflow_data = None
@@ -546,6 +627,8 @@ def check_repository(root: Path) -> list[str]:
             continue
         expected_domain, expected_license = expected
         page_text = _read(path)
+        if _has_forbidden_control(page_text):
+            errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
         metadata, front_matter_error = _front_matter(page_text)
         if metadata is None:
             errors.append(f"{rel}: {front_matter_error}")
@@ -562,6 +645,7 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: owner_domain must be {expected_domain!r}")
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
+        errors.extend(_provenance_errors(root, rel, page_text, metadata))
 
         targets = {
             f"Project-Helianthus/helianthus-docs-ebus:{target}"
