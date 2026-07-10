@@ -62,6 +62,9 @@ echo "==> validate repository ownership policy"
 python3 -c 'import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__'
 python3 scripts/validate_repository_policy.py
 
+echo "==> validate API surface v1 contract"
+python3 scripts/validate_api_surface_v1.py
+
 echo "==> run policy validator tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 

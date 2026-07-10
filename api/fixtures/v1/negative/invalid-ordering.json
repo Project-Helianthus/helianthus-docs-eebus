@@ -1,0 +1,34 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/zeta",
+      "name": "zeta",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Zeta",
+          "type": "struct{}",
+          "signature": "type Zeta struct{}"
+        }
+      ]
+    },
+    {
+      "path": "example.invalid/helianthus/synthetic/alpha",
+      "name": "alpha",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Alpha",
+          "type": "struct{}",
+          "signature": "type Alpha struct{}"
+        }
+      ]
+    }
+  ]
+}

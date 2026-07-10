@@ -1,0 +1,53 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/alpha",
+      "name": "alpha",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "EndpointCount",
+          "type": "int",
+          "signature": "const EndpointCount int"
+        },
+        {
+          "kind": "type",
+          "name": "Snapshot",
+          "type": "struct{ Version uint32 }",
+          "signature": "type Snapshot struct{ Version uint32 }"
+        }
+      ]
+    },
+    {
+      "path": "example.invalid/helianthus/synthetic/beta",
+      "name": "beta",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Build",
+          "type": "func(Config) (Client, error)",
+          "signature": "func Build(Config) (Client, error)"
+        },
+        {
+          "kind": "method",
+          "receiver": "*Client",
+          "name": "Close",
+          "type": "func() error",
+          "signature": "func (*Client) Close() error"
+        },
+        {
+          "kind": "var",
+          "name": "DefaultConfig",
+          "type": "Config",
+          "signature": "var DefaultConfig Config"
+        }
+      ]
+    }
+  ]
+}

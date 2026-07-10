@@ -28,9 +28,23 @@ MARKDOWN_ONLY_DOMAINS = {
     "protocols",
     "devices",
     "architecture",
-    "api",
     "development",
     "re-notes",
+}
+API_MACHINE_ARTIFACTS = {
+    "api/schema/helianthus.eebus.api-surface.v1.schema.json",
+    "api/fixtures/v1/positive/kinds-types-signatures.json",
+    "api/fixtures/v1/positive/packages-and-symbols.json",
+    "api/fixtures/v1/negative/duplicate-identity.json",
+    "api/fixtures/v1/negative/duplicate-json-key.json",
+    "api/fixtures/v1/negative/implementation-dependency-type.json",
+    "api/fixtures/v1/negative/internal-package.json",
+    "api/fixtures/v1/negative/invalid-ordering.json",
+    "api/fixtures/v1/negative/malformed.json",
+    "api/fixtures/v1/negative/non-nfc.json",
+    "api/fixtures/v1/negative/unexported-declaration.json",
+    "api/fixtures/v1/negative/unexported-receiver.json",
+    "api/fixtures/v1/negative/unknown-field.json",
 }
 
 ROOT_MD = {
@@ -51,6 +65,7 @@ SCAFFOLD_PAGES = {
     "protocols/ship-spine-overview.md": "ownership-landing",
     "architecture/README.md": "ownership-landing",
     "api/README.md": "ownership-landing",
+    "api/api-surface-v1.md": "api-contract",
     "devices/vr940f.md": "planned-target",
     "evidence/README.md": "evidence-policy",
     "evidence/evidence-template.md": "template",
@@ -62,7 +77,8 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "6e7e2e079fca9e559f50555b29a6e7f44c4e7305316e5f4bb54498943d3b9a8d",
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
-    "api/README.md": "beac9e9b60ab81265fa6b8498b81ba20e1dde768a7100d3d1384b97e34c64280",
+    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
+    "api/api-surface-v1.md": "287a0b3a531da66774e0a19833d57360d4646dc94b53c892e0c18ea3a47c58a6",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
@@ -78,7 +94,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "16a75a3490321afa297fa319ddfb51dc884581600c9fb9ddf149e08e3918ba9c"
+CI_LOCAL_SHA256 = "306d9665372f4f2aaee53a54b3e33e575134bcd647e073ded89c2e549710b7a3"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -780,9 +796,23 @@ def check_repository(root: Path) -> list[str]:
             if path.is_symlink():
                 continue
             rel = _rel(path, root)
-            if top in MARKDOWN_ONLY_DOMAINS and path.suffix.lower() not in MARKDOWN_SUFFIXES:
-                errors.append(f"{rel}: substantive documentation must use a Markdown extension")
-                continue
+            if path.suffix.lower() not in MARKDOWN_SUFFIXES:
+                if top == "api":
+                    if rel not in API_MACHINE_ARTIFACTS:
+                        errors.append(f"{rel}: path is not in the API machine artifact allowlist")
+                        for canonical, noncanonical in (
+                            ("/positive/", "/Positive/"),
+                            ("/negative/", "/Negative/"),
+                        ):
+                            if canonical in rel:
+                                errors.append(
+                                    f"{rel.replace(canonical, noncanonical)}: "
+                                    "case-variant path is not in the API machine artifact allowlist"
+                                )
+                        continue
+                elif top in MARKDOWN_ONLY_DOMAINS:
+                    errors.append(f"{rel}: substantive documentation must use a Markdown extension")
+                    continue
             try:
                 text = _read(path)
             except UnicodeDecodeError:

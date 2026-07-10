@@ -11,6 +11,7 @@ claim_status: "no-protocol-claims"
 This directory is the canonical owner for the eeBUS-specific Go public API
 schema, reference, and examples.
 
-It contains no accepted API contract yet. MSP-DOCS-API-SCHEMA will define the
-machine-readable API surface rules, and MSP-DOCS-E2 will populate supported
-reference material. This page does not declare runtime symbols or behavior.
+The versioned [API surface v1 contract](api-surface-v1.md) defines the closed
+machine-readable shape, deterministic normalization rules, and synthetic
+golden fixtures. Later milestones may populate supported reference material.
+This page and the v1 fixtures do not declare runtime symbols or behavior.

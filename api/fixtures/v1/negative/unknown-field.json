@@ -1,0 +1,23 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/negative",
+      "name": "negative",
+      "source": "synthetic",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Example",
+          "type": "struct{}",
+          "signature": "type Example struct{}"
+        }
+      ]
+    }
+  ]
+}

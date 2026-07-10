@@ -1,0 +1,47 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/collections",
+      "name": "collections",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "MaxEntries",
+          "type": "uint16",
+          "signature": "const MaxEntries uint16"
+        },
+        {
+          "kind": "func",
+          "name": "NewCatalog",
+          "type": "func([]Entry) *Catalog",
+          "signature": "func NewCatalog([]Entry) *Catalog"
+        },
+        {
+          "kind": "method",
+          "receiver": "*Catalog",
+          "name": "Lookup",
+          "type": "func(string) (Entry, bool)",
+          "signature": "func (*Catalog) Lookup(string) (Entry, bool)"
+        },
+        {
+          "kind": "type",
+          "name": "Entry",
+          "type": "struct{ Name string; Value any }",
+          "signature": "type Entry struct{ Name string; Value any }"
+        },
+        {
+          "kind": "var",
+          "name": "ErrMissing",
+          "type": "error",
+          "signature": "var ErrMissing error"
+        }
+      ]
+    }
+  ]
+}
