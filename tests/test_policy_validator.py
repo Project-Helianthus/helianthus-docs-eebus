@@ -649,6 +649,48 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertIn("private artifact location/reference field is forbidden", result.stderr)
             self.assertIn("private IPv4 address found", result.stderr)
 
+    def test_non_markdown_evidence_rejects_credentials_and_long_fingerprint(self) -> None:
+        payloads = (
+            "Password: hunter2",
+            "Passphrase: operator-secret",
+            "Credential: operator-secret",
+            "Secret: operator-secret",
+            "API key: sk-local-red-team",
+            "Client secret: operator-secret",
+            "Fingerprint: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / "evidence" / "leak.txt"
+                    artifact.write_text(payload + "\n", encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("populated sensitive field", result.stderr)
+
+    def test_non_markdown_evidence_rejects_premature_state_claims(self) -> None:
+        claims = (
+            "Gateway import is unblocked now.",
+            "Gateway import is allowed now.",
+            "Portal consumer workflow is permitted now.",
+            "HA entity rollout is open now.",
+            "MSP-DOCS-E2 is complete.",
+            "The helianthus-eebusreg docs/ directory is absent.",
+        )
+        for claim in claims:
+            with self.subTest(claim=claim):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / "evidence" / "state-claim.txt"
+                    artifact.write_text(claim + "\n", encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+
     def test_root_publishable_page_gets_privacy_scan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

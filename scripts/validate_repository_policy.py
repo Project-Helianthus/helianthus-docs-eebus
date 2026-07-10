@@ -133,8 +133,9 @@ EEBUS_ID_LABEL_PATTERN = (
 )
 SENSITIVE_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?"
-    r"(token|account (?:id|identifier)|"
-    r"full fingerprint|mac address|serial(?: number)?|local identity|"
+    r"(token|password|passphrase|credential|secret|api[\s_-]*key|"
+    r"client[\s_-]*secret|account (?:id|identifier)|"
+    r"(?:full )?fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
     rf"(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN})"
     r"\s*:\s*(\S.*)$",
@@ -178,7 +179,8 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     r"Portal consumer workflow|Portal rollout|command routing|gateway import)"
     r"[^\n]{0,120}\b(?:(?:is|are|was|were|becomes?)|"
     r"(?:has|have)(?:\s+been)?)\s+"
-    r"(?:available|active|enabled|supported|shipped|ready|complete|completed|done|landed)"
+    r"(?:available|active|enabled|supported|shipped|ready|complete|completed|done|"
+    r"landed|unblocked|allowed|permitted|open)"
     r"(?:\s+now)?\b",
     re.IGNORECASE,
 )
@@ -790,6 +792,8 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
             errors.extend(_privacy_errors(text, rel))
             errors.extend(_restricted_source_errors(text, rel))
+            if PREMATURE_COMPLETION_PATTERN.search(text):
+                errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
             if PREMATURE_CONSUMER_PATTERN.search(text):
                 errors.append(f"{rel}: premature gateway or consumer availability claim")
 
