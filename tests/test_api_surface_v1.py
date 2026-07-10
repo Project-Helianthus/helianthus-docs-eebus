@@ -271,6 +271,30 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
 
+    def test_reference_reproduces_the_publication_marker_contract(self) -> None:
+        self.require_file(REFERENCE)
+        normalized = " ".join(REFERENCE.read_text(encoding="utf-8").lower().split())
+        for phrase in (
+            "raw utf-8 json text and every decoded object-key and value occurrence",
+            "case-sensitive, regex-equivalent forms",
+            "`/(?:users)/[^/\\s]+/`",
+            "`/(?:home)/[^/\\s]+/`",
+            "`/(?:tmp)/[^\\s]+`",
+            "`/(?:var)/folders/[^\\s]+`",
+            "`[a-za-z]:\\\\(?:users)\\\\[^\\\\\\s]+\\\\`",
+            "four dot-separated groups of one to three decimal digits",
+            "is_private`, `is_loopback`, or `is_link_local",
+            "`%[a-za-z0-9_.-]+` zone suffix",
+            "40 or more hexadecimal digits",
+            "assignment labels are case-insensitive under python `re.ignorecase`",
+            "identifier labels are `token`, `password`, `passphrase`, `credential`,",
+            "zero or one `_`, hyphen, or ascii-space separator",
+            "one or more `_`, hyphen, or ascii-space separators",
+            "`vendor[_ -]restricted` and `restricted[ -]+source`",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, normalized)
+
     def test_positive_fixtures_are_explicitly_synthetic_and_make_no_runtime_claim(self) -> None:
         positive, _ = self.require_fixture_sets()
         for path in positive:
@@ -446,6 +470,67 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn("negative fixture boundary mismatch", result.stderr)
 
+    def test_duplicate_key_boundaries_check_every_occurrence(self) -> None:
+        valid_path = SYNTHETIC_PACKAGE_PREFIX + "negative"
+        cases = {
+            "conflicting schema identity": lambda text: text.replace(
+                f'"schema_id": "{SCHEMA_ID}"',
+                '"schema_id": "invalid.synthetic.schema"',
+                1,
+            ),
+            "shadowed schema version": lambda text: text.replace(
+                '"schema_version": 1,',
+                '"schema_version": false,\n  "schema_version": 1,',
+                1,
+            ),
+            "shadowed fixture marker": lambda text: text.replace(
+                '"synthetic": true,',
+                '"synthetic": false,\n    "synthetic": true,',
+                1,
+            ),
+            "shadowed package path": lambda text: text.replace(
+                f'"path": "{valid_path}"',
+                f'"path": "example.invalid/non-synthetic/negative",\n'
+                f'      "path": "{valid_path}"',
+                1,
+            ),
+        }
+        for name, mutation in cases.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = negative_path("duplicate-json-key.json", repo)
+                    target.write_text(
+                        mutation(target.read_text(encoding="utf-8")),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("negative fixture boundary mismatch", result.stderr)
+
+    def test_publication_markers_cannot_hide_in_a_shadowed_duplicate_value(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = negative_path("duplicate-json-key.json", repo)
+            original = '"signature": "type Example struct{}"'
+            hidden = (
+                '"signature": "account\\u005fid: hidden-synthetic-value",\n'
+                '          "signature": "type Example struct{}"'
+            )
+            target.write_text(
+                target.read_text(encoding="utf-8").replace(original, hidden, 1),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("private identifier", result.stderr)
+            self.assertNotIn("hidden-synthetic-value", result.stderr)
+            self.assertNotIn(str(repo), result.stderr)
+
     def test_validator_accepts_the_corpus_deterministically(self) -> None:
         self.require_file(API_VALIDATOR)
         first = run_validator(REPO)
@@ -523,6 +608,31 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             with self.subTest(name=name):
                 expected = "invalid symbol kind" if name == "invalid kind" else "missing required field"
                 self.assert_document_mutation_rejected(mutation, expected)
+
+    def test_validator_rejects_wrong_root_package_and_symbol_types(self) -> None:
+        cases = (
+            ("root", "invalid document shape"),
+            ("package", "invalid package shape"),
+            ("symbol", "invalid symbol shape"),
+        )
+        for level, expected in cases:
+            with self.subTest(level=level):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = first_positive(repo)
+                    document = load_json_strict(target)
+                    if level == "root":
+                        document = []
+                    elif level == "package":
+                        document["packages"][0] = []
+                    else:
+                        document["packages"][0]["symbols"][0] = []
+                    write_json(target, document)
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(expected, result.stderr)
 
     def test_validator_rejects_empty_collections_and_duplicate_packages(self) -> None:
         cases = {
@@ -688,6 +798,8 @@ class APISurfaceV1ContractTests(unittest.TestCase):
     def test_validator_rejects_escaped_controls_and_surrogates_without_crashing(self) -> None:
         for name, value, expected in (
             ("control", "uint16\x00", "control character"),
+            ("line separator", "uint16\u2028string", "line or paragraph separator"),
+            ("paragraph separator", "uint16\u2029string", "line or paragraph separator"),
             ("surrogate", "uint16\ud800", "invalid Unicode scalar value"),
         ):
             with self.subTest(name=name):
@@ -717,17 +829,22 @@ class APISurfaceV1ContractTests(unittest.TestCase):
     def test_validator_rejects_each_declared_publication_marker_category(self) -> None:
         self.require_file(API_VALIDATOR)
         positive, _ = self.require_fixture_sets()
-        cases = {
-            "private path": "/Users/" + "example-user/project/input.go",
-            "private network": "peer " + "192." + "168.7.9",
-            "network address": "peer " + "8." + "8.8.8",
-            "private identifier": "account_" + "id: private-account-value",
-            "household data": "household " + "schedule: private-schedule-value",
-            "raw evidence": "raw " + "evidence: private-capture-value",
-            "source contamination": "vendor_" + "restricted",
-        }
-        for expected, value in cases.items():
-            with self.subTest(expected=expected):
+        cases = (
+            ("macOS user path", "private path", "/Users/" + "example-user/project/input.go"),
+            ("Unix home path", "private path", "/home/" + "example-user/project/input.go"),
+            ("temporary path", "private path", "/tmp/" + "synthetic/input.go"),
+            ("macOS temporary path", "private path", "/var/" + "folders/synthetic/input.go"),
+            ("Windows user path", "private path", "C:\\Users\\example-user\\input.go"),
+            ("private IPv4", "private network", "peer " + "192." + "168.7.9"),
+            ("other IPv4", "network address", "peer " + "8." + "8.8.8"),
+            ("IPv6", "network address", "peer 2001:" + "db8::1"),
+            ("account label", "private identifier", "account_" + "id: private-account-value"),
+            ("household label", "household data", "household " + "schedule: private-schedule-value"),
+            ("raw label", "raw evidence", "raw " + "evidence: private-capture-value"),
+            ("restricted marker", "source contamination", "vendor_" + "restricted"),
+        )
+        for name, expected, value in cases:
+            with self.subTest(name=name):
                 with tempfile.TemporaryDirectory() as tmp:
                     repo = copy_repo(Path(tmp))
                     target = repo / positive[0].relative_to(REPO)
@@ -738,6 +855,44 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn(expected, result.stderr.lower())
                     self.assertNotIn(value, result.stderr)
+
+    def test_publication_marker_threshold_case_and_separators_match_the_contract(self) -> None:
+        cases = (
+            ("fingerprint below threshold", "a" * 39, None),
+            ("invalid IPv4", "999.999.999.999", None),
+            ("fingerprint at threshold", "a" * 40, "private identifier"),
+            ("mixed-case private label", "ClIeNt-SeCrEt = synthetic", "private identifier"),
+            ("household underscore", "HoUsEhOlD_ScHeDuLe: synthetic", "household data"),
+            ("raw hyphen", "RaW-EvIdEnCe=synthetic", "raw evidence"),
+            ("vendor marker", "VeNdOr-ReStRiCtEd", "source contamination"),
+            ("source marker", "ReStRiCtEd- -SoUrCe", "source contamination"),
+        )
+        for name, value, expected in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    target = (
+                        repo
+                        / "api"
+                        / "fixtures"
+                        / "v1"
+                        / "positive"
+                        / "kinds-types-signatures.json"
+                    )
+                    document = load_json_strict(target)
+                    symbol = find_symbol(document, "const")
+                    symbol["type"] = value
+                    symbol["signature"] = f'const {symbol["name"]} {value}'
+                    write_json(target, document)
+
+                    result = run_validator(repo)
+
+                    if expected is None:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertEqual(result.returncode, 1, result.stderr)
+                        self.assertIn(expected, result.stderr)
+                        self.assertNotIn(value, result.stderr)
 
     def test_publication_markers_cannot_hide_behind_json_escapes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

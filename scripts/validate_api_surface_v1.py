@@ -102,21 +102,18 @@ SOURCE_CONTAMINATION_PATTERN = re.compile(
 )
 
 
-class DuplicateKeyError(ValueError):
-    pass
+class JSONObject(dict[str, Any]):
+    def __init__(self, pairs: list[tuple[str, Any]]) -> None:
+        super().__init__(pairs)
+        self.pairs = tuple(pairs)
 
 
 class InvalidConstantError(ValueError):
     pass
 
 
-def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise DuplicateKeyError
-        result[key] = value
-    return result
+def _tracked_object(pairs: list[tuple[str, Any]]) -> JSONObject:
+    return JSONObject(pairs)
 
 
 def _reject_constant(_: str) -> None:
@@ -163,11 +160,28 @@ def _decoded_sensitive_diagnostics(value: Any) -> set[str]:
     if isinstance(value, list):
         for item in value:
             diagnostics |= _decoded_sensitive_diagnostics(item)
+    elif isinstance(value, JSONObject):
+        for key, item in value.pairs:
+            diagnostics |= _sensitive_diagnostics(key)
+            diagnostics |= _decoded_sensitive_diagnostics(item)
     elif isinstance(value, dict):
         for key, item in value.items():
             diagnostics |= _sensitive_diagnostics(key)
             diagnostics |= _decoded_sensitive_diagnostics(item)
     return diagnostics
+
+
+def _has_duplicate_key(value: Any) -> bool:
+    if isinstance(value, JSONObject):
+        keys = [key for key, _ in value.pairs]
+        return len(keys) != len(set(keys)) or any(
+            _has_duplicate_key(item) for _, item in value.pairs
+        )
+    if isinstance(value, list):
+        return any(_has_duplicate_key(item) for item in value)
+    if isinstance(value, dict):
+        return any(_has_duplicate_key(item) for item in value.values())
+    return False
 
 
 def _load_json(path: Path) -> tuple[Any | None, bytes | None, set[str]]:
@@ -184,15 +198,14 @@ def _load_json(path: Path) -> tuple[Any | None, bytes | None, set[str]]:
     try:
         document = json.loads(
             text,
-            object_pairs_hook=_unique_object,
+            object_pairs_hook=_tracked_object,
             parse_constant=_reject_constant,
         )
-    except DuplicateKeyError:
-        diagnostics.add("duplicate key")
-        return None, raw, diagnostics
     except (json.JSONDecodeError, InvalidConstantError):
         diagnostics.add("malformed JSON")
         return None, raw, diagnostics
+    if _has_duplicate_key(document):
+        diagnostics.add("duplicate key")
     diagnostics |= _decoded_sensitive_diagnostics(document)
     return document, raw, diagnostics
 
@@ -218,6 +231,10 @@ def _has_control(value: str) -> bool:
     return any(unicodedata.category(char) == "Cc" for char in value)
 
 
+def _has_line_or_paragraph_separator(value: str) -> bool:
+    return any(unicodedata.category(char) in {"Zl", "Zp"} for char in value)
+
+
 def _has_surrogate(value: str) -> bool:
     return any(unicodedata.category(char) == "Cs" for char in value)
 
@@ -230,6 +247,8 @@ def _text_diagnostics(value: str) -> set[str]:
         diagnostics.add("non-NFC value")
     if _has_control(value):
         diagnostics.add("control character")
+    if _has_line_or_paragraph_separator(value):
+        diagnostics.add("line or paragraph separator")
     return diagnostics
 
 
@@ -280,6 +299,7 @@ def _normalized_text(value: Any) -> bool:
         and not _has_surrogate(value)
         and _is_nfc(value)
         and not _has_control(value)
+        and not _has_line_or_paragraph_separator(value)
         and "  " not in value
     )
 
@@ -499,39 +519,64 @@ def _first_json_value(raw: bytes | None) -> Any | None:
         return None
     try:
         text = raw.decode("utf-8")
-        document, _ = json.JSONDecoder().raw_decode(text.lstrip())
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        document, _ = json.JSONDecoder(
+            object_pairs_hook=_tracked_object,
+            parse_constant=_reject_constant,
+        ).raw_decode(text.lstrip())
+    except (UnicodeDecodeError, json.JSONDecodeError, InvalidConstantError):
         return None
     return document
+
+
+def _object_values(value: Any, key: str) -> list[Any]:
+    if isinstance(value, JSONObject):
+        return [item for candidate, item in value.pairs if candidate == key]
+    if isinstance(value, dict) and key in value:
+        return [value[key]]
+    return []
 
 
 def _negative_fixture_boundary_diagnostics(document: Any) -> set[str]:
     if not isinstance(document, dict):
         return {"negative fixture boundary mismatch"}
-    if (
-        document.get("schema_id") != SCHEMA_ID
-        or not _is_exact_integer(document.get("schema_version"), SCHEMA_VERSION)
+
+    schema_ids = _object_values(document, "schema_id")
+    schema_versions = _object_values(document, "schema_version")
+    if not schema_ids or any(value != SCHEMA_ID for value in schema_ids):
+        return {"negative fixture boundary mismatch"}
+    if not schema_versions or any(
+        not _is_exact_integer(value, SCHEMA_VERSION) for value in schema_versions
     ):
         return {"negative fixture boundary mismatch"}
 
-    fixture = document.get("fixture")
-    if (
-        not isinstance(fixture, dict)
-        or fixture.get("synthetic") is not True
-        or fixture.get("runtime_claims") is not False
-    ):
+    fixtures = _object_values(document, "fixture")
+    if not fixtures:
         return {"negative fixture boundary mismatch"}
+    for fixture in fixtures:
+        if not isinstance(fixture, dict):
+            return {"negative fixture boundary mismatch"}
+        synthetic = _object_values(fixture, "synthetic")
+        runtime_claims = _object_values(fixture, "runtime_claims")
+        if not synthetic or any(value is not True for value in synthetic):
+            return {"negative fixture boundary mismatch"}
+        if not runtime_claims or any(value is not False for value in runtime_claims):
+            return {"negative fixture boundary mismatch"}
 
-    packages = document.get("packages")
-    if not isinstance(packages, list) or not packages:
+    package_collections = _object_values(document, "packages")
+    if not package_collections:
         return {"negative fixture boundary mismatch"}
-    if any(
-        not isinstance(package, dict)
-        or not isinstance(package.get("path"), str)
-        or not package["path"].startswith(SYNTHETIC_PREFIX)
-        for package in packages
-    ):
-        return {"negative fixture boundary mismatch"}
+    for packages in package_collections:
+        if not isinstance(packages, list) or not packages:
+            return {"negative fixture boundary mismatch"}
+        for package in packages:
+            if not isinstance(package, dict):
+                return {"negative fixture boundary mismatch"}
+            paths = _object_values(package, "path")
+            if not paths or any(
+                not isinstance(path, str) or not path.startswith(SYNTHETIC_PREFIX)
+                for path in paths
+            ):
+                return {"negative fixture boundary mismatch"}
     return set()
 
 

@@ -79,9 +79,10 @@ differ.
 `type` is the producer-supplied canonical Go type spelling for the declaration.
 It is the declared type for constants and variables, the underlying declaration
 form for types, and the receiver-free function type for functions and methods.
-It is trimmed, single-line NFC text with no control characters or repeated
-spaces. The corpus validator enforces those text properties but does not prove
-Go type syntax.
+It is trimmed, single-line NFC text with no Unicode `Cc` control characters,
+`Zl` line separators, `Zp` paragraph separators, or repeated spaces. The
+corpus validator enforces those text properties but does not prove Go type
+syntax.
 
 Only public contract types may appear. The AST-backed producer is responsible
 for excluding a declaration that exposes an implementation dependency type.
@@ -94,8 +95,9 @@ dependency visibility from arbitrary text.
 `signature` is the producer-supplied canonical declaration spelling without a
 body, comments, source positions, or source formatting. It includes the
 declaration kind and name, and includes the receiver for a method. It is
-trimmed, single-line NFC text with no control characters and one ASCII space
-where separation is required.
+trimmed, single-line NFC text with no Unicode `Cc` control characters, `Zl`
+line separators, or `Zp` paragraph separators, and one ASCII space where
+separation is required.
 
 The corpus validator enforces portable string-level consistency. For `const`,
 `type`, and `var`, `signature` is exactly `kind`, one space, `name`, one space,
@@ -131,9 +133,10 @@ Closed fields make source formatting, comments, positions, file names, and
 build metadata unrepresentable. The corpus validator also rejects invalid Go
 identifier strings, invalid receiver representations, empty package or symbol
 collections, duplicate package paths, invalid path forms, control characters,
-invalid Unicode scalar values, and the portable cross-field mismatches defined
-above. The future producer owns exclusions that require Go semantic knowledge,
-including whether a real dependency is implementation-only.
+Unicode line or paragraph separators, invalid Unicode scalar values, and the
+portable cross-field mismatches defined above. The future producer owns
+exclusions that require Go semantic knowledge, including whether a real
+dependency is implementation-only.
 
 Exclusion is deterministic and applies to the complete declaration. A rejected
 or excluded declaration is never partially represented.
@@ -152,6 +155,13 @@ while targeting its named rejection category. Even the malformed fixture begins
 with a complete boundary-valid JSON document before its intentional trailing
 syntax error.
 
+The canonical duplicate-key fixture duplicates only `schema_id`, and both
+occurrences equal `helianthus.eebus.api-surface.v1`. Duplicate-key recovery
+retains every occurrence solely for boundary and publication checks. Every
+occurrence of `schema_id`, `schema_version`, fixture markers, package
+collections, and package paths must satisfy the synthetic no-runtime boundary;
+a conflicting or shadowed invalid occurrence is rejected.
+
 The validator emits deterministic categorical diagnostics. Diagnostics include
 only the repository-relative artifact path and a category; they never echo
 input values or absolute paths.
@@ -159,19 +169,50 @@ input values or absolute paths.
 ## Privacy and Source Restrictions
 
 Extractor inputs must come from a publishable source. The corpus validator uses
-an exact marker/category policy to avoid broad content inference. It rejects:
+an exact marker/category policy to avoid broad content inference. It scans the
+raw UTF-8 JSON text and every decoded object-key and value occurrence, including
+values shadowed by a duplicate key. The reproducible marker contract is:
 
-- private paths matching supported Unix, macOS temporary, or Windows user-path
-  forms as `private path`;
-- valid private IPv4 addresses as `private network`, and other valid IPv4 or
-  IPv6 addresses as `network address`;
-- MAC addresses, long hexadecimal fingerprints, and assignment labels for
-  credentials, serial numbers, or account identifiers as `private identifier`;
-- assignment labels `household data` or `household schedule` as
-  `household data`;
-- the assignment label `raw evidence` as `raw evidence`;
-- the exact restricted-source marker phrases recognized by the validator as
-  `source contamination`.
+- `private path` recognizes only these case-sensitive, regex-equivalent forms
+  (non-capturing groups keep the examples from being path literals):
+  `/(?:Users)/[^/\s]+/`, `/(?:home)/[^/\s]+/`,
+  `/(?:tmp)/[^\s]+`, `/(?:var)/folders/[^\s]+`, and
+  `[A-Za-z]:\\(?:Users)\\[^\\\s]+\\`. The first two require one
+  non-empty user component and a following slash; the temporary forms consume
+  one or more non-whitespace characters; the Windows form accepts either drive
+  letter case but requires the literal component spelling `Users`.
+- IPv4 candidates are word-bounded four dot-separated groups of one to three
+  decimal digits. After standard-library address parsing, an address for which
+  `is_private`, `is_loopback`, or `is_link_local` is true is `private network`;
+  every other valid IPv4 address is `network address`. IPv6 candidates use the
+  exact grammar `(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}` followed by zero
+  to four hexadecimal digits, an optional `%[A-Za-z0-9_.-]+` zone suffix, and
+  `(?![0-9A-Fa-f:])`. After removing the zone suffix, every candidate accepted
+  by standard-library address parsing is `network address` regardless of scope.
+  Invalid IPv4 or IPv6 candidates do not match.
+- `private identifier` recognizes a MAC address written as six two-hexadecimal
+  groups with each separator independently a colon or hyphen, or as three
+  four-hexadecimal groups separated by dots, in either case with no adjacent
+  hexadecimal character. It also recognizes a contiguous fingerprint of 40 or
+  more hexadecimal digits when neither adjacent character is hexadecimal.
+- Assignment labels are case-insensitive under Python `re.IGNORECASE`, begin at
+  a regex word boundary, and must be followed by zero or more Unicode
+  whitespace characters and then `:` or `=`. The exact private identifier
+  labels are `token`, `password`, `passphrase`, `credential`, `secret`, `api`
+  plus zero or one `_`, hyphen, or ASCII-space separator plus `key`, `client`
+  plus the same optional separator plus `secret`, `serial` plus the same
+  optional separator plus `number`, and `account` plus the same optional
+  separator plus one of `id`, `identifier`, or `data`.
+- The `household data` category recognizes under the same case and word-boundary
+  rules the label `household`, one or more `_`, hyphen, or ASCII-space
+  separators, then `data` or `schedule`, followed by the assignment delimiter
+  defined above. The `raw evidence` category recognizes `raw`, the same
+  one-or-more separator rule, then `evidence`, followed by that delimiter.
+- `source contamination` recognizes only the Python `re.IGNORECASE`,
+  word-bounded marker grammars `vendor[_ -]restricted` and
+  `restricted[ -]+source`. The first permits exactly one underscore, hyphen, or
+  ASCII space; the second permits one or more ASCII spaces or hyphens in any
+  sequence. No other phrase is inferred as a restricted-source marker.
 
 Diagnostics contain only the repository-relative artifact path and category;
 they never echo matched values or absolute temporary paths. The AST-backed
