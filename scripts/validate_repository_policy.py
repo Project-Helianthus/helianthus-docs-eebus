@@ -49,16 +49,16 @@ SCAFFOLD_PAGES = {
     "development/contributing.md": "contribution-policy",
 }
 
-SCAFFOLD_BODY_SHA256 = {
-    "README.md": "d5d7ec16ada1c9ae97de0982dbd66c105cc8ad68f5c2e1b6a586c082a83a6070",
-    "protocols/ship-spine-overview.md": "b47f043024d94af8457da2a4eaf5f8f26e094d60cb5ce7fa4205d69231a16ed7",
-    "architecture/README.md": "11408edfec08a0f808c566721ddc5d4fc7d3770a0a9901feaf94f81b2bf2570b",
-    "api/README.md": "b47ba6582dd6477db2298272bb38086eb02846db4c284c85362e2d7052457255",
-    "devices/vr940f.md": "8ebb4fdb88f30c111a0ce1474289fc3f6afde46397c72765e05939268b99d1b1",
-    "evidence/README.md": "f5f3f8e39708d3319b52f6975672ece2d7dfe8d8432d89902eef2884b5a08079",
-    "evidence/evidence-template.md": "8f24eda4dcc0adf50878d15065eeb4d3475975fe0ee141b977bd6acca2aab6d7",
-    "re-notes/template.md": "1504fa2706c93a1ca5378a9fc8706da4519df0e77ee2ae4ec981fc3b56ee9f6f",
-    "development/contributing.md": "328d2420e9cfa941184600212a8975be7cf405ae3f40b6c88109ff76349b1bfb",
+SCAFFOLD_ARTIFACT_SHA256 = {
+    "README.md": "6e7e2e079fca9e559f50555b29a6e7f44c4e7305316e5f4bb54498943d3b9a8d",
+    "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
+    "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
+    "api/README.md": "beac9e9b60ab81265fa6b8498b81ba20e1dde768a7100d3d1384b97e34c64280",
+    "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
+    "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
+    "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
+    "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0fd8724ef3770dcb9d0aac485ef23f8f32",
+    "development/contributing.md": "f52c046edb8bafeca43cdb1e9159e49355688ce7b114339bfe34cf02a1038586",
 }
 
 EVIDENCE_SOURCE_CLASSES = {
@@ -342,10 +342,9 @@ def _provenance_errors(
             errors.append(
                 f"{rel}: publication_status must be {expected_scaffold_status!r}"
             )
-        body = text.split("\n---\n", 1)[1]
-        body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
-        if body_hash != SCAFFOLD_BODY_SHA256[rel]:
-            errors.append(f"{rel}: scaffold body differs from the reviewed no-claim content")
+        artifact_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if artifact_hash != SCAFFOLD_ARTIFACT_SHA256[rel]:
+            errors.append(f"{rel}: scaffold artifact differs from the reviewed no-claim content")
         return errors
 
     if claim_status != "evidence-backed":

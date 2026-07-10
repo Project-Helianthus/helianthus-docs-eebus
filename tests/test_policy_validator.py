@@ -473,7 +473,39 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
-                    self.assertIn("scaffold body differs", result.stderr)
+                    self.assertIn("scaffold artifact differs", result.stderr)
+
+    def test_scaffold_front_matter_is_locked_against_asserted_behavior(self) -> None:
+        scaffold_pages = (
+            "README.md",
+            "protocols/ship-spine-overview.md",
+            "architecture/README.md",
+            "api/README.md",
+            "devices/vr940f.md",
+            "evidence/README.md",
+            "evidence/evidence-template.md",
+            "re-notes/template.md",
+            "development/contributing.md",
+        )
+        for relative_path in scaffold_pages:
+            with self.subTest(relative_path=relative_path):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / relative_path
+                    text = page.read_text(encoding="utf-8")
+                    page.write_text(
+                        text.replace(
+                            "\n---\n",
+                            '\nsummary: "VR940f uses SHIP pairing with a peer."\n---\n',
+                            1,
+                        ),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("scaffold artifact differs", result.stderr)
 
     def test_evidence_backed_claim_requires_existing_evidence_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
