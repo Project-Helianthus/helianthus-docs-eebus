@@ -46,6 +46,26 @@ FORBIDDEN_CROSS_SEED_HEADINGS = {
     "versioning policy",
     "approval steps",
 }
+PEM_BLOCK_PATTERN = re.compile(r"-----BEGIN [A-Z0-9 ][A-Z0-9 -]*-----")
+MAC_ADDRESS_PATTERN = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])"
+)
+FULL_FINGERPRINT_PATTERN = re.compile(
+    r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
+)
+PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
+    r"^\s*(?:[-*]\s*)?private artifact (?:location|reference)\s*:",
+    re.IGNORECASE | re.MULTILINE,
+)
+SENSITIVE_FIELD_PATTERN = re.compile(
+    r"^\s*(?:[-*]\s*)?"
+    r"(token|account (?:id|identifier)|"
+    r"full fingerprint|mac address|serial(?: number)?|local identity|"
+    r"stable peer identifier|pairing history|household schedule)"
+    r"\s*:\s*(\S.*)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+SAFE_REDACTION_MARKERS = ("redacted", "masked", "omitted", "unknown", "not applicable", "n/a")
 
 
 def _rel(path: Path, root: Path) -> str:
@@ -99,10 +119,18 @@ def check_repository(root: Path) -> list[str]:
     errors: list[str] = []
     root = root.resolve()
 
+    symlinks: set[Path] = set()
+    for path in sorted(root.rglob("*")):
+        if ".git" in path.parts or ".pytest_cache" in path.parts:
+            continue
+        if path.is_symlink():
+            symlinks.add(path)
+            errors.append(f"{_rel(path, root)}: symlinks are forbidden")
+
     license_file = root / "LICENSE"
     if not license_file.exists():
         errors.append("LICENSE: missing repository license policy")
-    else:
+    elif license_file not in symlinks:
         text = _read(license_file)
         for required in [
             "CC0-1.0",
@@ -120,7 +148,7 @@ def check_repository(root: Path) -> list[str]:
     codeowners = root / ".github" / "CODEOWNERS"
     if not codeowners.exists():
         errors.append(".github/CODEOWNERS: missing")
-    else:
+    elif codeowners not in symlinks:
         text = _read(codeowners)
         active_rules = []
         for line in text.splitlines():
@@ -138,7 +166,7 @@ def check_repository(root: Path) -> list[str]:
     issue_template = root / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
     if not issue_template.exists():
         errors.append(".github/ISSUE_TEMPLATE/docs_task.yml: missing standard documentation issue template")
-    else:
+    elif issue_template not in symlinks:
         text = _read(issue_template)
         for required in [
             "What",
@@ -155,11 +183,17 @@ def check_repository(root: Path) -> list[str]:
     workflow = root / ".github" / "workflows" / "docs-ci.yml"
     if not workflow.exists():
         errors.append(".github/workflows/docs-ci.yml: missing GitHub Actions docs CI")
-    elif "./scripts/ci_local.sh" not in _read(workflow):
+    elif workflow not in symlinks and "./scripts/ci_local.sh" not in _read(workflow):
         errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh")
 
-    readme = _read(root / "README.md") if (root / "README.md").exists() else ""
-    contributing = _read(root / "development" / "contributing.md") if (root / "development" / "contributing.md").exists() else ""
+    readme_path = root / "README.md"
+    contributing_path = root / "development" / "contributing.md"
+    readme = _read(readme_path) if readme_path.exists() and readme_path not in symlinks else ""
+    contributing = (
+        _read(contributing_path)
+        if contributing_path.exists() and contributing_path not in symlinks
+        else ""
+    )
     combined_policy = readme + "\n" + contributing
     required_policy_terms = [
         "protocols/` owns eeBUS/SHIP/SPINE protocol behavior",
@@ -180,16 +214,12 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"README/development policy: missing required declaration {required!r}")
 
     seen_sources: dict[str, str] = {}
-    for path in sorted(root.rglob("*")):
-        if ".git" in path.parts or ".pytest_cache" in path.parts:
-            continue
-        if path.is_symlink():
-            errors.append(f"{_rel(path, root)}: symlinks are forbidden")
-
     for path in sorted(root.rglob("*.md")):
         if ".git" in path.parts:
             continue
         if ".pytest_cache" in path.parts:
+            continue
+        if path in symlinks:
             continue
         rel = _rel(path, root)
         if _is_exempt_markdown(path, root):
@@ -234,16 +264,36 @@ def check_repository(root: Path) -> list[str]:
             if declared_mode != "summary-only":
                 errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
             headings = {
-                match.group(1).strip().lower()
+                re.sub(r"[^a-z0-9]+", " ", match.group(1).lower()).strip()
                 for match in re.finditer(r"^##+\s+(.+?)\s*$", page_text, re.MULTILINE)
             }
-            duplicated = sorted(headings & FORBIDDEN_CROSS_SEED_HEADINGS)
+            duplicated = sorted(
+                forbidden
+                for forbidden in FORBIDDEN_CROSS_SEED_HEADINGS
+                if any(forbidden in heading for heading in headings)
+            )
             if duplicated:
                 errors.append(
                     f"{rel}: summary-only cross-seed contains platform-owned headings {duplicated}"
                 )
         elif declared_target is not None or declared_mode is not None:
             errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
+
+        if PEM_BLOCK_PATTERN.search(page_text):
+            errors.append(f"{rel}: PEM block marker found in publishable content")
+        if MAC_ADDRESS_PATTERN.search(page_text):
+            errors.append(f"{rel}: MAC address found in publishable content")
+        if FULL_FINGERPRINT_PATTERN.search(page_text):
+            errors.append(f"{rel}: full fingerprint or raw SKI found in publishable content")
+        for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(page_text):
+            line = page_text.count("\n", 0, match.start()) + 1
+            errors.append(f"{rel}:{line}: private artifact location/reference field is forbidden")
+        for match in SENSITIVE_FIELD_PATTERN.finditer(page_text):
+            field = match.group(1).lower()
+            value = match.group(2).lower()
+            if not any(marker in value for marker in SAFE_REDACTION_MARKERS):
+                line = page_text.count("\n", 0, match.start()) + 1
+                errors.append(f"{rel}:{line}: populated sensitive field {field!r}")
 
     for directory in ["protocols", "architecture", "api", "devices", "evidence", "re-notes"]:
         dir_path = root / directory
@@ -252,7 +302,9 @@ def check_repository(root: Path) -> list[str]:
 
     ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     scan_suffixes = {".md", ".yml", ".yaml", ".py", ".sh", ""}
-    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+    for path in sorted(
+        p for p in root.rglob("*") if p.is_file() and not p.is_symlink()
+    ):
         if ".git" in path.parts or ".pytest_cache" in path.parts:
             continue
         if path.suffix not in scan_suffixes and path.name not in {"LICENSE", "Makefile"}:
@@ -275,18 +327,6 @@ def check_repository(root: Path) -> list[str]:
             errors.append("development/contributing.md: missing vendor_restricted quarantine marker")
         if "Restricted material must not appear in public repositories" not in text:
             errors.append("development/contributing.md: missing restricted-source quarantine rule")
-
-    forbidden_private_reference_phrases = (
-        "private artifact location",
-        "private artifact reference",
-    )
-    for path in [root / "evidence" / "README.md", root / "re-notes" / "template.md"]:
-        if not path.exists():
-            continue
-        lowered = _read(path).lower()
-        for phrase in forbidden_private_reference_phrases:
-            if phrase in lowered:
-                errors.append(f"{_rel(path, root)}: forbidden public private-artifact field {phrase!r}")
 
     return errors
 

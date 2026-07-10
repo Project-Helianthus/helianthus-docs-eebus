@@ -140,7 +140,7 @@ class PolicyValidatorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             outside = Path(tmp) / "outside.md"
-            outside.write_text("outside\n", encoding="utf-8")
+            outside.write_bytes(b"\xff")
             symlink = repo / "protocols" / "symlinked.md"
             try:
                 symlink.symlink_to(outside)
@@ -151,6 +151,7 @@ class PolicyValidatorTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("symlinks are forbidden", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
 
     def test_platform_link_requires_cross_seed_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -172,7 +173,8 @@ class PolicyValidatorTests(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             page = repo / "devices" / "vr940f.md"
             page.write_text(
-                page.read_text(encoding="utf-8") + "\n## Acceptance Criteria\n\n- duplicated\n",
+                page.read_text(encoding="utf-8")
+                + "\n## Requirements and Acceptance Criteria\n\n- duplicated\n",
                 encoding="utf-8",
             )
 
@@ -193,7 +195,29 @@ class PolicyValidatorTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("forbidden public private-artifact field", result.stderr)
+            self.assertIn("private artifact location/reference field is forbidden", result.stderr)
+
+    def test_sensitive_payload_patterns_fail_in_any_publishable_page(self) -> None:
+        cases = {
+            "private artifact": "Private artifact location: /tmp/operator/capture.json",
+            "pem": "-----BEGIN PRIVATE KEY-----",
+            "mac": "MAC address: 00:11:22:33:44:55",
+            "serial": "Serial number: DEVICE-123456",
+            "fingerprint": "Fingerprint: 0123456789abcdef0123456789abcdef01234567",
+        }
+        for name, payload in cases.items():
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    page = repo / "evidence" / "evidence-template.md"
+                    page.write_text(
+                        page.read_text(encoding="utf-8") + f"\n{payload}\n",
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
 
 
 if __name__ == "__main__":
