@@ -1,7 +1,7 @@
 ---
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:development/contributing.md"
 owner_domain: "development"
-license: "AGPL-3.0"
+license: "AGPL-3.0-only"
 ---
 
 # Contributing To Helianthus eeBUS Docs

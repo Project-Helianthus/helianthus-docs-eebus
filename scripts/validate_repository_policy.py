@@ -15,13 +15,13 @@ PUBLISHABLE_DOMAINS = {
     "devices": ("devices", "CC0-1.0"),
     "evidence": ("evidence", "CC0-1.0"),
     "re-notes": ("re-notes", "CC0-1.0"),
-    "architecture": ("architecture", "AGPL-3.0"),
-    "api": ("api", "AGPL-3.0"),
-    "development": ("development", "AGPL-3.0"),
+    "architecture": ("architecture", "AGPL-3.0-only"),
+    "api": ("api", "AGPL-3.0-only"),
+    "development": ("development", "AGPL-3.0-only"),
 }
 
 ROOT_MD = {
-    "README.md": ("repository", "AGPL-3.0"),
+    "README.md": ("repository", "AGPL-3.0-only"),
 }
 
 CONTROL_MD = {
@@ -93,7 +93,16 @@ def check_repository(root: Path) -> list[str]:
         errors.append("LICENSE: missing repository license policy")
     else:
         text = _read(license_file)
-        for required in ["CC0-1.0", "AGPL-3.0", "protocols/", "devices/", "evidence/", "re-notes/"]:
+        for required in [
+            "CC0-1.0",
+            "AGPL-3.0-only",
+            "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+            "https://www.gnu.org/licenses/agpl-3.0.txt",
+            "protocols/",
+            "devices/",
+            "evidence/",
+            "re-notes/",
+        ]:
             if required not in text:
                 errors.append(f"LICENSE: missing required licensing lane marker {required!r}")
 
@@ -110,7 +119,15 @@ def check_repository(root: Path) -> list[str]:
         errors.append(".github/ISSUE_TEMPLATE/docs_task.yml: missing standard documentation issue template")
     else:
         text = _read(issue_template)
-        for required in ["What", "Why", "Acceptance Criteria", "Ownership domain", "Provenance", "Licensing acknowledgement"]:
+        for required in [
+            "What",
+            "Why",
+            "Acceptance Criteria",
+            "Ownership domain",
+            "Provenance",
+            "Smoke test required",
+            "Licensing acknowledgement",
+        ]:
             if required not in text:
                 errors.append(f".github/ISSUE_TEMPLATE/docs_task.yml: missing {required!r}")
 

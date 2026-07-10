@@ -110,6 +110,21 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn(relative_path, result.stderr)
 
+    def test_issue_template_requires_smoke_test_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            template = repo / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
+            text = template.read_text(encoding="utf-8")
+            template.write_text(
+                text.replace("label: Smoke test required", "label: Runtime check", 1),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("Smoke test required", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,7 @@
 ---
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:README.md"
 owner_domain: "repository"
-license: "AGPL-3.0"
+license: "AGPL-3.0-only"
 ---
 
 # Helianthus eeBUS Documentation
@@ -31,8 +31,8 @@ Canonical ownership is path-based:
 - `architecture/` owns Helianthus eeBUS runtime, adapter, trust, persistence,
   lifecycle, and integration architecture. It may contain planned scaffolding,
   but noncanonical placeholders must say so explicitly.
-- `api/` owns eeBUS-specific Go API schema, reference, examples, and MCP-facing
-  API notes. It may contain planned scaffolding, but must not invent API facts.
+- `api/` owns eeBUS-specific Go public API schema, reference, and examples. It
+  may contain planned scaffolding, but must not invent API facts.
 - `devices/`, `evidence/`, and `re-notes/` remain native owners for device
   pages, redacted evidence records, and reverse-engineering notes.
 - `helianthus-docs-ebus/docs/platform/` owns only language-neutral
@@ -86,6 +86,6 @@ approval steps.
 
 Publishable eeBUS protocol facts and reverse-engineered evidence notes use the
 CC0-1.0 public-domain lane. Helianthus implementation guidance and repository
-policy use the AGPL-3.0 lane. See [LICENSE](LICENSE) and
+policy use the AGPL-3.0-only lane. See [LICENSE](LICENSE) and
 [development/contributing.md](development/contributing.md) for the full
 publication and provenance rules.

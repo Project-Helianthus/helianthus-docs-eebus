@@ -2,6 +2,11 @@ Helianthus eeBUS Documentation License Policy
 
 This repository uses two publication lanes.
 
+The SPDX identifiers and complete legal texts incorporated by reference are:
+
+- CC0-1.0: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+- AGPL-3.0-only: https://www.gnu.org/licenses/agpl-3.0.txt
+
 1. Reverse-engineered protocol knowledge
 
 Material under `protocols/`, `devices/`, `evidence/`, and `re-notes/` that
@@ -15,8 +20,8 @@ public, mirrorable, reusable, and redistributable by the community.
 2. Helianthus implementation documentation
 
 Helianthus-specific architecture, API, development, process, repository policy,
-and runtime integration documentation is published under AGPL-3.0 unless a more
-specific file-level notice says otherwise.
+and runtime integration documentation is published under AGPL-3.0-only unless
+a more specific file-level notice says otherwise.
 
 This includes `README.md`, `development/`, `architecture/`, `api/`, repository
 control files, CI scripts, and validation tooling.

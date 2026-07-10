@@ -1,6 +1,6 @@
 name: Documentation task
 description: Planned documentation work with ownership, provenance, and proof.
-labels: ["docs", "task"]
+labels: ["documentation"]
 body:
   - type: textarea
     id: what
@@ -44,6 +44,7 @@ body:
         - [ ] ...
         - [ ] Canonical ownership is declared
         - [ ] Provenance is publishable or explicitly blocked
+        - [ ] Unit or deterministic checklist validation covers the change
         - [ ] CI green
     validations:
       required: true
@@ -61,6 +62,17 @@ body:
       label: Dependencies
       description: Link blocking issues or plans.
       placeholder: "#123"
+
+  - type: dropdown
+    id: smoke_test
+    attributes:
+      label: Smoke test required
+      description: State whether acceptance requires a runtime or hardware smoke test.
+      options:
+        - "NO"
+        - "YES"
+    validations:
+      required: true
 
   - type: checkboxes
     id: licensing_ack
