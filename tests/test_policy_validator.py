@@ -541,6 +541,22 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
 
+    def test_licensing_acknowledgement_cannot_be_inverted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            template = repo / ".github" / "ISSUE_TEMPLATE" / "docs_task.yml"
+            text = template.read_text(encoding="utf-8")
+            start = "I have read the repository license policy and I accept"
+            template.write_text(
+                text.replace(start, "I reject the repository license policy and do not accept", 1),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("licensing acknowledgement text must match policy", result.stderr)
+
     def test_premature_execution_completion_claim_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -567,6 +583,17 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("binary or non-UTF-8 publishable artifact is forbidden", result.stderr)
 
+    def test_nul_bearing_utf8_publishable_artifact_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "evidence" / "capture.dat"
+            artifact.write_bytes(b"valid utf-8\x00payload\n")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("control bytes are forbidden", result.stderr)
+
     def test_required_owner_domain_directory_must_exist(self) -> None:
         for directory in ("architecture", "api"):
             with self.subTest(directory=directory):
@@ -578,6 +605,41 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("path-domain owner must be a directory", result.stderr)
+
+    def test_required_canonical_landing_page_cannot_be_substituted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            landing = repo / "api" / "README.md"
+            replacement = repo / "api" / "placeholder.md"
+            replacement.write_text(
+                landing.read_text(encoding="utf-8").replace(
+                    "api/README.md",
+                    "api/placeholder.md",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            landing.unlink()
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("required canonical landing page is missing", result.stderr)
+
+    def test_premature_consumer_availability_claim_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "ship-spine-overview.md"
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "\nGraphQL exposure, Home Assistant entities, and command routing are available now.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("premature gateway or consumer availability claim", result.stderr)
 
 
 if __name__ == "__main__":

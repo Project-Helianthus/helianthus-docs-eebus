@@ -26,6 +26,20 @@ ROOT_MD = {
     "README.md": ("repository", "AGPL-3.0-only"),
 }
 
+REQUIRED_DOMAIN_PAGES = {
+    "protocols": "protocols/ship-spine-overview.md",
+    "architecture": "architecture/README.md",
+    "api": "api/README.md",
+    "devices": "devices/vr940f.md",
+    "evidence": "evidence/README.md",
+    "re-notes": "re-notes/template.md",
+}
+
+LICENSE_ACK_LABEL = (
+    "I have read the repository license policy and I accept the Helianthus "
+    "licensing model for any contribution or reusable material I submit here."
+)
+
 CONTROL_MD = {
     "AGENTS.md",
 }
@@ -92,6 +106,12 @@ PREMATURE_COMPLETION_PATTERN = re.compile(
     r"(?:complete|completed|merged|done)\b|"
     r"(?:absence gate|helianthus-eebusreg/docs)\s+(?:is|was|has been)\s+"
     r"(?:installed|absent|deleted|removed))",
+    re.IGNORECASE,
+)
+PREMATURE_CONSUMER_PATTERN = re.compile(
+    r"(?:GraphQL exposure|Home Assistant entities|command routing|gateway import)"
+    r"[^\n]{0,120}\b(?:is|are|becomes?)\s+"
+    r"(?:available|active|enabled|supported|shipped|ready)(?:\s+now)?\b",
     re.IGNORECASE,
 )
 
@@ -330,6 +350,10 @@ def check_repository(root: Path) -> list[str]:
             errors.append(
                 ".github/ISSUE_TEMPLATE/docs_task.yml: licensing acknowledgement must be required"
             )
+        if licensing_options != [{"label": LICENSE_ACK_LABEL, "required": True}]:
+            errors.append(
+                ".github/ISSUE_TEMPLATE/docs_task.yml: licensing acknowledgement text must match policy"
+            )
 
     workflow = root / ".github" / "workflows" / "docs-ci.yml"
     if not workflow.exists():
@@ -506,6 +530,8 @@ def check_repository(root: Path) -> list[str]:
 
         if PREMATURE_COMPLETION_PATTERN.search(page_text):
             errors.append(f"{rel}: premature MSP-DOCS-E2/CLEAN completion claim")
+        if PREMATURE_CONSUMER_PATTERN.search(page_text):
+            errors.append(f"{rel}: premature gateway or consumer availability claim")
 
         if rel in ROOT_MD:
             errors.extend(_privacy_errors(page_text, rel))
@@ -523,14 +549,21 @@ def check_repository(root: Path) -> list[str]:
             except UnicodeDecodeError:
                 errors.append(f"{rel}: binary or non-UTF-8 publishable artifact is forbidden")
                 continue
+            if any(ord(char) < 32 and char not in "\n\r\t" for char in text):
+                errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
             errors.extend(_privacy_errors(text, rel))
+            if PREMATURE_CONSUMER_PATTERN.search(text):
+                errors.append(f"{rel}: premature gateway or consumer availability claim")
 
-    for directory in ["protocols", "architecture", "api", "devices", "evidence", "re-notes"]:
+    for directory, required_page in REQUIRED_DOMAIN_PAGES.items():
         dir_path = root / directory
         if not dir_path.is_dir() or dir_path.is_symlink():
             errors.append(f"{directory}: path-domain owner must be a directory")
         elif not any(path.is_file() and not path.is_symlink() for path in dir_path.rglob("*.md")):
             errors.append(f"{directory}: path-domain owner must contain a canonical Markdown page")
+        page_path = root / required_page
+        if not page_path.is_file() or page_path.is_symlink():
+            errors.append(f"{required_page}: required canonical landing page is missing")
 
     ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     for path in sorted(
