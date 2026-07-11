@@ -35,6 +35,7 @@ SCHEMA = REPO / "api" / "schema" / "helianthus.eebus.api-surface.v1.schema.json"
 REFERENCE = REPO / "api" / "api-surface-v1.md"
 POSITIVE_FIXTURES = REPO / "api" / "fixtures" / "v1" / "positive"
 NEGATIVE_FIXTURES = REPO / "api" / "fixtures" / "v1" / "negative"
+GO_ALIAS_DEPENDENCY_PROBE = REPO / "tests" / "go_alias_dependency_probe.go"
 
 SCHEMA_ID = "helianthus.eebus.api-surface.v1"
 SCHEMA_URI = "urn:helianthus:eebus:api-surface:v1"
@@ -549,6 +550,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "check all type arguments first",
             "do not inspect the dependency's underlying type or method set",
             "a `*types.alias` is never a leaf boundary",
+            "a package-less `*types.alias` whose object has `alias.obj().pkg() == nil` and `alias.obj().parent() == types.universe`",
+            "is not package-classified and is not subjected to the non-current exported-object check",
+            "its type arguments and `alias.rhs()` are still traversed",
+            "other predeclared aliases whose objects belong to `types.universe`",
+            "does not exempt an arbitrary package-less alias or object",
+            "a non-nil package whose path is empty",
             "aliases always expand",
             "cycles do not weaken either rule",
             "implementation-dependency-type.json",
@@ -557,6 +564,25 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         for phrase in phrases:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, normalized)
+
+        go = shutil.which("go")
+        self.assertIsNotNone(go, "Go is required for the producer alias probe")
+        probe = subprocess.run(
+            [go, "run", str(GO_ALIAS_DEPENDENCY_PROBE)],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(
+            probe.stdout.splitlines(),
+            [
+                "any: PASS universe=true rhs=*types.Interface rhs_walked=true",
+                "detached: REJECT non-universe package-less alias",
+                "empty-path: REJECT invalid empty package path",
+            ],
+        )
 
     def test_reference_uses_publication_neutral_initial_v1_rationale(self) -> None:
         normalized = " ".join(REFERENCE.read_text(encoding="utf-8").lower().split())

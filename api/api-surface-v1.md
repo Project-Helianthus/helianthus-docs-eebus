@@ -165,6 +165,18 @@ path. For every rendered non-current package the producer emits the resulting
 allowed class as `imports[].dependency_kind`; implementation-class imports and
 types are rejected rather than emitted.
 
+There is one exact pre-classification exception for aliases owned by the
+predeclared universe. A package-less `*types.Alias` whose object has
+`Alias.Obj().Pkg() == nil` and `Alias.Obj().Parent() == types.Universe` is not
+package-classified and is not subjected to the non-current exported-object
+check. Its type arguments and `Alias.Rhs()` are still traversed under the normal
+alias rule. In Go 1.24 mode this admits the predeclared alias `any` by walking
+its right-hand side. If the selected toolchain exposes other predeclared
+aliases whose objects belong to `types.Universe`, handle them identically. This
+does not exempt an arbitrary package-less alias or object whose parent is not
+`types.Universe`, nor an object with a non-nil package whose path is empty;
+those cases remain invalid and reject the declaration.
+
 Apply the following `go/types` walk independently to every selected constant or
 variable type; every defined-type underlying type or alias right-hand side;
 every declaration type-parameter constraint; and every selected function or
@@ -195,10 +207,13 @@ unsupported type node rejects the declaration.
   At that approved exported named boundary, do not inspect the dependency's
   underlying type or method set. An unexported dependency name or an
   implementation-class package rejects immediately.
-- A `*types.Alias` is never a leaf boundary. Check its type arguments, classify
-  and require its object to be exported when it is non-current, and then always
-  check `Alias.Rhs()`. Thus an approved alias cannot conceal an enbility,
-  internal, unapproved, unexported, or otherwise implementation type.
+- A `*types.Alias` is never a leaf boundary. Check its type arguments. Apply the
+  exact `types.Universe` exception above when its object is package-less and
+  universe-owned; otherwise classify its package and require its object to be
+  exported when it is non-current. Always check `Alias.Rhs()`, including for a
+  universe-owned alias. Thus neither an approved alias nor a predeclared alias
+  can conceal an enbility, internal, unapproved, unexported, or otherwise
+  implementation type.
 
 Checking type arguments before stopping at an approved named boundary prevents
 an allowed generic contract such as `contract.Box[T]` from carrying an
@@ -628,6 +643,8 @@ negative fixture:
 | `Named("github.com/enbility/eebus-go/spine/model","X")`, even if either approval set incorrectly lists the path | REJECT because the hard enbility denial overrides approval |
 | `Named("example.invalid/contract","Box",[Named("github.com/enbility/eebus-go/spine/model","X")])` | REJECT while checking the type argument before the otherwise approved named boundary |
 | current-package `Alias("Facade", Named("github.com/enbility/eebus-go/spine/model","X"))` or an approved dependency alias with that right-hand side | REJECT because aliases always expand |
+| Go 1.24 `any`, represented as a package-less `*types.Alias` whose object belongs to `types.Universe` | PASS without package classification or a non-current export check, but only after traversing `Alias.Rhs()`; any other universe-owned predeclared alias is handled the same way |
+| a synthetic package-less alias whose object is not owned by `types.Universe`, or an alias whose object's non-nil package has an empty path | REJECT; neither invalid object receives the universe exception |
 | `struct{ F []map[string]chan<- Named("unapproved.invalid/impl","X") }` | REJECT through field, slice, map, and channel traversal |
 | `interface{ M(func(Named("unapproved.invalid/impl","X")) error) }` or a selected method signature with that type in its receiver, constraint, parameter, or result | REJECT through interface, method, signature, and receiver traversal |
 | a current-package `Node` whose underlying struct contains `*Node` and an approved exported contract leaf | PASS; the identity-keyed revisit ends the cycle after all first-visit checks |
