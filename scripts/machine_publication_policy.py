@@ -28,7 +28,10 @@ PRIVATE_IPV4_NETWORKS = (
 )
 
 PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
+    r"(?:/Users/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
+    r"/home/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
+    r"/root(?=$|[/\s\"'<>.,;:)\]}])(?:/[^\s\"'<>]*)?|"
+    r"/tmp/[^\s]+|/var/folders/[^\s]+|"
     r"/Volumes(?:/[^\s]*)?|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
 )

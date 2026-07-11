@@ -348,7 +348,9 @@ SAFE_RETAINED_VALUE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/root(?:/[^\s]*)?|/tmp/[^\s]+|"
+    r"(?:/Users/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
+    r"/home/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
+    r"/root(?=$|[/\s\"'<>.,;:)\]}])(?:/[^\s\"'<>]*)?|/tmp/[^\s]+|"
     r"/var/folders/[^\s]+|"
     r"/Volumes(?:/[^\s]*)?|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
@@ -756,6 +758,15 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
         "shipped",
         "landed",
     }
+    lifecycle_fields = {
+        "complete",
+        "completion",
+        "lifecycle",
+        "phase",
+        "stage",
+        "state",
+        "status",
+    }
 
     def normalized(value: str) -> str:
         return re.sub(r"[^a-z0-9]+", "-", value.strip().casefold()).strip("-")
@@ -768,7 +779,7 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
     completion_entries = [
         (key, value)
         for key, value in entries
-        if any(part in {"status", "complete", "completion"} for part in key.split("-"))
+        if any(part in lifecycle_fields for part in key.split("-"))
     ]
     terminal_present = any(
         bool(set(value.split("-")) & terminal_states)
@@ -820,6 +831,10 @@ class _HTMLDestinationParser(HTMLParser):
         self.visible_text: list[str] = []
         self._hidden_depth = 0
 
+    @property
+    def hidden(self) -> bool:
+        return self._hidden_depth > 0
+
     def handle_starttag(
         self,
         tag: str,
@@ -828,7 +843,7 @@ class _HTMLDestinationParser(HTMLParser):
         normalized_tag = tag.casefold()
         if normalized_tag in {"script", "style", "template"}:
             self._hidden_depth += 1
-        if normalized_tag != "a":
+        if normalized_tag != "a" or self._hidden_depth:
             return
         for name, value in attrs:
             if name.casefold() == "href" and value is not None:
@@ -855,13 +870,19 @@ def _parse_html_fragment(text: str) -> _HTMLDestinationParser:
 
 def _inline_visible_text(children: list[Any]) -> str:
     visible: list[str] = []
+    html_parser = _HTMLDestinationParser()
     for child in children:
-        if child.type == "text":
+        if child.type == "text" and not html_parser.hidden:
             visible.append(child.content)
-        elif child.type in {"softbreak", "hardbreak"}:
+        elif child.type in {"softbreak", "hardbreak"} and not html_parser.hidden:
             visible.append("\n")
         elif child.type == "html_inline":
-            visible.extend(_parse_html_fragment(child.content).visible_text)
+            before = len(html_parser.visible_text)
+            try:
+                html_parser.feed(child.content)
+            except (AssertionError, ValueError):
+                pass
+            visible.extend(html_parser.visible_text[before:])
         # CommonMark image alt text and code spans are not visible policy prose.
     return "".join(visible)
 
@@ -884,15 +905,19 @@ def _visible_link_destinations(text: str) -> list[str]:
     destinations: list[str] = []
     for token in MARKDOWN.parse(text):
         if token.type == "inline":
+            html_parser = _HTMLDestinationParser()
             for child in token.children or []:
-                if child.type == "link_open":
+                if child.type == "link_open" and not html_parser.hidden:
                     destination = child.attrGet("href")
                     if destination is not None:
                         destinations.append(destination)
                 elif child.type == "html_inline":
-                    destinations.extend(
-                        _parse_html_fragment(child.content).destinations
-                    )
+                    before = len(html_parser.destinations)
+                    try:
+                        html_parser.feed(child.content)
+                    except (AssertionError, ValueError):
+                        pass
+                    destinations.extend(html_parser.destinations[before:])
         elif token.type == "html_block":
             destinations.extend(_parse_html_fragment(token.content).destinations)
     return destinations
@@ -1137,9 +1162,9 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
 def _stable_artifact_references(text: str, rel: str) -> tuple[list[str], list[str]]:
     invalid = [f"{rel}: invalid stable publication artifact"]
     if rel == STABLE_OUTPUT_ARTIFACTS["search"]:
-        try:
-            document = json.loads(text)
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        result = decode_machine_json(text.encode("utf-8"))
+        document = result.document
+        if result.status != COMPLETE or result.duplicate_keys:
             return [], invalid
         if not isinstance(document, (dict, list)):
             return [], invalid

@@ -91,6 +91,29 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("invalid stable publication artifact", result.stderr)
 
+    def test_search_artifact_requires_strict_json_at_every_object_depth(self) -> None:
+        payloads = {
+            "NaN": '{"score":NaN}\n',
+            "positive infinity": '{"score":Infinity}\n',
+            "negative infinity": '{"score":-Infinity}\n',
+            "duplicate root key": '{"page":"first","page":"second"}\n',
+            "duplicate nested key": (
+                '{"pages":[{"path":"first","path":"second"}]}\n'
+            ),
+        }
+        for name, payload in payloads.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "api/search-index.json").write_text(
+                    payload,
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("invalid stable publication artifact", result.stderr)
+
     def test_candidate_location_overrides_metadata_escape(self) -> None:
         for relative_path in (CANDIDATE_PATH, "api/_candidate/nested/runtime-reference.md"):
             with self.subTest(
@@ -559,6 +582,30 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_template_anchors_do_not_supply_platform_link_evidence(self) -> None:
+        hidden = f'<template><a href="{PLATFORM_URL}">platform</a></template>'
+        self.assertEqual(_visible_link_destinations(hidden), [])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            page.write_text(
+                page.read_text(encoding="utf-8").replace(
+                    f"[shared registry boundary]({PLATFORM_URL})",
+                    hidden,
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "cross-seed metadata requires a canonical platform link",
+                result.stderr,
+            )
+
     def test_hidden_and_non_link_destinations_do_not_supply_cross_seed_evidence(self) -> None:
         hidden_forms = {
             "terminated comment": f"<!-- [hidden]({PLATFORM_URL}) -->",
@@ -908,6 +955,47 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("private or identifying filesystem path found", result.stderr)
 
+    def test_bare_and_descendant_home_paths_are_rejected(self) -> None:
+        paths = (
+            "/Users/operator",
+            "/Users/operator/capture.json",
+            "/home/operator",
+            "/home/operator/capture.json",
+            "/root",
+            "/root/capture.json",
+        )
+        for private_path in paths:
+            with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "evidence/private-path.txt").write_text(
+                    f"Capture: {private_path}\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private or identifying filesystem path found", result.stderr)
+
+    def test_encoded_home_paths_are_decoded_by_the_artifact_pipeline(self) -> None:
+        payloads = (
+            '{"path":"%252FUsers%252Fencoded-user"}\n',
+            r'{"path":"\u002fhome\u002fescaped-user\u002fcapture.json"}' + "\n",
+            '{"path":"&#47;root"}\n',
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "api/search-index.json").write_text(
+                    payload,
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private or identifying filesystem path found", result.stderr)
+
     def test_split_clean_milestone_metadata_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -950,6 +1038,31 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             with self.subTest(metadata=metadata), tempfile.TemporaryDirectory() as tmp:
                 repo = copy_repo(Path(tmp))
                 replace_front_matter(repo / "architecture/README.md", **metadata)
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2",
+                    result.stderr,
+                )
+
+    def test_clean_terminal_state_and_lifecycle_fields_are_rejected(self) -> None:
+        cases = (
+            {"state": "  CoMpLeTe  "},
+            {"lifecycle_state": "ready"},
+            {"delivery_phase": "landed"},
+            {"release_stage": "published"},
+        )
+        for lifecycle in cases:
+            with self.subTest(lifecycle=lifecycle), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                replace_front_matter(
+                    repo / "architecture/README.md",
+                    milestone="MSP-DOCS-CLEAN",
+                    publication_status="draft",
+                    **lifecycle,
+                )
 
                 result = run_validator(repo)
 

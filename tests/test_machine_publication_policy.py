@@ -213,6 +213,21 @@ class MachinePublicationPolicyTests(unittest.TestCase):
             {"private path"},
         )
 
+    def test_bare_and_json_escaped_home_paths_are_machine_private(self) -> None:
+        payloads = (
+            b'{"note":"/Users/operator"}',
+            b'{"note":"/home/operator"}',
+            b'{"note":"/root"}',
+            br'{"note":"\u002fUsers\u002foperator\u002fcapture.json"}',
+            br'{"note":"\u002fhome\u002foperator\u002fcapture.json"}',
+            br'{"note":"\u002froot\u002fcapture.json"}',
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                result = decode_machine_json(payload)
+                self.assertEqual(result.status, COMPLETE)
+                self.assertIn("private path", machine_publication_diagnostics(result))
+
     def test_leading_zero_ipv4_spellings_are_decimal_and_deterministic(self) -> None:
         private = ".".join(("010", "000", "000", "001"))
         public = ".".join(("008", "008", "008", "008"))
