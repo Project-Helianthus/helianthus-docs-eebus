@@ -156,6 +156,10 @@ REFERENCE_TOKEN_PATTERN = re.compile(
 JSON_STRING_PATTERN = re.compile(
     r'"(?:\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4})|[^"\\])*"'
 )
+UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
+    r"\\u([dD][89aAbB][0-9A-Fa-f]{2})\\u([dD][c-fC-F][0-9A-Fa-f]{2})"
+)
+UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
 REVIEWED_ACTIVE_ARCHITECTURE = {
     # The immutable RED fixture is materialized with the required platform pin.
     "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
@@ -493,11 +497,31 @@ def _fully_unquote(value: str) -> str:
         decoded = next_value
 
 
+def _decode_raw_unicode_escapes(value: str) -> str:
+    """Decode only JSON-style Unicode escapes, leaving other escapes literal."""
+
+    def decode_pair(match: re.Match[str]) -> str:
+        high = int(match.group(1), 16)
+        low = int(match.group(2), 16)
+        return chr(0x10000 + ((high - 0xD800) << 10) + low - 0xDC00)
+
+    def decode_bmp(match: re.Match[str]) -> str:
+        codepoint = int(match.group(1), 16)
+        if 0xD800 <= codepoint <= 0xDFFF:
+            return match.group(0)
+        return chr(codepoint)
+
+    paired = UNICODE_SURROGATE_PAIR_PATTERN.sub(decode_pair, value)
+    return UNICODE_ESCAPE_PATTERN.sub(decode_bmp, paired)
+
+
 def _fully_decode_reference(value: str) -> str:
-    """Normalize nested HTML and percent encodings to a fixed point."""
+    """Normalize nested reference encodings to a fixed point."""
     decoded = value
     while True:
-        next_value = _fully_unquote(html.unescape(decoded))
+        next_value = _decode_raw_unicode_escapes(
+            _fully_unquote(html.unescape(decoded))
+        )
         if next_value == decoded:
             return decoded
         decoded = next_value
@@ -526,15 +550,16 @@ def _reference_text_variants(text: str) -> set[str]:
 def _github_repository_relative_path(value: str) -> str | None:
     """Map recognized URLs for this repository to their checkout-relative path."""
     decoded = _fully_decode_reference(value).replace("\\", "/")
+    host_root = decoded.startswith("/") and not decoded.startswith("//")
     parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
     try:
         parsed = urlsplit(parsed_value)
     except ValueError:
         return None
     hostname = parsed.hostname
-    if hostname is None:
+    if hostname is None and not host_root:
         return None
-    host = hostname.rstrip(".").casefold()
+    host = hostname.rstrip(".").casefold() if hostname is not None else "github.com"
     path = posixpath.normpath(_fully_decode_reference(parsed.path))
     segments = [segment for segment in path.split("/") if segment]
     repo_owner, repo_name = REPO_ID.split("/", 1)
@@ -746,6 +771,7 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
     repo_owner, repo_name = PLATFORM_REPO.split("/", 1)
     for destination in _visible_link_destinations(text):
         decoded = _fully_decode_reference(destination).replace("\\", "/")
+        host_root = decoded.startswith("/") and not decoded.startswith("//")
         parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
         try:
             parsed = urlsplit(parsed_value)
@@ -753,11 +779,15 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
             port = parsed.port
         except ValueError:
             continue
-        if hostname is None or hostname.rstrip(".").casefold() not in {
-            "github.com",
-            "www.github.com",
-            "raw.githubusercontent.com",
-        }:
+        if not host_root and (
+            hostname is None
+            or hostname.rstrip(".").casefold()
+            not in {
+                "github.com",
+                "www.github.com",
+                "raw.githubusercontent.com",
+            }
+        ):
             continue
 
         normalized_path = posixpath.normpath(parsed.path)
@@ -769,7 +799,10 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
         ].casefold() != repo_name.casefold():
             continue
 
-        raw_host = hostname.rstrip(".").casefold() == "raw.githubusercontent.com"
+        raw_host = (
+            hostname is not None
+            and hostname.rstrip(".").casefold() == "raw.githubusercontent.com"
+        )
         ref_start = 2 if raw_host else 3
         platform_index = next(
             (

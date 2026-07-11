@@ -12,6 +12,11 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
+sys.path.insert(0, str(REPO / "scripts"))
+
+from validate_repository_policy import _fully_decode_reference
+
+
 PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
 PLATFORM_URL = (
@@ -216,6 +221,59 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+
+    def test_host_root_github_candidate_urls_cannot_leak(self) -> None:
+        channels = {
+            "stable_navigation": "README.md",
+            "search": "api/search-index.json",
+            "sitemap": "api/sitemap.xml",
+            "versioned_bundle": "api/versioned-bundle.txt",
+            "release_bundle": "api/release-bundle.txt",
+        }
+        payload = (
+            "/Project-Helianthus/helianthus-docs-eebus/"
+            "blob/main/api/_candidate/runtime-reference.md"
+        )
+        for channel, relative_path in channels.items():
+            with self.subTest(channel=channel), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
+                artifact.write_text(prefix + "\n" + payload + "\n", encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+
+    def test_raw_unicode_escaped_candidate_paths_cannot_leak(self) -> None:
+        escaped = r"api\u002f_candidate\u002fruntime-reference.md"
+        channels = {
+            "stable_navigation": ("README.md", f"[Candidate]({escaped})"),
+            "search": ("api/search-index.json", '{"candidate":"' + escaped + '"}'),
+            "sitemap": ("api/sitemap.xml", f"<loc>{escaped}</loc>"),
+            "versioned_bundle": ("api/versioned-bundle.txt", escaped),
+            "release_bundle": ("api/release-bundle.txt", escaped),
+        }
+        for channel, (relative_path, payload) in channels.items():
+            with self.subTest(channel=channel), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
+                artifact.write_text(prefix + "\n" + payload + "\n", encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+
+    def test_reference_normalization_does_not_interpret_arbitrary_escapes(self) -> None:
+        for value in (
+            r"api\x2f_candidate\x2fruntime-reference.md",
+            r"api\n_candidate\truntime-reference.md",
+        ):
+            with self.subTest(value=value):
+                self.assertEqual(_fully_decode_reference(value), value)
 
     def test_supported_claim_requires_publishable_evidence_metadata(self) -> None:
         mutations = {
@@ -437,6 +495,29 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             page.write_text(
                 page.read_text(encoding="utf-8")
                 + f'\n<a href="{mutable}">mutable duplicate</a>\n',
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "platform URL must use canonical immutable commit/path form",
+                result.stderr,
+            )
+            self.assertIn("cross-seed commit, path, and snapshot must match", result.stderr)
+
+    def test_host_root_mutable_platform_duplicate_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            mutable = (
+                "/Project-Helianthus/helianthus-docs-ebus/blob/main/"
+                "docs/platform/shared-registry-boundary.md"
+            )
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + f"\n[mutable duplicate]({mutable})\n",
                 encoding="utf-8",
             )
 
