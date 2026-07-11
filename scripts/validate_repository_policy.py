@@ -7,7 +7,7 @@ import ipaddress
 import re
 import sys
 import unicodedata
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -76,7 +76,6 @@ REQUIRED_DOMAIN_PAGES = {
 SCAFFOLD_PAGES = {
     "README.md": "ownership-policy",
     "protocols/ship-spine-overview.md": "ownership-landing",
-    "architecture/README.md": "ownership-landing",
     "api/README.md": "ownership-landing",
     "api/api-surface-v1.md": "api-contract",
     "devices/vr940f.md": "planned-target",
@@ -89,7 +88,6 @@ SCAFFOLD_PAGES = {
 SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "6e7e2e079fca9e559f50555b29a6e7f44c4e7305316e5f4bb54498943d3b9a8d",
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
-    "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad2109fcbd779c87c0281a37b9f44cbeca",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
@@ -123,6 +121,37 @@ PLATFORM_LINK_PATTERN = re.compile(
     r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
     r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)"
     r"(?=$|[\s<>()\[\]{},;:!?'\"#]|\.(?=$|[\s)\]}>]))"
+)
+PLATFORM_SNAPSHOT_REF = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
+ACTIVE_PLATFORM_TARGETS = {
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/cross-runtime-envelope.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/eebus-ha-network-proof.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/eebus-interop-smoke.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/eebus-raw-first-contract.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/hash-auth-binding.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/ownership-and-doc-gates.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/ownership-validation.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/promotion-and-consumer-contract.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/raw-correlation-and-leaf-promotion.md",
+    "Project-Helianthus/helianthus-docs-ebus:docs/platform/shared-registry-boundary.md",
+}
+CANDIDATE_API_ROOT = PurePosixPath("api/_candidate")
+CANDIDATE_API_CHANNELS = (
+    "stable_navigation",
+    "search",
+    "sitemap",
+    "versioned_bundle",
+    "release_bundle",
+)
+STABLE_OUTPUT_ARTIFACTS = {
+    "search": "api/search-index.json",
+    "sitemap": "api/sitemap.xml",
+    "versioned_bundle": "api/versioned-bundle.txt",
+    "release_bundle": "api/release-bundle.txt",
+}
+SUMMARY_NORMATIVE_PATTERN = re.compile(
+    r"\b(?:must|shall|is required to|are required to)\b",
+    re.IGNORECASE | re.MULTILINE,
 )
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
@@ -282,6 +311,78 @@ def _front_matter(text: str) -> tuple[dict[str, str] | None, str | None]:
     if not all(isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()):
         return None, "YAML front matter keys and values must be strings"
     return parsed, None
+
+
+def _markdown_body(text: str) -> str:
+    end = text.find("\n---\n", 4)
+    return text[end + 5 :] if end >= 0 else text
+
+
+def _is_candidate_api(metadata: dict[str, str]) -> bool:
+    return metadata.get("owner_domain") == "api" and (
+        metadata.get("publication_status") == "candidate"
+        or metadata.get("candidate_output") == "true"
+    )
+
+
+def _candidate_api_errors(rel: str, metadata: dict[str, str]) -> list[str]:
+    if not _is_candidate_api(metadata):
+        return []
+
+    errors: list[str] = []
+    if metadata.get("candidate_output") != "true":
+        errors.append(f"{rel}: candidate API must declare candidate_output true")
+    for channel in CANDIDATE_API_CHANNELS:
+        if metadata.get(channel) != "false":
+            errors.append(f"{rel}: candidate API is exposed through {channel}")
+
+    declared = metadata.get("candidate_output_path", "")
+    candidate_path = PurePosixPath(declared)
+    rel_path = PurePosixPath(rel)
+    portable = (
+        bool(declared)
+        and "\\" not in declared
+        and not candidate_path.is_absolute()
+        and ".." not in candidate_path.parts
+        and candidate_path == rel_path
+        and CANDIDATE_API_ROOT in candidate_path.parents
+    )
+    if not portable:
+        errors.append(
+            f"{rel}: candidate API path must be portable and contained under api/_candidate"
+        )
+    return errors
+
+
+def _active_architecture_errors(
+    rel: str,
+    metadata: dict[str, str],
+) -> list[str]:
+    if metadata.get("owner_domain") != "architecture" or metadata.get(
+        "publication_status"
+    ) != "active":
+        return []
+
+    errors: list[str] = []
+    if (
+        metadata.get("claim_status") != "evidence-backed"
+        or metadata.get("source_class") not in EVIDENCE_SOURCE_CLASSES
+        or metadata.get("hypothesis_status") != "publishable"
+    ):
+        errors.append(f"{rel}: active architecture claim lacks publishable support")
+
+    if any(
+        "restricted" in key.lower() or "quarantined" in key.lower()
+        for key in metadata
+    ):
+        errors.append(f"{rel}: restricted-source provenance metadata is forbidden")
+
+    if "MSP-DOCS-CLEAN" in metadata.get("milestone_completion", ""):
+        errors.append(f"{rel}: MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2")
+    for channel in CANDIDATE_API_CHANNELS:
+        if metadata.get(channel) != "true":
+            errors.append(f"{rel}: active architecture is excluded from {channel}")
+    return errors
 
 
 def _is_exempt_markdown(path: Path, root: Path) -> bool:
@@ -452,6 +553,8 @@ def _provenance_errors(
 def check_repository(root: Path) -> list[str]:
     errors: list[str] = []
     root = root.resolve()
+    candidate_api_paths: set[str] = set()
+    stable_navigation_pages: dict[str, str] = {}
 
     symlinks: set[Path] = set()
     for path in sorted(root.rglob("*")):
@@ -765,6 +868,12 @@ def check_repository(root: Path) -> list[str]:
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
         errors.extend(_provenance_errors(root, rel, page_text, metadata))
+        errors.extend(_active_architecture_errors(rel, metadata))
+        errors.extend(_candidate_api_errors(rel, metadata))
+        if _is_candidate_api(metadata):
+            candidate_api_paths.add(rel)
+        else:
+            stable_navigation_pages[rel] = page_text
 
         targets = {
             f"Project-Helianthus/helianthus-docs-ebus:{target}"
@@ -782,6 +891,11 @@ def check_repository(root: Path) -> list[str]:
                 )
             if declared_mode != "summary-only":
                 errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
+            if declared_target not in ACTIVE_PLATFORM_TARGETS:
+                errors.append(
+                    f"{rel}: cross-seed target is not an active canonical platform page "
+                    f"at {PLATFORM_SNAPSHOT_REF}"
+                )
             atx_headings = {
                 match.group(1)
                 for match in re.finditer(r"^#+\s+(.+?)\s*$", page_text, re.MULTILINE)
@@ -805,6 +919,10 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(
                     f"{rel}: summary-only cross-seed contains platform-owned headings {duplicated}"
                 )
+            if SUMMARY_NORMATIVE_PATTERN.search(_markdown_body(page_text)):
+                errors.append(
+                    f"{rel}: summary-only cross-seed contains normative requirements"
+                )
         elif declared_target is not None or declared_mode is not None:
             errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
@@ -816,6 +934,20 @@ def check_repository(root: Path) -> list[str]:
 
         if rel in ROOT_MD:
             errors.extend(_privacy_errors(page_text, rel))
+
+    for candidate_path in sorted(candidate_api_paths):
+        for rel, text in stable_navigation_pages.items():
+            if candidate_path in text:
+                errors.append(f"{rel}: candidate API leaked into stable_navigation")
+        for channel, artifact_rel in STABLE_OUTPUT_ARTIFACTS.items():
+            artifact = root / artifact_rel
+            if artifact.is_file() and not artifact.is_symlink():
+                try:
+                    artifact_text = _read(artifact)
+                except UnicodeDecodeError:
+                    continue
+                if candidate_path in artifact_text:
+                    errors.append(f"{artifact_rel}: candidate API leaked into {channel}")
 
     for top in PUBLISHABLE_DOMAINS:
         domain_root = root / top

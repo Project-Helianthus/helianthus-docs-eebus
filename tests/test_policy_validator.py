@@ -656,7 +656,6 @@ class PolicyValidatorTests(unittest.TestCase):
         scaffold_pages = (
             "README.md",
             "protocols/ship-spine-overview.md",
-            "architecture/README.md",
             "api/README.md",
             "devices/vr940f.md",
             "evidence/README.md",
