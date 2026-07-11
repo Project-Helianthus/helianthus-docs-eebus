@@ -4,11 +4,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import ipaddress
+import posixpath
 import re
 import sys
 import unicodedata
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import yaml
 
@@ -90,7 +92,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad2109fcbd779c87c0281a37b9f44cbeca",
-    "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
+    "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c94bbbf58050685c49d3db5d9a286d211",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
     "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0fd8724ef3770dcb9d0aac485ef23f8f32",
@@ -119,22 +121,16 @@ CONTROL_MD = {
 
 PLATFORM_LINK_PATTERN = re.compile(
     r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
-    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)"
+    r"blob/([A-Za-z0-9._-]+)/(docs/platform/[A-Za-z0-9._/-]+\.md)"
     r"(?=$|[\s<>()\[\]{},;:!?'\"#]|\.(?=$|[\s)\]}>]))"
 )
 PLATFORM_SNAPSHOT_REF = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
-ACTIVE_PLATFORM_TARGETS = {
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/cross-runtime-envelope.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/eebus-ha-network-proof.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/eebus-interop-smoke.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/eebus-raw-first-contract.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/hash-auth-binding.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/ownership-and-doc-gates.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/ownership-validation.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/promotion-and-consumer-contract.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/raw-correlation-and-leaf-promotion.md",
-    "Project-Helianthus/helianthus-docs-ebus:docs/platform/shared-registry-boundary.md",
-}
+PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
+PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
+PLATFORM_SNAPSHOT_SHA256 = "f10986f7da0b2b1fa60e69280c45cfe1cd1f4ce422d998223c7ec4a87f40c07e"
+PLATFORM_SNAPSHOT_PATTERN = re.compile(
+    rf"{re.escape(PLATFORM_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
+)
 CANDIDATE_API_ROOT = PurePosixPath("api/_candidate")
 CANDIDATE_API_CHANNELS = (
     "stable_navigation",
@@ -150,9 +146,65 @@ STABLE_OUTPUT_ARTIFACTS = {
     "release_bundle": "api/release-bundle.txt",
 }
 SUMMARY_NORMATIVE_PATTERN = re.compile(
-    r"\b(?:must|shall|is required to|are required to)\b",
+    r"\b(?:must|shall|may\s+not|cannot|never|is required to|are required to)\b|"
+    r"\bmay\b[^\n.]{0,40}\bonly\b",
     re.IGNORECASE | re.MULTILINE,
 )
+REFERENCE_TOKEN_PATTERN = re.compile(
+    r"https?://[^\s<>\"']+|(?:[./A-Za-z0-9%_~-]+/)+[./A-Za-z0-9%_~-]+"
+)
+REVIEWED_ACTIVE_ARCHITECTURE = {
+    # The immutable RED fixture is materialized with the required platform pin.
+    "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "vendor_public",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": "A publishable public source contradicts this runtime boundary.",
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+    },
+    "6ac887dc24ce53fc0dee45e15ebe2804eea42bedb0ae802dc89bc39338ad6f44": {
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical contract assigns these boundaries to another owner."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
+}
+REVIEWED_EVIDENCE_BODIES = {
+    "EV-20260711-001": {
+        "88dfdda055f32b274a8f74cb5fa6989ccf8ad435b7e5cd8d13b0244d5763c537",
+        "e9fc9220b0fcc8b02a968fe6a587be538841f818754dd265c54c5580e1ed1bbf",
+    },
+}
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
     "acceptance criteria",
@@ -318,18 +370,108 @@ def _markdown_body(text: str) -> str:
     return text[end + 5 :] if end >= 0 else text
 
 
-def _is_candidate_api(metadata: dict[str, str]) -> bool:
-    return metadata.get("owner_domain") == "api" and (
+def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    snapshot_path = root / PLATFORM_SNAPSHOT_PATH
+    invalid = f"{PLATFORM_SNAPSHOT_PATH}: platform cross-seed snapshot is unavailable or invalid"
+    if not snapshot_path.is_file() or snapshot_path.is_symlink():
+        return None, [invalid]
+    if hashlib.sha256(snapshot_path.read_bytes()).hexdigest() != PLATFORM_SNAPSHOT_SHA256:
+        return None, [invalid]
+    try:
+        document = yaml.load(_read(snapshot_path), Loader=UniqueKeySafeLoader)
+    except (UnicodeDecodeError, yaml.YAMLError):
+        return None, [invalid]
+    if not isinstance(document, dict):
+        return None, [invalid]
+
+    expected = {
+        "schema": "helianthus.platform-cross-seed-snapshot",
+        "version": "1",
+        "repository": PLATFORM_REPO,
+        "commit": PLATFORM_SNAPSHOT_REF,
+        "source_manifest_path": "docs/platform/manifests/eebus-doc-ownership.yaml",
+        "source_manifest_entry": "cross-runtime-platform-contracts",
+        "platform_contract_root": "docs/platform",
+        "platform_contract_state": "active",
+    }
+    if any(document.get(key) != value for key, value in expected.items()):
+        return None, [invalid]
+    if re.fullmatch(r"[0-9a-f]{40}", document.get("source_manifest_blob", "")) is None:
+        return None, [invalid]
+
+    targets = document.get("targets")
+    if not isinstance(targets, list) or not targets:
+        return None, [invalid]
+    target_paths: set[str] = set()
+    for target in targets:
+        if not isinstance(target, dict) or set(target) != {"path", "blob"}:
+            return None, [invalid]
+        path = target.get("path")
+        blob = target.get("blob")
+        if not isinstance(path, str) or not isinstance(blob, str):
+            return None, [invalid]
+        normalized = posixpath.normpath(path)
+        if (
+            normalized != path
+            or not path.startswith("docs/platform/")
+            or not path.endswith(".md")
+            or re.fullmatch(r"[0-9a-f]{40}", blob) is None
+            or path in target_paths
+        ):
+            return None, [invalid]
+        target_paths.add(path)
+
+    return {
+        "repository": document["repository"],
+        "commit": document["commit"],
+        "targets": target_paths,
+    }, []
+
+
+def _reviewed_architecture_claim(
+    text: str,
+    metadata: dict[str, str],
+) -> dict[str, str] | None:
+    body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
+    reviewed = REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    if reviewed is None:
+        return None
+    if any(metadata.get(key) != value for key, value in reviewed.items()):
+        return None
+    return reviewed
+
+
+def _fully_unquote(value: str) -> str:
+    """Decode nested percent escapes to a fixed point."""
+    decoded = value
+    while True:
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+
+
+def _is_candidate_path(rel: str) -> bool:
+    decoded = _fully_unquote(rel)
+    normalized = posixpath.normpath(decoded.replace("\\", "/").lstrip("/"))
+    path = PurePosixPath(normalized)
+    return path == CANDIDATE_API_ROOT or CANDIDATE_API_ROOT in path.parents
+
+
+def _is_candidate_api(rel: str, metadata: dict[str, str]) -> bool:
+    return _is_candidate_path(rel) or metadata.get("owner_domain") == "api" and (
         metadata.get("publication_status") == "candidate"
         or metadata.get("candidate_output") == "true"
     )
 
 
 def _candidate_api_errors(rel: str, metadata: dict[str, str]) -> list[str]:
-    if not _is_candidate_api(metadata):
+    if not _is_candidate_api(rel, metadata):
         return []
 
     errors: list[str] = []
+    if _is_candidate_path(rel) and metadata.get("publication_status") != "candidate":
+        errors.append(f"{rel}: candidate API path must declare publication_status candidate")
     if metadata.get("candidate_output") != "true":
         errors.append(f"{rel}: candidate API must declare candidate_output true")
     for channel in CANDIDATE_API_CHANNELS:
@@ -342,6 +484,7 @@ def _candidate_api_errors(rel: str, metadata: dict[str, str]) -> list[str]:
     portable = (
         bool(declared)
         and "\\" not in declared
+        and "%" not in declared
         and not candidate_path.is_absolute()
         and ".." not in candidate_path.parts
         and candidate_path == rel_path
@@ -356,6 +499,7 @@ def _candidate_api_errors(rel: str, metadata: dict[str, str]) -> list[str]:
 
 def _active_architecture_errors(
     rel: str,
+    text: str,
     metadata: dict[str, str],
 ) -> list[str]:
     if metadata.get("owner_domain") != "architecture" or metadata.get(
@@ -371,18 +515,60 @@ def _active_architecture_errors(
     ):
         errors.append(f"{rel}: active architecture claim lacks publishable support")
 
+    if _reviewed_architecture_claim(text, metadata) is None:
+        errors.append(f"{rel}: active architecture content is not in the reviewed claim registry")
+
     if any(
         "restricted" in key.lower() or "quarantined" in key.lower()
         for key in metadata
     ):
         errors.append(f"{rel}: restricted-source provenance metadata is forbidden")
 
-    if "MSP-DOCS-CLEAN" in metadata.get("milestone_completion", ""):
-        errors.append(f"{rel}: MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2")
-    for channel in CANDIDATE_API_CHANNELS:
-        if metadata.get(channel) != "true":
-            errors.append(f"{rel}: active architecture is excluded from {channel}")
     return errors
+
+
+def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
+    complete_states = {
+        "complete",
+        "completed",
+        "done",
+        "merged",
+        "ready",
+        "shipped",
+        "landed",
+    }
+    if "MSP-DOCS-CLEAN" in metadata.get("milestone_completion", "") or (
+        metadata.get("milestone") == "MSP-DOCS-CLEAN"
+        and metadata.get("milestone_completion", "").strip().lower() in complete_states
+    ):
+        return [f"{rel}: MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2"]
+    return []
+
+
+def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
+    paths: set[str] = set()
+    source_parent = PurePosixPath(source_rel).parent.as_posix()
+    decoded_text = _fully_unquote(text)
+    for match in REFERENCE_TOKEN_PATTERN.finditer(decoded_text):
+        token = match.group(0).rstrip(".,;:!?)]]}>")
+        decoded = _fully_unquote(token)
+        if "://" in decoded:
+            decoded = urlsplit(decoded).path
+        decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
+        if not decoded:
+            continue
+        root_relative = posixpath.normpath(decoded.lstrip("/"))
+        source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
+        paths.update({root_relative, source_relative})
+    return paths
+
+
+def _contains_candidate_destination(text: str, source_rel: str) -> bool:
+    root = CANDIDATE_API_ROOT.as_posix()
+    return any(
+        path == root or path.startswith(root + "/")
+        for path in _normalized_reference_paths(text, source_rel)
+    )
 
 
 def _is_exempt_markdown(path: Path, root: Path) -> bool:
@@ -415,7 +601,8 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
         add("PEM block marker found in publishable content")
     if MAC_ADDRESS_PATTERN.search(text):
         add("MAC address found in publishable content")
-    if FULL_FINGERPRINT_PATTERN.search(text):
+    fingerprint_text = text.replace(PLATFORM_SNAPSHOT_REF, "")
+    if FULL_FINGERPRINT_PATTERN.search(fingerprint_text):
         add("full fingerprint or raw SKI found in publishable content")
     if PRIVATE_PATH_PATTERN.search(text):
         add("private or identifying filesystem path found")
@@ -546,6 +733,51 @@ def _provenance_errors(
             evidence_path = root / "evidence" / f"{evidence_id}.md"
             if not evidence_path.is_file() or evidence_path.is_symlink():
                 errors.append(f"{rel}: publishable evidence page {evidence_path.name!r} is missing")
+                continue
+            supported_claim = (
+                metadata.get("owner_domain") == "architecture"
+                and metadata.get("publication_status") == "active"
+                and metadata.get("hypothesis_status") == "publishable"
+            )
+            if not supported_claim:
+                continue
+            try:
+                evidence_text = _read(evidence_path)
+            except UnicodeDecodeError:
+                evidence_metadata = None
+            else:
+                evidence_metadata, _ = _front_matter(evidence_text)
+            evidence_body_hash = (
+                hashlib.sha256(_markdown_body(evidence_text).encode("utf-8")).hexdigest()
+                if evidence_metadata is not None
+                else ""
+            )
+            evidence_values = (
+                {
+                    value.strip()
+                    for value in evidence_metadata.get("evidence_ids", "").split(",")
+                    if value.strip()
+                }
+                if evidence_metadata is not None
+                else set()
+            )
+            expected_source = f"{REPO_ID}:evidence/{evidence_id}.md"
+            if evidence_metadata is None or any(
+                (
+                    evidence_metadata.get("canonical_source") != expected_source,
+                    evidence_metadata.get("owner_domain") != "evidence",
+                    evidence_metadata.get("publication_status") != "publishable",
+                    evidence_metadata.get("claim_status") != "evidence-backed",
+                    evidence_metadata.get("source_class") not in EVIDENCE_SOURCE_CLASSES,
+                    evidence_metadata.get("hypothesis_status") != "publishable",
+                    evidence_id not in evidence_values,
+                    evidence_body_hash not in REVIEWED_EVIDENCE_BODIES.get(evidence_id, set()),
+                )
+            ):
+                errors.append(
+                    f"{rel}: supported claim evidence is not publishable and evidence-backed: "
+                    f"{evidence_path.name}"
+                )
 
     return errors
 
@@ -553,8 +785,9 @@ def _provenance_errors(
 def check_repository(root: Path) -> list[str]:
     errors: list[str] = []
     root = root.resolve()
-    candidate_api_paths: set[str] = set()
     stable_navigation_pages: dict[str, str] = {}
+    platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
+    errors.extend(snapshot_errors)
 
     symlinks: set[Path] = set()
     for path in sorted(root.rglob("*")):
@@ -868,19 +1101,17 @@ def check_repository(root: Path) -> list[str]:
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
         errors.extend(_provenance_errors(root, rel, page_text, metadata))
-        errors.extend(_active_architecture_errors(rel, metadata))
+        errors.extend(_active_architecture_errors(rel, page_text, metadata))
         errors.extend(_candidate_api_errors(rel, metadata))
-        if _is_candidate_api(metadata):
-            candidate_api_paths.add(rel)
-        else:
+        errors.extend(_milestone_errors(rel, metadata))
+        if not _is_candidate_api(rel, metadata):
             stable_navigation_pages[rel] = page_text
 
-        targets = {
-            f"Project-Helianthus/helianthus-docs-ebus:{target}"
-            for target in PLATFORM_LINK_PATTERN.findall(page_text)
-        }
+        links = set(PLATFORM_LINK_PATTERN.findall(page_text))
+        targets = {f"{PLATFORM_REPO}:{target}" for _, target in links}
         declared_target = metadata.get("cross_seed_target")
         declared_mode = metadata.get("cross_seed_mode")
+        declared_snapshot = metadata.get("cross_seed_snapshot")
         if targets:
             if len(targets) != 1:
                 errors.append(f"{rel}: a page may cross-seed exactly one platform target")
@@ -891,7 +1122,28 @@ def check_repository(root: Path) -> list[str]:
                 )
             if declared_mode != "summary-only":
                 errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
-            if declared_target not in ACTIVE_PLATFORM_TARGETS:
+            target_path = expected_target.split(":", 1)[1] if expected_target else None
+            snapshot_match = (
+                PLATFORM_SNAPSHOT_PATTERN.fullmatch(declared_snapshot)
+                if isinstance(declared_snapshot, str)
+                else None
+            )
+            link_consistent = (
+                len(links) == 1
+                and next(iter(links))[1] == target_path
+                and next(iter(links))[0] == PLATFORM_SNAPSHOT_REF
+                and snapshot_match is not None
+                and snapshot_match.group(1) == PLATFORM_SNAPSHOT_REF
+                and snapshot_match.group(2) == target_path
+            )
+            if not link_consistent:
+                errors.append(f"{rel}: cross-seed commit, path, and snapshot must match")
+            if (
+                platform_snapshot is None
+                or target_path not in platform_snapshot["targets"]
+                or platform_snapshot["repository"] != PLATFORM_REPO
+                or platform_snapshot["commit"] != PLATFORM_SNAPSHOT_REF
+            ):
                 errors.append(
                     f"{rel}: cross-seed target is not an active canonical platform page "
                     f"at {PLATFORM_SNAPSHOT_REF}"
@@ -923,7 +1175,7 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(
                     f"{rel}: summary-only cross-seed contains normative requirements"
                 )
-        elif declared_target is not None or declared_mode is not None:
+        elif declared_target is not None or declared_mode is not None or declared_snapshot is not None:
             errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
         if PREMATURE_COMPLETION_PATTERN.search(page_text):
@@ -935,19 +1187,18 @@ def check_repository(root: Path) -> list[str]:
         if rel in ROOT_MD:
             errors.extend(_privacy_errors(page_text, rel))
 
-    for candidate_path in sorted(candidate_api_paths):
-        for rel, text in stable_navigation_pages.items():
-            if candidate_path in text:
-                errors.append(f"{rel}: candidate API leaked into stable_navigation")
-        for channel, artifact_rel in STABLE_OUTPUT_ARTIFACTS.items():
-            artifact = root / artifact_rel
-            if artifact.is_file() and not artifact.is_symlink():
-                try:
-                    artifact_text = _read(artifact)
-                except UnicodeDecodeError:
-                    continue
-                if candidate_path in artifact_text:
-                    errors.append(f"{artifact_rel}: candidate API leaked into {channel}")
+    for rel, text in stable_navigation_pages.items():
+        if _contains_candidate_destination(text, rel):
+            errors.append(f"{rel}: candidate API leaked into stable_navigation")
+    for channel, artifact_rel in STABLE_OUTPUT_ARTIFACTS.items():
+        artifact = root / artifact_rel
+        if artifact.is_file() and not artifact.is_symlink():
+            try:
+                artifact_text = _read(artifact)
+            except UnicodeDecodeError:
+                continue
+            if _contains_candidate_destination(artifact_text, artifact_rel):
+                errors.append(f"{artifact_rel}: candidate API leaked into {channel}")
 
     for top in PUBLISHABLE_DOMAINS:
         domain_root = root / top

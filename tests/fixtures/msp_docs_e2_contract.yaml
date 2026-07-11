@@ -12,11 +12,6 @@ architecture:
     falsifier: A publishable public source contradicts this runtime boundary.
     cross_seed_target: Project-Helianthus/helianthus-docs-ebus:docs/platform/shared-registry-boundary.md
     cross_seed_mode: summary-only
-    stable_navigation: "true"
-    search: "true"
-    sitemap: "true"
-    versioned_bundle: "true"
-    release_bundle: "true"
   body: |
     # Supported eeBUS Architecture
 

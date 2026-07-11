@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 CONTRACT = REPO / "tests" / "fixtures" / "msp_docs_e2_contract.yaml"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
+PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -74,6 +75,15 @@ def materialize_claim(
     contract = load_contract()
     write_page(repo, contract["evidence"])
     specification = copy.deepcopy(contract[section])
+    if section == "architecture":
+        target = specification["front_matter"]["cross_seed_target"].split(":", 1)[1]
+        specification["front_matter"]["cross_seed_snapshot"] = (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            f"{PLATFORM_COMMIT}:{target}"
+        )
+        specification["body"] = specification["body"].replace(
+            "/blob/main/", f"/blob/{PLATFORM_COMMIT}/"
+        )
     if relative_path is not None:
         specification["relative_path"] = relative_path
         specification["front_matter"]["canonical_source"] = (

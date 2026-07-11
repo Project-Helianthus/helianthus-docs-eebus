@@ -1,0 +1,14 @@
+schema: helianthus.platform-cross-seed-snapshot
+version: "1"
+repository: Project-Helianthus/helianthus-docs-ebus
+commit: 153191f72b5b9ecacbadcf2f3d7e480c6fef89a4
+source_manifest_path: docs/platform/manifests/eebus-doc-ownership.yaml
+source_manifest_blob: 8376c472b4ae8c07e35e178c85521cb2bd211542
+source_manifest_entry: cross-runtime-platform-contracts
+platform_contract_root: docs/platform
+platform_contract_state: active
+targets:
+  - path: docs/platform/eebus-raw-first-contract.md
+    blob: fc22339747766c9eeda67aa6a21569bc1eadb085
+  - path: docs/platform/shared-registry-boundary.md
+    blob: 0930cceee01fb842127ce3abadf38a6815958376
