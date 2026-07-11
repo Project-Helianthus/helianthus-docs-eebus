@@ -5,7 +5,7 @@
   "schema_version": 1,
   "title": "Helianthus eeBUS Go API surface v1",
   "description": "Closed deterministic representation and compatibility projection for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
-  "$comment": "Machine JSON has a portable maximum container depth of 64. Before emission, a Go 1.24-or-newer AST/type-backed producer applies the normative renderer in api/api-surface-v1.md and proves Go syntax, ExactString and source-value correctness, constraints, aliases, dependency visibility, import use and completeness, and semantic consistency. Qualifiers are allocated from declared package names and full import paths independently of source aliases and order. The portable validator checks import structure, order, uniqueness, and paths plus representation and cross-field derivation only.",
+  "$comment": "Machine JSON has a portable maximum container depth of 64. Before emission, a Go 1.24-or-newer AST/type-backed producer applies the normative renderer in api/api-surface-v1.md and proves Go syntax, ExactString and source-value correctness, blank receiver object-identity substitution, constraints, aliases, recursive dependency visibility, import use and completeness, and semantic consistency. Qualifiers are allocated from declared package names and full import paths independently of source aliases and order. Every import records an allowed dependency kind. The portable validator checks import structure, class, order, uniqueness, and paths plus representation, canonical numeric shapes, and cross-field derivation only.",
   "type": "object",
   "required": [
     "schema_id",
@@ -66,11 +66,7 @@
         ]
       }
     },
-    "exportedAsciiGoIdentifier": {
-      "type": "string",
-      "pattern": "^[A-Z][A-Za-z0-9_]*$"
-    },
-    "importQualifier": {
+    "nonBlankAsciiGoIdentifier": {
       "allOf": [
         {
           "$ref": "#/$defs/asciiGoIdentifier"
@@ -80,15 +76,33 @@
         "const": "_"
       }
     },
+    "exportedAsciiGoIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9_]*$"
+    },
+    "importQualifier": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nonBlankAsciiGoIdentifier"
+        }
+      ]
+    },
     "packageImport": {
       "type": "object",
-      "description": "One exact canonical qualifier-to-full-path allocation produced by the normative package-name/path algorithm.",
+      "description": "One allowed dependency class and exact canonical qualifier-to-full-path allocation produced by the normative package-name/path algorithm.",
       "required": [
+        "dependency_kind",
         "qualifier",
         "path"
       ],
       "additionalProperties": false,
       "properties": {
+        "dependency_kind": {
+          "enum": [
+            "public_contract",
+            "standard_library"
+          ]
+        },
         "qualifier": {
           "$ref": "#/$defs/importQualifier"
         },
@@ -150,7 +164,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/asciiGoIdentifier"
+            "$ref": "#/$defs/nonBlankAsciiGoIdentifier"
           }
         }
       }

@@ -20,6 +20,7 @@ SCRIPTS = REPO / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from validate_api_surface_v1 import (  # noqa: E402
+    canonical_receiver_type_parameters,
     compatibility_fingerprint,
     compatibility_projection,
     document_diagnostics,
@@ -71,8 +72,8 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
-    "canonical-go-rendering.json": "7b250d81e6b23e2355b565964a13652683ca5381f0098cf39e3b3db32f12a795",
-    "kinds-types-signatures.json": "0a9d1a5c7fc2398088bf29372e644b667f7717ed3bd489246b60b41c16f1ca19",
+    "canonical-go-rendering.json": "56f5b5001be65857ab8445f839182ffc9ce11aaa68ae9585547f1b8bd8512a56",
+    "kinds-types-signatures.json": "5320fdbb6049fc9f6349524ac2f3524c7979eb9c72c6db8331c047dee15db4d7",
     "packages-and-symbols.json": "6c5784c4295dae25e241c05fa4918386bedfc9f0d4f212e56facd78c7cfd6ba4",
 }
 
@@ -299,6 +300,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         category: str,
         *,
         fixture: str = "kinds-types-signatures.json",
+        allow_cross_field: bool = False,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -319,7 +321,38 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             for result in results:
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn(category, result.stderr)
-                self.assertNotIn("cross-field mismatch", result.stderr)
+                if not allow_cross_field:
+                    self.assertNotIn("cross-field mismatch", result.stderr)
+
+    def assert_mutation_rejected_in_all_machine_modes(
+        self,
+        mutation: Callable[[dict[str, Any]], None],
+        category: str,
+        *,
+        fixture: str = "kinds-types-signatures.json",
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / "api" / "fixtures" / "v1" / "positive" / fixture
+            document = load_json_strict(target)
+            mutation(document)
+            write_json(target, document)
+
+            extracted = Path(tmp) / "extracted.json"
+            extracted_document = copy.deepcopy(document)
+            extracted_document.pop("fixture")
+            write_json(extracted, extracted_document)
+
+            results = (
+                run_validator(repo),
+                run_policy_validator(repo),
+                run_document_validator(target, corpus=True),
+                run_document_validator(extracted),
+            )
+            for result in results:
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(category, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
     def test_contract_paths_and_exact_fixture_allowlists(self) -> None:
         for path in (SCHEMA, REFERENCE, API_VALIDATOR, POLICY_VALIDATOR, SHARED_POLICY):
@@ -370,6 +403,10 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         self.assertIs(receiver["additionalProperties"], False)
         self.assertEqual(receiver["properties"]["pointer"]["type"], "boolean")
         self.assertIs(receiver["properties"]["type_parameters"]["uniqueItems"], True)
+        self.assertEqual(
+            receiver["properties"]["type_parameters"]["items"]["$ref"],
+            "#/$defs/nonBlankAsciiGoIdentifier",
+        )
         self.assertNotIn("type_parameters", definitions["methodSymbol"]["properties"])
 
     def test_schema_requires_closed_package_imports_but_keeps_fixture_optional(self) -> None:
@@ -382,8 +419,18 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             package["properties"]["imports"]["items"]["$ref"],
             "#/$defs/packageImport",
         )
-        self.assertEqual(set(package_import["required"]), {"qualifier", "path"})
-        self.assertEqual(set(package_import["properties"]), {"qualifier", "path"})
+        self.assertEqual(
+            set(package_import["required"]),
+            {"dependency_kind", "qualifier", "path"},
+        )
+        self.assertEqual(
+            set(package_import["properties"]),
+            {"dependency_kind", "qualifier", "path"},
+        )
+        self.assertEqual(
+            set(package_import["properties"]["dependency_kind"]["enum"]),
+            {"public_contract", "standard_library"},
+        )
         self.assertIs(package_import["additionalProperties"], False)
         self.assertNotIn("fixture", schema["required"])
         self.assertIn("fixture", schema["properties"])
@@ -431,13 +478,20 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "portable maximum machine-document nesting depth is 64 containers",
             "parameter and result names are always omitted",
             "source aliases, dot imports, file order, and import declaration order are ignored",
-            "reserve `_`, every name in `types.universe`",
+            "reserve `_`, every go keyword, every name in `types.universe`",
             "named.nummethods",
             "promoted methods are not emitted",
-            "receiver.type_parameters` contains the base declaration names in order",
+            "receiver.type_parameters` contains the generated canonical binders in declaration order",
             "an alias can never be a receiver base",
             "receiver parameter strings must also exactly equal",
-            "substitution map keyed by `*types.typeparam` object identity",
+            "substitution map keyed by the actual `*types.typeparam` object identity",
+            "type blank[_, _ any] struct{}",
+            "t<i>_2",
+            "github.com/enbility/",
+            "approved exported named boundary",
+            "a `*types.alias` is never a leaf boundary",
+            "value_kind` equal to `int`, `float`, or `complex`",
+            "all three positive fixtures",
             "render the qualifier allocated to import path `unsafe`",
             "for `types.uint8`, emit `uint8`",
             "for `types.int32`, emit `int32`",
@@ -475,6 +529,30 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "only nonnormative clarification and validator fixes",
             "without changing valid-document or fingerprint semantics may patch v1",
             "v1 is additive-only as a contract; there is no silent redefinition",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, normalized)
+
+    def test_reference_pins_dependency_classification_and_complete_type_walk(self) -> None:
+        normalized = " ".join(REFERENCE.read_text(encoding="utf-8").lower().split())
+        phrases = (
+            "dependency classification is exact-path, explicit, and default-deny",
+            "approved_standard_library_paths",
+            "approved_public_contract_paths",
+            "must not infer approval from a repository owner, module prefix, package name",
+            "any path beginning exactly `github.com/enbility/`",
+            "every other non-current path is also `implementation`",
+            "visited set keyed by `types.type` object identity",
+            "a struct checks every field type",
+            "complete an interface, then check every explicit method signature and every embedded type",
+            "check all type arguments first",
+            "do not inspect the dependency's underlying type or method set",
+            "a `*types.alias` is never a leaf boundary",
+            "aliases always expand",
+            "cycles do not weaken either rule",
+            "implementation-dependency-type.json",
+            "contains no path-shaped type-text sentinel",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
@@ -540,13 +618,24 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "ComplexExact": (
                 "untyped complex",
                 "complex",
-                "(12345678901234567890123456789/10000000000000000000000000000 + "
-                "98765432109876543210987654321/10000000000000000000000000000i)",
+                "(77777777777777777777777777777777777777777/10000000000000000000000000000000000000000 + "
+                "77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777/10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000i)",
             ),
-            "FloatExact": (
+            "ComplexNegativeExact": (
+                "untyped complex",
+                "complex",
+                "(77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777/10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 + "
+                "-77777777777777777777777777777777777777777/10000000000000000000000000000000000000000i)",
+            ),
+            "FloatExactLarge41": (
                 "untyped float",
                 "float",
-                "12345678901234567890123456789/10000000000000000000000000000",
+                "77777777777777777777777777777777777777777/10000000000000000000000000000000000000000",
+            ),
+            "FloatExactWide101": (
+                "untyped float",
+                "float",
+                "77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777/10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
             ),
             "IntegerExact": (
                 "untyped int",
@@ -584,6 +673,55 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertEqual(policy.returncode, 0, policy.stderr)
                 self.assertEqual(document_mode.returncode, 0, document_mode.stderr)
                 self.assertRegex(compatibility_fingerprint(document), r"^[0-9a-f]{64}$")
+
+    def test_large_exact_float_and_complex_vectors_pass_every_machine_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            target = repo / POSITIVE_FIXTURES.relative_to(REPO) / "kinds-types-signatures.json"
+            document = load_json_strict(target)
+            float_41 = find_symbol(document, "const", "FloatExactLarge41")
+            float_101 = find_symbol(document, "const", "FloatExactWide101")
+            complex_value = find_symbol(document, "const", "ComplexExact")
+            self.assertEqual(tuple(map(len, float_41["value"].split("/"))), (41, 41))
+            self.assertEqual(tuple(map(len, float_101["value"].split("/"))), (101, 101))
+            self.assertIn(float_41["value"], complex_value["value"])
+            self.assertIn(float_101["value"], complex_value["value"])
+
+            extracted = Path(tmp) / "extracted.json"
+            document.pop("fixture")
+            write_json(extracted, document)
+            for result in (
+                run_validator(repo),
+                run_policy_validator(repo),
+                run_document_validator(target, corpus=True),
+                run_document_validator(extracted),
+            ):
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_malformed_or_non_numeric_exact_spans_fail_every_machine_mode(self) -> None:
+        def set_value(document: dict[str, Any], name: str, value: str) -> None:
+            constant = find_symbol(document, "const", name)
+            constant["value"] = value
+            constant["signature"] = derive_signature(constant)
+
+        cases = (
+            lambda document: set_value(document, "FloatExactLarge41", "8" * 41 + "/2"),
+            lambda document: set_value(
+                document,
+                "ComplexExact",
+                "(" + "7" * 41 + " - " + "8" * 41 + "i)",
+            ),
+            lambda document: set_value(document, "BooleanDefault", "7" * 41),
+            lambda document: find_symbol(
+                document, "const", "FloatExactLarge41"
+            ).__setitem__("signature", "const FloatExactLarge41 = " + "9" * 41),
+        )
+        for mutation in cases:
+            with self.subTest(mutation=mutation):
+                self.assert_mutation_rejected_in_all_machine_modes(
+                    mutation,
+                    "private identifier",
+                )
 
     def test_large_digit_string_and_non_decimal_integer_text_remain_private(self) -> None:
         cases = (
@@ -645,6 +783,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             document["packages"][0]["imports"],
             [
                 {
+                    "dependency_kind": "public_contract",
                     "qualifier": "ext",
                     "path": "example.invalid/helianthus/synthetic/external",
                 }
@@ -690,10 +829,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             package["imports"],
             [
                 {
+                    "dependency_kind": "public_contract",
                     "qualifier": "shared",
                     "path": SYNTHETIC_PACKAGE_PREFIX + "collision/a",
                 },
                 {
+                    "dependency_kind": "public_contract",
                     "qualifier": "shared_2",
                     "path": SYNTHETIC_PACKAGE_PREFIX + "collision/b",
                 },
@@ -738,6 +879,102 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         for symbol in package["symbols"]:
             self.assertEqual(symbol["signature"], derive_signature(symbol))
 
+    def test_blank_parameters_use_positional_collision_safe_receiver_binders(self) -> None:
+        document = load_json_strict(POSITIVE_FIXTURES / "canonical-go-rendering.json")
+        package = document["packages"][0]
+        declaration = find_symbol(document, "type", "BlankSlots")
+        method = find_symbol(document, "method", "Bind")
+        package_names = {
+            symbol["name"] for symbol in package["symbols"] if symbol["kind"] != "method"
+        }
+        self.assertEqual(
+            [parameter["name"] for parameter in declaration["type_parameters"]],
+            ["_", "T1", "_"],
+        )
+        self.assertEqual(
+            canonical_receiver_type_parameters(
+                declaration["type_parameters"], package_names
+            ),
+            ["T1_2", "T1", "T3_2"],
+        )
+        self.assertEqual(
+            method["receiver"]["type_parameters"],
+            ["T1_2", "T1", "T3_2"],
+        )
+        self.assertEqual(
+            method["type"],
+            "func(T1_2, T1, T3_2) (T1_2, T1, T3_2)",
+        )
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
+
+        self.assertEqual(
+            canonical_receiver_type_parameters(
+                [
+                    {"name": "_", "constraint": "any"},
+                    {"name": "_", "constraint": "any"},
+                    {"name": "_", "constraint": "any"},
+                ],
+                {"T1", "T1_2", "T2"},
+            ),
+            ["T1_3", "T2_2", "T3"],
+        )
+
+    def test_dependency_classification_is_explicit_and_sentinel_free(self) -> None:
+        for path in positive_paths():
+            document = load_json_strict(path)
+            for package in document["packages"]:
+                for package_import in package["imports"]:
+                    self.assertIn(
+                        package_import["dependency_kind"],
+                        {"public_contract", "standard_library"},
+                    )
+
+        negative = load_json_strict(negative_path("implementation-dependency-type.json"))
+        package_import = negative["packages"][0]["imports"][0]
+        self.assertEqual(package_import["dependency_kind"], "implementation")
+        self.assertNotIn("implementation.invalid/", json.dumps(negative))
+
+        extracted = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
+        extracted.pop("fixture")
+        extracted["packages"][0]["imports"].append(
+            {
+                "dependency_kind": "standard_library",
+                "qualifier": "time",
+                "path": "time",
+            }
+        )
+        variable = find_symbol(extracted, "var", "ErrMissing")
+        variable["type"] = "time.Time"
+        variable["signature"] = derive_signature(variable)
+        self.assertEqual(document_diagnostics(extracted), set())
+
+        reclassified = copy.deepcopy(extracted)
+        reclassified["packages"][0]["imports"][0]["dependency_kind"] = (
+            "standard_library"
+        )
+        self.assertNotEqual(
+            compatibility_fingerprint(reclassified),
+            compatibility_fingerprint(extracted),
+        )
+
+        cases = (
+            lambda document: document["packages"][0]["imports"][0].__setitem__(
+                "dependency_kind", "implementation"
+            ),
+            lambda document: document["packages"][0]["imports"][0].update(
+                {
+                    "dependency_kind": "public_contract",
+                    "path": "github.com/enbility/eebus-go/spine/model",
+                }
+            ),
+        )
+        for mutation in cases:
+            with self.subTest(mutation=mutation):
+                self.assert_mutation_rejected_in_all_api_modes(
+                    mutation,
+                    "implementation dependency type",
+                )
+
     def test_canonical_basic_alias_and_underlying_vectors_converge(self) -> None:
         document = load_json_strict(POSITIVE_FIXTURES / "canonical-go-rendering.json")
         variables = {
@@ -750,6 +987,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "FromInt32": "int32",
             "FromRune": "int32",
             "FromUint8": "uint8",
+            "T3": "uint8",
         }
         self.assertEqual(
             {name: symbol["type"] for name, symbol in variables.items()},
@@ -1119,6 +1357,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 "duplicate import qualifier",
                 lambda document: document["packages"][0]["imports"].append(
                     {
+                        "dependency_kind": "public_contract",
                         "qualifier": "ext",
                         "path": "example.invalid/helianthus/synthetic/zeta",
                     }
@@ -1128,6 +1367,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 "duplicate import path",
                 lambda document: document["packages"][0]["imports"].append(
                     {
+                        "dependency_kind": "public_contract",
                         "qualifier": "zed",
                         "path": document["packages"][0]["imports"][0]["path"],
                     }
@@ -1137,6 +1377,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 "non-canonical import ordering",
                 lambda document: document["packages"][0]["imports"].append(
                     {
+                        "dependency_kind": "public_contract",
                         "qualifier": "aaa",
                         "path": "example.invalid/helianthus/synthetic/another",
                     }
@@ -1203,6 +1444,26 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             symbol["signature"] = derive_signature(symbol)
 
         self.assert_mutation_rejected(mutation, "duplicate type parameter")
+
+    def test_validator_rejects_blank_or_noncanonical_generated_receiver_binders(self) -> None:
+        cases = (["_", "T1", "T3_2"], ["T1", "T1_2", "T3_2"])
+        categories = ("invalid receiver", "receiver type parameter mismatch")
+        for parameters, category in zip(cases, categories):
+            with self.subTest(parameters=parameters):
+                def mutation(
+                    document: dict[str, Any],
+                    parameters: list[str] = parameters,
+                ) -> None:
+                    method = find_symbol(document, "method", "Bind")
+                    method["receiver"]["type_parameters"] = parameters
+                    method["signature"] = derive_signature(method)
+
+                self.assert_mutation_rejected_in_all_api_modes(
+                    mutation,
+                    category,
+                    fixture="canonical-go-rendering.json",
+                    allow_cross_field=True,
+                )
 
     def test_validator_preserves_ascii_identifier_and_keyword_rules(self) -> None:
         cases = (
@@ -1478,10 +1739,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             target = repo / "api" / "fixtures" / "v1" / "positive" / "kinds-types-signatures.json"
             document = load_json_strict(target)
-            constant = find_symbol(document, "const", "TypedLimit")
-            constant["type"] = "not-a-go-type"
-            constant["value"] = "not a go constant"
+            constant = find_symbol(document, "const", "StringExact")
+            constant["value"] = '"unterminated'
             constant["signature"] = derive_signature(constant)
+            variable = find_symbol(document, "var", "ErrMissing")
+            variable["type"] = "not-a-go-type"
+            variable["signature"] = derive_signature(variable)
             function = find_symbol(document, "func", "Convert")
             function["type_parameters"][0]["constraint"] = "not a constraint"
             function["signature"] = derive_signature(function)

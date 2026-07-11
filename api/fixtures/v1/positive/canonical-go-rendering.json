@@ -11,10 +11,12 @@
       "name": "rendering",
       "imports": [
         {
+          "dependency_kind": "public_contract",
           "qualifier": "shared",
           "path": "example.invalid/helianthus/synthetic/collision/a"
         },
         {
+          "dependency_kind": "public_contract",
           "qualifier": "shared_2",
           "path": "example.invalid/helianthus/synthetic/collision/b"
         }
@@ -46,6 +48,21 @@
           }
         },
         {
+          "kind": "method",
+          "name": "Bind",
+          "type": "func(T1_2, T1, T3_2) (T1_2, T1, T3_2)",
+          "signature": "func (BlankSlots[T1_2, T1, T3_2]) Bind(T1_2, T1, T3_2) (T1_2, T1, T3_2)",
+          "receiver": {
+            "base": "BlankSlots",
+            "pointer": false,
+            "type_parameters": [
+              "T1_2",
+              "T1",
+              "T3_2"
+            ]
+          }
+        },
+        {
           "kind": "type",
           "name": "Aggregate",
           "type": "struct{ Embedded; Fixed [3][]map[string]chan<- shared.Item; Inbox <-chan shared_2.Value; Stream chan T; Callback func(shared.Value, ...T) (T, error) }",
@@ -68,6 +85,27 @@
             {
               "name": "T",
               "constraint": "interface{ ~int | ~string }"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "BlankSlots",
+          "type": "struct{ Value T1 }",
+          "signature": "type BlankSlots[_ any, T1 any, _ any] struct{ Value T1 }",
+          "type_form": "defined",
+          "type_parameters": [
+            {
+              "name": "_",
+              "constraint": "any"
+            },
+            {
+              "name": "T1",
+              "constraint": "any"
+            },
+            {
+              "name": "_",
+              "constraint": "any"
             }
           ]
         },
@@ -115,6 +153,12 @@
           "name": "FromUint8",
           "type": "uint8",
           "signature": "var FromUint8 uint8"
+        },
+        {
+          "kind": "var",
+          "name": "T3",
+          "type": "uint8",
+          "signature": "var T3 uint8"
         }
       ]
     }

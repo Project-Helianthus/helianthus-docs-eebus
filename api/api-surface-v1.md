@@ -20,8 +20,8 @@ synthetic corpus invariants. The portable validator checks strict JSON, closed
 field sets, normalized text, identifier rules, type-parameter uniqueness,
 receiver resolution to defined types, canonical receiver parameter names and
 arity, declaration identity, cross-field signature derivation, import structure
-and identity, ordering, exact exclusions, publication markers, and fixture
-boundaries. It does not parse Go.
+and dependency classification, ordering, canonical exact numeric shapes, exact
+exclusions, publication markers, and fixture boundaries. It does not parse Go.
 
 Before emitting this format, a future AST-backed producer must prove Go syntax
 and apply the normative selection, qualifier allocation, and rendering
@@ -77,12 +77,14 @@ boundaries over the same representation schema.
 
 Each package has exactly `path`, `name`, `imports`, and `symbols`. `imports` is
 required and always present, including an empty array. Each entry is the closed
-object `{qualifier,path}`. A qualifier uses the portable ASCII Go identifier
-subset `[A-Za-z_][A-Za-z0-9_]*`, is not a Go keyword, and cannot be the blank
-identifier `_`. An imported path follows the same rules as the current package
-path, cannot contain an `internal` component, and cannot equal the current
-package path. Qualifiers are unique within a package, and imported paths are
-independently unique within a package.
+object `{dependency_kind,qualifier,path}`. `dependency_kind` is
+`public_contract` or `standard_library` and records the producer's exact
+classification under the dependency predicate below. A qualifier uses the
+portable ASCII Go identifier subset `[A-Za-z_][A-Za-z0-9_]*`, is not a Go
+keyword, and cannot be the blank identifier `_`. An imported path follows the
+same rules as the current package path, cannot contain an `internal` component,
+and cannot equal the current package path. Qualifiers are unique within a
+package, and imported paths are independently unique within a package.
 
 Package and imported paths use Unicode Normalization Form C (NFC), forward
 slashes, no empty, dot, dot-dot, or `internal` component, and no whitespace or
@@ -137,9 +139,86 @@ ambiguous, or a selected declaration exposes a non-public implementation
 dependency, reject the complete declaration. Never reconstruct a declaration
 from source tokens alone.
 
+### Dependency classification and type predicate
+
+Dependency classification is exact-path, explicit, and default-deny. A producer
+run receives two disjoint contract-owned sets of complete import paths:
+`approved_standard_library_paths` and `approved_public_contract_paths`. The
+sets, including an empty set, are fixed producer policy inputs for that run;
+the producer must not infer approval from a repository owner, module prefix,
+package name, exported spelling, source import alias, or transitive dependency.
+The first set may contain a path only when that path is also identified as a
+standard-library package by the selected Go toolchain. The second set contains
+only packages that the API contract owner explicitly designates as public
+contracts.
+
+Classify a package path before walking a type. The current package is `current`.
+An exact member of `approved_standard_library_paths` is `standard_library`, and
+an exact member of `approved_public_contract_paths` is `public_contract`. The
+following hard denials override both sets: an empty path, a path with an
+`internal` component, and any path beginning exactly
+`github.com/enbility/` are `implementation`. Every other non-current path is
+also `implementation`. Approval sets must be disjoint and must not contain a
+hard-denied path. `unsafe.Pointer` is treated as a reference to package path
+`unsafe`, so it is allowed only when `unsafe` is an approved standard-library
+path. For every rendered non-current package the producer emits the resulting
+allowed class as `imports[].dependency_kind`; implementation-class imports and
+types are rejected rather than emitted.
+
+Apply the following `go/types` walk independently to every selected constant or
+variable type; every defined-type underlying type or alias right-hand side;
+every declaration type-parameter constraint; and every selected function or
+method signature, including its receiver and receiver type parameters. The walk
+uses a visited set keyed by `types.Type` object identity. Mark a node before
+descending; revisiting a marked node terminates that edge successfully, because
+the first visit checks the node and every outgoing edge. An invalid, unknown, or
+unsupported type node rejects the declaration.
+
+- A basic type is allowed, subject to the special `unsafe.Pointer` rule above.
+  A type parameter recursively checks its constraint. A tuple checks every
+  variable type.
+- A pointer, array, slice, map, or channel checks every reachable element, key,
+  or value type. A union checks every term type. No composite is a visibility
+  boundary.
+- A struct checks every field type in declaration order, including named,
+  unnamed, embedded, exported, and unexported fields. Tags contain no types.
+- Complete an interface, then check every explicit method signature and every
+  embedded type. A signature checks its receiver when present, all receiver and
+  ordinary type-parameter constraints, every parameter, and every result. This
+  rule covers anonymous function types and methods reached through interfaces as
+  well as selected package functions and declared methods.
+- For a `*types.Named`, check all type arguments first. A universe object is an
+  allowed leaf. A named type declared in the current package then checks its
+  underlying type; its selected declared methods are checked separately as
+  roots. A non-current named type is allowed as a leaf only when its object is
+  exported and its package class is `standard_library` or `public_contract`.
+  At that approved exported named boundary, do not inspect the dependency's
+  underlying type or method set. An unexported dependency name or an
+  implementation-class package rejects immediately.
+- A `*types.Alias` is never a leaf boundary. Check its type arguments, classify
+  and require its object to be exported when it is non-current, and then always
+  check `Alias.Rhs()`. Thus an approved alias cannot conceal an enbility,
+  internal, unapproved, unexported, or otherwise implementation type.
+
+Checking type arguments before stopping at an approved named boundary prevents
+an allowed generic contract such as `contract.Box[T]` from carrying an
+implementation argument. Walking current named types and every alias prevents a
+local facade name from hiding an implementation type. Cycles do not weaken
+either rule because package classification and exported-name checks happen on
+the first identity visit before traversal can terminate on a revisit.
+
+The portable validator requires the closed dependency field, rejects any value
+other than the two allowed classes, and independently rejects a
+`github.com/enbility/` import even if mislabeled. It can check path shape,
+`internal` components, exact import uniqueness, and the emitted class. Proving
+toolchain standard-library provenance, membership in the contract-owned
+approval sets, selector use, exported `go/types` object identity, recursive
+reachability, and cycles remains producer-owned.
+
 ### Canonical package qualifiers
 
-First walk every semantic type that will be rendered in `type` or `constraint`.
+After the dependency predicate passes, walk every semantic type that will be
+rendered in `type` or `constraint`.
 Collect exactly the distinct non-current packages referenced by named or alias
 type identities; also treat a `*types.Basic` whose kind is
 `types.UnsafePointer` as package path and declared name `unsafe`. Do not expand
@@ -153,9 +232,11 @@ signatures introduce no additional imports.
 For each collected path, take the package's declared `types.Package.Name`, not
 any source import alias. If that name is a permitted non-blank ASCII Go
 identifier, it is the allocation base; otherwise the base is `pkg`. Before
-allocation reserve `_`, every name in `types.Universe`, every emitted
-package-scope declaration name, and every retained declaration or receiver
-type-parameter name. Sort all collected packages by the bytewise UTF-8 tuple
+allocation reserve `_`, every Go keyword, every name in `types.Universe`, every
+emitted package-scope declaration name, and every retained declaration or
+canonical receiver type-parameter name. Compute canonical receiver binders by
+the positional algorithm below before this allocation. Sort all collected
+packages by the bytewise UTF-8 tuple
 `(base, full import path)`. In that order allocate the first identifier not in
 the reserved or already allocated sets from `base`, `base_2`, `base_3`, and so
 on. Testing availability is global to the package and suffix search starts at 2
@@ -164,8 +245,9 @@ force a later suffix. Source aliases, dot imports, file order, and import
 declaration order are ignored. Blank imports cannot be referenced by a
 selected type and are absent.
 
-`imports[]` is exactly this path-to-allocated-qualifier map, then sorted by the
-normal import ordering rule. Every non-current package selector in every
+`imports[]` is exactly this path-to-allocated-qualifier map plus the package's
+dependency class, then sorted by the normal import ordering rule. Every
+non-current package selector in every
 `type`, constraint, and derived signature uses that allocated qualifier, and
 every `imports[]` entry must be used by at least one such semantic type. The
 same path always has the same qualifier throughout one package. An unused,
@@ -243,28 +325,65 @@ that the six contract untyped names use their exact documented spelling. For a
 function or method it is a copy of its `*types.Signature` with receiver and
 signature type parameters omitted, rendered as above.
 
-Declaration `type_parameters` retain the declared order and names and render
-each constraint by the same rules. A method receiver is derived from the
-declared receiver type after stripping one optional pointer. The remainder must
-be a `*types.Named` whose `Origin()` is the selected local defined type; an
-alias can never be a receiver base. Its type-argument count and
-`Signature.RecvTypeParams()` count must both equal the base declaration's
-`Named.TypeParams()` count, and each receiver type argument must be the receiver
-type parameter at the same index; otherwise reject the method.
+Declaration `type_parameters` retain declared order and object names and render
+each constraint by the same rules. Go permits the blank identifier as a type
+parameter declaration and permits more than one blank declaration parameter.
+Preserve each `_` occurrence positionally in type and function declaration
+arrays and in their source-like signatures. Nonblank declaration parameter
+names remain unique; repeated `_` names are not a duplicate-name error.
 
-For a generic method, build a substitution map keyed by `*types.TypeParam`
-object identity. Receiver parameter at index `i` maps to the base declaration
-parameter name at index `i`. While rendering every parameter, result, and
-nested type reachable from that method signature, a type-parameter occurrence
-consults this map before using its own object name. This makes receiver binding
-spelling irrelevant even when it is used in the method type. `base` is the
-selected origin name, `pointer` records the stripped pointer, and
-`receiver.type_parameters` contains the base declaration names in order.
-Source receiver variable names and receiver binding names are discarded. For
-example, source `func (box *Box[R]) Put(value R) R` on `type Box[T any]`
+A method receiver is derived from the declared receiver type after stripping
+one optional pointer. The remainder must be a `*types.Named` whose `Origin()` is
+the selected local defined type; an alias can never be a receiver base. Its
+type-argument count and `Signature.RecvTypeParams()` count must both equal the
+base declaration's `Named.TypeParams()` count, and each receiver type argument
+must be the exact receiver `*types.TypeParam` object at the same index; comparing
+only names is insufficient. Otherwise reject the method.
+
+Generate the receiver's canonical binder list from the base declaration
+parameters before qualifier allocation. Initialize `reserved` with `_`, every
+Go keyword, every name in `types.Universe`, every emitted package-scope
+declaration name, and every nonblank base declaration parameter name. Visit base
+parameters in declaration order using one-based position `i`:
+
+1. If the base name is nonblank, append that name unchanged.
+2. If it is `_`, try `T<i>`. If reserved, try `T<i>_2`, then `T<i>_3`, and so
+   on in increasing decimal order until an unreserved identifier is found.
+3. Append the chosen generated binder and add it to `reserved` before visiting
+   the next position.
+
+The generated roots and suffixes are ASCII decimal with no zero padding. This
+algorithm yields a unique nonblank valid Go binder at every receiver position,
+while avoiding nonblank declaration names, package declarations, keywords, and
+predeclared identifiers. Add the complete canonical binder list to the package
+qualifier-allocation reserved set.
+
+For a generic method, build a substitution map keyed by the actual
+`*types.TypeParam` object identity in `Signature.RecvTypeParams()`. Receiver
+parameter object at index `i` maps to canonical receiver binder at index `i`.
+While rendering every receiver type argument, parameter, result, constraint,
+and nested type reachable from that method signature, a type-parameter
+occurrence consults this map before using its object name. Do not key this map by
+text and do not map the distinct base `Named.TypeParams()` objects. `base` is
+the selected origin name, `pointer` records the stripped pointer, and
+`receiver.type_parameters` contains the generated canonical binders in
+declaration order. Source receiver variable and binder names are discarded.
+
+For example, source `func (box *Box[R]) Put(value R) R` on `type Box[T any]`
 emits `{"base":"Box","pointer":true,"type_parameters":["T"]}` and type
 `func(T) T`, from which the normalized signature is
-`func (*Box[T]) Put(T) T`.
+`func (*Box[T]) Put(T) T`. The blank/collision golden below shows the generated
+case.
+
+A `go/types` probe using `types.Config.GoVersion = "go1.24"` establishes the
+legal boundary: `type Blank[_, _ any] struct{}` and receiver
+`Blank[_, _]` are accepted; each declaration and receiver position has a
+distinct `*types.TypeParam` identity even though every object name is `_`.
+Named receiver binders are likewise distinct from the base declaration objects,
+and each receiver type argument is identical to the corresponding
+`Signature.RecvTypeParams()` object. `type Bad[T, T any]` is rejected as a
+redeclaration, and a receiver with fewer binders than its generic base is
+rejected for arity mismatch.
 
 Finally derive `signature` only from the normalized fields as specified below,
 sort imports and symbols, and validate the complete document. Because
@@ -296,17 +415,19 @@ records the structural `go/constant` kind. The semantic constant types include
 `type_form` is `defined` or `alias`. Every type and function has an
 always-present ordered `type_parameters` array, including an empty array for a
 non-generic declaration. Each parameter is the closed object `{name,
-constraint}`. Names are unique within the declaration.
+constraint}`. Every nonblank name is unique within the declaration; `_` is
+preserved and may repeat where accepted by Go.
 
 A method has no declaration-level `type_parameters` field. Its `receiver` is
 the closed object `{base,pointer,type_parameters}`. `base` is an exported,
 unqualified portable ASCII identifier, `pointer` is a JSON boolean, and
 `type_parameters` is an always-present ordered array of unique portable ASCII
-identifiers. The base must resolve to a type declaration in the same package,
+nonblank identifiers. The base must resolve to a type declaration in the same package,
 that declaration must have `type_form: defined`, and receiver arity must equal
 that declaration's type-parameter arity. The receiver parameter strings must
-also exactly equal the resolved declaration's type-parameter names in
-declaration order. Renamed or reordered strings and alias bases are invalid.
+also exactly equal the positional canonical binder list derived from the
+resolved declaration and package declaration names. Renamed, reordered, blank,
+or otherwise noncanonical strings and alias bases are invalid.
 
 Package-scope declaration identity is `(package path, name)`, independent of
 kind. A constant, variable, type, and function therefore cannot reuse the same
@@ -345,12 +466,36 @@ Go syntax or constraint meaning.
 for every constant class, even when it represents a boolean or number. The
 future AST producer proves ExactString and source-value correctness; the
 portable validator enforces the field shape, untyped type-to-kind mapping, and
-signature derivation.
+signature derivation. For `int`, `float`, and `complex`, it also enforces the
+following exact structural grammar before a numeric span can receive the
+publication-policy exemption below:
 
-Only public contract types may appear. The future producer excludes declarations
-that expose implementation dependencies. The portable validator checks the
-exact synthetic sentinel `implementation.invalid/` in type-bearing fields and
-signatures; it does not infer real dependency visibility from arbitrary text.
+- an integer is `-?(0|[1-9][0-9]*)`;
+- a real component is such an integer, a fraction `N/D`, or a normalized binary
+  float. For a fraction, `N` is a nonzero canonical integer, `D` is a canonical
+  positive integer greater than one, and `gcd(abs(N),D) = 1`. A normalized
+  binary float matches
+  `-?0x\.[89a-f](?:[0-9a-f]*[1-9a-f])?p(?:\+0|\+[1-9][0-9]*|-[1-9][0-9]*)`;
+- a float uses one real component. A float whose exact value is integral still
+  uses the integer form;
+- a complex value is exactly `(R + Ii)`, where `R` and `I` are real components.
+  The separator is always space-plus-space, so a negative imaginary component
+  renders as `(R + -Ii)`.
+
+These grammars describe the forms emitted by Go 1.24 `ExactString`; they do not
+evaluate source expressions. A `go/types` probe in `go1.24` mode observes a
+41-digit reduced float as
+`77777777777777777777777777777777777777777/10000000000000000000000000000000000000000`,
+the corresponding 101-digit fraction without abbreviation, and a complex value
+as the two exact fractions wrapped in `(R + Ii)`. It also observes an integral
+float's exact text as `10` and a negative imaginary component with the literal
+` + -` separator. Boolean and string ExactString proof remains producer-owned
+and never receives a numeric fingerprint exemption.
+
+Only types admitted by the dependency classification and recursive predicate
+may appear. The portable import field and hard enbility denial replace the old
+synthetic type-text sentinel; ordinary type text is not searched for an invalid
+path-shaped token.
 
 ## Signature Normalization
 
@@ -368,17 +513,18 @@ comments, source positions, or source formatting. It is derived as follows:
   after it in the receiver-free function type.
 
 Empty parameter lists omit brackets. Declaration parameters render in order as
-`Name Constraint`, separated by comma-space. Receiver parameters render only
-their ordered names, so a generic receiver is `Base[T, U]`; `pointer: true`
-adds the single leading `*`. The value is intentionally duplicated in constant
-signatures so a signature is never an invalid pseudo-declaration.
+`Name Constraint`, separated by comma-space, including each repeated `_`
+declaration name. Receiver parameters render only their ordered canonical
+binders, so a generic receiver is `Base[T, U]`; `pointer: true` adds the single
+leading `*`. The value is intentionally duplicated in constant signatures so a
+signature is never an invalid pseudo-declaration.
 
 ## Compatibility Fingerprint
 
 The compatibility projection is the complete document after removing the root
 `fixture` field and every symbol's derived `signature` field. No other field is
 removed: package-level `imports`, including each qualifier-to-path identity,
-participate in the projection and fingerprint. Package, import, and symbol
+dependency class, participate in the projection and fingerprint. Package, import, and symbol
 arrays remain in canonical order, and type-parameter arrays retain declaration
 order. Object member input order does not participate.
 
@@ -389,7 +535,7 @@ the projection as UTF-8 JSON with keys sorted by Unicode code point,
 `ensure_ascii` disabled, no insignificant whitespace, and separators `,` and
 `:`. The compatibility fingerprint is the lowercase hexadecimal SHA-256 digest
 of those bytes. The fingerprint is computed externally; v1 has no
-self-referential hash field. Corpus tests pin known digests for both positive
+self-referential hash field. Corpus tests pin known digests for all three positive
 fixtures and prove that changing only `fixture` or a correctly derived
 `signature` does not change the digest. Fingerprinting refuses any package path
 rejected by package-path validation and returns no digest for that document.
@@ -413,7 +559,7 @@ parameter spelling do not participate in ordering.
 The corpus excludes formatting, comments, source positions, file names, build
 metadata, internal package paths, unexported declarations, methods on
 unexported or unresolved receivers, implementation dependency types,
-duplicate identities, duplicate type-parameter names, malformed or duplicate
+duplicate identities, duplicate nonblank type-parameter names, malformed or duplicate
 JSON keys, non-NFC text outside ExactString-derived constant data, nulls,
 unknown fields, and non-canonical ordering.
 
@@ -427,10 +573,12 @@ synthetic. Their package paths begin with
 `example.invalid/helianthus/synthetic/`; no runtime symbol, package, or
 availability claim is implied. Imported package paths use the same synthetic
 prefix. Positive fixtures cover all five kinds, typed and all untyped constant
-classes including rune, exact large values, decomposed Unicode ExactString
-data, generic defined and alias types, cross-parameter function constraints,
-value and pointer generic receivers, and canonical package, import, and symbol
-ordering. `canonical-go-rendering.json` is the producer golden vector. Its two
+classes including rune, 41-digit and 101-digit exact rational and complex
+values, decomposed Unicode ExactString data, generic defined and alias types,
+cross-parameter function constraints, repeated blank declaration parameters,
+generated receiver binders, value and pointer generic receivers, explicit
+dependency classes, and canonical package, import, and symbol ordering.
+`canonical-go-rendering.json` is the producer golden vector. Its two
 paths ending in `collision/a` and `collision/b` both model packages whose
 declared package name is `shared`; source aliases `left` and `right` therefore
 disappear and the allocated qualifiers are `shared` and `shared_2`. Its
@@ -446,6 +594,13 @@ aliases, defined types, builtins, pointers, arrays, slices, maps, all channel
 directions, structs, interfaces, functions, variadics, embedded types, type
 parameters, constraints, and generic receivers.
 
+The same fixture defines `type BlankSlots[_, T1, _ any]` and package declaration
+`T3`. The first blank's positional candidate `T1` collides with the nonblank
+parameter, and the third position's candidate `T3` collides with the package
+declaration. The canonical binders are therefore `T1_2`, `T1`, and `T3_2`.
+The method golden substitutes its source receiver objects into every nested
+occurrence by object identity; no source binder name survives.
+
 The input/output facts represented by that fixture are exact golden vectors:
 
 | Type-checked source fact | Canonical machine fact |
@@ -454,15 +609,38 @@ The input/output facts represented by that fixture are exact golden vectors:
 | `func Normalize[T interface{ ~string \| ~int }](first left.Value, second right.Value, rest ...T) (result T, err error)` | `type` is `func(shared.Value, shared_2.Value, ...T) (T, error)` and the sorted constraint is `interface{ ~int \| ~string }` |
 | `func Normalize[T interface{ ~string \| ~int }](left.Value, right.Value, ...T) (T, error)` | The identical canonical `type`; only the declaration name and type-parameter fields remain named |
 | `type Aggregate[T interface{ ~string \| ~int }] ...` with `func (a *Aggregate[R]) Apply(value left.Value, rest ...R) (result R, updates <-chan right.Value)` | receiver is `{base: Aggregate, pointer: true, type_parameters: [T]}`, `type` is `func(shared.Value, ...T) (T, <-chan shared_2.Value)`, and the signature uses `*Aggregate[T]` |
+| `var T3 uint8; type BlankSlots[_, T1, _ any] struct{ Value T1 }; func (BlankSlots[A, B, C]) Bind(A, B, C) (A, B, C)` | declaration parameters remain `[_ any, T1 any, _ any]`; receiver parameters are `[T1_2, T1, T3_2]`; method `type` and signature substitute exactly those binders |
 | `type Alias[T interface{ ~string \| ~int }] = *Aggregate[T]` | the alias constraint is identical to `Aggregate`'s canonical constraint, so every permitted `T` satisfies the instantiated target |
 | `var FromByte byte` and `var FromUint8 uint8` | both `type` fields and signatures use `uint8` |
 | `var FromRune rune` and `var FromInt32 int32` | both `type` fields and signatures use `int32` |
+| imported collision packages are in the producer's exact public-contract approval set | both import objects carry `dependency_kind: public_contract`; this field is fingerprinted |
+| 41-digit and 101-digit reduced rational constants and their complex combinations | `value` and the exact signature suffix preserve the complete `ExactString`; negative imaginary text uses ` + -` |
+
+Producer-only dependency vectors use abstract `go/types` constructor notation;
+quoted object names such as `X` are synthetic placeholders and assert no runtime
+API. They freeze the predicate independently of the portable sentinel-free
+negative fixture:
+
+| Type graph and policy input | Exact result |
+|---|---|
+| `Named("time","Time")`, with `time` in `approved_standard_library_paths` and confirmed standard by the toolchain | PASS after checking zero type arguments; stop at the exported approved named boundary |
+| `Named("example.invalid/contract","Public")`, with that exact path in `approved_public_contract_paths` | PASS as an exported public-contract leaf |
+| `Named("github.com/enbility/eebus-go/spine/model","X")`, even if either approval set incorrectly lists the path | REJECT because the hard enbility denial overrides approval |
+| `Named("example.invalid/contract","Box",[Named("github.com/enbility/eebus-go/spine/model","X")])` | REJECT while checking the type argument before the otherwise approved named boundary |
+| current-package `Alias("Facade", Named("github.com/enbility/eebus-go/spine/model","X"))` or an approved dependency alias with that right-hand side | REJECT because aliases always expand |
+| `struct{ F []map[string]chan<- Named("unapproved.invalid/impl","X") }` | REJECT through field, slice, map, and channel traversal |
+| `interface{ M(func(Named("unapproved.invalid/impl","X")) error) }` or a selected method signature with that type in its receiver, constraint, parameter, or result | REJECT through interface, method, signature, and receiver traversal |
+| a current-package `Node` whose underlying struct contains `*Node` and an approved exported contract leaf | PASS; the identity-keyed revisit ends the cycle after all first-visit checks |
 
 The exact negative allowlist has ten filenames. Each fixture retains the valid
 schema identity, canonical version token, synthetic marker, no-runtime marker,
 and synthetic package prefix while producing exactly its approved diagnostic
 set. The duplicate-key fixture duplicates only `schema_id`, with equal values;
 strict recovery retains every occurrence for boundary and publication checks.
+`implementation-dependency-type.json` carries a synthetic enbility-model import
+with negative-only `dependency_kind: implementation` and references its normal
+allocated qualifier. It contains no path-shaped type-text sentinel; the exact
+diagnostic is `implementation dependency type`.
 
 Ordinary machine artifacts contain exactly one complete JSON value followed
 only by JSON whitespace. The canonical malformed fixture alone contains one
@@ -541,18 +719,25 @@ into diagnostics.
 Full fingerprints remain prohibited in every ordinary decoded key, string,
 number, package or import path, symbol name, type, constraint, receiver,
 signature, and constant representation, including duplicate or shadowed data.
-The only context-aware fingerprint diagnosis exemption is the exact decimal
-integer occurrence in `packages[*].symbols[*].value`, and the identical suffix
-occurrence in that symbol's exactly derived source-like `signature`, when the
-closed symbol object has `kind` equal to `const`, `value_kind` equal to `int`,
-and `value` matches `[+-]?[0-9]+` using ASCII digits. Any duplicate key in the
-object or an ancestor disables the exemption. The exemption suppresses only a
-fingerprint diagnosis for those two exact spans: private paths, network
+The only context-aware fingerprint diagnosis exemption is one complete
+canonical numeric ExactString span in `packages[*].symbols[*].value`, and the
+identical suffix span in that symbol's exactly derived source-like `signature`.
+The closed symbol object must have `kind: const`, `value_kind` equal to `int`,
+`float`, or `complex`, and `value` must pass the exact kind-specific grammar
+above. Its signature must be byte-for-byte the derivation from the same name,
+type, and value. Any duplicate key in the object or an ancestor disables the
+exemption.
+
+The exemption suppresses only a fingerprint diagnosis for fingerprint matches
+wholly contained in those two exact numeric spans. Private paths, network
 addresses, credentials, source contamination, and every other marker class
-still scan the complete value and signature. Hexadecimal-looking text,
-malformed decimal text, float, complex, and string constants,
-all-digit data in any other slot, and a signature not exactly derived from the
-same value are not exempt.
+still scan the complete value and signature. Boolean and string constants,
+leading plus signs or zeroes, zero or reducible fractions, denominator one,
+malformed complex separators, malformed binary floats, hexadecimal-looking
+identifiers, all-digit data in any other field, duplicate contexts, and a
+signature not exactly derived from the same value are not exempt. A canonical
+binary float is numeric only when the whole value matches its exact grammar;
+an arbitrary long hexadecimal string or identifier remains private.
 
 IPv4 candidates use the exact pattern
 `(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])`. Octets are parsed

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import math
 import re
 from dataclasses import dataclass
 from decimal import Decimal, DecimalException
@@ -44,7 +45,22 @@ MAC_PATTERN = re.compile(
     r")(?![0-9A-Fa-f])"
 )
 FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])")
-PORTABLE_DECIMAL_INTEGER_PATTERN = re.compile(r"[+-]?[0-9]+\Z")
+CANONICAL_DECIMAL_INTEGER_PATTERN = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
+CANONICAL_FRACTION_PATTERN = re.compile(
+    r"(-?(?:0|[1-9][0-9]*))/([1-9][0-9]*)\Z"
+)
+CANONICAL_HEX_FLOAT_PATTERN = re.compile(
+    r"-?0x\.[89a-f](?:[0-9a-f]*[1-9a-f])?p(?:\+0|\+[1-9][0-9]*|-[1-9][0-9]*)\Z"
+)
+CANONICAL_COMPLEX_PATTERN = re.compile(r"\((.+) \+ (.+)i\)\Z")
+UNTYPED_CONSTANT_TYPES = {
+    "untyped bool",
+    "untyped complex",
+    "untyped float",
+    "untyped int",
+    "untyped rune",
+    "untyped string",
+}
 SECRET_PATTERN = re.compile(
     r"\b(?:token|password|passphrase|credential|secret|api[_ -]?key|"
     r"client[_ -]?secret|private[_ -]?key|serial(?:[_ -]?number)?|"
@@ -438,7 +454,43 @@ def _is_symbol_path(path: tuple[str | int, ...]) -> bool:
     )
 
 
-def _integer_constant_fingerprint_exemptions(
+def _decimal_integer(value: str) -> int:
+    negative = value.startswith("-")
+    digits = value[1:] if negative else value
+    result = 0
+    for start in range(0, len(digits), 18):
+        chunk = digits[start : start + 18]
+        result = result * (10 ** len(chunk)) + int(chunk, 10)
+    return -result if negative else result
+
+
+def _is_canonical_exact_real(value: str) -> bool:
+    if CANONICAL_DECIMAL_INTEGER_PATTERN.fullmatch(value) is not None:
+        return True
+    fraction = CANONICAL_FRACTION_PATTERN.fullmatch(value)
+    if fraction is not None:
+        numerator = _decimal_integer(fraction.group(1))
+        denominator = _decimal_integer(fraction.group(2))
+        return numerator != 0 and denominator > 1 and math.gcd(abs(numerator), denominator) == 1
+    return CANONICAL_HEX_FLOAT_PATTERN.fullmatch(value) is not None
+
+
+def canonical_exact_numeric(value_kind: str, value: str) -> bool:
+    """Return whether text has a canonical numeric go/constant.ExactString shape."""
+
+    if value_kind == "int":
+        return CANONICAL_DECIMAL_INTEGER_PATTERN.fullmatch(value) is not None
+    if value_kind == "float":
+        return _is_canonical_exact_real(value)
+    if value_kind == "complex":
+        match = CANONICAL_COMPLEX_PATTERN.fullmatch(value)
+        return match is not None and all(
+            _is_canonical_exact_real(component) for component in match.groups()
+        )
+    return False
+
+
+def _numeric_constant_fingerprint_exemptions(
     value: dict[str, Any],
     path: tuple[str | int, ...],
     *,
@@ -454,21 +506,22 @@ def _integer_constant_fingerprint_exemptions(
         return {}
 
     symbol = dict(fields)
-    if symbol.get("kind") != "const" or symbol.get("value_kind") != "int":
+    if symbol.get("kind") != "const":
         return {}
     name = symbol.get("name")
     type_text = symbol.get("type")
     signature = symbol.get("signature")
+    value_kind = symbol.get("value_kind")
     constant_value = symbol.get("value")
     if not all(
         isinstance(item, str)
-        for item in (name, type_text, signature, constant_value)
+        for item in (name, type_text, signature, value_kind, constant_value)
     ):
         return {}
-    if PORTABLE_DECIMAL_INTEGER_PATTERN.fullmatch(constant_value) is None:
+    if not canonical_exact_numeric(value_kind, constant_value):
         return {}
 
-    if type_text.startswith("untyped "):
+    if type_text in UNTYPED_CONSTANT_TYPES:
         expected_signature = f"const {name} = {constant_value}"
     else:
         expected_signature = f"const {name} {type_text} = {constant_value}"
@@ -507,7 +560,7 @@ def _decoded_marker_diagnostics(
         diagnostics = set()
         local_duplicate = _has_local_duplicate_key(value)
         child_duplicate_context = duplicate_context or local_duplicate
-        exemptions = _integer_constant_fingerprint_exemptions(
+        exemptions = _numeric_constant_fingerprint_exemptions(
             value,
             path,
             duplicate_context=child_duplicate_context,

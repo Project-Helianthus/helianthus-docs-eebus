@@ -23,6 +23,7 @@ from machine_publication_policy import (  # noqa: E402
     NESTING_TOO_DEEP,
     TRAILING_CONTENT,
     JSONObject,
+    canonical_exact_numeric,
     classify_ipv4,
     decode_machine_json,
     decoded_text_occurrences,
@@ -345,7 +346,7 @@ class MachinePublicationPolicyTests(unittest.TestCase):
         )
 
     def test_exact_decimal_integer_value_and_derived_signature_exempt_only_fingerprint(self) -> None:
-        for value in ("1" * 41, "+" + "2" * 101, "-" + "3" * 101):
+        for value in ("1" * 41, "2" * 101, "-" + "3" * 101):
             with self.subTest(value=value[:2]):
                 document = {
                     "packages": [
@@ -365,6 +366,50 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 }
                 result = decode_machine_json(json.dumps(document).encode("utf-8"))
                 self.assertEqual(machine_publication_diagnostics(result), set())
+
+    def test_canonical_float_and_complex_exact_spans_exempt_only_fingerprints(self) -> None:
+        real_41 = "7" * 41 + "/1" + "0" * 40
+        real_101 = "7" * 101 + "/1" + "0" * 100
+        values = (
+            ("float", real_41),
+            ("float", real_101),
+            ("float", "0x.8" + "a" * 40 + "1p+2"),
+            ("complex", f"({real_41} + {real_101}i)"),
+            ("complex", f"({real_101} + -{real_41}i)"),
+        )
+        for value_kind, value in values:
+            with self.subTest(value_kind=value_kind, value=value[:8]):
+                self.assertTrue(canonical_exact_numeric(value_kind, value))
+                document = {
+                    "packages": [
+                        {
+                            "symbols": [
+                                {
+                                    "kind": "const",
+                                    "name": "Large",
+                                    "type": f"untyped {value_kind}",
+                                    "signature": f"const Large = {value}",
+                                    "value_kind": value_kind,
+                                    "value": value,
+                                }
+                            ]
+                        }
+                    ]
+                }
+                result = decode_machine_json(json.dumps(document).encode("utf-8"))
+                self.assertEqual(machine_publication_diagnostics(result), set())
+
+        invalid = (
+            ("int", "+" + "7" * 41),
+            ("float", "8" * 41 + "/2"),
+            ("float", "0x" + "A" * 40),
+            ("complex", "(" + "7" * 41 + " - " + "8" * 41 + "i)"),
+            ("bool", "7" * 41),
+            ("string", '"' + "7" * 41 + '"'),
+        )
+        for value_kind, value in invalid:
+            with self.subTest(invalid=value_kind, value=value[:3]):
+                self.assertFalse(canonical_exact_numeric(value_kind, value))
 
     def test_large_digit_data_outside_exact_integer_slots_remains_private(self) -> None:
         digits = "4" * 50
@@ -434,6 +479,28 @@ class MachinePublicationPolicyTests(unittest.TestCase):
         result = decode_machine_json(raw)
         self.assertTrue(result.duplicate_keys)
         self.assertIn("private identifier", machine_publication_diagnostics(result))
+
+    def test_duplicate_numeric_context_disables_float_and_complex_exemptions(self) -> None:
+        real = "7" * 41 + "/1" + "0" * 40
+        for value_kind, value in (
+            ("float", real),
+            ("complex", f"({real} + -{real}i)"),
+        ):
+            with self.subTest(value_kind=value_kind):
+                encoded = json.dumps(value)
+                raw = (
+                    '{"packages":[{"symbols":[{'
+                    f'"kind":"const","name":"Large","type":"untyped {value_kind}",'
+                    f'"signature":{json.dumps(f"const Large = {value}")},'
+                    f'"value_kind":"{value_kind}","value":{encoded},"value":{encoded}'
+                    "}]}]}"
+                ).encode("utf-8")
+                result = decode_machine_json(raw)
+                self.assertTrue(result.duplicate_keys)
+                self.assertIn(
+                    "private identifier",
+                    machine_publication_diagnostics(result),
+                )
 
     def test_other_markers_and_non_value_signature_fingerprints_are_not_exempt(self) -> None:
         value = "6" * 50

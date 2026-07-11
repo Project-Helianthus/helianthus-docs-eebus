@@ -9,13 +9,19 @@
     {
       "path": "example.invalid/helianthus/synthetic/negative",
       "name": "negative",
-      "imports": [],
+      "imports": [
+        {
+          "dependency_kind": "implementation",
+          "qualifier": "enbility_model",
+          "path": "example.invalid/helianthus/synthetic/dependency/enbility/model"
+        }
+      ],
       "symbols": [
         {
           "kind": "func",
           "name": "Open",
-          "type": "func(implementation.invalid/private.Client) error",
-          "signature": "func Open(implementation.invalid/private.Client) error",
+          "type": "func(enbility_model.Client) error",
+          "signature": "func Open(enbility_model.Client) error",
           "type_parameters": []
         }
       ]

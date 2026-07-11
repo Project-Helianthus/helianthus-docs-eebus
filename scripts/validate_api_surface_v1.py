@@ -18,6 +18,7 @@ from machine_publication_policy import (
     TRAILING_CONTENT,
     JSONObject,
     MachineJSONResult,
+    canonical_exact_numeric,
     decode_machine_json,
     machine_publication_diagnostics,
     object_values,
@@ -31,7 +32,7 @@ SYNTHETIC_PREFIX = "example.invalid/helianthus/synthetic/"
 SCHEMA_REL = Path("api/schema/helianthus.eebus.api-surface.v1.schema.json")
 POSITIVE_REL = Path("api/fixtures/v1/positive")
 NEGATIVE_REL = Path("api/fixtures/v1/negative")
-SCHEMA_SHA256 = "2b428be8c662ff97ad263f5a469ef472fc7cc0d5be8ec530cae62d94bbed13a5"
+SCHEMA_SHA256 = "45a2adf50298870974e11c321d7a3d76bb98caa694e780cbab460320401dad83"
 
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
 VALUE_KINDS = {"bool", "string", "int", "float", "complex"}
@@ -70,6 +71,55 @@ GO_KEYWORDS = {
     "type",
     "var",
 }
+GO_PREDECLARED_IDENTIFIERS = {
+    "any",
+    "append",
+    "bool",
+    "byte",
+    "cap",
+    "clear",
+    "close",
+    "comparable",
+    "complex",
+    "complex128",
+    "complex64",
+    "copy",
+    "delete",
+    "error",
+    "false",
+    "float32",
+    "float64",
+    "imag",
+    "int",
+    "int16",
+    "int32",
+    "int64",
+    "int8",
+    "iota",
+    "len",
+    "make",
+    "max",
+    "min",
+    "new",
+    "nil",
+    "panic",
+    "print",
+    "println",
+    "real",
+    "recover",
+    "rune",
+    "string",
+    "true",
+    "uint",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uint8",
+    "uintptr",
+}
+ALLOWED_DEPENDENCY_KINDS = {"public_contract", "standard_library"}
+IMPLEMENTATION_DEPENDENCY_KIND = "implementation"
+ENBILITY_PACKAGE_PREFIX = "github.com/enbility/"
 SYMBOL_FIELDS = {
     "const": {
         "required": {"kind", "name", "type", "signature", "value_kind", "value"},
@@ -205,6 +255,14 @@ def _is_exported(value: str) -> bool:
     return _is_go_identifier(value) and "A" <= value[0] <= "Z"
 
 
+def _is_canonical_binder(value: str) -> bool:
+    return _is_go_identifier(value) and value != "_"
+
+
+def _is_enbility_package_path(value: Any) -> bool:
+    return isinstance(value, str) and value.startswith(ENBILITY_PACKAGE_PREFIX)
+
+
 def _normalized_text(value: Any, *, allow_repeated_spaces: bool = False) -> bool:
     return (
         isinstance(value, str)
@@ -292,12 +350,41 @@ def _type_parameter_diagnostics(value: Any) -> tuple[set[str], list[str] | None]
             structurally_valid = False
             if isinstance(constraint, str):
                 diagnostics |= _text_diagnostics(constraint)
-        if isinstance(constraint, str) and "implementation.invalid/" in constraint:
-            diagnostics.add("implementation dependency type")
-
-    if len(names) != len(set(names)):
+    nonblank_names = [name for name in names if name != "_"]
+    if len(nonblank_names) != len(set(nonblank_names)):
         diagnostics.add("duplicate type parameter")
     return diagnostics, names if structurally_valid and len(names) == len(value) else None
+
+
+def canonical_receiver_type_parameters(
+    parameters: Any,
+    package_declaration_names: set[str],
+) -> list[str] | None:
+    diagnostics, names = _type_parameter_diagnostics(parameters)
+    if diagnostics or names is None:
+        return None
+
+    reserved = (
+        GO_KEYWORDS
+        | GO_PREDECLARED_IDENTIFIERS
+        | {"_"}
+        | package_declaration_names
+        | {name for name in names if name != "_"}
+    )
+    canonical: list[str] = []
+    for index, name in enumerate(names, start=1):
+        if name != "_":
+            canonical.append(name)
+            continue
+        root = f"T{index}"
+        candidate = root
+        suffix = 2
+        while candidate in reserved:
+            candidate = f"{root}_{suffix}"
+            suffix += 1
+        canonical.append(candidate)
+        reserved.add(candidate)
+    return canonical
 
 
 def _receiver_diagnostics(value: Any) -> tuple[set[str], dict[str, Any] | None]:
@@ -329,7 +416,7 @@ def _receiver_diagnostics(value: Any) -> tuple[set[str], dict[str, Any] | None]:
     else:
         valid_parameters: list[str] = []
         for parameter in parameters:
-            if not isinstance(parameter, str) or not _is_go_identifier(parameter):
+            if not isinstance(parameter, str) or not _is_canonical_binder(parameter):
                 diagnostics.add("invalid receiver")
                 valid = False
             else:
@@ -466,12 +553,19 @@ def compatibility_fingerprint(document: dict[str, Any]) -> str:
                 raise ValueError("invalid import shape")
             qualifier = package_import.get("qualifier")
             import_path = package_import.get("path")
+            dependency_kind = package_import.get("dependency_kind")
             if (
                 not isinstance(qualifier, str)
                 or not _is_go_identifier(qualifier)
                 or qualifier == "_"
             ):
                 raise ValueError("invalid import qualifier")
+            if (
+                not isinstance(dependency_kind, str)
+                or dependency_kind not in ALLOWED_DEPENDENCY_KINDS
+                or _is_enbility_package_path(import_path)
+            ):
+                raise ValueError("invalid import dependency")
             if _package_path_diagnostics(
                 import_path,
                 path_kind="import",
@@ -589,11 +683,12 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                     continue
                 diagnostics |= _check_fields(
                     package_import,
-                    {"qualifier", "path"},
-                    {"qualifier", "path"},
+                    {"dependency_kind", "qualifier", "path"},
+                    {"dependency_kind", "qualifier", "path"},
                 )
                 qualifier = package_import.get("qualifier")
                 import_path = package_import.get("path")
+                dependency_kind = package_import.get("dependency_kind")
 
                 if (
                     not isinstance(qualifier, str)
@@ -612,6 +707,16 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                     path_kind="import",
                     current_package_path=path,
                 )
+                if (
+                    dependency_kind == IMPLEMENTATION_DEPENDENCY_KIND
+                    or _is_enbility_package_path(import_path)
+                ):
+                    diagnostics.add("implementation dependency type")
+                elif (
+                    not isinstance(dependency_kind, str)
+                    or dependency_kind not in ALLOWED_DEPENDENCY_KINDS
+                ):
+                    diagnostics.add("invalid dependency kind")
                 if isinstance(import_path, str) and import_path:
                     if corpus and not import_path.startswith(SYNTHETIC_PREFIX):
                         diagnostics.add("non-synthetic fixture package")
@@ -643,6 +748,14 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
             for symbol in symbols
             if isinstance(symbol, dict)
             and symbol.get("kind") == "type"
+            and isinstance(symbol.get("name"), str)
+        }
+        package_declaration_names = {
+            symbol.get("name")
+            for symbol in symbols
+            if isinstance(symbol, dict)
+            and isinstance(symbol.get("kind"), str)
+            and symbol.get("kind") in SYMBOL_KINDS - {"method"}
             and isinstance(symbol.get("name"), str)
         }
         sortable_symbols: list[dict[str, Any]] = []
@@ -689,9 +802,6 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                             if lossless
                             else _text_diagnostics(value)
                         )
-                if isinstance(value, str) and "implementation.invalid/" in value:
-                    diagnostics.add("implementation dependency type")
-
             parameter_names: list[str] | None = None
             if valid_kind and kind in {"func", "type"}:
                 parameter_diagnostics, parameter_names = _type_parameter_diagnostics(
@@ -713,6 +823,12 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                     diagnostics.add("invalid constant value")
                 if isinstance(value, str):
                     diagnostics |= _lossless_text_diagnostics(value)
+                    if (
+                        isinstance(value_kind, str)
+                        and value_kind in {"int", "float", "complex"}
+                        and not canonical_exact_numeric(value_kind, value)
+                    ):
+                        diagnostics.add("invalid constant value")
                 type_text = symbol.get("type")
                 if (
                     isinstance(type_text, str)
@@ -770,14 +886,12 @@ def document_diagnostics(document: Any, *, corpus: bool = False) -> set[str]:
                             if len(receiver["type_parameters"]) != len(declared_parameters):
                                 diagnostics.add("receiver arity mismatch")
                             else:
-                                declared_names = [
-                                    parameter.get("name")
-                                    for parameter in declared_parameters
-                                    if isinstance(parameter, dict)
-                                ]
-                                if (
-                                    len(declared_names) == len(declared_parameters)
-                                    and receiver["type_parameters"] != declared_names
+                                canonical_names = canonical_receiver_type_parameters(
+                                    declared_parameters,
+                                    package_declaration_names,
+                                )
+                                if canonical_names is not None and (
+                                    receiver["type_parameters"] != canonical_names
                                 ):
                                     diagnostics.add("receiver type parameter mismatch")
 
