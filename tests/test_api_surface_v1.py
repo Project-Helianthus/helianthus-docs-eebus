@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -36,6 +37,7 @@ REFERENCE = REPO / "api" / "api-surface-v1.md"
 POSITIVE_FIXTURES = REPO / "api" / "fixtures" / "v1" / "positive"
 NEGATIVE_FIXTURES = REPO / "api" / "fixtures" / "v1" / "negative"
 GO_ALIAS_DEPENDENCY_PROBE = REPO / "tests" / "go_alias_dependency_probe.go"
+GO_RECEIVER_ALIAS_PROBE = REPO / "tests" / "go_receiver_alias_probe.go"
 
 SCHEMA_ID = "helianthus.eebus.api-surface.v1"
 SCHEMA_URI = "urn:helianthus:eebus:api-surface:v1"
@@ -73,7 +75,7 @@ SYMBOL_FIELDS = {
     "var": {"kind", "name", "type", "signature"},
 }
 KNOWN_FINGERPRINTS = {
-    "canonical-go-rendering.json": "56f5b5001be65857ab8445f839182ffc9ce11aaa68ae9585547f1b8bd8512a56",
+    "canonical-go-rendering.json": "be650bc34faeaead3a2ba05fcd9acb0a584f087c73826501b03299d892b6a9c5",
     "kinds-types-signatures.json": "5320fdbb6049fc9f6349524ac2f3524c7979eb9c72c6db8331c047dee15db4d7",
     "packages-and-symbols.json": "6c5784c4295dae25e241c05fa4918386bedfc9f0d4f212e56facd78c7cfd6ba4",
 }
@@ -147,6 +149,28 @@ def run_policy_validator(repo: Path) -> subprocess.CompletedProcess[str]:
         check=False,
         text=True,
         capture_output=True,
+    )
+
+
+def run_go_probe(path: Path) -> subprocess.CompletedProcess[str]:
+    go = shutil.which("go")
+    if go is None:
+        raise AssertionError("Go is required for producer probes")
+    environment = os.environ.copy()
+    debug_options = [
+        option
+        for option in environment.get("GODEBUG", "").split(",")
+        if option and not option.startswith("gotypesalias=")
+    ]
+    debug_options.append("gotypesalias=1")
+    environment["GODEBUG"] = ",".join(debug_options)
+    return subprocess.run(
+        [go, "run", str(path)],
+        cwd=REPO,
+        check=False,
+        text=True,
+        capture_output=True,
+        env=environment,
     )
 
 
@@ -356,7 +380,15 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertNotIn("Traceback", result.stderr)
 
     def test_contract_paths_and_exact_fixture_allowlists(self) -> None:
-        for path in (SCHEMA, REFERENCE, API_VALIDATOR, POLICY_VALIDATOR, SHARED_POLICY):
+        for path in (
+            SCHEMA,
+            REFERENCE,
+            API_VALIDATOR,
+            POLICY_VALIDATOR,
+            SHARED_POLICY,
+            GO_ALIAS_DEPENDENCY_PROBE,
+            GO_RECEIVER_ALIAS_PROBE,
+        ):
             self.assertTrue(path.is_file(), path)
             self.assertFalse(path.is_symlink(), path)
         self.assertEqual({path.name for path in positive_paths()}, REQUIRED_POSITIVE_FIXTURES)
@@ -481,9 +513,17 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             "source aliases, dot imports, file order, and import declaration order are ignored",
             "reserve `_`, every go keyword, every name in `types.universe`",
             "named.nummethods",
+            "named.nummethods` set is the sole method inventory",
+            "types.info.defs[decl.name]` object identity",
+            "emit that method object exactly once",
             "promoted methods are not emitted",
             "receiver.type_parameters` contains the generated canonical binders in declaration order",
-            "an alias can never be a receiver base",
+            "visited set keyed by `*types.alias` object identity",
+            "both `alias.typeparams()` and `alias.typeargs()` must be empty",
+            "set `receiver.base` to the retained origin object's name",
+            "do not copy an alias name from either the ast or the method signature into json",
+            "portable json contains only the canonical ultimate defined base",
+            "tests/go_receiver_alias_probe.go",
             "receiver parameter strings must also exactly equal",
             "substitution map keyed by the actual `*types.typeparam` object identity",
             "type blank[_, _ any] struct{}",
@@ -567,13 +607,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
 
         go = shutil.which("go")
         self.assertIsNotNone(go, "Go is required for the producer alias probe")
-        probe = subprocess.run(
-            [go, "run", str(GO_ALIAS_DEPENDENCY_PROBE)],
-            cwd=REPO,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        probe = run_go_probe(GO_ALIAS_DEPENDENCY_PROBE)
         self.assertEqual(probe.returncode, 0, probe.stderr)
         self.assertEqual(
             probe.stdout.splitlines(),
@@ -597,6 +631,132 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, normalized)
+
+    def test_go_124_receiver_alias_probe_and_fixture_are_canonical(self) -> None:
+        probe = run_go_probe(GO_RECEIVER_ALIAS_PROBE)
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        output = json.loads(probe.stdout)
+
+        self.assertEqual(output["go_version"], "go1.24")
+        self.assertEqual(output["named_num_methods"], 4)
+        expected_positive = {
+            "AliasChained": {
+                "declared_receiver": "ReceiverChain",
+                "ast_type": "*types.Alias",
+                "go_types_receiver": "ReceiverChain",
+                "alias_hops": 2,
+                "pointer": False,
+                "signature": "func (ReceiverBase) AliasChained(string) string",
+            },
+            "AliasDirect": {
+                "declared_receiver": "ReceiverDirect",
+                "ast_type": "*types.Alias",
+                "go_types_receiver": "ReceiverDirect",
+                "alias_hops": 1,
+                "pointer": False,
+                "signature": "func (ReceiverBase) AliasDirect(uint8) uint8",
+            },
+            "AliasExplicitPointer": {
+                "declared_receiver": "*ReceiverDirect",
+                "ast_type": "*types.Pointer",
+                "go_types_receiver": "*ReceiverDirect",
+                "alias_hops": 1,
+                "pointer": True,
+                "signature": "func (*ReceiverBase) AliasExplicitPointer(int32) int32",
+            },
+            "AliasPointer": {
+                "declared_receiver": "ReceiverPointer",
+                "ast_type": "*types.Alias",
+                "go_types_receiver": "ReceiverPointer",
+                "alias_hops": 1,
+                "pointer": True,
+                "signature": "func (*ReceiverBase) AliasPointer(bool) bool",
+            },
+        }
+        self.assertEqual(
+            {vector["name"] for vector in output["positive"]},
+            set(expected_positive),
+        )
+
+        document = load_json_strict(POSITIVE_FIXTURES / "canonical-go-rendering.json")
+        for vector in output["positive"]:
+            expected = expected_positive[vector["name"]]
+            with self.subTest(name=vector["name"]):
+                for field in (
+                    "declared_receiver",
+                    "ast_type",
+                    "go_types_receiver",
+                    "alias_hops",
+                    "signature",
+                ):
+                    self.assertEqual(vector[field], expected[field])
+                self.assertEqual(vector["named_method_occurrences"], 1)
+                self.assertEqual(
+                    vector["receiver"],
+                    {
+                        "base": "ReceiverBase",
+                        "pointer": expected["pointer"],
+                        "type_parameters": [],
+                    },
+                )
+                method = find_symbol(document, "method", vector["name"])
+                self.assertEqual(method["receiver"], vector["receiver"])
+                self.assertEqual(method["signature"], vector["signature"])
+                self.assertEqual(method["signature"], derive_signature(method))
+
+        self.assertEqual(
+            output["identity"],
+            {
+                "base_parameter_names": ["_", "T1", "_"],
+                "receiver_parameter_names": ["A", "B", "C"],
+                "arguments_match_receiver_objects": [True, True, True],
+                "receiver_objects_differ_from_base": [True, True, True],
+            },
+        )
+        self.assertEqual(
+            output["negative"],
+            [
+                {"name": "alias-cycle", "go_types": "REJECT", "producer": "REJECT"},
+                {
+                    "name": "defined-pointer-base",
+                    "go_types": "REJECT",
+                    "producer": "REJECT",
+                },
+                {"name": "foreign-base", "go_types": "REJECT", "producer": "REJECT"},
+                {"name": "generic-alias", "go_types": "REJECT", "producer": "REJECT"},
+                {
+                    "name": "instantiated-alias",
+                    "go_types": "REJECT",
+                    "producer": "REJECT",
+                },
+                {"name": "interface-base", "go_types": "REJECT", "producer": "REJECT"},
+                {"name": "invalid-base", "go_types": "REJECT", "producer": "REJECT"},
+                {
+                    "name": "more-than-one-pointer",
+                    "go_types": "REJECT",
+                    "producer": "REJECT",
+                },
+                {
+                    "name": "unexported-base",
+                    "go_types": "PASS",
+                    "producer": "REJECT unexported receiver base",
+                },
+            ],
+        )
+
+        receiver_base = find_symbol(document, "type", "ReceiverBase")
+        self.assertEqual(receiver_base["type_form"], "defined")
+        for name, target in {
+            "ReceiverChain": "ReceiverDirect",
+            "ReceiverDirect": "ReceiverBase",
+            "ReceiverPointer": "*ReceiverBase",
+        }.items():
+            alias = find_symbol(document, "type", name)
+            self.assertEqual((alias["type_form"], alias["type"]), ("alias", target))
+        expected_fingerprint = KNOWN_FINGERPRINTS["canonical-go-rendering.json"]
+        self.assertEqual(canonical_fingerprint_independent(document), expected_fingerprint)
+        self.assertEqual(compatibility_fingerprint(document), expected_fingerprint)
+        self.assertEqual(document_diagnostics(document, corpus=True), set())
 
     def test_positive_fixtures_are_synthetic_and_boundary_valid(self) -> None:
         for path in positive_paths():
@@ -1535,15 +1695,28 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 )
 
     def test_validator_modes_reject_alias_receiver_targets(self) -> None:
-        def mutation(document: dict[str, Any]) -> None:
-            method = find_symbol(document, "method", "Values")
-            method["receiver"]["base"] = "Pair"
-            method["signature"] = derive_signature(method)
-
-        self.assert_mutation_rejected_in_all_api_modes(
-            mutation,
-            "non-defined receiver",
+        cases = (
+            ("kinds-types-signatures.json", "Values", "Pair"),
+            ("canonical-go-rendering.json", "AliasDirect", "ReceiverDirect"),
+            ("canonical-go-rendering.json", "AliasChained", "ReceiverChain"),
+            ("canonical-go-rendering.json", "AliasPointer", "ReceiverPointer"),
         )
+        for fixture, method_name, alias_name in cases:
+            with self.subTest(alias=alias_name):
+                def mutation(
+                    document: dict[str, Any],
+                    method_name: str = method_name,
+                    alias_name: str = alias_name,
+                ) -> None:
+                    method = find_symbol(document, "method", method_name)
+                    method["receiver"]["base"] = alias_name
+                    method["signature"] = derive_signature(method)
+
+                self.assert_mutation_rejected_in_all_api_modes(
+                    mutation,
+                    "non-defined receiver",
+                    fixture=fixture,
+                )
 
     def test_validator_package_identity_is_independent_of_kind(self) -> None:
         def mutation(document: dict[str, Any]) -> None:

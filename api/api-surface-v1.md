@@ -119,10 +119,18 @@ receiver-free `*types.Func`. A multi-name `const` or `var` declaration produces
 one symbol per selected object. `TypeName.IsAlias()` selects `type_form: alias`;
 all other selected type names are `defined`. For every selected defined
 `*types.Named`, inspect its declared methods with `Named.NumMethods` and include
-each exported method. Do not use a method set: promoted methods are not emitted.
-Methods of aliases, methods on unselected or unexported receiver bases, local
-declarations, fields as standalone symbols, builtins, instantiated synthetic
-objects, and compiler-generated wrappers are not emitted.
+each exported method. This `Named.NumMethods` set is the sole method inventory.
+Associate each selected `*types.Func` with exactly one matching AST
+`*ast.FuncDecl` by `types.Info.Defs[decl.Name]` object identity, and emit that
+method object exactly once. Missing, ambiguous, or multiply owned associations
+reject the method. Do not use a method set: promoted methods are not emitted.
+An alias declaration is never an independent method owner and is never
+enumerated for methods. A method present in the selected defined owner's
+`Named.NumMethods` is nevertheless emitted when its AST receiver legally spells
+that owner through a receiver alias; normalize that spelling as specified
+below. Methods on unselected or unexported ultimate defined receiver bases,
+local declarations, fields as standalone symbols, builtins, instantiated
+synthetic objects, and compiler-generated wrappers are not emitted.
 
 For a selected package function, declaration `type_parameters` come from
 `Signature.TypeParams()` in index order. For a selected defined type they come
@@ -347,13 +355,51 @@ Preserve each `_` occurrence positionally in type and function declaration
 arrays and in their source-like signatures. Nonblank declaration parameter
 names remain unique; repeated `_` names are not a duplicate-name error.
 
-A method receiver is derived from the declared receiver type after stripping
-one optional pointer. The remainder must be a `*types.Named` whose `Origin()` is
-the selected local defined type; an alias can never be a receiver base. Its
+A method receiver is derived from the AST declaration associated with the
+selected method object, not from source text and not from
+`Signature.Recv().Type()` alone. Require one receiver field and let `R` be the
+`types.Info.TypeOf` value for that field's complete type expression. A missing,
+nil, invalid, or ambiguous AST/type association rejects the method. Resolve `R`
+with this exact loop while maintaining a total pointer count and a visited set
+keyed by `*types.Alias` object identity:
+
+1. For `*types.Pointer`, increment the total pointer count, reject immediately
+   when it exceeds one, and continue with `Elem()`.
+2. For `*types.Alias`, reject an identity revisit. Its object must be a
+   package-scope object of the current package, and both `Alias.TypeParams()`
+   and `Alias.TypeArgs()` must be empty. Continue with `Alias.Rhs()`. The alias
+   spelling is source-only and never becomes the emitted receiver base.
+3. For `*types.Named`, stop and retain both that occurrence and its `Origin()`.
+4. Any other terminal, including a `*types.Basic` of kind `types.Invalid`, an
+   interface, another basic or composite type, or a malformed object, rejects
+   the method.
+
+The retained origin must be the exact selected local defined `*types.Named`
+from whose `Named.NumMethods` the method was obtained. Its object must belong to
+the current package scope, satisfy the exported ASCII v1 rule, and be the
+selected non-alias type declaration. A named type whose underlying type is a
+pointer or interface is invalid as a receiver base. If at least one alias was
+traversed, the retained named occurrence must be uninstantiated: its
+`TypeArgs()` is empty and it equals its origin. Thus alias cycles, foreign alias
+objects or bases, unselected or unexported ultimate bases, interface or defined
+pointer bases, invalid terminals, instantiated alias targets, and more than one
+total pointer all reject the method. An intermediate local alias does not
+replace or alter the visibility of the ultimate defined owner.
+
+Set `receiver.base` to the retained origin object's name and set
+`receiver.pointer` from whether the total pointer count is one. This count is
+semantic across the complete spelling: source `*U` contributes one pointer,
+and `P` with `type P = *T` contributes one pointer through the alias right-hand
+side. Do not copy an alias name from either the AST or the method signature into
+JSON.
+
+For a direct generic defined receiver, the retained named occurrence's
 type-argument count and `Signature.RecvTypeParams()` count must both equal the
 base declaration's `Named.TypeParams()` count, and each receiver type argument
 must be the exact receiver `*types.TypeParam` object at the same index; comparing
-only names is insufficient. Otherwise reject the method.
+only names is insufficient. A legally traversable receiver alias is
+non-generic and therefore has zero receiver-bound type parameters. Otherwise
+reject the method.
 
 Generate the receiver's canonical binder list from the base declaration
 parameters before qualifier allocation. Initialize `reserved` with `_`, every
@@ -380,8 +426,8 @@ While rendering every receiver type argument, parameter, result, constraint,
 and nested type reachable from that method signature, a type-parameter
 occurrence consults this map before using its object name. Do not key this map by
 text and do not map the distinct base `Named.TypeParams()` objects. `base` is
-the selected origin name, `pointer` records the stripped pointer, and
-`receiver.type_parameters` contains the generated canonical binders in
+the selected ultimate origin name, `pointer` records the total pointer count,
+and `receiver.type_parameters` contains the generated canonical binders in
 declaration order. Source receiver variable and binder names are discarded.
 
 For example, source `func (box *Box[R]) Put(value R) R` on `type Box[T any]`
@@ -399,6 +445,19 @@ and each receiver type argument is identical to the corresponding
 `Signature.RecvTypeParams()` object. `type Bad[T, T any]` is rejected as a
 redeclaration, and a receiver with fewer binders than its generic base is
 rejected for arity mismatch.
+
+The same Go 1.24-mode AST/`go/types` probe establishes receiver-alias behavior.
+For local non-generic `type U = T` and `type V = U`, methods declared on `U`
+and `V` are accepted and occur in `T.Named.NumMethods`, while their method
+signatures retain `U` and `V` as receiver types. `type P = *T` with receiver
+`P` is accepted, as is explicit receiver `*U`; each has one total pointer.
+Explicit receiver `*P` is rejected as a double pointer. Methods on a generic
+alias and on an alias of an instantiated generic defined type are rejected.
+The producer still performs the fail-closed checks above after successful type
+checking and excludes a Go-legal exported method whose ultimate defined base is
+unexported. The executable vector is `tests/go_receiver_alias_probe.go`; it also
+pins checker rejection of alias cycles, foreign bases, interface and defined
+pointer bases, invalid bases, and more than one pointer.
 
 Finally derive `signature` only from the normalized fields as specified below,
 sort imports and symbols, and validate the complete document. Because
@@ -442,7 +501,10 @@ that declaration must have `type_form: defined`, and receiver arity must equal
 that declaration's type-parameter arity. The receiver parameter strings must
 also exactly equal the positional canonical binder list derived from the
 resolved declaration and package declaration names. Renamed, reordered, blank,
-or otherwise noncanonical strings and alias bases are invalid.
+or otherwise noncanonical strings and alias bases are invalid. This remains
+true when the source method receiver used an alias: portable JSON contains only
+the canonical ultimate defined base, and the validator does not resolve alias
+names supplied as `receiver.base`.
 
 Package-scope declaration identity is `(package path, name)`, independent of
 kind. A constant, variable, type, and function therefore cannot reuse the same
@@ -592,7 +654,8 @@ classes including rune, 41-digit and 101-digit exact rational and complex
 values, decomposed Unicode ExactString data, generic defined and alias types,
 cross-parameter function constraints, repeated blank declaration parameters,
 generated receiver binders, value and pointer generic receivers, explicit
-dependency classes, and canonical package, import, and symbol ordering.
+dependency classes, direct and chained receiver aliases, pointer aliases, and
+canonical package, import, and symbol ordering.
 `canonical-go-rendering.json` is the producer golden vector. Its two
 paths ending in `collision/a` and `collision/b` both model packages whose
 declared package name is `shared`; source aliases `left` and `right` therefore
@@ -616,6 +679,13 @@ declaration. The canonical binders are therefore `T1_2`, `T1`, and `T3_2`.
 The method golden substitutes its source receiver objects into every nested
 occurrence by object identity; no source binder name survives.
 
+It also defines `ReceiverDirect = ReceiverBase`,
+`ReceiverChain = ReceiverDirect`, and `ReceiverPointer = *ReceiverBase`.
+Methods declared with receivers `ReceiverDirect`, `ReceiverChain`,
+`ReceiverPointer`, and `*ReceiverDirect` are all obtained exactly once from
+`ReceiverBase.Named.NumMethods`. Their emitted receiver bases are uniformly
+`ReceiverBase`; only the latter two normalize to `pointer: true`.
+
 The input/output facts represented by that fixture are exact golden vectors:
 
 | Type-checked source fact | Canonical machine fact |
@@ -626,6 +696,10 @@ The input/output facts represented by that fixture are exact golden vectors:
 | `type Aggregate[T interface{ ~string \| ~int }] ...` with `func (a *Aggregate[R]) Apply(value left.Value, rest ...R) (result R, updates <-chan right.Value)` | receiver is `{base: Aggregate, pointer: true, type_parameters: [T]}`, `type` is `func(shared.Value, ...T) (T, <-chan shared_2.Value)`, and the signature uses `*Aggregate[T]` |
 | `var T3 uint8; type BlankSlots[_, T1, _ any] struct{ Value T1 }; func (BlankSlots[A, B, C]) Bind(A, B, C) (A, B, C)` | declaration parameters remain `[_ any, T1 any, _ any]`; receiver parameters are `[T1_2, T1, T3_2]`; method `type` and signature substitute exactly those binders |
 | `type Alias[T interface{ ~string \| ~int }] = *Aggregate[T]` | the alias constraint is identical to `Aggregate`'s canonical constraint, so every permitted `T` satisfies the instantiated target |
+| `type ReceiverDirect = ReceiverBase; func (ReceiverDirect) AliasDirect(uint8) uint8` | method is emitted once from `ReceiverBase.Named.NumMethods` with receiver `{base: ReceiverBase, pointer: false, type_parameters: []}` and no alias spelling in its signature |
+| `type ReceiverChain = ReceiverDirect; func (ReceiverChain) AliasChained(string) string` | the finite two-alias chain resolves to the same canonical value receiver |
+| `type ReceiverPointer = *ReceiverBase; func (ReceiverPointer) AliasPointer(bool) bool` | the pointer in the alias right-hand side yields canonical `pointer: true` |
+| `func (*ReceiverDirect) AliasExplicitPointer(int32) int32` | the explicit pointer outside the direct alias also yields canonical `pointer: true`; `*ReceiverPointer` is rejected because its total would be two |
 | `var FromByte byte` and `var FromUint8 uint8` | both `type` fields and signatures use `uint8` |
 | `var FromRune rune` and `var FromInt32 int32` | both `type` fields and signatures use `int32` |
 | imported collision packages are in the producer's exact public-contract approval set | both import objects carry `dependency_kind: public_contract`; this field is fingerprinted |

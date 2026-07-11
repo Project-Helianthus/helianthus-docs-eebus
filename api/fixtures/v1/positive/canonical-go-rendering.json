@@ -63,6 +63,50 @@
           }
         },
         {
+          "kind": "method",
+          "name": "AliasChained",
+          "type": "func(string) string",
+          "signature": "func (ReceiverBase) AliasChained(string) string",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasDirect",
+          "type": "func(uint8) uint8",
+          "signature": "func (ReceiverBase) AliasDirect(uint8) uint8",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasExplicitPointer",
+          "type": "func(int32) int32",
+          "signature": "func (*ReceiverBase) AliasExplicitPointer(int32) int32",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": true,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasPointer",
+          "type": "func(bool) bool",
+          "signature": "func (*ReceiverBase) AliasPointer(bool) bool",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": true,
+            "type_parameters": []
+          }
+        },
+        {
           "kind": "type",
           "name": "Aggregate",
           "type": "struct{ Embedded; Fixed [3][]map[string]chan<- shared.Item; Inbox <-chan shared_2.Value; Stream chan T; Callback func(shared.Value, ...T) (T, error) }",
@@ -128,6 +172,38 @@
           "type": "interface{ Accept(shared_2.Value) error }",
           "signature": "type Embedded interface{ Accept(shared_2.Value) error }",
           "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverBase",
+          "type": "struct{}",
+          "signature": "type ReceiverBase struct{}",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverChain",
+          "type": "ReceiverDirect",
+          "signature": "type ReceiverChain = ReceiverDirect",
+          "type_form": "alias",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverDirect",
+          "type": "ReceiverBase",
+          "signature": "type ReceiverDirect = ReceiverBase",
+          "type_form": "alias",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverPointer",
+          "type": "*ReceiverBase",
+          "signature": "type ReceiverPointer = *ReceiverBase",
+          "type_form": "alias",
           "type_parameters": []
         },
         {
