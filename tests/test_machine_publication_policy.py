@@ -199,6 +199,20 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 self.assertIsNone(classify_ipv4(candidate))
                 self.assertEqual(marker_diagnostics(candidate), set())
 
+    def test_private_artifact_separators_and_volume_paths_are_machine_private(self) -> None:
+        for key in (
+            "private artifact location",
+            "private_artifact-reference",
+            "private-artifact_filename",
+        ):
+            with self.subTest(key=key):
+                result = decode_machine_json(json.dumps({key: "redacted"}).encode("utf-8"))
+                self.assertIn("private path", machine_publication_diagnostics(result))
+        self.assertEqual(
+            marker_diagnostics("/Volumes/Operator/capture.json"),
+            {"private path"},
+        )
+
     def test_leading_zero_ipv4_spellings_are_decimal_and_deterministic(self) -> None:
         private = ".".join(("010", "000", "000", "001"))
         public = ".".join(("008", "008", "008", "008"))

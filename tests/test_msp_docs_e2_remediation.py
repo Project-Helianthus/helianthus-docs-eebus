@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 sys.path.insert(0, str(REPO / "scripts"))
 
-from validate_repository_policy import _fully_decode_reference
+from validate_repository_policy import _fully_decode_reference, _visible_link_destinations
 
 
 PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
@@ -205,6 +205,42 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             "absolute GitHub URL": candidate_url,
             "JSON unicode escapes": (
                 '{"candidate":"' + candidate_url.replace("/", r"\u002f") + '"}'
+            ),
+        }
+        for channel, relative_path in channels.items():
+            for form, payload in payloads.items():
+                with self.subTest(
+                    channel=channel, form=form
+                ), tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / relative_path
+                    prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
+                    artifact.write_text(prefix + "\n" + payload + "\n", encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+
+    def test_github_contents_api_candidate_urls_cannot_leak(self) -> None:
+        channels = {
+            "stable_navigation": "README.md",
+            "search": "api/search-index.json",
+            "sitemap": "api/sitemap.xml",
+            "versioned_bundle": "api/versioned-bundle.txt",
+            "release_bundle": "api/release-bundle.txt",
+        }
+        candidate_url = (
+            "https://api.github.com/repos/Project-Helianthus/"
+            "helianthus-docs-eebus/contents/api/_candidate/runtime-reference.md"
+        )
+        payloads = {
+            "absolute URL": candidate_url,
+            "serialized escaped URL": (
+                '{"url":"' + candidate_url.replace("/", r"\/") + '"}'
+            ),
+            "nested encoded URL": candidate_url.replace(
+                "api/_candidate", "api/%255fcandidate"
             ),
         }
         for channel, relative_path in channels.items():
@@ -487,6 +523,62 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_hidden_and_non_link_destinations_do_not_supply_cross_seed_evidence(self) -> None:
+        hidden_forms = {
+            "terminated comment": f"<!-- [hidden]({PLATFORM_URL}) -->",
+            "unterminated comment": f"<!-- [hidden]({PLATFORM_URL})",
+            "inline code": f"`[hidden]({PLATFORM_URL})`",
+            "fenced code": f"```markdown\n[hidden]({PLATFORM_URL})\n```",
+            "unterminated fence": f"```markdown\n[hidden]({PLATFORM_URL})",
+            "image": f"![hidden]({PLATFORM_URL})",
+            "bare URL": PLATFORM_URL,
+            "non-anchor href": f'<link href="{PLATFORM_URL}">',
+        }
+        for name, replacement in hidden_forms.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                page = repo / "architecture/README.md"
+                text = page.read_text(encoding="utf-8").replace(
+                    f"[shared registry boundary]({PLATFORM_URL})",
+                    replacement,
+                    1,
+                )
+                page.write_text(text, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "cross-seed metadata requires a canonical platform link",
+                    result.stderr,
+                )
+
+    def test_actual_markdown_and_html_anchors_expose_destinations(self) -> None:
+        forms = {
+            "inline Markdown": f"[platform]({PLATFORM_URL})",
+            "angle Markdown destination": f"[platform](<{PLATFORM_URL}>)",
+            "Markdown autolink": f"<{PLATFORM_URL}>",
+            "full reference Markdown": (
+                f"[platform][contract]\n\n[contract]: {PLATFORM_URL}"
+            ),
+            "shortcut reference Markdown": (
+                f"[contract]\n\n[contract]: {PLATFORM_URL}"
+            ),
+            "HTML anchor": f'<a href="{PLATFORM_URL}">platform</a>',
+            "fence shields comment marker": (
+                f"```text\n<!--\n```\n[platform]({PLATFORM_URL})"
+            ),
+            "comment shields fence marker": (
+                f"<!--\n```\n-->\n[platform]({PLATFORM_URL})"
+            ),
+            "inline code shields comment marker": (
+                f"`<!--` [platform]({PLATFORM_URL})"
+            ),
+        }
+        for name, text in forms.items():
+            with self.subTest(name=name):
+                self.assertEqual(_visible_link_destinations(text), [PLATFORM_URL])
+
     def test_every_visible_platform_destination_must_be_the_single_canonical_url(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -610,6 +702,75 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     "summary-only cross-seed contains normative requirements",
                     result.stderr,
                 )
+
+    def test_cross_seed_rejects_remaining_normative_forms(self) -> None:
+        phrases = (
+            "Only adapters may write the protocol-native namespace.",
+            "Preserve the canonical platform boundary.",
+            "Do not duplicate the canonical platform contract.",
+            "The canonical platform boundary is mandatory.",
+            "A canonical platform handoff is required.",
+            "Adapters are required to preserve the platform handoff.",
+            "Adapters must preserve the platform handoff.",
+            "Adapters should preserve the platform handoff.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                page = repo / "architecture/README.md"
+                page.write_text(
+                    page.read_text(encoding="utf-8") + "\n" + phrase + "\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "summary-only cross-seed contains normative requirements",
+                    result.stderr,
+                )
+
+    def test_private_artifact_labels_accept_no_separator_bypass(self) -> None:
+        labels = (
+            "Private artifact location",
+            "Private_artifact_reference",
+            "Private-artifact-filename",
+            "Private artifact_hash",
+            "Private_artifact-identifier",
+        )
+        for label in labels:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                page = repo / "re-notes/template.md"
+                page.write_text(
+                    page.read_text(encoding="utf-8") + f"\n- {label}: redacted\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "private artifact location/reference field is forbidden",
+                    result.stderr,
+                )
+
+    def test_private_volume_paths_are_rejected_in_publishable_content(self) -> None:
+        for relative_path in ("re-notes/template.md", "evidence/volume-path.txt"):
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
+                artifact.write_text(
+                    prefix + "\nCapture path: /Volumes/Operator/capture.json\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private or identifying filesystem path found", result.stderr)
 
     def test_split_clean_milestone_metadata_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

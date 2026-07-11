@@ -145,8 +145,17 @@ STABLE_OUTPUT_ARTIFACTS = {
 }
 SUMMARY_NORMATIVE_PATTERN = re.compile(
     r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
-    r"is required to|are required to)\b|"
-    r"\bmay\b[^\n.]{0,40}\bonly\b",
+    r"(?:is|are|be|remain)\s+(?:mandatory|required)|"
+    r"(?:is|are)\s+required\s+to|requires?|mandatory)\b|"
+    r"\bonly\b[^\n.]{0,80}\bmay\b|"
+    r"\bmay\b[^\n.]{0,80}\bonly\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+SUMMARY_IMPERATIVE_PATTERN = re.compile(
+    r"^\s*(?:(?:[-*+]\s+)|(?:\d+[.)]\s+))?"
+    r"(?:allow|assign|bind|copy|define|do\s+not|document|ensure|expose|follow|"
+    r"forward|implement|keep|map|merge|omit|preserve|publish|read|reject|require|"
+    r"retain|return|route|store|use|validate|write)\b",
     re.IGNORECASE | re.MULTILINE,
 )
 REFERENCE_TOKEN_PATTERN = re.compile(
@@ -270,12 +279,12 @@ FULL_FINGERPRINT_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
 )
 PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private artifact "
+    r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+"
     r"(?:location|reference|filename|hash|identifier)\s*:",
     re.IGNORECASE | re.MULTILINE,
 )
 PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private artifact retained\s*:\s*(\S.*)$",
+    r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+retained\s*:\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 EEBUS_ID_LABEL_PATTERN = (
@@ -306,6 +315,7 @@ SAFE_RETAINED_VALUE_PATTERN = re.compile(
 )
 PRIVATE_PATH_PATTERN = re.compile(
     r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
+    r"/Volumes(?:/[^\s]*)?|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
 )
 IPV6_CANDIDATE_PATTERN = re.compile(
@@ -563,6 +573,18 @@ def _github_repository_relative_path(value: str) -> str | None:
     path = posixpath.normpath(_fully_decode_reference(parsed.path))
     segments = [segment for segment in path.split("/") if segment]
     repo_owner, repo_name = REPO_ID.split("/", 1)
+
+    if host == "api.github.com":
+        if (
+            len(segments) < 5
+            or segments[0].casefold() != "repos"
+            or segments[1].casefold() != repo_owner.casefold()
+            or segments[2].casefold() != repo_name.casefold()
+            or segments[3].casefold() != "contents"
+        ):
+            return None
+        return "/".join(segments[4:])
+
     if len(segments) < 4 or segments[0].casefold() != repo_owner.casefold() or segments[
         1
     ].casefold() != repo_name.casefold():
@@ -716,42 +738,162 @@ class _HTMLDestinationParser(HTMLParser):
         tag: str,
         attrs: list[tuple[str, str | None]],
     ) -> None:
+        if tag.casefold() != "a":
+            return
         for name, value in attrs:
             if name.casefold() == "href" and value is not None:
                 self.destinations.append(value)
 
 
+def _visible_markdown_text(text: str) -> str:
+    """Mask comments and code while preserving source positions and line structure."""
+
+    visible: list[str] = []
+    cursor = 0
+    line_start = 0
+    in_comment = False
+    fence_character: str | None = None
+    fence_length = 0
+
+    def mask_through(end: int) -> None:
+        nonlocal cursor, line_start
+        segment = text[cursor:end]
+        visible.extend("\n" if char == "\n" else " " for char in segment)
+        last_newline = segment.rfind("\n")
+        if last_newline != -1:
+            line_start = cursor + last_newline + 1
+        cursor = end
+
+    def exact_code_span_end(start: int, marker_length: int) -> int | None:
+        search = start
+        while True:
+            run_start = text.find("`", search)
+            if run_start == -1:
+                return None
+            run_end = run_start
+            while run_end < len(text) and text[run_end] == "`":
+                run_end += 1
+            if run_end - run_start == marker_length:
+                return run_end
+            search = run_end
+
+    while cursor < len(text):
+        if fence_character is not None and cursor == line_start:
+            newline = text.find("\n", cursor)
+            line_end = len(text) if newline == -1 else newline + 1
+            content = text[cursor:line_end].rstrip("\r\n")
+            closing = re.fullmatch(
+                rf"[ ]{{0,3}}{re.escape(fence_character)}{{{fence_length},}}[ \t]*",
+                content,
+            )
+            mask_through(line_end)
+            if closing is not None:
+                fence_character = None
+                fence_length = 0
+            continue
+
+        if not in_comment and cursor == line_start:
+            newline = text.find("\n", cursor)
+            line_end = len(text) if newline == -1 else newline + 1
+            content = text[cursor:line_end].rstrip("\r\n")
+            opening = re.fullmatch(r"[ ]{0,3}(`{3,}|~{3,})(.*)", content)
+            if opening is not None:
+                marker, info = opening.groups()
+                if marker[0] != "`" or "`" not in info:
+                    fence_character = marker[0]
+                    fence_length = len(marker)
+                    mask_through(line_end)
+                    continue
+
+        if in_comment:
+            if text.startswith("-->", cursor):
+                mask_through(cursor + 3)
+                in_comment = False
+            else:
+                mask_through(cursor + 1)
+            continue
+
+        if text.startswith("<!--", cursor):
+            mask_through(cursor + 4)
+            in_comment = True
+            continue
+
+        if text[cursor] == "`":
+            opener_end = cursor
+            while opener_end < len(text) and text[opener_end] == "`":
+                opener_end += 1
+            marker_length = opener_end - cursor
+            closing_end = exact_code_span_end(opener_end, marker_length)
+            if closing_end is not None:
+                mask_through(closing_end)
+                continue
+            visible.append(text[cursor:opener_end])
+            cursor = opener_end
+            continue
+
+        visible.append(text[cursor])
+        if text[cursor] == "\n":
+            line_start = cursor + 1
+        cursor += 1
+
+    return "".join(visible)
+
+
 def _visible_link_destinations(text: str) -> list[str]:
-    """Extract actual Markdown and HTML destinations, excluding comments/code fences."""
-    visible = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
-    visible = re.sub(
-        r"^```[^\n]*\n.*?^```[ \t]*$|^~~~[^\n]*\n.*?^~~~[ \t]*$",
-        "",
-        visible,
-        flags=re.DOTALL | re.MULTILINE,
-    )
+    """Extract actual Markdown links and HTML anchor destinations."""
+    visible = _visible_markdown_text(text)
     destinations: list[str] = []
+    markdown_link_spans: list[tuple[int, int]] = []
     for match in re.finditer(
-        r"!?\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)\n]+))",
+        r"(?<!!)\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)\n]+))",
         visible,
     ):
         destinations.append(match.group(1) or match.group(2))
+        markdown_link_spans.append(match.span())
+
+    def normalize_reference_label(label: str) -> str:
+        return re.sub(r"\s+", " ", label).strip().casefold()
+
+    definitions: dict[str, str] = {}
+    definition_spans: list[tuple[int, int]] = []
     for match in re.finditer(
-        r"^\s{0,3}\[[^\]\n]+\]:\s*(?:<([^>\n]+)>|([^\s\n]+))",
+        r"^[ ]{0,3}\[([^\]\n]+)\]:[ \t]*(?:<([^>\n]+)>|([^\s\n]+))",
         visible,
         flags=re.MULTILINE,
     ):
-        destinations.append((match.group(1) or match.group(2)).rstrip())
+        definitions[normalize_reference_label(match.group(1))] = (
+            match.group(2) or match.group(3)
+        ).rstrip()
+        definition_spans.append(match.span())
+
+    reference_spans: list[tuple[int, int]] = []
+    for match in re.finditer(
+        r"(?<!!)(?<!\\)\[([^\]\n]+)\]\[([^\]\n]*)\]",
+        visible,
+    ):
+        label = match.group(2) or match.group(1)
+        destination = definitions.get(normalize_reference_label(label))
+        if destination is not None:
+            destinations.append(destination)
+            reference_spans.append(match.span())
+
+    occupied_spans = markdown_link_spans + definition_spans + reference_spans
+    for match in re.finditer(r"(?<!!)(?<!\\)\[([^\]\n]+)\](?![\[(])", visible):
+        if any(
+            start <= match.start() and match.end() <= end
+            for start, end in occupied_spans
+        ):
+            continue
+        destination = definitions.get(normalize_reference_label(match.group(1)))
+        if destination is not None:
+            destinations.append(destination)
+
     destinations.extend(
         match.group(1)
         for match in re.finditer(r"<((?:https?:)?//[^>\s]+)>", visible, re.IGNORECASE)
-    )
-    destinations.extend(
-        match.group(0).rstrip(".,;:!?)]]}>")
-        for match in re.finditer(
-            r"(?<![<(\[\"'=])https?://[^\s<>\"']+",
-            visible,
-            re.IGNORECASE,
+        if not any(
+            start <= match.start() and match.end() <= end
+            for start, end in markdown_link_spans
         )
     )
 
@@ -763,6 +905,24 @@ def _visible_link_destinations(text: str) -> list[str]:
         pass
     destinations.extend(parser.destinations)
     return destinations
+
+
+def _contains_summary_normative_requirements(text: str) -> bool:
+    visible = _visible_markdown_text(text)
+    return (
+        SUMMARY_NORMATIVE_PATTERN.search(visible) is not None
+        or SUMMARY_IMPERATIVE_PATTERN.search(visible) is not None
+    )
+
+
+def _contains_non_link_platform_url(text: str) -> bool:
+    visible = _visible_markdown_text(text)
+    return re.search(
+        rf"(?:https?:)?//(?:www\.)?github\.com/{re.escape(PLATFORM_REPO)}/"
+        r"[^\s<>\"']*docs/platform/[^\s<>\"']+\.md\b",
+        visible,
+        re.IGNORECASE,
+    ) is not None
 
 
 def _platform_links(text: str) -> list[tuple[str, str, bool]]:
@@ -1467,12 +1627,24 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(
                     f"{rel}: summary-only cross-seed contains platform-owned headings {duplicated}"
                 )
-            if SUMMARY_NORMATIVE_PATTERN.search(_markdown_body(page_text)):
+            if (
+                _reviewed_architecture_claim(page_text, metadata) is None
+                and _contains_summary_normative_requirements(_markdown_body(page_text))
+            ):
                 errors.append(
                     f"{rel}: summary-only cross-seed contains normative requirements"
                 )
-        elif declared_target is not None or declared_mode is not None or declared_snapshot is not None:
-            errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
+        else:
+            if _contains_non_link_platform_url(page_text):
+                errors.append(
+                    f"{rel}: cross_seed_target must match an actual Markdown or HTML anchor destination"
+                )
+            if (
+                declared_target is not None
+                or declared_mode is not None
+                or declared_snapshot is not None
+            ):
+                errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
         if PREMATURE_COMPLETION_PATTERN.search(page_text):
             errors.append(f"{rel}: premature docs milestone or code-doc absence claim")

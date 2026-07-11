@@ -29,6 +29,7 @@ PRIVATE_IPV4_NETWORKS = (
 
 PRIVATE_PATH_PATTERN = re.compile(
     r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
+    r"/Volumes(?:/[^\s]*)?|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
 )
 IPV4_CANDIDATE_PATTERN = re.compile(
@@ -81,7 +82,7 @@ RAW_EEBUS_ID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PRIVATE_ARTIFACT_PATTERN = re.compile(
-    r"\bprivate[_ -]+artifact[_ -]+"
+    r"\bprivate[\s_-]+artifact[\s_-]+"
     r"(?:location|reference|filename|hash|identifier|retained)\s*[:=]",
     re.IGNORECASE,
 )
