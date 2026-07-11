@@ -30,9 +30,16 @@ def copy_repo(tmp_path: Path) -> Path:
     return destination
 
 
-def run_validator(repo: Path) -> subprocess.CompletedProcess[str]:
+def run_validator(
+    repo: Path,
+    *,
+    fixture_mode: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    command = [sys.executable, str(VALIDATOR), "--repo", str(repo)]
+    if fixture_mode:
+        command.append("--fixture-mode")
     return subprocess.run(
-        [sys.executable, str(VALIDATOR), "--repo", str(repo)],
+        command,
         cwd=repo,
         check=False,
         text=True,
@@ -97,6 +104,19 @@ def materialize_claim(
 
 
 class MspDocsE2RedTests(unittest.TestCase):
+    def test_synthetic_contract_is_rejected_without_explicit_fixture_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            materialize_claim(repo, "architecture")
+
+            result = run_validator(repo, fixture_mode=False)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "active architecture content is not in the reviewed claim registry",
+                result.stderr,
+            )
+
     def test_supported_architecture_can_replace_the_planned_scaffold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))

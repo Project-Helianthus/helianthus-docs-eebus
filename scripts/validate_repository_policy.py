@@ -10,12 +10,14 @@ import posixpath
 import re
 import sys
 import unicodedata
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
 import yaml
+from markdown_it import MarkdownIt
 
 from machine_publication_policy import (
     COMPLETE,
@@ -110,7 +112,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "ee5413bcb10b811225ff6f5c4bfa998b48f2a67e1282f3e5e74d78f8b87dce7a"
+CI_LOCAL_SHA256 = "dee0b8bb8f9b6ba5143388b07321908473a8c73b8a825f0222487eb76e9992e8"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -169,31 +171,7 @@ UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
     r"\\u([dD][89aAbB][0-9A-Fa-f]{2})\\u([dD][c-fC-F][0-9A-Fa-f]{2})"
 )
 UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
-REVIEWED_ACTIVE_ARCHITECTURE = {
-    # The immutable RED fixture is materialized with the required platform pin.
-    "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
-        "canonical_source": (
-            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
-        ),
-        "owner_domain": "architecture",
-        "license": "AGPL-3.0-only",
-        "claim_status": "evidence-backed",
-        "publication_status": "active",
-        "source_class": "vendor_public",
-        "evidence_ids": "EV-20260711-001",
-        "hypothesis_status": "publishable",
-        "falsifier": "A publishable public source contradicts this runtime boundary.",
-        "cross_seed_target": (
-            "Project-Helianthus/helianthus-docs-ebus:"
-            "docs/platform/shared-registry-boundary.md"
-        ),
-        "cross_seed_mode": "summary-only",
-        "cross_seed_snapshot": (
-            "Project-Helianthus/helianthus-docs-ebus@"
-            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
-            "docs/platform/shared-registry-boundary.md"
-        ),
-    },
+PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
     "6ac887dc24ce53fc0dee45e15ebe2804eea42bedb0ae802dc89bc39338ad6f44": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
@@ -225,24 +203,34 @@ REVIEWED_ACTIVE_ARCHITECTURE = {
         "release_bundle": "true",
     },
 }
-REVIEWED_EVIDENCE = {
+FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
+    # Synthetic contract bytes are accepted only by the explicit fixture mode.
+    "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "vendor_public",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": "A publishable public source contradicts this runtime boundary.",
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+    },
+}
+PRODUCTION_REVIEWED_EVIDENCE = {
     "EV-20260711-001": {
-        "88dfdda055f32b274a8f74cb5fa6989ccf8ad435b7e5cd8d13b0244d5763c537": {
-            "canonical_source": (
-                "Project-Helianthus/helianthus-docs-eebus:"
-                "evidence/EV-20260711-001.md"
-            ),
-            "owner_domain": "evidence",
-            "license": "CC0-1.0",
-            "publication_status": "publishable",
-            "claim_status": "evidence-backed",
-            "source_class": "vendor_public",
-            "evidence_ids": "EV-20260711-001",
-            "hypothesis_status": "publishable",
-            "falsifier": (
-                "A publishable public source contradicts the recorded observation."
-            ),
-        },
         "e9fc9220b0fcc8b02a968fe6a587be538841f818754dd265c54c5580e1ed1bbf": {
             "canonical_source": (
                 "Project-Helianthus/helianthus-docs-eebus:"
@@ -262,6 +250,52 @@ REVIEWED_EVIDENCE = {
         },
     },
 }
+FIXTURE_REVIEWED_EVIDENCE = {
+    "EV-20260711-001": {
+        "88dfdda055f32b274a8f74cb5fa6989ccf8ad435b7e5cd8d13b0244d5763c537": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260711-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "vendor_public",
+            "evidence_ids": "EV-20260711-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A publishable public source contradicts the recorded observation."
+            ),
+        },
+    },
+}
+PRODUCTION_REVIEWED_CROSS_SEED = {
+    **PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE,
+    "b389e0f6e69e02222a233524b000a6142237511322f96700adee2830af381719": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
+        ),
+        "owner_domain": "devices",
+        "license": "CC0-1.0",
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "claim_status": "no-protocol-claims",
+        "publication_status": "planned-target",
+    },
+}
+FIXTURE_REVIEWED_CROSS_SEED = {
+    **FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE,
+}
+MARKDOWN = MarkdownIt("commonmark", {"html": True})
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
     "acceptance criteria",
@@ -280,11 +314,11 @@ FULL_FINGERPRINT_PATTERN = re.compile(
 )
 PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+"
-    r"(?:location|reference|filename|hash|identifier)\s*:",
+    r"(?:location|reference|filename|hash|identifier)\s*[:=]",
     re.IGNORECASE | re.MULTILINE,
 )
 PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+retained\s*:\s*(\S.*)$",
+    r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+retained\s*[:=]\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 EEBUS_ID_LABEL_PATTERN = (
@@ -314,7 +348,8 @@ SAFE_RETAINED_VALUE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
+    r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/root(?:/[^\s]*)?|/tmp/[^\s]+|"
+    r"/var/folders/[^\s]+|"
     r"/Volumes(?:/[^\s]*)?|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
 )
@@ -489,9 +524,28 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
 def _reviewed_architecture_claim(
     text: str,
     metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
 ) -> dict[str, str] | None:
     body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
-    reviewed = REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    reviewed = PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    if reviewed is None and fixture_mode:
+        reviewed = FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    if reviewed is None or metadata != reviewed:
+        return None
+    return reviewed
+
+
+def _reviewed_cross_seed_claim(
+    text: str,
+    metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
+) -> dict[str, str] | None:
+    body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
+    reviewed = PRODUCTION_REVIEWED_CROSS_SEED.get(body_hash)
+    if reviewed is None and fixture_mode:
+        reviewed = FIXTURE_REVIEWED_CROSS_SEED.get(body_hash)
     if reviewed is None or metadata != reviewed:
         return None
     return reviewed
@@ -656,6 +710,8 @@ def _active_architecture_errors(
     rel: str,
     text: str,
     metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
 ) -> list[str]:
     if metadata.get("owner_domain") != "architecture" or metadata.get(
         "publication_status"
@@ -670,7 +726,7 @@ def _active_architecture_errors(
     ):
         errors.append(f"{rel}: active architecture claim lacks publishable support")
 
-    if _reviewed_architecture_claim(text, metadata) is None:
+    if _reviewed_architecture_claim(text, metadata, fixture_mode=fixture_mode) is None:
         errors.append(f"{rel}: active architecture content is not in the reviewed claim registry")
 
     if any(
@@ -683,20 +739,49 @@ def _active_architecture_errors(
 
 
 def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
-    complete_states = {
+    terminal_states = {
+        "active",
+        "available",
+        "closed",
         "complete",
         "completed",
+        "delivered",
         "done",
+        "finished",
         "merged",
+        "passed",
+        "published",
         "ready",
+        "released",
         "shipped",
         "landed",
     }
-    milestone = metadata.get("milestone", "").strip().casefold()
-    completion = metadata.get("milestone_completion", "").strip().casefold()
-    if "msp-docs-clean" in completion or (
-        milestone == "msp-docs-clean" and completion in complete_states
-    ):
+
+    def normalized(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", value.strip().casefold()).strip("-")
+
+    entries = [(normalized(key), normalized(value)) for key, value in metadata.items()]
+    clean_present = any(
+        "msp-docs-clean" in key or "msp-docs-clean" in value
+        for key, value in entries
+    )
+    completion_entries = [
+        (key, value)
+        for key, value in entries
+        if any(part in {"status", "complete", "completion"} for part in key.split("-"))
+    ]
+    terminal_present = any(
+        bool(set(value.split("-")) & terminal_states)
+        or value in {"1", "true", "yes"}
+        or "msp-docs-clean" in value
+        for _, value in completion_entries
+    )
+    inline_terminal_claim = any(
+        ("msp-docs-clean" in key or "msp-docs-clean" in value)
+        and bool((set(key.split("-")) | set(value.split("-"))) & terminal_states)
+        for key, value in entries
+    )
+    if clean_present and (terminal_present or inline_terminal_claim):
         return [f"{rel}: MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2"]
     return []
 
@@ -732,179 +817,95 @@ class _HTMLDestinationParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.destinations: list[str] = []
+        self.visible_text: list[str] = []
+        self._hidden_depth = 0
 
     def handle_starttag(
         self,
         tag: str,
         attrs: list[tuple[str, str | None]],
     ) -> None:
-        if tag.casefold() != "a":
+        normalized_tag = tag.casefold()
+        if normalized_tag in {"script", "style", "template"}:
+            self._hidden_depth += 1
+        if normalized_tag != "a":
             return
         for name, value in attrs:
             if name.casefold() == "href" and value is not None:
                 self.destinations.append(value)
 
+    def handle_endtag(self, tag: str) -> None:
+        if tag.casefold() in {"script", "style", "template"} and self._hidden_depth:
+            self._hidden_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._hidden_depth:
+            self.visible_text.append(data)
+
+
+def _parse_html_fragment(text: str) -> _HTMLDestinationParser:
+    parser = _HTMLDestinationParser()
+    try:
+        parser.feed(text)
+        parser.close()
+    except (AssertionError, ValueError):
+        pass
+    return parser
+
+
+def _inline_visible_text(children: list[Any]) -> str:
+    visible: list[str] = []
+    for child in children:
+        if child.type == "text":
+            visible.append(child.content)
+        elif child.type in {"softbreak", "hardbreak"}:
+            visible.append("\n")
+        elif child.type == "html_inline":
+            visible.extend(_parse_html_fragment(child.content).visible_text)
+        # CommonMark image alt text and code spans are not visible policy prose.
+    return "".join(visible)
+
 
 def _visible_markdown_text(text: str) -> str:
-    """Mask comments and code while preserving source positions and line structure."""
-
+    """Return rendered prose from a CommonMark parse, excluding code and images."""
     visible: list[str] = []
-    cursor = 0
-    line_start = 0
-    in_comment = False
-    fence_character: str | None = None
-    fence_length = 0
-
-    def mask_through(end: int) -> None:
-        nonlocal cursor, line_start
-        segment = text[cursor:end]
-        visible.extend("\n" if char == "\n" else " " for char in segment)
-        last_newline = segment.rfind("\n")
-        if last_newline != -1:
-            line_start = cursor + last_newline + 1
-        cursor = end
-
-    def exact_code_span_end(start: int, marker_length: int) -> int | None:
-        search = start
-        while True:
-            run_start = text.find("`", search)
-            if run_start == -1:
-                return None
-            run_end = run_start
-            while run_end < len(text) and text[run_end] == "`":
-                run_end += 1
-            if run_end - run_start == marker_length:
-                return run_end
-            search = run_end
-
-    while cursor < len(text):
-        if fence_character is not None and cursor == line_start:
-            newline = text.find("\n", cursor)
-            line_end = len(text) if newline == -1 else newline + 1
-            content = text[cursor:line_end].rstrip("\r\n")
-            closing = re.fullmatch(
-                rf"[ ]{{0,3}}{re.escape(fence_character)}{{{fence_length},}}[ \t]*",
-                content,
-            )
-            mask_through(line_end)
-            if closing is not None:
-                fence_character = None
-                fence_length = 0
-            continue
-
-        if not in_comment and cursor == line_start:
-            newline = text.find("\n", cursor)
-            line_end = len(text) if newline == -1 else newline + 1
-            content = text[cursor:line_end].rstrip("\r\n")
-            opening = re.fullmatch(r"[ ]{0,3}(`{3,}|~{3,})(.*)", content)
-            if opening is not None:
-                marker, info = opening.groups()
-                if marker[0] != "`" or "`" not in info:
-                    fence_character = marker[0]
-                    fence_length = len(marker)
-                    mask_through(line_end)
-                    continue
-
-        if in_comment:
-            if text.startswith("-->", cursor):
-                mask_through(cursor + 3)
-                in_comment = False
-            else:
-                mask_through(cursor + 1)
-            continue
-
-        if text.startswith("<!--", cursor):
-            mask_through(cursor + 4)
-            in_comment = True
-            continue
-
-        if text[cursor] == "`":
-            opener_end = cursor
-            while opener_end < len(text) and text[opener_end] == "`":
-                opener_end += 1
-            marker_length = opener_end - cursor
-            closing_end = exact_code_span_end(opener_end, marker_length)
-            if closing_end is not None:
-                mask_through(closing_end)
-                continue
-            visible.append(text[cursor:opener_end])
-            cursor = opener_end
-            continue
-
-        visible.append(text[cursor])
-        if text[cursor] == "\n":
-            line_start = cursor + 1
-        cursor += 1
-
+    for token in MARKDOWN.parse(text):
+        if token.type == "inline":
+            visible.append(_inline_visible_text(token.children or []))
+            visible.append("\n")
+        elif token.type == "html_block":
+            visible.extend(_parse_html_fragment(token.content).visible_text)
+            visible.append("\n")
     return "".join(visible)
 
 
 def _visible_link_destinations(text: str) -> list[str]:
-    """Extract actual Markdown links and HTML anchor destinations."""
-    visible = _visible_markdown_text(text)
+    """Extract CommonMark links and HTML anchors, excluding images and code."""
     destinations: list[str] = []
-    markdown_link_spans: list[tuple[int, int]] = []
-    for match in re.finditer(
-        r"(?<!!)\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)\n]+))",
-        visible,
-    ):
-        destinations.append(match.group(1) or match.group(2))
-        markdown_link_spans.append(match.span())
-
-    def normalize_reference_label(label: str) -> str:
-        return re.sub(r"\s+", " ", label).strip().casefold()
-
-    definitions: dict[str, str] = {}
-    definition_spans: list[tuple[int, int]] = []
-    for match in re.finditer(
-        r"^[ ]{0,3}\[([^\]\n]+)\]:[ \t]*(?:<([^>\n]+)>|([^\s\n]+))",
-        visible,
-        flags=re.MULTILINE,
-    ):
-        definitions[normalize_reference_label(match.group(1))] = (
-            match.group(2) or match.group(3)
-        ).rstrip()
-        definition_spans.append(match.span())
-
-    reference_spans: list[tuple[int, int]] = []
-    for match in re.finditer(
-        r"(?<!!)(?<!\\)\[([^\]\n]+)\]\[([^\]\n]*)\]",
-        visible,
-    ):
-        label = match.group(2) or match.group(1)
-        destination = definitions.get(normalize_reference_label(label))
-        if destination is not None:
-            destinations.append(destination)
-            reference_spans.append(match.span())
-
-    occupied_spans = markdown_link_spans + definition_spans + reference_spans
-    for match in re.finditer(r"(?<!!)(?<!\\)\[([^\]\n]+)\](?![\[(])", visible):
-        if any(
-            start <= match.start() and match.end() <= end
-            for start, end in occupied_spans
-        ):
-            continue
-        destination = definitions.get(normalize_reference_label(match.group(1)))
-        if destination is not None:
-            destinations.append(destination)
-
-    destinations.extend(
-        match.group(1)
-        for match in re.finditer(r"<((?:https?:)?//[^>\s]+)>", visible, re.IGNORECASE)
-        if not any(
-            start <= match.start() and match.end() <= end
-            for start, end in markdown_link_spans
-        )
-    )
-
-    parser = _HTMLDestinationParser()
-    try:
-        parser.feed(visible)
-        parser.close()
-    except (AssertionError, ValueError):
-        pass
-    destinations.extend(parser.destinations)
+    for token in MARKDOWN.parse(text):
+        if token.type == "inline":
+            for child in token.children or []:
+                if child.type == "link_open":
+                    destination = child.attrGet("href")
+                    if destination is not None:
+                        destinations.append(destination)
+                elif child.type == "html_inline":
+                    destinations.extend(
+                        _parse_html_fragment(child.content).destinations
+                    )
+        elif token.type == "html_block":
+            destinations.extend(_parse_html_fragment(token.content).destinations)
     return destinations
+
+
+def _visible_headings(text: str) -> set[str]:
+    headings: set[str] = set()
+    tokens = MARKDOWN.parse(text)
+    for index, token in enumerate(tokens[:-1]):
+        if token.type != "heading_open" or tokens[index + 1].type != "inline":
+            continue
+        headings.add(_inline_visible_text(tokens[index + 1].children or []))
+    return headings
 
 
 def _contains_summary_normative_requirements(text: str) -> bool:
@@ -1047,16 +1048,22 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
     fingerprint_text = text.replace(PLATFORM_SNAPSHOT_REF, "")
     if FULL_FINGERPRINT_PATTERN.search(fingerprint_text):
         add("full fingerprint or raw SKI found in publishable content")
-    if PRIVATE_PATH_PATTERN.search(text):
-        add("private or identifying filesystem path found")
-    for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(text):
-        line = text.count("\n", 0, match.start()) + 1
-        add("private artifact location/reference field is forbidden", line)
-    for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(text):
-        value = match.group(1)
-        if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
-            line = text.count("\n", 0, match.start()) + 1
-            add("private artifact retained value must be yes or no", line)
+    for variant in _reference_text_variants(text):
+        source_positions_valid = variant == text
+        if PRIVATE_PATH_PATTERN.search(variant):
+            add("private or identifying filesystem path found")
+        for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(variant):
+            line = text.count("\n", 0, match.start()) + 1 if source_positions_valid else None
+            add("private artifact location/reference field is forbidden", line)
+        for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(variant):
+            value = match.group(1)
+            if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
+                line = (
+                    text.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("private artifact retained value must be yes or no", line)
     for match in SENSITIVE_FIELD_PATTERN.finditer(text):
         value = match.group(2)
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
@@ -1127,11 +1134,70 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     return errors
 
 
+def _stable_artifact_references(text: str, rel: str) -> tuple[list[str], list[str]]:
+    invalid = [f"{rel}: invalid stable publication artifact"]
+    if rel == STABLE_OUTPUT_ARTIFACTS["search"]:
+        try:
+            document = json.loads(text)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return [], invalid
+        if not isinstance(document, (dict, list)):
+            return [], invalid
+
+        references: list[str] = []
+
+        def collect(value: Any) -> None:
+            if isinstance(value, str):
+                references.append(value)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+            elif isinstance(value, dict):
+                for item in value.values():
+                    collect(item)
+
+        collect(document)
+        return references, []
+
+    if rel == STABLE_OUTPUT_ARTIFACTS["sitemap"]:
+        if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
+            return [], invalid
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            return [], invalid
+        references = [value for value in root.itertext() if value.strip()]
+        references.extend(value for element in root.iter() for value in element.attrib.values())
+        return references, []
+
+    references = []
+    for line in text.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        path = PurePosixPath(value)
+        if (
+            value != line
+            or "\\" in value
+            or "%" in value
+            or path.is_absolute()
+            or ".." in path.parts
+            or re.fullmatch(r"[A-Za-z0-9._/-]+", value) is None
+        ):
+            return [], invalid
+        references.append(value)
+    if not references:
+        return [], invalid
+    return references, []
+
+
 def _provenance_errors(
     root: Path,
     rel: str,
     text: str,
     metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
 ) -> list[str]:
     errors: list[str] = []
     expected_scaffold_status = SCAFFOLD_PAGES.get(rel)
@@ -1195,9 +1261,13 @@ def _provenance_errors(
                 if evidence_metadata is not None
                 else ""
             )
-            reviewed_evidence_metadata = REVIEWED_EVIDENCE.get(evidence_id, {}).get(
-                evidence_body_hash
-            )
+            reviewed_evidence_metadata = PRODUCTION_REVIEWED_EVIDENCE.get(
+                evidence_id, {}
+            ).get(evidence_body_hash)
+            if reviewed_evidence_metadata is None and fixture_mode:
+                reviewed_evidence_metadata = FIXTURE_REVIEWED_EVIDENCE.get(
+                    evidence_id, {}
+                ).get(evidence_body_hash)
             evidence_values = (
                 {
                     value.strip()
@@ -1230,7 +1300,7 @@ def _provenance_errors(
     return errors
 
 
-def check_repository(root: Path) -> list[str]:
+def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.resolve()
     stable_navigation_pages: dict[str, str] = {}
@@ -1479,8 +1549,12 @@ def check_repository(root: Path) -> list[str]:
     requirements = root / "requirements-ci.txt"
     if requirements in symlinks or not requirements.exists():
         errors.append("requirements-ci.txt: missing pinned validator dependencies")
-    elif _read(requirements).splitlines() != ["PyYAML==6.0.3"]:
-        errors.append("requirements-ci.txt: expected exact PyYAML==6.0.3 pin")
+    elif _read(requirements).splitlines() != [
+        "PyYAML==6.0.3",
+        "markdown-it-py==4.0.0",
+        "mdurl==0.1.2",
+    ]:
+        errors.append("requirements-ci.txt: validator dependency pins differ")
 
     readme_path = root / "README.md"
     contributing_path = root / "development" / "contributing.md"
@@ -1548,8 +1622,23 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: owner_domain must be {expected_domain!r}")
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
-        errors.extend(_provenance_errors(root, rel, page_text, metadata))
-        errors.extend(_active_architecture_errors(rel, page_text, metadata))
+        errors.extend(
+            _provenance_errors(
+                root,
+                rel,
+                page_text,
+                metadata,
+                fixture_mode=fixture_mode,
+            )
+        )
+        errors.extend(
+            _active_architecture_errors(
+                rel,
+                page_text,
+                metadata,
+                fixture_mode=fixture_mode,
+            )
+        )
         errors.extend(_candidate_api_errors(rel, metadata))
         errors.extend(_milestone_errors(rel, metadata))
         if not _is_candidate_api(rel, metadata):
@@ -1561,6 +1650,18 @@ def check_repository(root: Path) -> list[str]:
         declared_target = metadata.get("cross_seed_target")
         declared_mode = metadata.get("cross_seed_mode")
         declared_snapshot = metadata.get("cross_seed_snapshot")
+        declares_cross_seed = any(
+            value is not None
+            for value in (declared_target, declared_mode, declared_snapshot)
+        )
+        if declares_cross_seed and _reviewed_cross_seed_claim(
+            page_text,
+            metadata,
+            fixture_mode=fixture_mode,
+        ) is None:
+            errors.append(
+                f"{rel}: cross-seed content is not in the reviewed claim registry"
+            )
         if targets:
             all_links_canonical = all(canonical for _, _, canonical in platform_links)
             if not all_links_canonical:
@@ -1604,19 +1705,9 @@ def check_repository(root: Path) -> list[str]:
                     f"{rel}: cross-seed target is not an active canonical platform page "
                     f"at {PLATFORM_SNAPSHOT_REF}"
                 )
-            atx_headings = {
-                match.group(1)
-                for match in re.finditer(r"^#+\s+(.+?)\s*$", page_text, re.MULTILINE)
-            }
-            setext_headings = {
-                match.group(1)
-                for match in re.finditer(
-                    r"^([^\n]+)\n(?:=+|-+)\s*$", page_text, re.MULTILINE
-                )
-            }
             headings = {
                 re.sub(r"[^a-z0-9]+", " ", heading.lower()).strip()
-                for heading in atx_headings | setext_headings
+                for heading in _visible_headings(page_text)
             }
             duplicated = sorted(
                 forbidden
@@ -1627,10 +1718,7 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(
                     f"{rel}: summary-only cross-seed contains platform-owned headings {duplicated}"
                 )
-            if (
-                _reviewed_architecture_claim(page_text, metadata) is None
-                and _contains_summary_normative_requirements(_markdown_body(page_text))
-            ):
+            if _contains_summary_normative_requirements(_markdown_body(page_text)):
                 errors.append(
                     f"{rel}: summary-only cross-seed contains normative requirements"
                 )
@@ -1665,7 +1753,15 @@ def check_repository(root: Path) -> list[str]:
                 artifact_text = _read(artifact)
             except UnicodeDecodeError:
                 continue
-            if _contains_candidate_destination(artifact_text, artifact_rel):
+            references, format_errors = _stable_artifact_references(
+                artifact_text,
+                artifact_rel,
+            )
+            errors.extend(format_errors)
+            if _contains_candidate_destination(artifact_text, artifact_rel) or any(
+                _contains_candidate_destination(reference, artifact_rel)
+                for reference in references
+            ):
                 errors.append(f"{artifact_rel}: candidate API leaked into {channel}")
 
     for top in PUBLISHABLE_DOMAINS:
@@ -1678,7 +1774,7 @@ def check_repository(root: Path) -> list[str]:
             rel = _rel(path, root)
             if path.suffix.lower() not in MARKDOWN_SUFFIXES:
                 if top == "api":
-                    if rel not in API_MACHINE_ARTIFACTS:
+                    if rel not in API_MACHINE_ARTIFACTS and rel not in STABLE_OUTPUT_ARTIFACTS.values():
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
                         continue
                 elif top in MARKDOWN_ONLY_DOMAINS:
@@ -1742,9 +1838,14 @@ def check_repository(root: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--fixture-mode",
+        action="store_true",
+        help="accept the immutable synthetic MSP-DOCS-E2 contract fixture registry",
+    )
     args = parser.parse_args()
 
-    errors = check_repository(args.repo)
+    errors = check_repository(args.repo, fixture_mode=args.fixture_mode)
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

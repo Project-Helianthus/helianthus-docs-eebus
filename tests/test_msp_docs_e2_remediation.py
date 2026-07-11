@@ -55,6 +55,42 @@ def replace_front_matter(page: Path, **updates: str) -> None:
 
 
 class MspDocsE2RemediationTests(unittest.TestCase):
+    def test_clean_stable_publication_artifacts_are_allowed_and_parsed(self) -> None:
+        artifacts = {
+            "api/search-index.json": '{"pages":["api/api-surface-v1.md"]}\n',
+            "api/sitemap.xml": (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                "<urlset><url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
+            ),
+            "api/versioned-bundle.txt": "api/api-surface-v1.md\n",
+            "api/release-bundle.txt": "api/api-surface-v1.md\n",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            for relative_path, payload in artifacts.items():
+                (repo / relative_path).write_text(payload, encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_malformed_stable_publication_artifacts_fail_their_structured_format(self) -> None:
+        artifacts = {
+            "api/search-index.json": '{"pages":[}\n',
+            "api/sitemap.xml": "<urlset><url></urlset>\n",
+            "api/versioned-bundle.txt": "api/api-surface-v1.md extra-column\n",
+            "api/release-bundle.txt": "../api/api-surface-v1.md\n",
+        }
+        for relative_path, payload in artifacts.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / relative_path).write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("invalid stable publication artifact", result.stderr)
+
     def test_candidate_location_overrides_metadata_escape(self) -> None:
         for relative_path in (CANDIDATE_PATH, "api/_candidate/nested/runtime-reference.md"):
             with self.subTest(
@@ -574,10 +610,25 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             "inline code shields comment marker": (
                 f"`<!--` [platform]({PLATFORM_URL})"
             ),
+            "escaped image marker is a link": f"\\![platform]({PLATFORM_URL})",
+            "destination with title": f'[platform](<{PLATFORM_URL}> "contract")',
         }
         for name, text in forms.items():
             with self.subTest(name=name):
                 self.assertEqual(_visible_link_destinations(text), [PLATFORM_URL])
+
+    def test_commonmark_code_and_image_forms_do_not_expose_destinations(self) -> None:
+        hidden_forms = {
+            "indented code": f"    [hidden]({PLATFORM_URL})\n",
+            "image": f"![hidden]({PLATFORM_URL})",
+            "image reference": f"![hidden][contract]\n\n[contract]: {PLATFORM_URL}",
+            "comment": f"<!-- [hidden]({PLATFORM_URL}) -->",
+            "unterminated comment": f"<!-- [hidden]({PLATFORM_URL})",
+            "fenced code": f"~~~markdown\n[hidden]({PLATFORM_URL})\n~~~",
+        }
+        for name, text in hidden_forms.items():
+            with self.subTest(name=name):
+                self.assertEqual(_visible_link_destinations(text), [])
 
     def test_every_visible_platform_destination_must_be_the_single_canonical_url(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -731,6 +782,49 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     result.stderr,
                 )
 
+    def test_every_production_cross_seed_page_requires_reviewed_exact_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices/unreviewed-cross-seed.md"
+            metadata = {
+                "canonical_source": (
+                    "Project-Helianthus/helianthus-docs-eebus:"
+                    "devices/unreviewed-cross-seed.md"
+                ),
+                "owner_domain": "devices",
+                "license": "CC0-1.0",
+                "publication_status": "publishable",
+                "claim_status": "evidence-backed",
+                "source_class": "derived_inference",
+                "evidence_ids": "EV-20260711-001",
+                "hypothesis_status": "publishable",
+                "falsifier": "A publishable canonical contract supersedes this summary.",
+                "cross_seed_target": (
+                    "Project-Helianthus/helianthus-docs-ebus:"
+                    "docs/platform/shared-registry-boundary.md"
+                ),
+                "cross_seed_mode": "summary-only",
+                "cross_seed_snapshot": (
+                    "Project-Helianthus/helianthus-docs-ebus@"
+                    f"{PLATFORM_COMMIT}:docs/platform/shared-registry-boundary.md"
+                ),
+            }
+            rendered = yaml.safe_dump(metadata, sort_keys=False)
+            page.write_text(
+                f"---\n{rendered}---\n\n# Local Summary\n\n"
+                "Responsibility stays with the linked platform contract.\n\n"
+                f"[platform]({PLATFORM_URL})\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "cross-seed content is not in the reviewed claim registry",
+                result.stderr,
+            )
+
     def test_private_artifact_labels_accept_no_separator_bypass(self) -> None:
         labels = (
             "Private artifact location",
@@ -772,6 +866,48 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("private or identifying filesystem path found", result.stderr)
 
+    def test_private_assignments_and_decoded_paths_are_normalized_before_scanning(self) -> None:
+        payloads = (
+            "Private artifact location = /root/capture.json",
+            "Private_artifact_reference = %2FUsers%2Fencoded-user%2Fcapture.json",
+            "Private-artifact-filename:%2FVolumes%2FOperator%2Fcapture.json",
+            "Private%20artifact%20hash%20%3D%20redacted",
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "evidence/private-assignment.txt").write_text(
+                    payload + "\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "private artifact location/reference field is forbidden",
+                    result.stderr,
+                )
+
+    def test_root_and_encoded_user_or_volume_paths_are_rejected(self) -> None:
+        paths = (
+            "/root/capture.json",
+            "%2FUsers%2Fencoded-user%2Fcapture.json",
+            "%252FVolumes%252FOperator%252Fcapture.json",
+        )
+        for private_path in paths:
+            with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "evidence/private-path.txt").write_text(
+                    f"Capture: {private_path}\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private or identifying filesystem path found", result.stderr)
+
     def test_split_clean_milestone_metadata_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -801,6 +937,27 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2", result.stderr)
+
+    def test_alternate_clean_completion_fields_and_terminal_synonyms_are_rejected(self) -> None:
+        cases = (
+            {"milestone": "MSP-DOCS-CLEAN", "status": "available"},
+            {"milestone": "MSP-DOCS-CLEAN", "complete": "ready"},
+            {"milestone": "MSP-DOCS-CLEAN", "completion": "landed"},
+            {"status": "MSP-DOCS-CLEAN available"},
+            {"completion": "completed: MSP-DOCS-CLEAN"},
+        )
+        for metadata in cases:
+            with self.subTest(metadata=metadata), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                replace_front_matter(repo / "architecture/README.md", **metadata)
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2",
+                    result.stderr,
+                )
 
 
 if __name__ == "__main__":

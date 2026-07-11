@@ -48,7 +48,7 @@ if failed:
 PY
 
 echo "==> validate repository ownership policy"
-python3 -c 'import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__'
+python3 -c 'import importlib.metadata as m; import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__; assert m.version("markdown-it-py") == "4.0.0"; assert m.version("mdurl") == "0.1.2"'
 python3 scripts/validate_repository_policy.py
 
 echo "==> validate API surface v1 contract"
