@@ -14,6 +14,10 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
+PLATFORM_URL = (
+    "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/"
+    f"{PLATFORM_COMMIT}/docs/platform/shared-registry-boundary.md"
+)
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -147,12 +151,49 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn(f"candidate API leaked into {channel}", result.stderr)
 
+    def test_obfuscated_link_forms_cannot_leak_from_any_stable_channel(self) -> None:
+        channels = {
+            "stable_navigation": "README.md",
+            "search": "api/search-index.json",
+            "sitemap": "api/sitemap.xml",
+            "versioned_bundle": "api/versioned-bundle.txt",
+            "release_bundle": "api/release-bundle.txt",
+        }
+        payloads = {
+            "markdown": (
+                "[Candidate](api%25255cstable%25255c..%25255c"
+                "%25255fcandidate%25255cruntime-reference.md)\n"
+            ),
+            "html": (
+                '<a href="api&#37;25255cstable&#37;25255c..&#37;25255c'
+                '&#37;25255fcandidate&#37;25255cruntime-reference.md">Candidate</a>\n'
+            ),
+        }
+        for channel, relative_path in channels.items():
+            for form, payload in payloads.items():
+                with self.subTest(
+                    channel=channel, form=form
+                ), tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / relative_path
+                    prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
+                    artifact.write_text(prefix + "\n" + payload, encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+
     def test_supported_claim_requires_publishable_evidence_metadata(self) -> None:
         mutations = {
             "publication": {"publication_status": "draft"},
             "claim": {"claim_status": "no-protocol-claims"},
             "hypothesis": {"hypothesis_status": "draft"},
             "owner": {"owner_domain": "architecture"},
+            "different allowed source class": {"source_class": "vendor_public"},
+            "different explicit falsifier": {
+                "falsifier": "A different publishable observation contradicts this record."
+            },
         }
         for name, updates in mutations.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
@@ -227,6 +268,77 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("cross-seed commit, path, and snapshot must match", result.stderr)
+
+    def test_equivalent_github_platform_urls_are_rejected_fail_closed(self) -> None:
+        encoded_commit = "%2531" + PLATFORM_COMMIT[1:]
+        variants = {
+            "case variant": (
+                "HTTPS://GITHUB.COM/project-helianthus/HELIANTHUS-DOCS-EBUS/"
+                f"blob/{PLATFORM_COMMIT}/docs/platform/shared-registry-boundary.md"
+            ),
+            "mutable ref": (
+                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "blob/main/docs/platform/shared-registry-boundary.md"
+            ),
+            "mutable slash ref": (
+                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "blob/heads/main/docs/platform/shared-registry-boundary.md"
+            ),
+            "alternate raw host": (
+                "https://RAW.GITHUBUSERCONTENT.COM/Project-Helianthus/"
+                f"helianthus-docs-ebus/{PLATFORM_COMMIT}/docs/platform/"
+                "shared-registry-boundary.md"
+            ),
+            "encoded dot segments": (
+                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                f"blob/{encoded_commit}/docs/platform/unused/%252e%252e/"
+                "shared-registry-boundary.md"
+            ),
+        }
+        for name, variant in variants.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                page = repo / "architecture/README.md"
+                text = page.read_text(encoding="utf-8").replace(PLATFORM_URL, variant, 1)
+                if name == "encoded dot segments":
+                    text = text.replace(
+                        f"[shared registry boundary]({variant})",
+                        f'<a href="{variant}">shared registry boundary</a>',
+                        1,
+                    )
+                page.write_text(text, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "platform URL must use canonical immutable commit/path form",
+                    result.stderr,
+                )
+                self.assertIn("cross-seed commit, path, and snapshot must match", result.stderr)
+
+    def test_noncanonical_platform_link_still_runs_normative_summary_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            text = page.read_text(encoding="utf-8").replace(
+                PLATFORM_URL,
+                PLATFORM_URL.replace("github.com", "GitHub.COM"),
+                1,
+            )
+            page.write_text(
+                text + "\nAn adapter must retain this copied platform requirement.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "platform URL must use canonical immutable commit/path form",
+                result.stderr,
+            )
+            self.assertIn("summary-only cross-seed contains normative requirements", result.stderr)
 
     def test_cross_seed_snapshot_is_required_and_status_is_fail_closed(self) -> None:
         for name in ("missing", "not active"):

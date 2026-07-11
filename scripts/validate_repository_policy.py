@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import ipaddress
 import posixpath
 import re
@@ -119,11 +120,6 @@ CONTROL_MD = {
     "AGENTS.md",
 }
 
-PLATFORM_LINK_PATTERN = re.compile(
-    r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
-    r"blob/([A-Za-z0-9._-]+)/(docs/platform/[A-Za-z0-9._/-]+\.md)"
-    r"(?=$|[\s<>()\[\]{},;:!?'\"#]|\.(?=$|[\s)\]}>]))"
-)
 PLATFORM_SNAPSHOT_REF = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
 PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
@@ -151,8 +147,10 @@ SUMMARY_NORMATIVE_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 REFERENCE_TOKEN_PATTERN = re.compile(
-    r"https?://[^\s<>\"']+|(?:[./A-Za-z0-9%_~-]+/)+[./A-Za-z0-9%_~-]+"
+    r"https?://[^\s<>\"']+|(?:[./A-Za-z0-9%_~-]+/)+[./A-Za-z0-9%_~-]+",
+    re.IGNORECASE,
 )
+URL_TOKEN_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 REVIEWED_ACTIVE_ARCHITECTURE = {
     # The immutable RED fixture is materialized with the required platform pin.
     "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
@@ -199,10 +197,41 @@ REVIEWED_ACTIVE_ARCHITECTURE = {
         "release_bundle": "true",
     },
 }
-REVIEWED_EVIDENCE_BODIES = {
+REVIEWED_EVIDENCE = {
     "EV-20260711-001": {
-        "88dfdda055f32b274a8f74cb5fa6989ccf8ad435b7e5cd8d13b0244d5763c537",
-        "e9fc9220b0fcc8b02a968fe6a587be538841f818754dd265c54c5580e1ed1bbf",
+        "88dfdda055f32b274a8f74cb5fa6989ccf8ad435b7e5cd8d13b0244d5763c537": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260711-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "vendor_public",
+            "evidence_ids": "EV-20260711-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A publishable public source contradicts the recorded observation."
+            ),
+        },
+        "e9fc9220b0fcc8b02a968fe6a587be538841f818754dd265c54c5580e1ed1bbf": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260711-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "derived_inference",
+            "evidence_ids": "EV-20260711-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A publishable canonical ownership or API contract contradicts "
+                "this record."
+            ),
+        },
     },
 }
 FORBIDDEN_CROSS_SEED_HEADINGS = {
@@ -451,8 +480,18 @@ def _fully_unquote(value: str) -> str:
         decoded = next_value
 
 
+def _fully_decode_reference(value: str) -> str:
+    """Normalize nested HTML and percent encodings to a fixed point."""
+    decoded = value
+    while True:
+        next_value = _fully_unquote(html.unescape(decoded))
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+
+
 def _is_candidate_path(rel: str) -> bool:
-    decoded = _fully_unquote(rel)
+    decoded = _fully_decode_reference(rel)
     normalized = posixpath.normpath(decoded.replace("\\", "/").lstrip("/"))
     path = PurePosixPath(normalized)
     return path == CANDIDATE_API_ROOT or CANDIDATE_API_ROOT in path.parents
@@ -548,10 +587,10 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
 def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
     paths: set[str] = set()
     source_parent = PurePosixPath(source_rel).parent.as_posix()
-    decoded_text = _fully_unquote(text)
+    decoded_text = _fully_decode_reference(text).replace("\\", "/")
     for match in REFERENCE_TOKEN_PATTERN.finditer(decoded_text):
         token = match.group(0).rstrip(".,;:!?)]]}>")
-        decoded = _fully_unquote(token)
+        decoded = _fully_decode_reference(token)
         if "://" in decoded:
             decoded = urlsplit(decoded).path
         decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
@@ -561,6 +600,99 @@ def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
         source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
         paths.update({root_relative, source_relative})
     return paths
+
+
+def _platform_links(text: str) -> list[tuple[str, str, bool]]:
+    """Return normalized platform refs and whether each source URL is canonical."""
+    raw_tokens = {
+        match.group(0).rstrip(".,;:!?)]]}>")
+        for match in URL_TOKEN_PATTERN.finditer(text)
+    }
+    normalized_text = _fully_decode_reference(text).replace("\\", "/")
+    normalized_tokens = {
+        match.group(0).rstrip(".,;:!?)]]}>")
+        for match in URL_TOKEN_PATTERN.finditer(normalized_text)
+    }
+    token_sources = [(token, True) for token in raw_tokens]
+    token_sources.extend(
+        (token, False)
+        for token in normalized_tokens
+        if token not in raw_tokens
+    )
+
+    links: list[tuple[str, str, bool]] = []
+    seen: set[tuple[str, str, bool]] = set()
+    repo_owner, repo_name = PLATFORM_REPO.split("/", 1)
+    for token, from_source in token_sources:
+        decoded = _fully_decode_reference(token).replace("\\", "/")
+        try:
+            parsed = urlsplit(decoded)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError:
+            continue
+        if hostname is None or hostname.rstrip(".").casefold() not in {
+            "github.com",
+            "www.github.com",
+            "raw.githubusercontent.com",
+        }:
+            continue
+
+        normalized_path = posixpath.normpath(parsed.path)
+        segments = [segment for segment in normalized_path.split("/") if segment]
+        if len(segments) < 6:
+            continue
+        if segments[0].casefold() != repo_owner.casefold() or segments[
+            1
+        ].casefold() != repo_name.casefold():
+            continue
+
+        raw_host = hostname.rstrip(".").casefold() == "raw.githubusercontent.com"
+        ref_start = 2 if raw_host else 3
+        platform_index = next(
+            (
+                index
+                for index in range(ref_start + 1, len(segments) - 1)
+                if segments[index].casefold() == "docs"
+                and segments[index + 1].casefold() == "platform"
+            ),
+            None,
+        )
+        if platform_index is None:
+            continue
+        ref = "/".join(segments[ref_start:platform_index])
+        target = "docs/platform/" + "/".join(segments[platform_index + 2 :])
+        if not target.casefold().endswith(".md"):
+            continue
+        canonical_url = (
+            f"https://github.com/{PLATFORM_REPO}/blob/{ref}/{target}"
+        )
+        canonical = (
+            from_source
+            and token == canonical_url
+            and decoded == token
+            and parsed.scheme == "https"
+            and parsed.netloc == "github.com"
+            and port is None
+            and parsed.username is None
+            and parsed.password is None
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.path == normalized_path
+            and segments[0] == repo_owner
+            and segments[1] == repo_name
+            and not raw_host
+            and segments[2] == "blob"
+            and platform_index == 4
+            and re.fullmatch(r"[0-9a-f]{40}", ref) is not None
+            and re.fullmatch(r"docs/platform/[A-Za-z0-9._/-]+\.md", target)
+            is not None
+        )
+        link = (ref, target, canonical)
+        if link not in seen:
+            links.append(link)
+            seen.add(link)
+    return links
 
 
 def _contains_candidate_destination(text: str, source_rel: str) -> bool:
@@ -752,6 +884,9 @@ def _provenance_errors(
                 if evidence_metadata is not None
                 else ""
             )
+            reviewed_evidence_metadata = REVIEWED_EVIDENCE.get(evidence_id, {}).get(
+                evidence_body_hash
+            )
             evidence_values = (
                 {
                     value.strip()
@@ -771,7 +906,12 @@ def _provenance_errors(
                     evidence_metadata.get("source_class") not in EVIDENCE_SOURCE_CLASSES,
                     evidence_metadata.get("hypothesis_status") != "publishable",
                     evidence_id not in evidence_values,
-                    evidence_body_hash not in REVIEWED_EVIDENCE_BODIES.get(evidence_id, set()),
+                    reviewed_evidence_metadata is None,
+                    reviewed_evidence_metadata is not None
+                    and any(
+                        evidence_metadata.get(key) != value
+                        for key, value in reviewed_evidence_metadata.items()
+                    ),
                 )
             ):
                 errors.append(
@@ -1107,12 +1247,18 @@ def check_repository(root: Path) -> list[str]:
         if not _is_candidate_api(rel, metadata):
             stable_navigation_pages[rel] = page_text
 
-        links = set(PLATFORM_LINK_PATTERN.findall(page_text))
+        platform_links = _platform_links(page_text)
+        links = {(ref, target) for ref, target, _ in platform_links}
         targets = {f"{PLATFORM_REPO}:{target}" for _, target in links}
         declared_target = metadata.get("cross_seed_target")
         declared_mode = metadata.get("cross_seed_mode")
         declared_snapshot = metadata.get("cross_seed_snapshot")
         if targets:
+            all_links_canonical = all(canonical for _, _, canonical in platform_links)
+            if not all_links_canonical:
+                errors.append(
+                    f"{rel}: platform URL must use canonical immutable commit/path form"
+                )
             if len(targets) != 1:
                 errors.append(f"{rel}: a page may cross-seed exactly one platform target")
             expected_target = next(iter(targets)) if len(targets) == 1 else None
@@ -1129,7 +1275,9 @@ def check_repository(root: Path) -> list[str]:
                 else None
             )
             link_consistent = (
-                len(links) == 1
+                all_links_canonical
+                and len(platform_links) == 1
+                and len(links) == 1
                 and next(iter(links))[1] == target_path
                 and next(iter(links))[0] == PLATFORM_SNAPSHOT_REF
                 and snapshot_match is not None
