@@ -1,0 +1,63 @@
+architecture:
+  relative_path: architecture/README.md
+  front_matter:
+    canonical_source: Project-Helianthus/helianthus-docs-eebus:architecture/README.md
+    owner_domain: architecture
+    license: AGPL-3.0-only
+    publication_status: active
+    claim_status: evidence-backed
+    source_class: vendor_public
+    evidence_ids: EV-20260711-001
+    hypothesis_status: publishable
+    falsifier: A publishable public source contradicts this runtime boundary.
+    cross_seed_target: Project-Helianthus/helianthus-docs-ebus:docs/platform/shared-registry-boundary.md
+    cross_seed_mode: summary-only
+  body: |
+    # Supported eeBUS Architecture
+
+    The eeBUS adapter preserves protocol-native records at its runtime boundary.
+    Language-neutral integration remains owned by the canonical platform contract.
+
+    Canonical platform source:
+    [shared registry boundary](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/main/docs/platform/shared-registry-boundary.md)
+
+candidate_api:
+  relative_path: api/_candidate/runtime-reference.md
+  front_matter:
+    canonical_source: Project-Helianthus/helianthus-docs-eebus:api/_candidate/runtime-reference.md
+    owner_domain: api
+    license: AGPL-3.0-only
+    publication_status: candidate
+    claim_status: evidence-backed
+    source_class: vendor_public
+    evidence_ids: EV-20260711-001
+    hypothesis_status: draft
+    falsifier: The public source API omits or changes the candidate declaration.
+    candidate_output: "true"
+    stable_navigation: "false"
+    search: "false"
+    sitemap: "false"
+    versioned_bundle: "false"
+    release_bundle: "false"
+    candidate_output_path: api/_candidate/runtime-reference.md
+  body: |
+    # Candidate eeBUS API Reference
+
+    This unimplemented reference is candidate-only and asserts no active runtime API.
+
+evidence:
+  relative_path: evidence/EV-20260711-001.md
+  front_matter:
+    canonical_source: Project-Helianthus/helianthus-docs-eebus:evidence/EV-20260711-001.md
+    owner_domain: evidence
+    license: CC0-1.0
+    publication_status: publishable
+    claim_status: evidence-backed
+    source_class: vendor_public
+    evidence_ids: EV-20260711-001
+    hypothesis_status: publishable
+    falsifier: A publishable public source contradicts the recorded observation.
+  body: |
+    # Synthetic Public Evidence
+
+    This fixture represents independently publishable evidence without device data.
