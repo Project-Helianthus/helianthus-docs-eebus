@@ -1,0 +1,242 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/rendering",
+      "name": "rendering",
+      "imports": [
+        {
+          "dependency_kind": "public_contract",
+          "qualifier": "shared",
+          "path": "example.invalid/helianthus/synthetic/collision/a"
+        },
+        {
+          "dependency_kind": "public_contract",
+          "qualifier": "shared_2",
+          "path": "example.invalid/helianthus/synthetic/collision/b"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Normalize",
+          "type": "func(shared.Value, shared_2.Value, ...T) (T, error)",
+          "signature": "func Normalize[T interface{ ~int | ~string }](shared.Value, shared_2.Value, ...T) (T, error)",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "interface{ ~int | ~string }"
+            }
+          ]
+        },
+        {
+          "kind": "method",
+          "name": "Apply",
+          "type": "func(shared.Value, ...T) (T, <-chan shared_2.Value)",
+          "signature": "func (*Aggregate[T]) Apply(shared.Value, ...T) (T, <-chan shared_2.Value)",
+          "receiver": {
+            "base": "Aggregate",
+            "pointer": true,
+            "type_parameters": [
+              "T"
+            ]
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Bind",
+          "type": "func(T1_2, T1, T3_2) (T1_2, T1, T3_2)",
+          "signature": "func (BlankSlots[T1_2, T1, T3_2]) Bind(T1_2, T1, T3_2) (T1_2, T1, T3_2)",
+          "receiver": {
+            "base": "BlankSlots",
+            "pointer": false,
+            "type_parameters": [
+              "T1_2",
+              "T1",
+              "T3_2"
+            ]
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasChained",
+          "type": "func(string) string",
+          "signature": "func (ReceiverBase) AliasChained(string) string",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasDirect",
+          "type": "func(uint8) uint8",
+          "signature": "func (ReceiverBase) AliasDirect(uint8) uint8",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasExplicitPointer",
+          "type": "func(int32) int32",
+          "signature": "func (*ReceiverBase) AliasExplicitPointer(int32) int32",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": true,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "AliasPointer",
+          "type": "func(bool) bool",
+          "signature": "func (*ReceiverBase) AliasPointer(bool) bool",
+          "receiver": {
+            "base": "ReceiverBase",
+            "pointer": true,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "type",
+          "name": "Aggregate",
+          "type": "struct{ Embedded; Fixed [3][]map[string]chan<- shared.Item; Inbox <-chan shared_2.Value; Stream chan T; Callback func(shared.Value, ...T) (T, error) }",
+          "signature": "type Aggregate[T interface{ ~int | ~string }] struct{ Embedded; Fixed [3][]map[string]chan<- shared.Item; Inbox <-chan shared_2.Value; Stream chan T; Callback func(shared.Value, ...T) (T, error) }",
+          "type_form": "defined",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "interface{ ~int | ~string }"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "Alias",
+          "type": "*Aggregate[T]",
+          "signature": "type Alias[T interface{ ~int | ~string }] = *Aggregate[T]",
+          "type_form": "alias",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "interface{ ~int | ~string }"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "BlankSlots",
+          "type": "struct{ Value T1 }",
+          "signature": "type BlankSlots[_ any, T1 any, _ any] struct{ Value T1 }",
+          "type_form": "defined",
+          "type_parameters": [
+            {
+              "name": "_",
+              "constraint": "any"
+            },
+            {
+              "name": "T1",
+              "constraint": "any"
+            },
+            {
+              "name": "_",
+              "constraint": "any"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "Contract",
+          "type": "interface{ Compare(shared.Value) bool; Embedded; Transform(func(T) T) (T, error) }",
+          "signature": "type Contract[T any] interface{ Compare(shared.Value) bool; Embedded; Transform(func(T) T) (T, error) }",
+          "type_form": "defined",
+          "type_parameters": [
+            {
+              "name": "T",
+              "constraint": "any"
+            }
+          ]
+        },
+        {
+          "kind": "type",
+          "name": "Embedded",
+          "type": "interface{ Accept(shared_2.Value) error }",
+          "signature": "type Embedded interface{ Accept(shared_2.Value) error }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverBase",
+          "type": "struct{}",
+          "signature": "type ReceiverBase struct{}",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverChain",
+          "type": "ReceiverDirect",
+          "signature": "type ReceiverChain = ReceiverDirect",
+          "type_form": "alias",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverDirect",
+          "type": "ReceiverBase",
+          "signature": "type ReceiverDirect = ReceiverBase",
+          "type_form": "alias",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReceiverPointer",
+          "type": "*ReceiverBase",
+          "signature": "type ReceiverPointer = *ReceiverBase",
+          "type_form": "alias",
+          "type_parameters": []
+        },
+        {
+          "kind": "var",
+          "name": "FromByte",
+          "type": "uint8",
+          "signature": "var FromByte uint8"
+        },
+        {
+          "kind": "var",
+          "name": "FromInt32",
+          "type": "int32",
+          "signature": "var FromInt32 int32"
+        },
+        {
+          "kind": "var",
+          "name": "FromRune",
+          "type": "int32",
+          "signature": "var FromRune int32"
+        },
+        {
+          "kind": "var",
+          "name": "FromUint8",
+          "type": "uint8",
+          "signature": "var FromUint8 uint8"
+        },
+        {
+          "kind": "var",
+          "name": "T3",
+          "type": "uint8",
+          "signature": "var T3 uint8"
+        }
+      ]
+    }
+  ]
+}

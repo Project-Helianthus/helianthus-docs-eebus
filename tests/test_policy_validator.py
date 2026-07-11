@@ -147,6 +147,18 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("private IPv4 address found", result.stderr)
 
+    def test_underscore_adjacent_loopback_ipv4_fails_in_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            leak = "_" + "127." + "0.0.1" + "_"
+            page = repo / "README.md"
+            page.write_text(page.read_text(encoding="utf-8") + f"\nLeak: {leak}\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("private IPv4 address found", result.stderr)
+
     def test_wrong_path_domain_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -491,6 +503,71 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("restricted-source contamination marker found", result.stderr)
+
+    def test_machine_policy_decodes_escaped_shadowed_publication_claims(self) -> None:
+        cases = (
+            (
+                "private identifier",
+                "account\\u005fid: synthetic",
+                "account_id: synthetic",
+                "private identifier",
+            ),
+            (
+                "restricted source",
+                "vendor\\u005frestricted",
+                "vendor_restricted",
+                "source contamination",
+            ),
+        )
+        relative_path = "api/fixtures/v1/negative/duplicate-json-key.json"
+        original = '"signature": "type Example struct{}"'
+        for name, escaped_value, decoded_value, category in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / relative_path
+                    shadowed = (
+                        f'"signature": "{escaped_value}",\n'
+                        '          "signature": "type Example struct{}"'
+                    )
+                    artifact.write_text(
+                        artifact.read_text(encoding="utf-8").replace(
+                            original,
+                            shadowed,
+                            1,
+                        ),
+                        encoding="utf-8",
+                    )
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(f"{relative_path}: {category}", result.stderr)
+                    self.assertNotIn(escaped_value, result.stderr)
+                    self.assertNotIn(decoded_value, result.stderr)
+                    self.assertNotIn(str(repo), result.stderr)
+
+    def test_machine_policy_reports_private_ipv4_once_without_line_number(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            relative_path = "api/fixtures/v1/positive/kinds-types-signatures.json"
+            artifact = repo / relative_path
+            private_ipv4 = "192." + "168.7.9"
+            artifact.write_text(
+                artifact.read_text(encoding="utf-8").replace(
+                    '"signature": "const TypedLimit uint64 = 18446744073709551615"',
+                    f'"signature": "peer {private_ipv4}"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            expected = f"{relative_path}: private network"
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertEqual(result.stderr.splitlines().count(expected), 1, result.stderr)
+            self.assertNotRegex(result.stderr, rf"{relative_path}:\d+:")
 
     def test_new_publishable_claim_requires_resolving_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,0 +1,28 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/negative",
+      "name": "negative",
+      "imports": [],
+      "symbols": [
+        {
+          "kind": "method",
+          "name": "Read",
+          "type": "func() error",
+          "signature": "func (*example) Read() error",
+          "receiver": {
+            "base": "example",
+            "pointer": true,
+            "type_parameters": []
+          }
+        }
+      ]
+    }
+  ]
+}

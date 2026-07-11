@@ -1,0 +1,395 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:helianthus:eebus:api-surface:v1",
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "title": "Helianthus eeBUS Go API surface v1",
+  "description": "Closed deterministic representation and compatibility projection for a future AST-produced eeBUS Go public API surface; this schema does not prove Go semantics.",
+  "$comment": "Machine JSON has a portable maximum container depth of 64. Before emission, a Go 1.24-or-newer AST/type-backed producer applies the normative renderer in api/api-surface-v1.md and proves Go syntax, ExactString and source-value correctness, blank receiver object-identity substitution, constraints, aliases, recursive dependency visibility, import use and completeness, and semantic consistency. Qualifiers are allocated from declared package names and full import paths independently of source aliases and order. Every import records an allowed dependency kind. The portable validator checks import structure, class, order, uniqueness, and paths plus representation, canonical numeric shapes, and cross-field derivation only.",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "packages"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_id": {
+      "const": "helianthus.eebus.api-surface.v1"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "fixture": {
+      "$ref": "#/$defs/fixture"
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/package"
+      }
+    }
+  },
+  "$defs": {
+    "asciiGoIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "not": {
+        "enum": [
+          "break",
+          "case",
+          "chan",
+          "const",
+          "continue",
+          "default",
+          "defer",
+          "else",
+          "fallthrough",
+          "for",
+          "func",
+          "go",
+          "goto",
+          "if",
+          "import",
+          "interface",
+          "map",
+          "package",
+          "range",
+          "return",
+          "select",
+          "struct",
+          "switch",
+          "type",
+          "var"
+        ]
+      }
+    },
+    "nonBlankAsciiGoIdentifier": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/asciiGoIdentifier"
+        }
+      ],
+      "not": {
+        "const": "_"
+      }
+    },
+    "exportedAsciiGoIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9_]*$"
+    },
+    "importQualifier": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nonBlankAsciiGoIdentifier"
+        }
+      ]
+    },
+    "packageImport": {
+      "type": "object",
+      "description": "One allowed dependency class and exact canonical qualifier-to-full-path allocation produced by the normative package-name/path algorithm.",
+      "required": [
+        "dependency_kind",
+        "qualifier",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dependency_kind": {
+          "enum": [
+            "public_contract",
+            "standard_library"
+          ]
+        },
+        "qualifier": {
+          "$ref": "#/$defs/importQualifier"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "required": [
+        "synthetic",
+        "runtime_claims"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "synthetic": {
+          "const": true
+        },
+        "runtime_claims": {
+          "const": false
+        }
+      }
+    },
+    "typeParameter": {
+      "type": "object",
+      "required": [
+        "name",
+        "constraint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/asciiGoIdentifier"
+        },
+        "constraint": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "required": [
+        "base",
+        "pointer",
+        "type_parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "pointer": {
+          "type": "boolean"
+        },
+        "type_parameters": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonBlankAsciiGoIdentifier"
+          }
+        }
+      }
+    },
+    "constSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "value_kind",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "const"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value_kind": {
+          "enum": [
+            "bool",
+            "string",
+            "int",
+            "float",
+            "complex"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "varSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "var"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "typeSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "type_form",
+        "type_parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "type"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type_form": {
+          "enum": [
+            "defined",
+            "alias"
+          ]
+        },
+        "type_parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeParameter"
+          }
+        }
+      }
+    },
+    "funcSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "type_parameters"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "func"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type_parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeParameter"
+          }
+        }
+      }
+    },
+    "methodSymbol": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "signature",
+        "receiver"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "method"
+        },
+        "name": {
+          "$ref": "#/$defs/exportedAsciiGoIdentifier"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receiver": {
+          "$ref": "#/$defs/receiver"
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": [
+        "path",
+        "name",
+        "imports",
+        "symbols"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "$ref": "#/$defs/asciiGoIdentifier"
+        },
+        "imports": {
+          "type": "array",
+          "description": "The complete used non-current package map after deterministic qualifier allocation, sorted by qualifier and path.",
+          "items": {
+            "$ref": "#/$defs/packageImport"
+          }
+        },
+        "symbols": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/symbol"
+          }
+        }
+      }
+    },
+    "symbol": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/constSymbol"
+        },
+        {
+          "$ref": "#/$defs/funcSymbol"
+        },
+        {
+          "$ref": "#/$defs/methodSymbol"
+        },
+        {
+          "$ref": "#/$defs/typeSymbol"
+        },
+        {
+          "$ref": "#/$defs/varSymbol"
+        }
+      ]
+    }
+  }
+}

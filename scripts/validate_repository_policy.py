@@ -8,8 +8,19 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Any
 
 import yaml
+
+from machine_publication_policy import (
+    COMPLETE,
+    IPV4_CANDIDATE_PATTERN,
+    MALFORMED_SENTINEL,
+    NESTING_TOO_DEEP,
+    classify_ipv4,
+    decode_machine_json,
+    machine_publication_diagnostics,
+)
 
 REPO_ID = "Project-Helianthus/helianthus-docs-eebus"
 VALID_OWNER = "@d3vi1"
@@ -28,10 +39,26 @@ MARKDOWN_ONLY_DOMAINS = {
     "protocols",
     "devices",
     "architecture",
-    "api",
     "development",
     "re-notes",
 }
+API_MACHINE_ARTIFACTS = {
+    "api/schema/helianthus.eebus.api-surface.v1.schema.json",
+    "api/fixtures/v1/positive/canonical-go-rendering.json",
+    "api/fixtures/v1/positive/kinds-types-signatures.json",
+    "api/fixtures/v1/positive/packages-and-symbols.json",
+    "api/fixtures/v1/negative/duplicate-identity.json",
+    "api/fixtures/v1/negative/duplicate-json-key.json",
+    "api/fixtures/v1/negative/implementation-dependency-type.json",
+    "api/fixtures/v1/negative/internal-package.json",
+    "api/fixtures/v1/negative/invalid-ordering.json",
+    "api/fixtures/v1/negative/malformed.json",
+    "api/fixtures/v1/negative/non-nfc.json",
+    "api/fixtures/v1/negative/unexported-declaration.json",
+    "api/fixtures/v1/negative/unexported-receiver.json",
+    "api/fixtures/v1/negative/unknown-field.json",
+}
+MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
 ROOT_MD = {
     "README.md": ("repository", "AGPL-3.0-only"),
@@ -51,6 +78,7 @@ SCAFFOLD_PAGES = {
     "protocols/ship-spine-overview.md": "ownership-landing",
     "architecture/README.md": "ownership-landing",
     "api/README.md": "ownership-landing",
+    "api/api-surface-v1.md": "api-contract",
     "devices/vr940f.md": "planned-target",
     "evidence/README.md": "evidence-policy",
     "evidence/evidence-template.md": "template",
@@ -62,7 +90,8 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "6e7e2e079fca9e559f50555b29a6e7f44c4e7305316e5f4bb54498943d3b9a8d",
     "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
     "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
-    "api/README.md": "beac9e9b60ab81265fa6b8498b81ba20e1dde768a7100d3d1384b97e34c64280",
+    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
+    "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad2109fcbd779c87c0281a37b9f44cbeca",
     "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
@@ -78,7 +107,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "16a75a3490321afa297fa319ddfb51dc884581600c9fb9ddf149e08e3918ba9c"
+CI_LOCAL_SHA256 = "ee5413bcb10b811225ff6f5c4bfa998b48f2a67e1282f3e5e74d78f8b87dce7a"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -89,14 +118,6 @@ LICENSE_ACK_LABEL = (
 CONTROL_MD = {
     "AGENTS.md",
 }
-
-PRIVATE_NETS = [
-    ipaddress.ip_network("10." + "0.0.0/8"),
-    ipaddress.ip_network("172.16." + "0.0/12"),
-    ipaddress.ip_network("192.168." + "0.0/16"),
-    ipaddress.ip_network("100.64." + "0.0/10"),
-    ipaddress.ip_network("169.254." + "0.0/16"),
-]
 
 PLATFORM_LINK_PATTERN = re.compile(
     r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
@@ -282,44 +303,46 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
     return None
 
 
-def _privacy_errors(text: str, rel: str) -> list[str]:
+def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
     errors: list[str] = []
+
+    def add(category: str, line: int | None = None) -> None:
+        location = rel if category_only or line is None else f"{rel}:{line}"
+        errors.append(f"{location}: {category}")
+
     if PEM_BLOCK_PATTERN.search(text):
-        errors.append(f"{rel}: PEM block marker found in publishable content")
+        add("PEM block marker found in publishable content")
     if MAC_ADDRESS_PATTERN.search(text):
-        errors.append(f"{rel}: MAC address found in publishable content")
+        add("MAC address found in publishable content")
     if FULL_FINGERPRINT_PATTERN.search(text):
-        errors.append(f"{rel}: full fingerprint or raw SKI found in publishable content")
+        add("full fingerprint or raw SKI found in publishable content")
     if PRIVATE_PATH_PATTERN.search(text):
-        errors.append(f"{rel}: private or identifying filesystem path found")
+        add("private or identifying filesystem path found")
     for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(text):
         line = text.count("\n", 0, match.start()) + 1
-        errors.append(f"{rel}:{line}: private artifact location/reference field is forbidden")
+        add("private artifact location/reference field is forbidden", line)
     for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(text):
         value = match.group(1)
         if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: private artifact retained value must be yes or no")
+            add("private artifact retained value must be yes or no", line)
     for match in SENSITIVE_FIELD_PATTERN.finditer(text):
-        field = match.group(1).lower()
         value = match.group(2)
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: populated sensitive field {field!r}")
+            category = "populated sensitive field"
+            if not category_only:
+                category += f" {match.group(1).lower()!r}"
+            add(category, line)
     for match in RAW_EEBUS_ID_PATTERN.finditer(text):
         value = match.group(1)
         if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: populated raw SKI or SHIP ID")
-    ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
-    for match in ipv4_pattern.finditer(text):
-        try:
-            addr = ipaddress.ip_address(match.group(0))
-        except ValueError:
-            continue
-        if any(addr in net for net in PRIVATE_NETS):
+            add("populated raw SKI or SHIP ID", line)
+    for match in IPV4_CANDIDATE_PATTERN.finditer(text):
+        if classify_ipv4(match.group(0)) == "private network":
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: private IPv4 address found")
+            add("private IPv4 address found", line)
     for match in IPV6_CANDIDATE_PATTERN.finditer(text):
         candidate = match.group(0)
         address = candidate.split("%", 1)[0]
@@ -329,18 +352,24 @@ def _privacy_errors(text: str, rel: str) -> list[str]:
             continue
         if isinstance(parsed, ipaddress.IPv6Address):
             line = text.count("\n", 0, match.start()) + 1
-            errors.append(f"{rel}:{line}: IPv6 address found in publishable content")
+            add("IPv6 address found in publishable content", line)
     return errors
 
 
-def _restricted_source_errors(text: str, rel: str) -> list[str]:
+def _restricted_source_errors(
+    text: str,
+    rel: str,
+    *,
+    category_only: bool = False,
+) -> list[str]:
     if rel in SCAFFOLD_PAGES:
         return []
     errors: list[str] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if RESTRICTED_SOURCE_PATTERN.search(line) is None:
             continue
-        errors.append(f"{rel}:{line_number}: restricted-source contamination marker found")
+        location = rel if category_only else f"{rel}:{line_number}"
+        errors.append(f"{location}: restricted-source contamination marker found")
     return errors
 
 
@@ -349,6 +378,22 @@ def _has_forbidden_control(text: str) -> bool:
         unicodedata.category(char) == "Cc" and char != "\n"
         for char in text
     )
+
+
+def _machine_artifact_errors(text: str, rel: str) -> list[str]:
+    allow_sentinel = rel == MALFORMED_API_FIXTURE
+    result = decode_machine_json(
+        text.encode("utf-8"),
+        allow_malformed_sentinel=allow_sentinel,
+    )
+    expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
+    errors = [
+        f"{rel}: {category}"
+        for category in sorted(machine_publication_diagnostics(result))
+    ]
+    if result.status not in {expected_status, NESTING_TOO_DEEP}:
+        errors.append(f"{rel}: machine publication boundary")
+    return errors
 
 
 def _provenance_errors(
@@ -780,22 +825,30 @@ def check_repository(root: Path) -> list[str]:
             if path.is_symlink():
                 continue
             rel = _rel(path, root)
-            if top in MARKDOWN_ONLY_DOMAINS and path.suffix.lower() not in MARKDOWN_SUFFIXES:
-                errors.append(f"{rel}: substantive documentation must use a Markdown extension")
-                continue
+            if path.suffix.lower() not in MARKDOWN_SUFFIXES:
+                if top == "api":
+                    if rel not in API_MACHINE_ARTIFACTS:
+                        errors.append(f"{rel}: path is not in the API machine artifact allowlist")
+                        continue
+                elif top in MARKDOWN_ONLY_DOMAINS:
+                    errors.append(f"{rel}: substantive documentation must use a Markdown extension")
+                    continue
             try:
                 text = _read(path)
             except UnicodeDecodeError:
                 errors.append(f"{rel}: binary or non-UTF-8 publishable artifact is forbidden")
                 continue
-            if _has_forbidden_control(text):
-                errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
-            errors.extend(_privacy_errors(text, rel))
-            errors.extend(_restricted_source_errors(text, rel))
-            if PREMATURE_COMPLETION_PATTERN.search(text):
-                errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-            if PREMATURE_CONSUMER_PATTERN.search(text):
-                errors.append(f"{rel}: premature gateway or consumer availability claim")
+            if rel in API_MACHINE_ARTIFACTS:
+                errors.extend(_machine_artifact_errors(text, rel))
+            else:
+                if _has_forbidden_control(text):
+                    errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
+                errors.extend(_privacy_errors(text, rel))
+                errors.extend(_restricted_source_errors(text, rel))
+                if PREMATURE_COMPLETION_PATTERN.search(text):
+                    errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
+                if PREMATURE_CONSUMER_PATTERN.search(text):
+                    errors.append(f"{rel}: premature gateway or consumer availability claim")
 
     for directory, required_page in REQUIRED_DOMAIN_PAGES.items():
         dir_path = root / directory
@@ -807,23 +860,20 @@ def check_repository(root: Path) -> list[str]:
         if not page_path.is_file() or page_path.is_symlink():
             errors.append(f"{required_page}: required canonical landing page is missing")
 
-    ipv4_pattern = re.compile(r"\b(?:(?:\d{1,3})\.){3}(?:\d{1,3})\b")
     for path in sorted(
         p for p in root.rglob("*") if p.is_file() and not p.is_symlink()
     ):
         if ".git" in path.parts or ".pytest_cache" in path.parts:
             continue
+        rel = _rel(path, root)
+        if rel in API_MACHINE_ARTIFACTS:
+            continue
         try:
             text = _read(path)
         except UnicodeDecodeError:
             continue
-        rel = _rel(path, root)
-        for match in ipv4_pattern.finditer(text):
-            try:
-                addr = ipaddress.ip_address(match.group(0))
-            except ValueError:
-                continue
-            if any(addr in net for net in PRIVATE_NETS):
+        for match in IPV4_CANDIDATE_PATTERN.finditer(text):
+            if classify_ipv4(match.group(0)) == "private network":
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(f"{rel}:{line}: private IPv4 address found")
 
@@ -835,7 +885,7 @@ def check_repository(root: Path) -> list[str]:
         if "Restricted material must not appear in public repositories" not in text:
             errors.append("development/contributing.md: missing restricted-source quarantine rule")
 
-    return errors
+    return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
 def main() -> int:

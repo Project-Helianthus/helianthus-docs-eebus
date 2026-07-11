@@ -1,0 +1,25 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/negative",
+      "name": "negative",
+      "imports": [],
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "E\u0301tat",
+          "type": "struct{}",
+          "signature": "type E\u0301tat struct{}",
+          "type_form": "defined",
+          "type_parameters": []
+        }
+      ]
+    }
+  ]
+}

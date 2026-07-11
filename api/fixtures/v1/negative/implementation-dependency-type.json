@@ -1,0 +1,30 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "fixture": {
+    "synthetic": true,
+    "runtime_claims": false
+  },
+  "packages": [
+    {
+      "path": "example.invalid/helianthus/synthetic/negative",
+      "name": "negative",
+      "imports": [
+        {
+          "dependency_kind": "implementation",
+          "qualifier": "enbility_model",
+          "path": "example.invalid/helianthus/synthetic/dependency/enbility/model"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Open",
+          "type": "func(enbility_model.Client) error",
+          "signature": "func Open(enbility_model.Client) error",
+          "type_parameters": []
+        }
+      ]
+    }
+  ]
+}
