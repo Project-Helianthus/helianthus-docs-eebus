@@ -5,10 +5,12 @@ import argparse
 import hashlib
 import html
 import ipaddress
+import json
 import posixpath
 import re
 import sys
 import unicodedata
+from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -142,18 +144,26 @@ STABLE_OUTPUT_ARTIFACTS = {
     "release_bundle": "api/release-bundle.txt",
 }
 SUMMARY_NORMATIVE_PATTERN = re.compile(
-    r"\b(?:must|shall|may\s+not|cannot|never|is required to|are required to)\b|"
+    r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
+    r"is required to|are required to)\b|"
     r"\bmay\b[^\n.]{0,40}\bonly\b",
     re.IGNORECASE | re.MULTILINE,
 )
 REFERENCE_TOKEN_PATTERN = re.compile(
-    r"https?://[^\s<>\"']+|(?:[./A-Za-z0-9%_~-]+/)+[./A-Za-z0-9%_~-]+",
+    r"(?:https?:)?//[^\s<>\"']+|(?:[./A-Za-z0-9%_~-]+/)+[./A-Za-z0-9%_~-]+",
     re.IGNORECASE,
 )
-URL_TOKEN_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+JSON_STRING_PATTERN = re.compile(
+    r'"(?:\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4})|[^"\\])*"'
+)
 REVIEWED_ACTIVE_ARCHITECTURE = {
     # The immutable RED fixture is materialized with the required platform pin.
     "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
         "claim_status": "evidence-backed",
         "publication_status": "active",
         "source_class": "vendor_public",
@@ -172,6 +182,11 @@ REVIEWED_ACTIVE_ARCHITECTURE = {
         ),
     },
     "6ac887dc24ce53fc0dee45e15ebe2804eea42bedb0ae802dc89bc39338ad6f44": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
         "claim_status": "evidence-backed",
         "publication_status": "active",
         "source_class": "derived_inference",
@@ -463,9 +478,7 @@ def _reviewed_architecture_claim(
 ) -> dict[str, str] | None:
     body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
     reviewed = REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
-    if reviewed is None:
-        return None
-    if any(metadata.get(key) != value for key, value in reviewed.items()):
+    if reviewed is None or metadata != reviewed:
         return None
     return reviewed
 
@@ -488,6 +501,62 @@ def _fully_decode_reference(value: str) -> str:
         if next_value == decoded:
             return decoded
         decoded = next_value
+
+
+def _reference_text_variants(text: str) -> set[str]:
+    """Return decoded text plus JSON string values embedded in serializations."""
+    variants = {text, _fully_decode_reference(text)}
+    pending = list(variants)
+    while pending:
+        value = pending.pop()
+        for match in JSON_STRING_PATTERN.finditer(value):
+            try:
+                decoded = json.loads(match.group(0))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if not isinstance(decoded, str):
+                continue
+            decoded = _fully_decode_reference(decoded)
+            if decoded not in variants:
+                variants.add(decoded)
+                pending.append(decoded)
+    return variants
+
+
+def _github_repository_relative_path(value: str) -> str | None:
+    """Map recognized URLs for this repository to their checkout-relative path."""
+    decoded = _fully_decode_reference(value).replace("\\", "/")
+    parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
+    try:
+        parsed = urlsplit(parsed_value)
+    except ValueError:
+        return None
+    hostname = parsed.hostname
+    if hostname is None:
+        return None
+    host = hostname.rstrip(".").casefold()
+    path = posixpath.normpath(_fully_decode_reference(parsed.path))
+    segments = [segment for segment in path.split("/") if segment]
+    repo_owner, repo_name = REPO_ID.split("/", 1)
+    if len(segments) < 4 or segments[0].casefold() != repo_owner.casefold() or segments[
+        1
+    ].casefold() != repo_name.casefold():
+        return None
+
+    if host in {"github.com", "www.github.com"}:
+        if len(segments) < 5 or segments[2].casefold() not in {"blob", "raw", "tree"}:
+            return None
+        path_start = 4
+    elif host == "raw.githubusercontent.com":
+        path_start = 3
+    else:
+        return None
+
+    for index in range(path_start, len(segments) - 1):
+        if segments[index] == "api" and segments[index + 1] == "_candidate":
+            path_start = index
+            break
+    return "/".join(segments[path_start:])
 
 
 def _is_candidate_path(rel: str) -> bool:
@@ -576,9 +645,10 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
         "shipped",
         "landed",
     }
-    if "MSP-DOCS-CLEAN" in metadata.get("milestone_completion", "") or (
-        metadata.get("milestone") == "MSP-DOCS-CLEAN"
-        and metadata.get("milestone_completion", "").strip().lower() in complete_states
+    milestone = metadata.get("milestone", "").strip().casefold()
+    completion = metadata.get("milestone_completion", "").strip().casefold()
+    if "msp-docs-clean" in completion or (
+        milestone == "msp-docs-clean" and completion in complete_states
     ):
         return [f"{rel}: MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2"]
     return []
@@ -587,46 +657,98 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
 def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
     paths: set[str] = set()
     source_parent = PurePosixPath(source_rel).parent.as_posix()
-    decoded_text = _fully_decode_reference(text).replace("\\", "/")
-    for match in REFERENCE_TOKEN_PATTERN.finditer(decoded_text):
-        token = match.group(0).rstrip(".,;:!?)]]}>")
-        decoded = _fully_decode_reference(token)
-        if "://" in decoded:
-            decoded = urlsplit(decoded).path
-        decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
-        if not decoded:
-            continue
-        root_relative = posixpath.normpath(decoded.lstrip("/"))
-        source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
-        paths.update({root_relative, source_relative})
+    for variant in _reference_text_variants(text):
+        decoded_text = variant.replace("\\", "/")
+        for match in REFERENCE_TOKEN_PATTERN.finditer(decoded_text):
+            token = match.group(0).rstrip(".,;:!?)]]}>")
+            decoded = _fully_decode_reference(token)
+            repository_path = _github_repository_relative_path(decoded)
+            if repository_path is not None:
+                paths.add(posixpath.normpath(repository_path))
+                continue
+            if "://" in decoded or decoded.startswith("//"):
+                parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
+                try:
+                    decoded = urlsplit(parsed_value).path
+                except ValueError:
+                    continue
+            decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
+            if not decoded:
+                continue
+            root_relative = posixpath.normpath(decoded.lstrip("/"))
+            source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
+            paths.update({root_relative, source_relative})
     return paths
 
 
-def _platform_links(text: str) -> list[tuple[str, str, bool]]:
-    """Return normalized platform refs and whether each source URL is canonical."""
-    raw_tokens = {
+class _HTMLDestinationParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.destinations: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        for name, value in attrs:
+            if name.casefold() == "href" and value is not None:
+                self.destinations.append(value)
+
+
+def _visible_link_destinations(text: str) -> list[str]:
+    """Extract actual Markdown and HTML destinations, excluding comments/code fences."""
+    visible = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    visible = re.sub(
+        r"^```[^\n]*\n.*?^```[ \t]*$|^~~~[^\n]*\n.*?^~~~[ \t]*$",
+        "",
+        visible,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    destinations: list[str] = []
+    for match in re.finditer(
+        r"!?\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)\n]+))",
+        visible,
+    ):
+        destinations.append(match.group(1) or match.group(2))
+    for match in re.finditer(
+        r"^\s{0,3}\[[^\]\n]+\]:\s*(?:<([^>\n]+)>|([^\s\n]+))",
+        visible,
+        flags=re.MULTILINE,
+    ):
+        destinations.append((match.group(1) or match.group(2)).rstrip())
+    destinations.extend(
+        match.group(1)
+        for match in re.finditer(r"<((?:https?:)?//[^>\s]+)>", visible, re.IGNORECASE)
+    )
+    destinations.extend(
         match.group(0).rstrip(".,;:!?)]]}>")
-        for match in URL_TOKEN_PATTERN.finditer(text)
-    }
-    normalized_text = _fully_decode_reference(text).replace("\\", "/")
-    normalized_tokens = {
-        match.group(0).rstrip(".,;:!?)]]}>")
-        for match in URL_TOKEN_PATTERN.finditer(normalized_text)
-    }
-    token_sources = [(token, True) for token in raw_tokens]
-    token_sources.extend(
-        (token, False)
-        for token in normalized_tokens
-        if token not in raw_tokens
+        for match in re.finditer(
+            r"(?<![<(\[\"'=])https?://[^\s<>\"']+",
+            visible,
+            re.IGNORECASE,
+        )
     )
 
+    parser = _HTMLDestinationParser()
+    try:
+        parser.feed(visible)
+        parser.close()
+    except (AssertionError, ValueError):
+        pass
+    destinations.extend(parser.destinations)
+    return destinations
+
+
+def _platform_links(text: str) -> list[tuple[str, str, bool]]:
+    """Return visible platform destinations and whether each is exactly canonical."""
     links: list[tuple[str, str, bool]] = []
-    seen: set[tuple[str, str, bool]] = set()
     repo_owner, repo_name = PLATFORM_REPO.split("/", 1)
-    for token, from_source in token_sources:
-        decoded = _fully_decode_reference(token).replace("\\", "/")
+    for destination in _visible_link_destinations(text):
+        decoded = _fully_decode_reference(destination).replace("\\", "/")
+        parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
         try:
-            parsed = urlsplit(decoded)
+            parsed = urlsplit(parsed_value)
             hostname = parsed.hostname
             port = parsed.port
         except ValueError:
@@ -668,9 +790,8 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
             f"https://github.com/{PLATFORM_REPO}/blob/{ref}/{target}"
         )
         canonical = (
-            from_source
-            and token == canonical_url
-            and decoded == token
+            destination == canonical_url
+            and decoded == destination
             and parsed.scheme == "https"
             and parsed.netloc == "github.com"
             and port is None
@@ -688,10 +809,7 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
             and re.fullmatch(r"docs/platform/[A-Za-z0-9._/-]+\.md", target)
             is not None
         )
-        link = (ref, target, canonical)
-        if link not in seen:
-            links.append(link)
-            seen.add(link)
+        links.append((ref, target, canonical))
     return links
 
 
@@ -908,10 +1026,7 @@ def _provenance_errors(
                     evidence_id not in evidence_values,
                     reviewed_evidence_metadata is None,
                     reviewed_evidence_metadata is not None
-                    and any(
-                        evidence_metadata.get(key) != value
-                        for key, value in reviewed_evidence_metadata.items()
-                    ),
+                    and evidence_metadata != reviewed_evidence_metadata,
                 )
             ):
                 errors.append(

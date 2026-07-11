@@ -184,6 +184,39 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn(f"candidate API leaked into {channel}", result.stderr)
 
+    def test_github_candidate_urls_and_json_escapes_cannot_leak(self) -> None:
+        channels = {
+            "stable_navigation": "README.md",
+            "search": "api/search-index.json",
+            "sitemap": "api/sitemap.xml",
+            "versioned_bundle": "api/versioned-bundle.txt",
+            "release_bundle": "api/release-bundle.txt",
+        }
+        candidate_url = (
+            "https://github.com/Project-Helianthus/helianthus-docs-eebus/"
+            "blob/main/api/_candidate/runtime-reference.md"
+        )
+        payloads = {
+            "absolute GitHub URL": candidate_url,
+            "JSON unicode escapes": (
+                '{"candidate":"' + candidate_url.replace("/", r"\u002f") + '"}'
+            ),
+        }
+        for channel, relative_path in channels.items():
+            for form, payload in payloads.items():
+                with self.subTest(
+                    channel=channel, form=form
+                ), tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    artifact = repo / relative_path
+                    prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
+                    artifact.write_text(prefix + "\n" + payload + "\n", encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+
     def test_supported_claim_requires_publishable_evidence_metadata(self) -> None:
         mutations = {
             "publication": {"publication_status": "draft"},
@@ -243,6 +276,30 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "supported claim evidence is not publishable and evidence-backed",
                 result.stderr,
             )
+
+    def test_reviewed_claim_bindings_reject_additional_front_matter_keys(self) -> None:
+        cases = {
+            "active architecture": (
+                "architecture/README.md",
+                "active architecture content is not in the reviewed claim registry",
+            ),
+            "reviewed evidence": (
+                "evidence/EV-20260711-001.md",
+                "supported claim evidence is not publishable and evidence-backed",
+            ),
+        }
+        for name, (relative_path, expected_error) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                replace_front_matter(
+                    repo / relative_path,
+                    review_ticket="synthetic-extra-key",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(expected_error, result.stderr)
 
     def test_cross_seed_link_and_snapshot_are_commit_path_consistent(self) -> None:
         mutations = {
@@ -317,6 +374,81 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 )
                 self.assertIn("cross-seed commit, path, and snapshot must match", result.stderr)
 
+    def test_visible_markdown_and_html_platform_destinations_are_fail_closed(self) -> None:
+        variants = {
+            "protocol-relative Markdown": (
+                "//GitHub.COM/project-helianthus/HELIANTHUS-DOCS-EBUS/"
+                f"blob/{PLATFORM_COMMIT}/docs/platform/shared-registry-boundary.md"
+            ),
+            "case-equivalent HTML": (
+                "HTTPS://GITHUB.COM/project-helianthus/HELIANTHUS-DOCS-EBUS/"
+                f"blob/{PLATFORM_COMMIT}/DOCS/PLATFORM/shared-registry-boundary.md"
+            ),
+        }
+        for name, variant in variants.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                page = repo / "architecture/README.md"
+                text = page.read_text(encoding="utf-8")
+                if name == "case-equivalent HTML":
+                    replacement = f'<a href="{variant}">shared registry boundary</a>'
+                    text = text.replace(
+                        f"[shared registry boundary]({PLATFORM_URL})",
+                        replacement,
+                        1,
+                    )
+                else:
+                    text = text.replace(PLATFORM_URL, variant, 1)
+                page.write_text(text, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "platform URL must use canonical immutable commit/path form",
+                    result.stderr,
+                )
+                self.assertIn("cross-seed commit, path, and snapshot must match", result.stderr)
+
+    def test_html_comments_do_not_supply_platform_link_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            text = page.read_text(encoding="utf-8").replace(
+                f"[shared registry boundary]({PLATFORM_URL})",
+                f"<!-- [shared registry boundary]({PLATFORM_URL}) -->",
+                1,
+            )
+            page.write_text(text, encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "cross-seed metadata requires a canonical platform link",
+                result.stderr,
+            )
+
+    def test_every_visible_platform_destination_must_be_the_single_canonical_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            mutable = PLATFORM_URL.replace(f"blob/{PLATFORM_COMMIT}/", "blob/main/")
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + f'\n<a href="{mutable}">mutable duplicate</a>\n',
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "platform URL must use canonical immutable commit/path form",
+                result.stderr,
+            )
+            self.assertIn("cross-seed commit, path, and snapshot must match", result.stderr)
+
     def test_noncanonical_platform_link_still_runs_normative_summary_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -377,6 +509,27 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("summary-only cross-seed contains normative requirements", result.stderr)
 
+    def test_cross_seed_rejects_should_normative_language(self) -> None:
+        for phrase in (
+            "An adapter should preserve the canonical platform boundary.",
+            "An adapter should not duplicate the canonical platform contract.",
+        ):
+            with self.subTest(phrase=phrase), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                page = repo / "architecture/README.md"
+                page.write_text(
+                    page.read_text(encoding="utf-8") + "\n" + phrase + "\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "summary-only cross-seed contains normative requirements",
+                    result.stderr,
+                )
+
     def test_split_clean_milestone_metadata_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -385,6 +538,21 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 page,
                 milestone="MSP-DOCS-CLEAN",
                 milestone_completion="complete",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2", result.stderr)
+
+    def test_clean_milestone_metadata_is_normalized_before_rejection(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            replace_front_matter(
+                page,
+                milestone="  mSp-DoCs-ClEaN  ",
+                milestone_completion="  CoMpLeTe  ",
             )
 
             result = run_validator(repo)
