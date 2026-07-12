@@ -10,5 +10,25 @@ platform_contract_state: active
 targets:
   - path: docs/platform/eebus-raw-first-contract.md
     blob: fc22339747766c9eeda67aa6a21569bc1eadb085
+    normative_statements:
+      - >-
+        GraphQL, Portal, Home Assistant, command routing, raw writes, and
+        promoted semantics wait for per-leaf promotion gates.
+      - >-
+        Stable eeBUS MCP tools are read-only. Snapshot refs bind to runtime,
+        contract, tool or scope, mask tier, and effective auth scope.
   - path: docs/platform/shared-registry-boundary.md
     blob: 0930cceee01fb842127ce3abadf38a6815958376
+    normative_statements:
+      - >-
+        An adapter may write only its native raw namespace and evidence
+        references.
+      - >-
+        Candidate correlation records live outside stable registry projections.
+        Only a locked per-leaf promotion decision may create or update a
+        canonical semantic leaf, and that decision records all contributing
+        sources and conflict policy.
+      - >-
+        Partial runtime failure preserves last-known valid leaves according to
+        their stale policy. It does not replace a device, zone, or service
+        subtree.

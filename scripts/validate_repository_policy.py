@@ -128,7 +128,7 @@ CONTROL_MD = {
 PLATFORM_SNAPSHOT_REF = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
 PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
-PLATFORM_SNAPSHOT_SHA256 = "f10986f7da0b2b1fa60e69280c45cfe1cd1f4ce422d998223c7ec4a87f40c07e"
+PLATFORM_SNAPSHOT_SHA256 = "48c553bf8f80e487446bcb0d27147ef09e6d0b1b873253f6d196c09ffc961df5"
 PLATFORM_SNAPSHOT_PATTERN = re.compile(
     rf"{re.escape(PLATFORM_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
 )
@@ -147,6 +147,37 @@ STABLE_OUTPUT_ARTIFACTS = {
     "release_bundle": "api/release-bundle.txt",
 }
 SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
+REPOSITORY_TEXT_SUFFIXES = {
+    ".csv",
+    ".html",
+    ".htm",
+    ".ini",
+    ".json",
+    ".jsonl",
+    ".markdown",
+    ".md",
+    ".mdown",
+    ".mkd",
+    ".mkdn",
+    ".ndjson",
+    ".toml",
+    ".tsv",
+    ".txt",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
+PUBLICATION_ARTIFACT_SUFFIXES = REPOSITORY_TEXT_SUFFIXES - MARKDOWN_SUFFIXES
+PUBLICATION_OUTPUT_DIRECTORY_TOKENS = {
+    "build",
+    "dist",
+    "export",
+    "exports",
+    "output",
+    "public",
+    "release",
+    "site",
+}
 SUMMARY_NORMATIVE_PATTERN = re.compile(
     r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
     r"(?:is|are|be|remain)\s+(?:mandatory|required)|"
@@ -203,6 +234,17 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "sitemap": "true",
         "versioned_bundle": "true",
         "release_bundle": "true",
+    },
+}
+PRODUCTION_REVIEWED_SUPPORTED_API = {
+    "74a8f24cc7d835029d368d67ebcb185677db7c4177a26bbb60165b4cbedf36d5": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:api/api-surface-v1.md"
+        ),
+        "owner_domain": "api",
+        "license": "AGPL-3.0-only",
+        "publication_status": "api-contract",
+        "claim_status": "no-protocol-claims",
     },
 }
 FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
@@ -315,25 +357,26 @@ FULL_FINGERPRINT_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
 )
 PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+"
-    r"(?:location|reference|filename|hash|identifier)\s*[:=]",
+    r"^\s*(?:[-*]\s*)?[\"']?private[\s_-]+artifact[\s_-]+"
+    r"(?:location|reference|filename|hash|identifier)[\"']?\s*[:=]",
     re.IGNORECASE | re.MULTILINE,
 )
 PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private[\s_-]+artifact[\s_-]+retained\s*[:=]\s*(\S.*)$",
+    r"^\s*(?:[-*]\s*)?[\"']?private[\s_-]+artifact[\s_-]+retained"
+    r"[\"']?\s*[:=]\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 EEBUS_ID_LABEL_PATTERN = (
     r"(?:(?:ski|ship)(?:[\s_-]*(?:id|identifier))?)"
 )
 SENSITIVE_FIELD_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?"
+    r"^\s*(?:[-*]\s*)?[\"']?"
     r"(token|password|passphrase|credential|secret|api[\s_-]*key|"
     r"client[\s_-]*secret|account (?:id|identifier)|"
     r"(?:full )?fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
-    rf"(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN})"
-    r"\s*:\s*(\S.*)$",
+    rf"(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN})[\"']?"
+    r"\s*[:=]\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
@@ -492,12 +535,28 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
     if not isinstance(targets, list) or not targets:
         return None, [invalid]
     target_paths: set[str] = set()
+    normative_statements: dict[str, tuple[str, ...]] = {}
     for target in targets:
-        if not isinstance(target, dict) or set(target) != {"path", "blob"}:
+        if not isinstance(target, dict) or set(target) != {
+            "path",
+            "blob",
+            "normative_statements",
+        }:
             return None, [invalid]
         path = target.get("path")
         blob = target.get("blob")
-        if not isinstance(path, str) or not isinstance(blob, str):
+        statements = target.get("normative_statements")
+        if (
+            not isinstance(path, str)
+            or not isinstance(blob, str)
+            or not isinstance(statements, list)
+            or not statements
+            or any(
+                not isinstance(statement, str)
+                or len(re.findall(r"[a-z0-9]+", statement.casefold())) < 10
+                for statement in statements
+            )
+        ):
             return None, [invalid]
         normalized = posixpath.normpath(path)
         if (
@@ -509,11 +568,13 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
         ):
             return None, [invalid]
         target_paths.add(path)
+        normative_statements[path] = tuple(statements)
 
     return {
         "repository": document["repository"],
         "commit": document["commit"],
         "targets": target_paths,
+        "normative_statements": normative_statements,
     }, []
 
 
@@ -527,6 +588,17 @@ def _reviewed_architecture_claim(
     reviewed = PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
     if reviewed is None and fixture_mode:
         reviewed = FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    if reviewed is None or metadata != reviewed:
+        return None
+    return reviewed
+
+
+def _reviewed_supported_api_claim(
+    text: str,
+    metadata: dict[str, str],
+) -> dict[str, str] | None:
+    body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
+    reviewed = PRODUCTION_REVIEWED_SUPPORTED_API.get(body_hash)
     if reviewed is None or metadata != reviewed:
         return None
     return reviewed
@@ -734,6 +806,20 @@ def _active_architecture_errors(
     return errors
 
 
+def _supported_api_errors(
+    rel: str,
+    text: str,
+    metadata: dict[str, str],
+) -> list[str]:
+    if metadata.get("owner_domain") != "api" or _is_candidate_api(rel, metadata):
+        return []
+    if rel == "api/README.md":
+        return []
+    if _reviewed_supported_api_claim(text, metadata) is None:
+        return [f"{rel}: API content is not in the reviewed supported API registry"]
+    return []
+
+
 def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
     terminal_states = {
         "abandoned",
@@ -777,7 +863,8 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
     }
 
     def normalized(value: str) -> str:
-        return re.sub(r"[^a-z0-9]+", "-", value.strip().casefold()).strip("-")
+        decoded = _fully_decode_reference(value)
+        return re.sub(r"[^a-z0-9]+", "-", decoded.strip().casefold()).strip("-")
 
     entries = [(normalized(key), normalized(value)) for key, value in metadata.items()]
     clean_present = any(
@@ -997,6 +1084,44 @@ def _contains_summary_normative_requirements(text: str) -> bool:
     )
 
 
+def _policy_text_variants(text: str, *, markdown: bool) -> set[str]:
+    variants = _reference_text_variants(text)
+    if markdown:
+        variants.update(
+            {
+                _visible_markdown_text(text),
+                _visible_markdown_text(_fully_decode_reference(text)),
+            }
+        )
+    return variants
+
+
+def _platform_normative_copy_targets(
+    text: str,
+    platform_snapshot: dict[str, Any] | None,
+) -> set[str]:
+    if platform_snapshot is None:
+        return set()
+    page_words = re.findall(
+        r"[a-z0-9]+",
+        _visible_markdown_text(_markdown_body(text)).casefold(),
+    )
+    page = " " + " ".join(page_words) + " "
+    copied: set[str] = set()
+    for target, statements in platform_snapshot["normative_statements"].items():
+        for statement in statements:
+            words = re.findall(r"[a-z0-9]+", statement.casefold())
+            windows = (
+                [words]
+                if len(words) <= 12
+                else [words[index : index + 10] for index in range(len(words) - 9)]
+            )
+            if any(" " + " ".join(window) + " " in page for window in windows):
+                copied.add(target)
+                break
+    return copied
+
+
 def _contains_non_link_platform_url(text: str) -> bool:
     visible = _visible_markdown_text(text)
     return re.search(
@@ -1122,22 +1247,34 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
         location = rel if category_only or line is None else f"{rel}:{line}"
         errors.append(f"{location}: {category}")
 
-    if PEM_BLOCK_PATTERN.search(text):
-        add("PEM block marker found in publishable content")
-    if MAC_ADDRESS_PATTERN.search(text):
-        add("MAC address found in publishable content")
-    fingerprint_text = text.replace(PLATFORM_SNAPSHOT_REF, "")
-    if FULL_FINGERPRINT_PATTERN.search(fingerprint_text):
-        add("full fingerprint or raw SKI found in publishable content")
+    def assignment_value(value: str) -> str:
+        normalized = value.strip()
+        if normalized.endswith(","):
+            normalized = normalized[:-1].rstrip()
+        if (
+            len(normalized) >= 2
+            and normalized[0] == normalized[-1]
+            and normalized[0] in {"\"", "'"}
+        ):
+            normalized = normalized[1:-1]
+        return normalized
+
     for variant in _reference_text_variants(text):
         source_positions_valid = variant == text
+        if PEM_BLOCK_PATTERN.search(variant):
+            add("PEM block marker found in publishable content")
+        if MAC_ADDRESS_PATTERN.search(variant):
+            add("MAC address found in publishable content")
+        fingerprint_text = variant.replace(PLATFORM_SNAPSHOT_REF, "")
+        if FULL_FINGERPRINT_PATTERN.search(fingerprint_text):
+            add("full fingerprint or raw SKI found in publishable content")
         if PRIVATE_PATH_PATTERN.search(variant):
             add("private or identifying filesystem path found")
         for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(variant):
             line = text.count("\n", 0, match.start()) + 1 if source_positions_valid else None
             add("private artifact location/reference field is forbidden", line)
         for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(variant):
-            value = match.group(1)
+            value = assignment_value(match.group(1))
             if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
                 line = (
                     text.count("\n", 0, match.start()) + 1
@@ -1145,33 +1282,49 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
                     else None
                 )
                 add("private artifact retained value must be yes or no", line)
-    for match in SENSITIVE_FIELD_PATTERN.finditer(text):
-        value = match.group(2)
-        if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
-            line = text.count("\n", 0, match.start()) + 1
-            category = "populated sensitive field"
-            if not category_only:
-                category += f" {match.group(1).lower()!r}"
-            add(category, line)
-    for match in RAW_EEBUS_ID_PATTERN.finditer(text):
-        value = match.group(1)
-        if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
-            line = text.count("\n", 0, match.start()) + 1
-            add("populated raw SKI or SHIP ID", line)
-    for match in IPV4_CANDIDATE_PATTERN.finditer(text):
-        if classify_ipv4(match.group(0)) == "private network":
-            line = text.count("\n", 0, match.start()) + 1
-            add("private IPv4 address found", line)
-    for match in IPV6_CANDIDATE_PATTERN.finditer(text):
-        candidate = match.group(0)
-        address = candidate.split("%", 1)[0]
-        try:
-            parsed = ipaddress.ip_address(address)
-        except ValueError:
-            continue
-        if isinstance(parsed, ipaddress.IPv6Address):
-            line = text.count("\n", 0, match.start()) + 1
-            add("IPv6 address found in publishable content", line)
+        for match in SENSITIVE_FIELD_PATTERN.finditer(variant):
+            value = assignment_value(match.group(2))
+            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                category = "populated sensitive field"
+                if not category_only:
+                    category += f" {match.group(1).lower()!r}"
+                add(category, line)
+        for match in RAW_EEBUS_ID_PATTERN.finditer(variant):
+            value = match.group(1)
+            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("populated raw SKI or SHIP ID", line)
+        for match in IPV4_CANDIDATE_PATTERN.finditer(variant):
+            if classify_ipv4(match.group(0)) == "private network":
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("private IPv4 address found", line)
+        for match in IPV6_CANDIDATE_PATTERN.finditer(variant):
+            candidate = match.group(0)
+            address = candidate.split("%", 1)[0]
+            try:
+                parsed = ipaddress.ip_address(address)
+            except ValueError:
+                continue
+            if isinstance(parsed, ipaddress.IPv6Address):
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("IPv6 address found in publishable content", line)
     return errors
 
 
@@ -1184,11 +1337,29 @@ def _restricted_source_errors(
     if rel in SCAFFOLD_PAGES:
         return []
     errors: list[str] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if RESTRICTED_SOURCE_PATTERN.search(line) is None:
-            continue
-        location = rel if category_only else f"{rel}:{line_number}"
-        errors.append(f"{location}: restricted-source contamination marker found")
+    markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+    for variant in _policy_text_variants(text, markdown=markdown):
+        source_positions_valid = variant == text
+        for line_number, line in enumerate(variant.splitlines(), start=1):
+            if RESTRICTED_SOURCE_PATTERN.search(line) is None:
+                continue
+            location = (
+                rel
+                if category_only or not source_positions_valid
+                else f"{rel}:{line_number}"
+            )
+            errors.append(f"{location}: restricted-source contamination marker found")
+    return errors
+
+
+def _premature_claim_errors(text: str, rel: str) -> list[str]:
+    markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+    variants = _policy_text_variants(text, markdown=markdown)
+    errors: list[str] = []
+    if any(PREMATURE_COMPLETION_PATTERN.search(variant) for variant in variants):
+        errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
+    if any(PREMATURE_CONSUMER_PATTERN.search(variant) for variant in variants):
+        errors.append(f"{rel}: premature gateway or consumer availability claim")
     return errors
 
 
@@ -1213,6 +1384,43 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     if result.status not in {expected_status, NESTING_TOO_DEEP}:
         errors.append(f"{rel}: machine publication boundary")
     return errors
+
+
+def _is_unregistered_publication_artifact(rel: str) -> bool:
+    if rel in STABLE_OUTPUT_ARTIFACTS.values():
+        return False
+    path = PurePosixPath(rel)
+    if path.suffix.lower() not in PUBLICATION_ARTIFACT_SUFFIXES:
+        return False
+
+    stem_tokens = {
+        token for token in re.split(r"[^a-z0-9]+", path.stem.casefold()) if token
+    }
+    collapsed_stem = re.sub(r"[^a-z0-9]+", "", path.stem.casefold())
+    directory_tokens = {
+        token
+        for part in path.parts[:-1]
+        for token in re.split(r"[^a-z0-9]+", part.casefold())
+        if token
+    }
+    search_output = "search" in stem_tokens and (
+        len(stem_tokens) == 1
+        or bool(stem_tokens & {"catalog", "index", "manifest", "pages"})
+    )
+    sitemap_output = "sitemap" in collapsed_stem
+    bundle_output = "bundle" in stem_tokens or "bundle" in collapsed_stem
+    public_export = "export" in stem_tokens and (
+        "public" in stem_tokens
+        or bool(directory_tokens & PUBLICATION_OUTPUT_DIRECTORY_TOKENS)
+    )
+    export_directory = bool(
+        directory_tokens & {"exports", "publicexport", "siteexport"}
+    )
+    return search_output or sitemap_output or bundle_output or public_export or export_directory
+
+
+def _canonical_publication_entries(entries: list[str]) -> bool:
+    return entries == sorted(entries, key=lambda value: value.encode("utf-8"))
 
 
 def _is_stable_repository_reference(root: Path, value: str) -> bool:
@@ -1273,6 +1481,8 @@ def _stable_artifact_references(
             or any(not _is_stable_repository_reference(root, page) for page in pages)
         ):
             return [], invalid
+        if not _canonical_publication_entries(pages):
+            return [], [f"{rel}: non-canonical publication entry ordering"]
         return pages, []
 
     if rel == STABLE_OUTPUT_ARTIFACTS["sitemap"]:
@@ -1319,6 +1529,8 @@ def _stable_artifact_references(
         or any(not _is_stable_repository_reference(root, value) for value in references)
     ):
         return [], invalid
+    if not _canonical_publication_entries(references):
+        return [], [f"{rel}: non-canonical publication entry ordering"]
     return references, []
 
 
@@ -1770,6 +1982,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 fixture_mode=fixture_mode,
             )
         )
+        errors.extend(_supported_api_errors(rel, page_text, metadata))
         errors.extend(_candidate_api_errors(rel, metadata))
         errors.extend(_milestone_errors(rel, metadata))
         if not _is_candidate_api(rel, metadata):
@@ -1785,6 +1998,23 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             value is not None
             for value in (declared_target, declared_mode, declared_snapshot)
         )
+        copied_platform_targets = _platform_normative_copy_targets(
+            page_text,
+            platform_snapshot,
+        )
+        linked_target_paths = {
+            target.split(":", 1)[1]
+            for target in targets
+            if ":" in target
+        }
+        if copied_platform_targets and (
+            copied_platform_targets != linked_target_paths
+            or declared_mode != "summary-only"
+        ):
+            errors.append(
+                f"{rel}: platform-owned normative text requires canonical "
+                "summary-only cross-seed policy"
+            )
         if declares_cross_seed and _reviewed_cross_seed_claim(
             page_text,
             metadata,
@@ -1865,10 +2095,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             ):
                 errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
-        if PREMATURE_COMPLETION_PATTERN.search(page_text):
-            errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-        if PREMATURE_CONSUMER_PATTERN.search(page_text):
-            errors.append(f"{rel}: premature gateway or consumer availability claim")
+        errors.extend(_premature_claim_errors(page_text, rel))
         errors.extend(_restricted_source_errors(page_text, rel))
 
         if rel in ROOT_MD:
@@ -1924,10 +2151,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
                 errors.extend(_privacy_errors(text, rel))
                 errors.extend(_restricted_source_errors(text, rel))
-                if PREMATURE_COMPLETION_PATTERN.search(text):
-                    errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-                if PREMATURE_CONSUMER_PATTERN.search(text):
-                    errors.append(f"{rel}: premature gateway or consumer availability claim")
+                errors.extend(_premature_claim_errors(text, rel))
 
     for directory, required_page in REQUIRED_DOMAIN_PAGES.items():
         dir_path = root / directory
@@ -1945,16 +2169,19 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if ".git" in path.parts or ".pytest_cache" in path.parts:
             continue
         rel = _rel(path, root)
-        if rel in API_MACHINE_ARTIFACTS:
+        if _is_unregistered_publication_artifact(rel):
+            errors.append(f"{rel}: unregistered stable publication artifact")
+        if (
+            rel in API_MACHINE_ARTIFACTS
+            or rel == PLATFORM_SNAPSHOT_PATH
+            or (path.suffix.lower() not in REPOSITORY_TEXT_SUFFIXES and rel != "LICENSE")
+        ):
             continue
         try:
             text = _read(path)
         except UnicodeDecodeError:
             continue
-        for match in IPV4_CANDIDATE_PATTERN.finditer(text):
-            if classify_ipv4(match.group(0)) == "private network":
-                line = text.count("\n", 0, match.start()) + 1
-                errors.append(f"{rel}:{line}: private IPv4 address found")
+        errors.extend(_privacy_errors(text, rel))
 
     restricted_policy = (root / "development" / "contributing.md")
     if restricted_policy.exists():

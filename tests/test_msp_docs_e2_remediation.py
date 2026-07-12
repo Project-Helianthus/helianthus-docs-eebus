@@ -59,17 +59,43 @@ def replace_front_matter(page: Path, **updates: str) -> None:
     page.write_text(f"---\n{rendered}---\n{text[end + 5:]}", encoding="utf-8")
 
 
+def write_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
+    path = repo / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    owner_domain = relative_path.split("/", 1)[0]
+    license_id = "AGPL-3.0-only" if owner_domain in {"api", "architecture"} else "CC0-1.0"
+    metadata = {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:" + relative_path
+        ),
+        "owner_domain": owner_domain,
+        "license": license_id,
+        "publication_status": "active",
+        "claim_status": "evidence-backed",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": "A publishable public source contradicts this synthetic claim.",
+    }
+    rendered = yaml.safe_dump(metadata, sort_keys=False)
+    path.write_text(f"---\n{rendered}---\n\n{body}\n", encoding="utf-8")
+    return path
+
+
 class MspDocsE2RemediationTests(unittest.TestCase):
     def test_clean_stable_publication_artifacts_are_allowed_and_parsed(self) -> None:
         artifacts = {
-            "api/search-index.json": '{"pages":["api/api-surface-v1.md"]}\n',
+            "api/search-index.json": (
+                '{"pages":["README.md","api/api-surface-v1.md"]}\n'
+            ),
             "api/sitemap.xml": (
                 '<?xml version="1.0" encoding="UTF-8"?>\n'
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                "<url><loc>README.md</loc></url>"
                 "<url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
             ),
-            "api/versioned-bundle.txt": "api/api-surface-v1.md\n",
-            "api/release-bundle.txt": "api/api-surface-v1.md\n",
+            "api/versioned-bundle.txt": "README.md\napi/api-surface-v1.md\n",
+            "api/release-bundle.txt": "README.md\napi/api-surface-v1.md\n",
         }
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -79,6 +105,168 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_search_and_bundle_entries_require_canonical_byte_order(self) -> None:
+        artifacts = {
+            "api/search-index.json": (
+                '{"pages":["api/api-surface-v1.md","README.md"]}\n'
+            ),
+            "api/versioned-bundle.txt": "api/api-surface-v1.md\nREADME.md\n",
+            "api/release-bundle.txt": "api/api-surface-v1.md\nREADME.md\n",
+        }
+        for relative_path, payload in artifacts.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / relative_path).write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("non-canonical publication entry ordering", result.stderr)
+
+    def test_unregistered_publication_artifacts_are_rejected_repository_wide(self) -> None:
+        artifacts = {
+            "public/search-index.json": '{"pages":["api/api-surface-v1.md"]}\n',
+            "site/sitemap.xml": (
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                "<url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
+            ),
+            "exports/release-bundle.txt": "api/api-surface-v1.md\n",
+            "output/public-export.json": '{"pages":["README.md"]}\n',
+        }
+        for relative_path, payload in artifacts.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("unregistered stable publication artifact", result.stderr)
+
+    def test_only_reviewed_supported_api_contract_may_publish_outside_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            write_evidence_backed_page(
+                repo,
+                "api/runtime-api.md",
+                (
+                    "# Supported Runtime API\n\n"
+                    "Package `runtime` exports `NewAdapter` and supports live connections."
+                ),
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "API content is not in the reviewed supported API registry",
+                result.stderr,
+            )
+
+    def test_repository_wide_confidentiality_scan_covers_unowned_text_artifacts(self) -> None:
+        cases = {
+            "credential": ('client_secret: "synthetic-secret"\n', "populated sensitive field"),
+            "private artifact": (
+                "private artifact reference: synthetic-capture.json\n",
+                "private artifact location/reference field is forbidden",
+            ),
+            "home path": ("Capture: /Users/synthetic-user/capture.json\n", "private or identifying filesystem path found"),
+            "MAC": ("Peer: 00:11:22:33:44:55\n", "MAC address found in publishable content"),
+            "private IPv4": (
+                "Peer: " + ".".join(("10", "23", "4", "5")) + "\n",
+                "private IPv4 address found",
+            ),
+            "IPv6": ("Peer: fd00::1\n", "IPv6 address found in publishable content"),
+        }
+        for name, (payload, diagnostic) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / "misc/notes.txt"
+                artifact.parent.mkdir()
+                artifact.write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(diagnostic, result.stderr)
+
+    def test_repository_wide_confidentiality_scan_allows_public_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "misc/notes.txt"
+            artifact.parent.mkdir()
+            artifact.write_text(
+                "Credential: <redacted>\n"
+                '  "client_secret": "<redacted>",\n'
+                "Public documentation endpoint: 203.0.113.10\n"
+                "Generic roots /Users/ and /home/ are discussed without identities.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_platform_normative_copy_requires_canonical_summary_link_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            write_evidence_backed_page(
+                repo,
+                "protocols/copied-platform-rule.md",
+                (
+                    "# Local Rule\n\n"
+                    "An adapter may write only its native raw namespace and evidence references."
+                ),
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "platform-owned normative text requires canonical summary-only cross-seed policy",
+                result.stderr,
+            )
+
+    def test_restricted_and_terminal_gates_normalize_rendered_entities(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            write_evidence_backed_page(
+                repo,
+                "protocols/entity-restricted.md",
+                "# Source\n\nThis uses vendor&#95;restricted material.",
+            )
+            readme = repo / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8")
+                + "\nMSP-DOCS-**CLE&#65;N** is complete.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("restricted-source contamination marker found", result.stderr)
+            self.assertIn("premature docs milestone or code-doc absence claim", result.stderr)
+
+    def test_clean_metadata_gate_normalizes_html_entities(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            replace_front_matter(
+                repo / "architecture/README.md",
+                milestone="MSP-DOCS-CLE&#65;N",
+                milestone_completion="compl&#x65;te",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2",
+                result.stderr,
+            )
 
     def test_malformed_stable_publication_artifacts_fail_their_structured_format(self) -> None:
         artifacts = {
