@@ -27,10 +27,12 @@ PRIVATE_IPV4_NETWORKS = (
     ((192, 168, 0, 0), 16),
 )
 
+PRIVATE_HOME_BOUNDARY = r"(?=$|/|_|[^\w/-])"
+PRIVATE_HOME_COMPONENT = r"[^/\s\"'<>]*?[\w-]"
 PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
-    r"/home/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
-    r"/root(?=$|[/\s\"'<>.,;:)\]}])(?:/[^\s\"'<>]*)?|"
+    rf"(?:/Users/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"/home/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"/root{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
     r"/tmp/[^\s]+|/var/folders/[^\s]+|"
     r"/Volumes(?:/[^\s]*)?|"
     r"[A-Za-z]:\\Users\\[^\\\s]+\\)"

@@ -14,7 +14,12 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 sys.path.insert(0, str(REPO / "scripts"))
 
-from validate_repository_policy import _fully_decode_reference, _visible_link_destinations
+from validate_repository_policy import (
+    _fully_decode_reference,
+    _visible_headings,
+    _visible_link_destinations,
+    _visible_markdown_text,
+)
 
 
 PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
@@ -606,6 +611,45 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_template_state_crosses_commonmark_tokens_until_matching_close(self) -> None:
+        visible_url = "https://example.invalid/visible"
+        hidden = (
+            "prefix <template>\n\n"
+            "# Hidden heading\n\n"
+            f"[hidden platform link]({PLATFORM_URL})\n\n"
+            "</style>\n\n"
+            f'<a href="{PLATFORM_URL}">hidden HTML link</a>\n\n'
+            "</template>\n\n"
+            "# Visible heading\n\n"
+            f"[visible link]({visible_url})\n"
+        )
+        self.assertEqual(_visible_link_destinations(hidden), [visible_url])
+        self.assertEqual(_visible_headings(hidden), {"Visible heading"})
+        visible_text = _visible_markdown_text(hidden)
+        self.assertNotIn("hidden platform link", visible_text)
+        self.assertNotIn("hidden HTML link", visible_text)
+        self.assertIn("visible link", visible_text)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            page.write_text(
+                page.read_text(encoding="utf-8").replace(
+                    f"[shared registry boundary]({PLATFORM_URL})",
+                    hidden,
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "cross-seed metadata requires a canonical platform link",
+                result.stderr,
+            )
+
     def test_hidden_and_non_link_destinations_do_not_supply_cross_seed_evidence(self) -> None:
         hidden_forms = {
             "terminated comment": f"<!-- [hidden]({PLATFORM_URL}) -->",
@@ -963,6 +1007,37 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             "/home/operator/capture.json",
             "/root",
             "/root/capture.json",
+        )
+        for private_path in paths:
+            with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "evidence/private-path.txt").write_text(
+                    f"Capture: {private_path}\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private or identifying filesystem path found", result.stderr)
+
+    def test_home_paths_before_prose_and_markdown_boundaries_are_rejected(self) -> None:
+        paths = (
+            "/Users/operator,",
+            "/Users/operator)",
+            "/Users/operator]",
+            "/Users/operator**",
+            "/home/operator.",
+            "/home/operator`",
+            "/home/operator_",
+            "/home/operator/capture.json",
+            "/Users/operator/capture.json),",
+            "/root!",
+            "/root)",
+            "/root]",
+            "/root**",
+            "/root/capture.json",
+            "/root/capture.json`",
         )
         for private_path in paths:
             with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:

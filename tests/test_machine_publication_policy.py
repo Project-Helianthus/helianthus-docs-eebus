@@ -228,6 +228,40 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 self.assertEqual(result.status, COMPLETE)
                 self.assertIn("private path", machine_publication_diagnostics(result))
 
+    def test_private_home_paths_honor_text_and_markdown_boundaries(self) -> None:
+        private_paths = (
+            "/Users/operator,",
+            "/Users/operator)",
+            "/Users/operator]",
+            "/Users/operator**",
+            "/home/operator.",
+            "/home/operator`",
+            "/home/operator_",
+            "/home/operator/capture.json",
+            "/Users/operator/capture.json),",
+            "/root!",
+            "/root)",
+            "/root]",
+            "/root**",
+            "/root/capture.json",
+            "/root/capture.json`",
+        )
+        for private_path in private_paths:
+            with self.subTest(private_path=private_path):
+                self.assertIn("private path", marker_diagnostics(private_path))
+
+    def test_private_home_path_lookalikes_remain_ordinary_prose(self) -> None:
+        prose = (
+            "The rooted tree is portable.",
+            "Use /rooted as the conceptual route.",
+            "The /root-cause section explains the failure.",
+            "The generic /Users/ directory is discussed without an identity.",
+            "The generic /home/ directory is discussed without an identity.",
+        )
+        for text in prose:
+            with self.subTest(text=text):
+                self.assertNotIn("private path", marker_diagnostics(text))
+
     def test_leading_zero_ipv4_spellings_are_decimal_and_deterministic(self) -> None:
         private = ".".join(("010", "000", "000", "001"))
         public = ".".join(("008", "008", "008", "008"))

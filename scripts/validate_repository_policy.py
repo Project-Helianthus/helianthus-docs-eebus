@@ -24,6 +24,7 @@ from machine_publication_policy import (
     IPV4_CANDIDATE_PATTERN,
     MALFORMED_SENTINEL,
     NESTING_TOO_DEEP,
+    PRIVATE_PATH_PATTERN,
     classify_ipv4,
     decode_machine_json,
     machine_publication_diagnostics,
@@ -346,14 +347,6 @@ SAFE_REDACTED_VALUE_PATTERN = re.compile(
 SAFE_RETAINED_VALUE_PATTERN = re.compile(
     r"^\s*(?:yes|no|<yes-or-no>)\s*$",
     re.IGNORECASE,
-)
-PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
-    r"/home/[^/\s\"'<>]+(?=$|[/\s\"'<>])(?:/[^\s\"'<>]*)?|"
-    r"/root(?=$|[/\s\"'<>.,;:)\]}])(?:/[^\s\"'<>]*)?|/tmp/[^\s]+|"
-    r"/var/folders/[^\s]+|"
-    r"/Volumes(?:/[^\s]*)?|"
-    r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
 )
 IPV6_CANDIDATE_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
@@ -829,11 +822,11 @@ class _HTMLDestinationParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.destinations: list[str] = []
         self.visible_text: list[str] = []
-        self._hidden_depth = 0
+        self._hidden_tags: list[str] = []
 
     @property
     def hidden(self) -> bool:
-        return self._hidden_depth > 0
+        return bool(self._hidden_tags)
 
     def handle_starttag(
         self,
@@ -842,35 +835,46 @@ class _HTMLDestinationParser(HTMLParser):
     ) -> None:
         normalized_tag = tag.casefold()
         if normalized_tag in {"script", "style", "template"}:
-            self._hidden_depth += 1
-        if normalized_tag != "a" or self._hidden_depth:
+            self._hidden_tags.append(normalized_tag)
+        if normalized_tag != "a" or self.hidden:
             return
         for name, value in attrs:
             if name.casefold() == "href" and value is not None:
                 self.destinations.append(value)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.casefold() in {"script", "style", "template"} and self._hidden_depth:
-            self._hidden_depth -= 1
+        normalized_tag = tag.casefold()
+        for index in range(len(self._hidden_tags) - 1, -1, -1):
+            if self._hidden_tags[index] == normalized_tag:
+                del self._hidden_tags[index:]
+                break
 
     def handle_data(self, data: str) -> None:
-        if not self._hidden_depth:
+        if not self.hidden:
             self.visible_text.append(data)
 
 
-def _parse_html_fragment(text: str) -> _HTMLDestinationParser:
-    parser = _HTMLDestinationParser()
+def _feed_html(parser: _HTMLDestinationParser, text: str) -> None:
     try:
         parser.feed(text)
+    except (AssertionError, ValueError):
+        pass
+
+
+def _close_html(parser: _HTMLDestinationParser) -> None:
+    try:
         parser.close()
     except (AssertionError, ValueError):
         pass
-    return parser
 
 
-def _inline_visible_text(children: list[Any]) -> str:
+def _inline_visible_text(
+    children: list[Any],
+    html_parser: _HTMLDestinationParser | None = None,
+) -> str:
     visible: list[str] = []
-    html_parser = _HTMLDestinationParser()
+    if html_parser is None:
+        html_parser = _HTMLDestinationParser()
     for child in children:
         if child.type == "text" and not html_parser.hidden:
             visible.append(child.content)
@@ -878,10 +882,7 @@ def _inline_visible_text(children: list[Any]) -> str:
             visible.append("\n")
         elif child.type == "html_inline":
             before = len(html_parser.visible_text)
-            try:
-                html_parser.feed(child.content)
-            except (AssertionError, ValueError):
-                pass
+            _feed_html(html_parser, child.content)
             visible.extend(html_parser.visible_text[before:])
         # CommonMark image alt text and code spans are not visible policy prose.
     return "".join(visible)
@@ -890,22 +891,28 @@ def _inline_visible_text(children: list[Any]) -> str:
 def _visible_markdown_text(text: str) -> str:
     """Return rendered prose from a CommonMark parse, excluding code and images."""
     visible: list[str] = []
+    html_parser = _HTMLDestinationParser()
     for token in MARKDOWN.parse(text):
         if token.type == "inline":
-            visible.append(_inline_visible_text(token.children or []))
+            visible.append(_inline_visible_text(token.children or [], html_parser))
             visible.append("\n")
         elif token.type == "html_block":
-            visible.extend(_parse_html_fragment(token.content).visible_text)
+            before = len(html_parser.visible_text)
+            _feed_html(html_parser, token.content)
+            visible.extend(html_parser.visible_text[before:])
             visible.append("\n")
+    before = len(html_parser.visible_text)
+    _close_html(html_parser)
+    visible.extend(html_parser.visible_text[before:])
     return "".join(visible)
 
 
 def _visible_link_destinations(text: str) -> list[str]:
     """Extract CommonMark links and HTML anchors, excluding images and code."""
     destinations: list[str] = []
+    html_parser = _HTMLDestinationParser()
     for token in MARKDOWN.parse(text):
         if token.type == "inline":
-            html_parser = _HTMLDestinationParser()
             for child in token.children or []:
                 if child.type == "link_open" and not html_parser.hidden:
                     destination = child.attrGet("href")
@@ -913,23 +920,33 @@ def _visible_link_destinations(text: str) -> list[str]:
                         destinations.append(destination)
                 elif child.type == "html_inline":
                     before = len(html_parser.destinations)
-                    try:
-                        html_parser.feed(child.content)
-                    except (AssertionError, ValueError):
-                        pass
+                    _feed_html(html_parser, child.content)
                     destinations.extend(html_parser.destinations[before:])
         elif token.type == "html_block":
-            destinations.extend(_parse_html_fragment(token.content).destinations)
+            before = len(html_parser.destinations)
+            _feed_html(html_parser, token.content)
+            destinations.extend(html_parser.destinations[before:])
+    _close_html(html_parser)
     return destinations
 
 
 def _visible_headings(text: str) -> set[str]:
     headings: set[str] = set()
-    tokens = MARKDOWN.parse(text)
-    for index, token in enumerate(tokens[:-1]):
-        if token.type != "heading_open" or tokens[index + 1].type != "inline":
-            continue
-        headings.add(_inline_visible_text(tokens[index + 1].children or []))
+    html_parser = _HTMLDestinationParser()
+    in_heading = False
+    for token in MARKDOWN.parse(text):
+        if token.type == "heading_open":
+            in_heading = True
+        elif token.type == "inline":
+            visible = _inline_visible_text(token.children or [], html_parser)
+            if in_heading and visible:
+                headings.add(visible)
+            in_heading = False
+        elif token.type == "html_block":
+            _feed_html(html_parser, token.content)
+        elif token.type == "heading_close":
+            in_heading = False
+    _close_html(html_parser)
     return headings
 
 
