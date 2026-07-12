@@ -4,6 +4,48 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+echo "==> reject repository symlinks"
+python3 - <<'PY'
+import os
+import stat
+import sys
+from pathlib import Path
+
+pending = [Path(".")]
+failed = False
+while pending:
+    directory = pending.pop()
+    try:
+        with os.scandir(directory) as entries:
+            children = sorted(entries, key=lambda entry: os.fsencode(entry.name))
+    except OSError:
+        print(f"{directory}: repository directory is unreadable", file=sys.stderr)
+        failed = True
+        continue
+    for entry in children:
+        path = Path(entry.path)
+        relative = path.as_posix().removeprefix("./")
+        if relative == ".git" or relative.startswith(".git/"):
+            continue
+        try:
+            mode = entry.stat(follow_symlinks=False).st_mode
+        except OSError:
+            print(f"{relative}: repository artifact is unreadable", file=sys.stderr)
+            failed = True
+            continue
+        if stat.S_ISLNK(mode):
+            print(f"{relative}: symlinks are forbidden", file=sys.stderr)
+            failed = True
+        elif stat.S_ISDIR(mode):
+            pending.append(path)
+if failed:
+    sys.exit(1)
+PY
+
+echo "==> validate repository ownership policy"
+python3 -c 'import importlib.metadata as m; import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__; assert m.version("markdown-it-py") == "4.0.0"; assert m.version("mdurl") == "0.1.2"'
+python3 scripts/validate_repository_policy.py
+
 echo "==> verify markdown files are present"
 find . -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' \) -print -quit | grep -q .
 
@@ -79,10 +121,6 @@ for path in pathlib.Path(".").rglob("*"):
 if failed:
     sys.exit(1)
 PY
-
-echo "==> validate repository ownership policy"
-python3 -c 'import importlib.metadata as m; import yaml; assert yaml.__version__ == "6.0.3", yaml.__version__; assert m.version("markdown-it-py") == "4.0.0"; assert m.version("mdurl") == "0.1.2"'
-python3 scripts/validate_repository_policy.py
 
 echo "==> validate API surface v1 contract"
 python3 scripts/validate_api_surface_v1.py

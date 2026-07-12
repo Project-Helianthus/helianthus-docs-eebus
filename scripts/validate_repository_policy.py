@@ -5,8 +5,10 @@ import argparse
 import hashlib
 import html
 import json
+import os
 import posixpath
 import re
+import stat
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -121,7 +123,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "f9c619762c9f8247523e116669cf1f1b" "08f489b66931f4288c815e1f5160ebe9"
+CI_LOCAL_SHA256 = "273167561d48c78fc5665b7fb1eca582" "6b0ed134a889d5ddfc2215e8c5ef6314"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -2018,13 +2020,64 @@ def _bounded_repository_text(path: Path, rel: str) -> tuple[str | None, list[str
         return None, []
 
 
+def _repository_lstat_preflight(
+    root: Path,
+) -> tuple[list[Path], set[Path], list[str]]:
+    regular_files: list[Path] = []
+    symlinks: set[Path] = set()
+    errors: list[str] = []
+    pending = [root]
+
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                children = sorted(entries, key=lambda entry: os.fsencode(entry.name))
+        except OSError:
+            errors.append(f"{_rel(directory, root)}: repository directory is unreadable")
+            continue
+
+        for entry in children:
+            path = Path(entry.path)
+            rel = _rel(path, root)
+            if rel == ".git" or rel.startswith(".git/"):
+                continue
+            try:
+                mode = entry.stat(follow_symlinks=False).st_mode
+            except OSError:
+                errors.append(f"{rel}: repository artifact is unreadable")
+                continue
+            if stat.S_ISLNK(mode):
+                symlinks.add(path)
+                errors.append(f"{rel}: symlinks are forbidden")
+            elif stat.S_ISDIR(mode):
+                pending.append(path)
+            elif stat.S_ISREG(mode):
+                regular_files.append(path)
+
+    return regular_files, symlinks, errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
-    root = root.resolve()
+    root = root.absolute()
     stable_navigation_pages: dict[str, str] = {}
     channel_pages: dict[str, set[str]] = {
         channel: set() for channel in CANDIDATE_API_CHANNELS
     }
+
+    try:
+        root_mode = root.lstat().st_mode
+    except OSError:
+        return [".: repository root is unreadable"]
+    if stat.S_ISLNK(root_mode) or not stat.S_ISDIR(root_mode):
+        return [".: repository root must be a non-symlink directory"]
+
+    regular_files, symlinks, preflight_errors = _repository_lstat_preflight(root)
+    errors.extend(preflight_errors)
+    if errors:
+        return sorted(set(errors), key=lambda value: value.encode("utf-8"))
+
     platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
     errors.extend(snapshot_errors)
     if platform_snapshot is not None:
@@ -2033,30 +2086,19 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     publication_channels, publication_channel_errors = _load_publication_channels(root)
     errors.extend(publication_channel_errors)
 
-    symlinks: set[Path] = set()
-    for path in sorted(root.rglob("*")):
-        if ".git" in path.parts or ".pytest_cache" in path.parts:
-            continue
-        if path.is_symlink():
-            symlinks.add(path)
-            errors.append(f"{_rel(path, root)}: symlinks are forbidden")
-
-    for path in sorted(root.rglob("*")):
-        if (
-            not path.is_file()
-            or path.is_symlink()
-            or ".git" in path.parts
-            or ".pytest_cache" in path.parts
-            or "__pycache__" in path.parts
-        ):
+    for path in sorted(regular_files, key=lambda value: os.fsencode(_rel(value, root))):
+        if ".pytest_cache" in path.parts or "__pycache__" in path.parts:
             continue
         rel = _rel(path, root)
         try:
-            size = path.stat().st_size
+            file_stat = path.lstat()
         except OSError:
             errors.append(f"{rel}: repository artifact is unreadable")
             continue
-        if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        if not stat.S_ISREG(file_stat.st_mode):
+            errors.append(f"{rel}: repository artifact is not a regular file")
+            continue
+        if file_stat.st_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
             errors.append(f"{rel}: repository artifact exceeds scan size limit")
     if errors:
         return sorted(set(errors), key=lambda value: value.encode("utf-8"))

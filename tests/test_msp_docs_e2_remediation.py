@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -361,6 +362,79 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "oversized.md: repository artifact exceeds scan size limit",
                 result.stderr,
             )
+            self.assertNotIn("==> verify markdown files are present", result.stdout)
+
+    def test_ci_keeps_regular_markdown_content_checks(self) -> None:
+        cases = {
+            "tab": ("regular\tcontent\n", "Tab characters are not allowed"),
+            "trailing space": (
+                "regular content \n",
+                "Trailing spaces are not allowed",
+            ),
+            "private IPv4": (
+                "regular " + ".".join(("192", "168", "41", "9")) + "\n",
+                "private IPv4 address found",
+            ),
+        }
+        for name, (content, diagnostic) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                # Isolate the post-validator shell checks from ownership policy.
+                (repo / "scripts/validate_repository_policy.py").write_text(
+                    "raise SystemExit(0)\n",
+                    encoding="utf-8",
+                )
+                control = repo / "regular-control.md"
+                control.write_text(content, encoding="utf-8")
+                self.assertTrue(stat.S_ISREG(control.lstat().st_mode))
+
+                result = subprocess.run(
+                    ["bash", "scripts/ci_local.sh"],
+                    cwd=repo,
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                )
+
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(diagnostic, result.stderr)
+
+    def test_ci_rejects_external_markdown_symlink_without_reading_target(self) -> None:
+        marker = "external-" + "fixture-must-not-be-logged"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = copy_repo(root)
+            for relative_path in ("README.md", "api/api-surface-v1.md"):
+                self.assertTrue(
+                    stat.S_ISREG((repo / relative_path).lstat().st_mode),
+                    relative_path,
+                )
+
+            positive = run_validator(repo)
+            self.assertEqual(positive.returncode, 0, positive.stderr)
+
+            external = root / "external-fixture.md"
+            external.write_text(marker + "\t \n", encoding="utf-8")
+            (repo / "external-fixture.md").symlink_to(external)
+
+            validator_result = run_validator(repo)
+            validator_output = validator_result.stdout + validator_result.stderr
+            self.assertEqual(validator_result.returncode, 1, validator_output)
+            self.assertIn("symlinks are forbidden", validator_result.stderr)
+            self.assertNotIn(marker, validator_output)
+
+            result = subprocess.run(
+                ["bash", "scripts/ci_local.sh"],
+                cwd=repo,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+
+            output = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 1, output)
+            self.assertIn("symlinks are forbidden", result.stderr)
+            self.assertNotIn(marker, output)
             self.assertNotIn("==> validate repository ownership policy", result.stdout)
 
     def test_only_reviewed_supported_api_contract_may_publish_outside_candidate(self) -> None:
