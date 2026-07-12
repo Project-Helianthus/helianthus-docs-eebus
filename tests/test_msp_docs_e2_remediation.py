@@ -65,7 +65,8 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             "api/search-index.json": '{"pages":["api/api-surface-v1.md"]}\n',
             "api/sitemap.xml": (
                 '<?xml version="1.0" encoding="UTF-8"?>\n'
-                "<urlset><url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                "<url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
             ),
             "api/versioned-bundle.txt": "api/api-surface-v1.md\n",
             "api/release-bundle.txt": "api/api-surface-v1.md\n",
@@ -118,6 +119,75 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("invalid stable publication artifact", result.stderr)
+
+    def test_search_artifact_requires_exact_pages_schema_and_stable_entries(self) -> None:
+        payloads = {
+            "wrong root": '["api/api-surface-v1.md"]\n',
+            "extra field": '{"pages":["api/api-surface-v1.md"],"version":1}\n',
+            "wrong pages type": '{"pages":"api/api-surface-v1.md"}\n',
+            "duplicate page": (
+                '{"pages":["api/api-surface-v1.md","api/api-surface-v1.md"]}\n'
+            ),
+            "missing page": '{"pages":["api/not-found.md"]}\n',
+            "candidate page": '{"pages":["api/_candidate/runtime-reference.md"]}\n',
+        }
+        for name, payload in payloads.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "api/search-index.json").write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("invalid stable publication artifact", result.stderr)
+
+    def test_sitemap_requires_namespaced_urlset_url_loc_schema(self) -> None:
+        namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+        payloads = {
+            "wrong root": f'<sitemapindex xmlns="{namespace}" />\n',
+            "missing namespace": (
+                "<urlset><url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
+            ),
+            "wrong namespace": (
+                '<urlset xmlns="https://example.invalid/sitemap">'
+                "<url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
+            ),
+            "missing loc": f'<urlset xmlns="{namespace}"><url /></urlset>\n',
+            "nested loc": (
+                f'<urlset xmlns="{namespace}"><loc>api/api-surface-v1.md</loc></urlset>\n'
+            ),
+            "nonexistent loc": (
+                f'<urlset xmlns="{namespace}"><url><loc>api/not-found.md</loc>'
+                "</url></urlset>\n"
+            ),
+        }
+        for name, payload in payloads.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / "api/sitemap.xml").write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("invalid stable publication artifact", result.stderr)
+
+    def test_bundles_require_unique_existing_stable_repository_paths(self) -> None:
+        payloads = {
+            "duplicate": "api/api-surface-v1.md\napi/api-surface-v1.md\n",
+            "nonexistent": "api/not-found.md\n",
+            "candidate": "api/_candidate/runtime-reference.md\n",
+            "nonpublishable": "scripts/validate_repository_policy.py\n",
+        }
+        for channel in ("versioned-bundle.txt", "release-bundle.txt"):
+            for name, payload in payloads.items():
+                with self.subTest(channel=channel, name=name), tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    (repo / "api" / channel).write_text(payload, encoding="utf-8")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("invalid stable publication artifact", result.stderr)
 
     def test_candidate_location_overrides_metadata_escape(self) -> None:
         for relative_path in (CANDIDATE_PATH, "api/_candidate/nested/runtime-reference.md"):
@@ -610,6 +680,43 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "cross-seed metadata requires a canonical platform link",
                 result.stderr,
             )
+
+    def test_hidden_html_state_propagates_to_descendant_cross_seed_anchors(self) -> None:
+        hidden_forms = {
+            "hidden ancestor": f'<div hidden><a href="{PLATFORM_URL}">platform</a></div>',
+            "hidden anchor": f'<a hidden href="{PLATFORM_URL}">platform</a>',
+            "aria hidden ancestor": (
+                f'<section aria-hidden="TRUE"><a href="{PLATFORM_URL}">platform</a></section>'
+            ),
+            "inert ancestor": f'<div inert><a href="{PLATFORM_URL}">platform</a></div>',
+        }
+        for name, hidden in hidden_forms.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual(_visible_link_destinations(hidden), [])
+                repo = copy_repo(Path(tmp))
+                page = repo / "architecture/README.md"
+                page.write_text(
+                    page.read_text(encoding="utf-8").replace(
+                        f"[shared registry boundary]({PLATFORM_URL})",
+                        hidden,
+                        1,
+                    ),
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(
+                    "cross-seed metadata requires a canonical platform link",
+                    result.stderr,
+                )
+
+    def test_false_aria_hidden_does_not_hide_cross_seed_anchor(self) -> None:
+        visible = (
+            f'<div aria-hidden="false"><a href="{PLATFORM_URL}">platform</a></div>'
+        )
+        self.assertEqual(_visible_link_destinations(visible), [PLATFORM_URL])
 
     def test_template_state_crosses_commonmark_tokens_until_matching_close(self) -> None:
         visible_url = "https://example.invalid/visible"
@@ -1108,6 +1215,11 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             {"milestone": "MSP-DOCS-CLEAN", "completion": "landed"},
             {"status": "MSP-DOCS-CLEAN available"},
             {"completion": "completed: MSP-DOCS-CLEAN"},
+            {"milestone": "MSP-DOCS-CLEAN", "status": "withdrawn"},
+            {"milestone": "MSP-DOCS-CLEAN", "state": "removed"},
+            {"milestone": "MSP-DOCS-CLEAN", "completion": "succeeded"},
+            {"status": "MSP DOCS CLEAN - superseded"},
+            {"lifecycle": "MSP-DOCS-CLEAN / failed"},
         )
         for metadata in cases:
             with self.subTest(metadata=metadata), tempfile.TemporaryDirectory() as tmp:

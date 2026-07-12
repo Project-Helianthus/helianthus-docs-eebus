@@ -146,6 +146,7 @@ STABLE_OUTPUT_ARTIFACTS = {
     "versioned_bundle": "api/versioned-bundle.txt",
     "release_bundle": "api/release-bundle.txt",
 }
+SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
 SUMMARY_NORMATIVE_PATTERN = re.compile(
     r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
     r"(?:is|are|be|remain)\s+(?:mandatory|required)|"
@@ -735,21 +736,35 @@ def _active_architecture_errors(
 
 def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
     terminal_states = {
+        "abandoned",
+        "aborted",
         "active",
         "available",
+        "canceled",
+        "cancelled",
         "closed",
         "complete",
         "completed",
         "delivered",
         "done",
+        "failed",
         "finished",
+        "landed",
         "merged",
         "passed",
         "published",
         "ready",
+        "rejected",
         "released",
+        "removed",
+        "resolved",
+        "retired",
         "shipped",
-        "landed",
+        "succeeded",
+        "successful",
+        "superseded",
+        "terminated",
+        "withdrawn",
     }
     lifecycle_fields = {
         "complete",
@@ -818,15 +833,32 @@ def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
 
 
 class _HTMLDestinationParser(HTMLParser):
+    _VOID_ELEMENTS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.destinations: list[str] = []
         self.visible_text: list[str] = []
-        self._hidden_tags: list[str] = []
+        self._elements: list[tuple[str, bool]] = []
 
     @property
     def hidden(self) -> bool:
-        return bool(self._hidden_tags)
+        return any(hidden for _, hidden in self._elements)
 
     def handle_starttag(
         self,
@@ -834,19 +866,26 @@ class _HTMLDestinationParser(HTMLParser):
         attrs: list[tuple[str, str | None]],
     ) -> None:
         normalized_tag = tag.casefold()
-        if normalized_tag in {"script", "style", "template"}:
-            self._hidden_tags.append(normalized_tag)
-        if normalized_tag != "a" or self.hidden:
-            return
-        for name, value in attrs:
-            if name.casefold() == "href" and value is not None:
-                self.destinations.append(value)
+        normalized_attrs = {name.casefold(): value for name, value in attrs}
+        hides_content = (
+            normalized_tag in {"script", "style", "template"}
+            or "hidden" in normalized_attrs
+            or "inert" in normalized_attrs
+            or (normalized_attrs.get("aria-hidden") or "").strip().casefold() == "true"
+        )
+        hidden = self.hidden or hides_content
+        if normalized_tag == "a" and not hidden:
+            href = normalized_attrs.get("href")
+            if href is not None:
+                self.destinations.append(href)
+        if normalized_tag not in self._VOID_ELEMENTS:
+            self._elements.append((normalized_tag, hides_content))
 
     def handle_endtag(self, tag: str) -> None:
         normalized_tag = tag.casefold()
-        for index in range(len(self._hidden_tags) - 1, -1, -1):
-            if self._hidden_tags[index] == normalized_tag:
-                del self._hidden_tags[index:]
+        for index in range(len(self._elements) - 1, -1, -1):
+            if self._elements[index][0] == normalized_tag:
+                del self._elements[index:]
                 break
 
     def handle_data(self, data: str) -> None:
@@ -1176,59 +1215,109 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     return errors
 
 
-def _stable_artifact_references(text: str, rel: str) -> tuple[list[str], list[str]]:
+def _is_stable_repository_reference(root: Path, value: str) -> bool:
+    path = PurePosixPath(value)
+    if (
+        not value
+        or value != value.strip()
+        or "\\" in value
+        or "%" in value
+        or path.is_absolute()
+        or ".." in path.parts
+        or posixpath.normpath(value) != value
+        or re.fullmatch(r"[A-Za-z0-9._/-]+", value) is None
+        or _is_candidate_path(value)
+    ):
+        return False
+    if value not in ROOT_MD and (not path.parts or path.parts[0] not in PUBLISHABLE_DOMAINS):
+        return False
+
+    artifact = root.joinpath(*path.parts)
+    if not artifact.is_file() or artifact.is_symlink():
+        return False
+    if artifact.suffix.lower() in MARKDOWN_SUFFIXES:
+        try:
+            metadata, front_matter_error = _front_matter(_read(artifact))
+        except UnicodeDecodeError:
+            return False
+        if front_matter_error is not None or metadata is None:
+            return False
+        if (
+            metadata.get("publication_status") in {"blocked", "candidate", "removed", "withdrawn"}
+            or metadata.get("candidate_output") == "true"
+            or metadata.get("hypothesis_status") in {"blocked", "draft", "withdrawn"}
+        ):
+            return False
+    return True
+
+
+def _stable_artifact_references(
+    root: Path,
+    text: str,
+    rel: str,
+) -> tuple[list[str], list[str]]:
     invalid = [f"{rel}: invalid stable publication artifact"]
     if rel == STABLE_OUTPUT_ARTIFACTS["search"]:
         result = decode_machine_json(text.encode("utf-8"))
         document = result.document
         if result.status != COMPLETE or result.duplicate_keys:
             return [], invalid
-        if not isinstance(document, (dict, list)):
+        if not isinstance(document, dict) or set(document) != {"pages"}:
             return [], invalid
-
-        references: list[str] = []
-
-        def collect(value: Any) -> None:
-            if isinstance(value, str):
-                references.append(value)
-            elif isinstance(value, list):
-                for item in value:
-                    collect(item)
-            elif isinstance(value, dict):
-                for item in value.values():
-                    collect(item)
-
-        collect(document)
-        return references, []
+        pages = document["pages"]
+        if (
+            not isinstance(pages, list)
+            or not pages
+            or any(not isinstance(page, str) for page in pages)
+            or len(set(pages)) != len(pages)
+            or any(not _is_stable_repository_reference(root, page) for page in pages)
+        ):
+            return [], invalid
+        return pages, []
 
     if rel == STABLE_OUTPUT_ARTIFACTS["sitemap"]:
         if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
             return [], invalid
         try:
-            root = ET.fromstring(text)
+            document = ET.fromstring(text)
         except ET.ParseError:
             return [], invalid
-        references = [value for value in root.itertext() if value.strip()]
-        references.extend(value for element in root.iter() for value in element.attrib.values())
-        return references, []
-
-    references = []
-    for line in text.splitlines():
-        value = line.strip()
-        if not value:
-            continue
-        path = PurePosixPath(value)
+        url_tag = f"{{{SITEMAP_NAMESPACE}}}url"
+        loc_tag = f"{{{SITEMAP_NAMESPACE}}}loc"
+        urls = list(document)
         if (
-            value != line
-            or "\\" in value
-            or "%" in value
-            or path.is_absolute()
-            or ".." in path.parts
-            or re.fullmatch(r"[A-Za-z0-9._/-]+", value) is None
+            document.tag != f"{{{SITEMAP_NAMESPACE}}}urlset"
+            or document.attrib
+            or not urls
+            or (document.text or "").strip()
+            or any(url.tag != url_tag or url.attrib or len(url) != 1 for url in urls)
         ):
             return [], invalid
-        references.append(value)
-    if not references:
+        references: list[str] = []
+        for url in urls:
+            loc = url[0]
+            value = loc.text or ""
+            if (
+                loc.tag != loc_tag
+                or loc.attrib
+                or len(loc)
+                or (url.text or "").strip()
+                or (loc.tail or "").strip()
+                or (url.tail or "").strip()
+                or not _is_stable_repository_reference(root, value)
+            ):
+                return [], invalid
+            references.append(value)
+        if len(set(references)) != len(references):
+            return [], invalid
+        return references, []
+
+    references = text.splitlines()
+    if (
+        not references
+        or len(set(references)) != len(references)
+        or any(not _is_stable_repository_reference(root, value) for value in references)
+    ):
         return [], invalid
     return references, []
 
@@ -1796,6 +1885,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             except UnicodeDecodeError:
                 continue
             references, format_errors = _stable_artifact_references(
+                root,
                 artifact_text,
                 artifact_rel,
             )
