@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,20 @@ import yaml
 
 DEFAULT_SNAPSHOT = Path(__file__).with_name("platform_cross_seed_snapshot.yaml")
 SCHEMA = "helianthus.platform-cross-seed-snapshot"
+CANONICAL_TARGETS = (
+    "docs/platform/README.md",
+    "docs/platform/cross-runtime-envelope.md",
+    "docs/platform/eebus-ha-network-proof.md",
+    "docs/platform/eebus-interop-smoke.md",
+    "docs/platform/eebus-raw-first-contract.md",
+    "docs/platform/hash-auth-binding.md",
+    "docs/platform/ownership-and-doc-gates.md",
+    "docs/platform/ownership-validation.md",
+    "docs/platform/promotion-and-consumer-contract.md",
+    "docs/platform/raw-correlation-and-leaf-promotion.md",
+    "docs/platform/shared-registry-boundary.md",
+)
+OBJECT_ID_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 
 
 def git_blob_id(content: bytes) -> str:
@@ -52,7 +67,7 @@ def internal_errors(document: dict[str, Any]) -> list[str]:
     if document.get("schema") != SCHEMA or document.get("version") != "1":
         errors.append("snapshot schema/version is invalid")
     commit = document.get("commit")
-    if not isinstance(commit, str) or len(commit) != 40:
+    if not isinstance(commit, str) or OBJECT_ID_PATTERN.fullmatch(commit) is None:
         errors.append("snapshot commit is not a full object id")
     sources = embedded_sources(document)
     if not sources:
@@ -62,9 +77,44 @@ def internal_errors(document: dict[str, Any]) -> list[str]:
         if path in paths:
             errors.append(f"duplicate embedded source path: {path}")
         paths.add(path)
+        if OBJECT_ID_PATTERN.fullmatch(blob) is None:
+            errors.append(f"embedded source blob is not a full object id: {path}")
         actual = git_blob_id(content.encode("utf-8"))
         if actual != blob:
             errors.append(f"embedded content does not match pinned blob: {path}")
+    targets = document.get("targets")
+    target_paths = (
+        tuple(target.get("path") for target in targets if isinstance(target, dict))
+        if isinstance(targets, list)
+        else ()
+    )
+    if target_paths != CANONICAL_TARGETS:
+        errors.append("snapshot does not contain the complete canonical platform corpus")
+    try:
+        manifest = yaml.safe_load(document.get("source_manifest_content", ""))
+    except yaml.YAMLError:
+        manifest = None
+    entries = manifest.get("entries") if isinstance(manifest, dict) else None
+    envelope = next(
+        (
+            entry
+            for entry in entries or []
+            if isinstance(entry, dict)
+            and entry.get("id") == "cross-runtime-platform-contracts"
+        ),
+        None,
+    )
+    if (
+        not isinstance(envelope, dict)
+        or envelope.get("canonical") is not True
+        or envelope.get("state") != "active"
+        or envelope.get("owner")
+        != {
+            "repository": "helianthus-docs-ebus",
+            "path": "docs/platform/cross-runtime-envelope.md",
+        }
+    ):
+        errors.append("source manifest does not canonically bind cross-runtime-envelope")
     return errors
 
 
@@ -97,7 +147,11 @@ def parse_acceptances(values: list[str]) -> dict[str, str]:
     accepted: dict[str, str] = {}
     for value in values:
         path, separator, blob = value.partition("=")
-        if not separator or not path or len(blob) != 40:
+        if (
+            not separator
+            or not path
+            or OBJECT_ID_PATTERN.fullmatch(blob) is None
+        ):
             raise ValueError("--accept-blob must be PATH=40_HEX_BLOB")
         accepted[path] = blob
     return accepted
@@ -109,12 +163,23 @@ def refreshed_snapshot(
     reviewed_commit: str,
     accepted: dict[str, str],
 ) -> dict[str, Any]:
-    paths = [path for path, _, _ in embedded_sources(current)]
+    if OBJECT_ID_PATTERN.fullmatch(reviewed_commit) is None:
+        raise ValueError("--reviewed-commit must be a canonical 40-hex commit id")
+    manifest_path = current.get("source_manifest_path")
+    if not isinstance(manifest_path, str):
+        raise ValueError("snapshot source manifest path is invalid")
+    paths = [manifest_path, *CANONICAL_TARGETS]
     if set(accepted) != set(paths):
         missing = sorted(set(paths) - set(accepted))
         extra = sorted(set(accepted) - set(paths))
         raise ValueError(f"explicit blob review mismatch; missing={missing}, extra={extra}")
-    git(source_repo, "cat-file", "-e", f"{reviewed_commit}^{{commit}}")
+    resolved_commit = git(
+        source_repo,
+        "rev-parse",
+        f"{reviewed_commit}^{{commit}}",
+    ).decode("ascii").strip()
+    if resolved_commit != reviewed_commit:
+        raise ValueError("--reviewed-commit must be a canonical 40-hex commit id")
     refreshed = dict(current)
     refreshed["commit"] = reviewed_commit
     material: dict[str, tuple[str, str]] = {}
@@ -124,13 +189,11 @@ def refreshed_snapshot(
             raise ValueError(f"reviewed blob does not match {path}: expected {blob}")
         content = git(source_repo, "show", f"{reviewed_commit}:{path}").decode("utf-8")
         material[path] = (blob, content)
-    manifest_path = refreshed["source_manifest_path"]
     refreshed["source_manifest_blob"], refreshed["source_manifest_content"] = material[manifest_path]
-    refreshed_targets = []
-    for target in refreshed["targets"]:
-        updated = dict(target)
-        updated["blob"], updated["content"] = material[updated["path"]]
-        refreshed_targets.append(updated)
+    refreshed_targets = [
+        {"path": path, "blob": material[path][0], "content": material[path][1]}
+        for path in CANONICAL_TARGETS
+    ]
     refreshed["targets"] = refreshed_targets
     return refreshed
 

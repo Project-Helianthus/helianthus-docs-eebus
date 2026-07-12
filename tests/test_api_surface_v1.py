@@ -2199,7 +2199,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         cases = (
             ("private path", "/Users/" + "synthetic-user/input.go"),
             ("private network", "peer " + "127." + "0.0.1"),
-            ("network address", "peer " + "203." + "0.113.1"),
+            ("network address", "peer " + "8." + "8.8.8"),
             ("private identifier", "account_" + "id: synthetic"),
             ("household data", "household_" + "schedule: synthetic"),
             ("raw evidence", "raw-" + "evidence: synthetic"),
@@ -2233,10 +2233,16 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertRegex(line, r"^api/(?:schema|fixtures)/")
 
     def test_repository_policy_accepts_only_the_exact_api_machine_allowlist(self) -> None:
+        publication_outputs = {
+            Path("api/release-bundle.txt"),
+            Path("api/search-index.json"),
+            Path("api/sitemap.xml"),
+            Path("api/versioned-bundle.txt"),
+        }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
             for path in list(positive_paths()) + list(NEGATIVE_FIXTURES.glob("*.json"))
-        }
+        } | publication_outputs
         actual = {
             path.relative_to(REPO)
             for path in (REPO / "api").rglob("*")

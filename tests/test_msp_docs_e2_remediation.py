@@ -84,25 +84,21 @@ def write_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Pat
 
 
 class MspDocsE2RemediationTests(unittest.TestCase):
+    def test_repository_baseline_includes_complete_stable_publication_artifacts(self) -> None:
+        result = run_validator(REPO)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_clean_stable_publication_artifacts_are_allowed_and_parsed(self) -> None:
         artifacts = {
-            "api/search-index.json": (
-                '{"pages":["README.md","api/api-surface-v1.md",'
-                '"architecture/README.md"]}\n'
-            ),
+            "api/search-index.json": '{"pages":["architecture/README.md"]}\n',
             "api/sitemap.xml": (
                 '<?xml version="1.0" encoding="UTF-8"?>\n'
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-                "<url><loc>README.md</loc></url>"
-                "<url><loc>api/api-surface-v1.md</loc></url>"
                 "<url><loc>architecture/README.md</loc></url></urlset>\n"
             ),
-            "api/versioned-bundle.txt": (
-                "README.md\napi/api-surface-v1.md\narchitecture/README.md\n"
-            ),
-            "api/release-bundle.txt": (
-                "README.md\napi/api-surface-v1.md\narchitecture/README.md\n"
-            ),
+            "api/versioned-bundle.txt": "architecture/README.md\n",
+            "api/release-bundle.txt": "architecture/README.md\n",
         }
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -112,6 +108,49 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_every_configured_stable_artifact_is_required(self) -> None:
+        for relative_path in (
+            "api/search-index.json",
+            "api/sitemap.xml",
+            "api/versioned-bundle.txt",
+            "api/release-bundle.txt",
+        ):
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / relative_path).unlink()
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("configured stable publication artifact is missing", result.stderr)
+
+    def test_stable_artifacts_match_the_exact_true_page_set(self) -> None:
+        mutations = {
+            "api/search-index.json": (
+                '{"pages":["api/api-surface-v1.md","architecture/README.md"]}\n'
+            ),
+            "api/sitemap.xml": (
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                "<url><loc>api/api-surface-v1.md</loc></url>"
+                "<url><loc>architecture/README.md</loc></url></urlset>\n"
+            ),
+            "api/versioned-bundle.txt": (
+                "api/api-surface-v1.md\narchitecture/README.md\n"
+            ),
+            "api/release-bundle.txt": (
+                "api/api-surface-v1.md\narchitecture/README.md\n"
+            ),
+        }
+        for relative_path, payload in mutations.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / relative_path).write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("stable channel has undeclared pages", result.stderr)
 
     def test_search_and_bundle_entries_require_canonical_byte_order(self) -> None:
         artifacts = {
@@ -140,6 +179,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             ),
             "exports/release-bundle.txt": "api/api-surface-v1.md\n",
             "output/public-export.json": '{"pages":["README.md"]}\n',
+            "docs/search-index.json": '{"pages":["api/api-surface-v1.md"]}\n',
         }
         for relative_path, payload in artifacts.items():
             with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
@@ -186,7 +226,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "Peer: " + ".".join(("10", "23", "4", "5")) + "\n",
                 "private IPv4 address found",
             ),
-            "IPv6": ("Peer: fd00::1\n", "IPv6 address found in publishable content"),
+            "IPv6": ("Peer: fd00::1\n", "private or local IPv6 address found"),
         }
         for name, (payload, diagnostic) in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
@@ -209,6 +249,10 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "Credential: <redacted>\n"
                 '  "client_secret": "<redacted>",\n'
                 "Public documentation endpoint: 203.0.113.10\n"
+                "Documentation IPv6 endpoint: 2001:db8::10\n"
+                'source_commit: "e54babd288bc315be332cd4306fd34559fa9c432"\n'
+                "Source URL: https://github.com/example/project/blob/"
+                "e54babd288bc315be332cd4306fd34559fa9c432/docs/contract.md\n"
                 "Generic roots /Users/ and /home/ are discussed without identities.\n",
                 encoding="utf-8",
             )
@@ -216,6 +260,65 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_control_and_configuration_text_are_confidentiality_scanned(self) -> None:
+        token = "client" + "_secret"
+        cases = {
+            "scripts/local-helper.py": f'{token}: "synthetic-secret"\n',
+            ".github/local-policy.toml": f'{token} = "synthetic-secret"\n',
+            "config/local-policy.opaque": f'{token}: "synthetic-secret"\n',
+            "docs/local-note.txt": f'{token}: "synthetic-secret"\n',
+        }
+        for relative_path, payload in cases.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("populated sensitive field", result.stderr)
+
+    def test_suspicious_binary_filename_is_quarantined_without_decoding(self) -> None:
+        restricted = "vendor" + "_restricted"
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "scripts" / f"{restricted}_sha256.bin"
+            artifact.write_bytes(b"\x00\xff\x80")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("restricted-source contamination marker found", result.stderr)
+
+    def test_real_local_ipv6_remains_confidential(self) -> None:
+        for address in ("fd00::1", "fe80::1", "::1"):
+            with self.subTest(address=address), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / "misc/notes.txt"
+                artifact.parent.mkdir()
+                artifact.write_text(f"Peer: {address}\n", encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("private or local IPv6 address found", result.stderr)
+
+    def test_sparse_artifact_is_rejected_from_stat_before_decode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "misc/sparse.opaque"
+            artifact.parent.mkdir()
+            with artifact.open("wb") as handle:
+                handle.seek(2 * 1024 * 1024)
+                handle.write(b"x")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("repository artifact exceeds scan size limit", result.stderr)
 
     def test_platform_normative_copy_requires_canonical_summary_link_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1594,6 +1697,18 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             )
 
     def test_snapshot_workflow_checks_embedded_blobs_and_gates_refresh(self) -> None:
+        snapshot_document = yaml.safe_load(
+            (REPO / "scripts/platform_cross_seed_snapshot.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        target_paths = [target["path"] for target in snapshot_document["targets"]]
+        self.assertEqual(len(target_paths), 11)
+        self.assertIn("docs/platform/cross-runtime-envelope.md", target_paths)
+        self.assertTrue(
+            all(len(target["blob"]) == 40 for target in snapshot_document["targets"])
+        )
+
         check = subprocess.run(
             [sys.executable, str(SNAPSHOT_TOOL), "check"],
             cwd=REPO,
@@ -1734,6 +1849,50 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_snapshot_refresh_rejects_symbolic_and_abbreviated_refs(self) -> None:
+        document = yaml.safe_load(
+            (REPO / "scripts/platform_cross_seed_snapshot.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        accept_arguments: list[str] = []
+        for relative_path, blob, _ in (
+            (
+                document["source_manifest_path"],
+                document["source_manifest_blob"],
+                document["source_manifest_content"],
+            ),
+            *(
+                (target["path"], target["blob"], target["content"])
+                for target in document["targets"]
+            ),
+        ):
+            accept_arguments.extend(["--accept-blob", f"{relative_path}={blob}"])
+
+        for reviewed_ref in ("HEAD", PLATFORM_COMMIT[:12]):
+            with self.subTest(reviewed_ref=reviewed_ref), tempfile.TemporaryDirectory() as tmp:
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(SNAPSHOT_TOOL),
+                        "refresh",
+                        "--source-repo",
+                        str(REPO.parents[1] / "helianthus-docs-ebus"),
+                        "--reviewed-commit",
+                        reviewed_ref,
+                        *accept_arguments,
+                        "--output",
+                        str(Path(tmp) / "candidate.yaml"),
+                    ],
+                    cwd=REPO,
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                )
+
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("canonical 40-hex commit id", result.stderr)
 
 
 if __name__ == "__main__":

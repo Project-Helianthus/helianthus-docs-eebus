@@ -795,7 +795,7 @@ class PolicyValidatorTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("IPv6 address found", result.stderr)
+            self.assertIn("private or local IPv6 address found", result.stderr)
 
     def test_private_artifact_retained_value_cannot_smuggle_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

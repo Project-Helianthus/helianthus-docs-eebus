@@ -304,18 +304,23 @@ class MachinePublicationPolicyTests(unittest.TestCase):
             with self.subTest(outside=octets):
                 self.assertEqual(classify_ipv4(ipv4(*octets)), "network address")
 
-    def test_reserved_and_special_use_ipv4_remain_network_addresses(self) -> None:
-        addresses = (
+    def test_reserved_and_special_use_ipv4_classification_is_explicit(self) -> None:
+        network_addresses = (
             (0, 0, 0, 0),
-            (192, 0, 2, 1),
-            (198, 51, 100, 1),
-            (203, 0, 113, 1),
             (224, 0, 0, 1),
             (255, 255, 255, 255),
         )
-        for octets in addresses:
+        documentation_addresses = (
+            (192, 0, 2, 1),
+            (198, 51, 100, 1),
+            (203, 0, 113, 1),
+        )
+        for octets in network_addresses:
             with self.subTest(octets=octets):
                 self.assertEqual(classify_ipv4(ipv4(*octets)), "network address")
+        for octets in documentation_addresses:
+            with self.subTest(octets=octets):
+                self.assertIsNone(classify_ipv4(ipv4(*octets)))
 
     def test_raw_and_decoded_shadowed_markers_share_one_result_set(self) -> None:
         private = ipv4(127, 0, 0, 1)
@@ -345,7 +350,7 @@ class MachinePublicationPolicyTests(unittest.TestCase):
             ({"note": "/home/synthetic/private.json"}, "private path"),
             ({"private_artifact_reference": "redacted"}, "private path"),
             ({"private_artifact_retained": "private-store"}, "private path"),
-            ({"note": "peer fd00::1"}, "network address"),
+            ({"note": "peer fd00::1"}, "private network"),
             ({"restricted_document": "synthetic"}, "source contamination"),
             ({"note": "restricted-document"}, "source contamination"),
             ({"note": "restricted vendor documents"}, "source contamination"),
@@ -357,6 +362,23 @@ class MachinePublicationPolicyTests(unittest.TestCase):
             with self.subTest(document=document):
                 result = decode_machine_json(json.dumps(document).encode("utf-8"))
                 self.assertIn(category, machine_publication_diagnostics(result))
+
+    def test_machine_policy_allows_documentation_networks_and_commit_fields(self) -> None:
+        commit = "e54babd288bc315be332cd4306fd34559fa9c432"
+        document = {
+            "source_commit": commit,
+            "blob": commit,
+            "source_url": (
+                "https://github.com/example/project/blob/"
+                f"{commit}/docs/contract.md"
+            ),
+            "ipv4": "203.0.113.10",
+            "ipv6": "2001:db8::10",
+        }
+
+        result = decode_machine_json(json.dumps(document).encode("utf-8"))
+
+        self.assertEqual(machine_publication_diagnostics(result), set())
 
     def test_decoded_assignment_labels_cover_case_and_separator_forms(self) -> None:
         labels = (

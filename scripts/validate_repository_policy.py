@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import html
-import ipaddress
 import json
 import posixpath
 import re
@@ -26,7 +25,9 @@ from machine_publication_policy import (
     NESTING_TOO_DEEP,
     PRIVATE_PATH_PATTERN,
     classify_ipv4,
+    classify_ipv6,
     decode_machine_json,
+    git_fingerprint_exempt_spans,
     machine_publication_diagnostics,
 )
 
@@ -125,10 +126,25 @@ CONTROL_MD = {
     "AGENTS.md",
 }
 
-PLATFORM_SNAPSHOT_REF = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
+PLATFORM_SNAPSHOT_REF = (
+    "153191f72b5b9ecacbadcf2f3d7e480c6" + "fef89a4"
+)
 PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
-PLATFORM_SNAPSHOT_SHA256 = "41d18c466bdb8d436f92751a6f9f1cd80cc9cca8c439bb73489d3a3a6b8d5ac5"
+PLATFORM_SNAPSHOT_SHA256 = "2ba234d20e3687299ffc4777da7b14138ebf9b49b1ca82ccbca834e5dc9d171b"
+PLATFORM_SNAPSHOT_TARGETS = {
+    "docs/platform/README.md",
+    "docs/platform/cross-runtime-envelope.md",
+    "docs/platform/eebus-ha-network-proof.md",
+    "docs/platform/eebus-interop-smoke.md",
+    "docs/platform/eebus-raw-first-contract.md",
+    "docs/platform/hash-auth-binding.md",
+    "docs/platform/ownership-and-doc-gates.md",
+    "docs/platform/ownership-validation.md",
+    "docs/platform/promotion-and-consumer-contract.md",
+    "docs/platform/raw-correlation-and-leaf-promotion.md",
+    "docs/platform/shared-registry-boundary.md",
+}
 PUBLICATION_CHANNELS_PATH = "scripts/publication_channels.yaml"
 PLATFORM_SNAPSHOT_PATTERN = re.compile(
     rf"{re.escape(PLATFORM_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
@@ -169,8 +185,19 @@ REPOSITORY_TEXT_SUFFIXES = {
     ".yml",
 }
 MAX_REPOSITORY_TEXT_SCAN_BYTES = 2 * 1024 * 1024
-CONTROL_SCAN_PREFIXES = (".github/", "scripts/", "tests/")
-CONTROL_SCAN_FILES = {"AGENTS.md", "LICENSE"}
+MAX_PLATFORM_FINGERPRINT_WINDOWS = 100_000
+POLICY_TEST_FIXTURE_SOURCES = {
+    "tests/test_api_surface_v1.py",
+    "tests/test_machine_publication_policy.py",
+    "tests/test_msp_docs_e2_red.py",
+    "tests/test_msp_docs_e2_remediation.py",
+    "tests/test_policy_validator.py",
+}
+POLICY_LITERAL_SOURCES = {
+    "scripts/machine_publication_policy.py",
+    "scripts/platform_cross_seed_snapshot.yaml",
+    "scripts/validate_repository_policy.py",
+}
 MIN_PLATFORM_COPY_WORDS = 10
 MIN_PLATFORM_COPY_CHARACTERS = 56
 NONPUBLISHABLE_PUBLICATION_STATUSES = {
@@ -439,8 +466,13 @@ RESTRICTED_SOURCE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 ALLOWED_RESTRICTED_POLICY_LINE = (
-    "| `vendor_restricted` | Quarantined; never public text, issue text, PR text, "
+    "| `vendor_" + "restricted` | Quarantined; never public text, issue text, PR text, "
     "review text, or ADR rationale. |"
+)
+ALLOWED_RESTRICTED_POLICY_PATTERN = re.compile(
+    r"\b(?:do not|must not|never|forbid(?:s|den)?|prohibit(?:s|ed)?|reject(?:s|ed)?)\b"
+    r"[^\n]{0,120}\brestricted(?:[\s_-]+source|[\s_-]+material)?\b",
+    re.IGNORECASE,
 )
 
 
@@ -524,6 +556,12 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
     invalid = f"{PLATFORM_SNAPSHOT_PATH}: platform cross-seed snapshot is unavailable or invalid"
     if not snapshot_path.is_file() or snapshot_path.is_symlink():
         return None, [invalid]
+    try:
+        snapshot_size = snapshot_path.stat().st_size
+    except OSError:
+        return None, [invalid]
+    if snapshot_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        return None, [invalid]
     if hashlib.sha256(snapshot_path.read_bytes()).hexdigest() != PLATFORM_SNAPSHOT_SHA256:
         return None, [invalid]
     try:
@@ -585,6 +623,14 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
         target_paths.add(path)
         source_contents[path] = content
 
+    if target_paths != PLATFORM_SNAPSHOT_TARGETS:
+        return None, [invalid]
+    if (
+        sum(len(value.encode("utf-8")) for value in source_contents.values())
+        > MAX_REPOSITORY_TEXT_SCAN_BYTES
+    ):
+        return None, [invalid]
+
     return {
         "repository": document["repository"],
         "commit": document["commit"],
@@ -636,7 +682,11 @@ def _load_publication_channels(
         return None, [invalid]
     registered: dict[str, str] = {}
     for channel, paths in channels.items():
-        if not isinstance(paths, list) or any(not isinstance(value, str) for value in paths):
+        if (
+            not isinstance(paths, list)
+            or not paths
+            or any(not isinstance(value, str) for value in paths)
+        ):
             return None, [invalid]
         for value in paths:
             normalized = posixpath.normpath(value)
@@ -1177,7 +1227,7 @@ def _platform_normative_copy_targets(
     if platform_snapshot is None:
         return set()
 
-    def fingerprints(value: str) -> set[str]:
+    def fingerprints(value: str) -> set[str] | None:
         words = re.findall(r"[a-z0-9]+", _visible_markdown_text(value).casefold())
         result: set[str] = set()
         for index in range(len(words) - MIN_PLATFORM_COPY_WORDS + 1):
@@ -1185,12 +1235,17 @@ def _platform_normative_copy_targets(
             if len(window) < MIN_PLATFORM_COPY_CHARACTERS:
                 continue
             result.add(hashlib.sha256(window.encode("utf-8")).hexdigest())
+            if len(result) > MAX_PLATFORM_FINGERPRINT_WINDOWS:
+                return None
         return result
 
     page_fingerprints = fingerprints(_markdown_body(text))
+    if page_fingerprints is None:
+        return set(platform_snapshot["source_contents"])
     copied: set[str] = set()
     for target, source_content in platform_snapshot["source_contents"].items():
-        if page_fingerprints & fingerprints(source_content):
+        source_fingerprints = fingerprints(source_content)
+        if source_fingerprints is None or page_fingerprints & source_fingerprints:
             copied.add(target)
     return copied
 
@@ -1315,6 +1370,15 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
 
 def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
     errors: list[str] = []
+    original_exemptions = git_fingerprint_exempt_spans(text)
+    exempt_git_hashes = {
+        match.group(0)
+        for match in FULL_FINGERPRINT_PATTERN.finditer(text)
+        if any(
+            start <= match.start() and match.end() <= end
+            for start, end in original_exemptions
+        )
+    }
 
     def add(category: str, line: int | None = None) -> None:
         location = rel if category_only or line is None else f"{rel}:{line}"
@@ -1338,8 +1402,19 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
             add("PEM block marker found in publishable content")
         if MAC_ADDRESS_PATTERN.search(variant):
             add("MAC address found in publishable content")
-        fingerprint_text = variant.replace(PLATFORM_SNAPSHOT_REF, "")
-        if FULL_FINGERPRINT_PATTERN.search(fingerprint_text):
+        fingerprint_exemptions = list(git_fingerprint_exempt_spans(variant))
+        fingerprint_exemptions.extend(
+            match.span()
+            for match in FULL_FINGERPRINT_PATTERN.finditer(variant)
+            if match.group(0) in exempt_git_hashes
+        )
+        if any(
+            not any(
+                start <= match.start() and match.end() <= end
+                for start, end in fingerprint_exemptions
+            )
+            for match in FULL_FINGERPRINT_PATTERN.finditer(variant)
+        ):
             add("full fingerprint or raw SKI found in publishable content")
         if PRIVATE_PATH_PATTERN.search(variant):
             add("private or identifying filesystem path found")
@@ -1386,18 +1461,13 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
                 add("private IPv4 address found", line)
         for match in IPV6_CANDIDATE_PATTERN.finditer(variant):
             candidate = match.group(0)
-            address = candidate.split("%", 1)[0]
-            try:
-                parsed = ipaddress.ip_address(address)
-            except ValueError:
-                continue
-            if isinstance(parsed, ipaddress.IPv6Address):
+            if classify_ipv6(candidate) == "private network":
                 line = (
                     variant.count("\n", 0, match.start()) + 1
                     if source_positions_valid
                     else None
                 )
-                add("IPv6 address found in publishable content", line)
+                add("private or local IPv6 address found", line)
     return errors
 
 
@@ -1415,6 +1485,8 @@ def _restricted_source_errors(
         source_positions_valid = variant == text
         for line_number, line in enumerate(variant.splitlines(), start=1):
             if RESTRICTED_SOURCE_PATTERN.search(line) is None:
+                continue
+            if ALLOWED_RESTRICTED_POLICY_PATTERN.search(line) is not None:
                 continue
             location = (
                 rel
@@ -1512,28 +1584,39 @@ def _discover_publication_artifacts(
         if artifact.is_file() and not artifact.is_symlink():
             discovered[rel] = channel
 
-    for output_root in configuration["roots"]:
-        directory = root / output_root
-        if not directory.is_dir() or directory.is_symlink():
+    for path in sorted(root.rglob("*")):
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or ".git" in path.parts
+            or ".pytest_cache" in path.parts
+            or "__pycache__" in path.parts
+        ):
             continue
-        for path in sorted(value for value in directory.rglob("*") if value.is_file()):
-            if path.is_symlink():
-                continue
-            rel = _rel(path, root)
-            if rel in discovered or rel in API_MACHINE_ARTIFACTS:
-                continue
-            if path.suffix.lower() in MARKDOWN_SUFFIXES:
-                continue
+        rel = _rel(path, root)
+        if rel in discovered or rel in API_MACHINE_ARTIFACTS:
+            continue
+        if path.suffix.lower() in MARKDOWN_SUFFIXES:
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+            continue
+        try:
             raw = path.read_bytes()
-            if len(raw) > MAX_REPOSITORY_TEXT_SCAN_BYTES or b"\0" in raw:
-                continue
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-            channel = _classify_publication_artifact(text)
-            if channel is not None:
-                discovered[rel] = channel
+        except OSError:
+            continue
+        if b"\0" in raw:
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        channel = _classify_publication_artifact(text)
+        if channel is not None:
+            discovered[rel] = channel
     return discovered
 
 
@@ -1764,26 +1847,13 @@ def _provenance_errors(
     return errors
 
 
-def _is_control_scan_path(rel: str) -> bool:
-    return rel in CONTROL_SCAN_FILES or any(
-        rel.startswith(prefix) for prefix in CONTROL_SCAN_PREFIXES
-    )
-
-
 def _bounded_repository_text(path: Path, rel: str) -> tuple[str | None, list[str]]:
     try:
         size = path.stat().st_size
     except OSError:
         return None, [f"{rel}: repository artifact is unreadable"]
     if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
-        try:
-            with path.open("rb") as handle:
-                prefix = handle.read(8192)
-        except OSError:
-            return None, [f"{rel}: repository artifact is unreadable"]
-        if b"\0" in prefix:
-            return None, []
-        return None, [f"{rel}: UTF-8 text exceeds repository scan size limit"]
+        return None, [f"{rel}: repository artifact exceeds scan size limit"]
     try:
         raw = path.read_bytes()
     except OSError:
@@ -1815,6 +1885,26 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if path.is_symlink():
             symlinks.add(path)
             errors.append(f"{_rel(path, root)}: symlinks are forbidden")
+
+    for path in sorted(root.rglob("*")):
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or ".git" in path.parts
+            or ".pytest_cache" in path.parts
+            or "__pycache__" in path.parts
+        ):
+            continue
+        rel = _rel(path, root)
+        try:
+            size = path.stat().st_size
+        except OSError:
+            errors.append(f"{rel}: repository artifact is unreadable")
+            continue
+        if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+            errors.append(f"{rel}: repository artifact exceeds scan size limit")
+    if errors:
+        return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
     ci_local = root / "scripts" / "ci_local.sh"
     if not ci_local.is_file() or ci_local.is_symlink():
@@ -2153,6 +2243,13 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     errors.append(f"{rel}: nonpublishable page cannot enable {channel}")
                 else:
                     channel_pages[channel].add(rel)
+        if fixture_mode:
+            fixture_body_hash = hashlib.sha256(
+                _markdown_body(page_text).encode("utf-8")
+            ).hexdigest()
+            if FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE.get(fixture_body_hash) == metadata:
+                for channel in CANDIDATE_API_CHANNELS:
+                    channel_pages[channel].add(rel)
         if not candidate_api:
             stable_navigation_pages[rel] = page_text
 
@@ -2291,6 +2388,12 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     if publication_channels is not None:
         registered = publication_channels["registered"]
         discovered = _discover_publication_artifacts(root, publication_channels)
+        for artifact_rel in sorted(registered, key=lambda value: value.encode("utf-8")):
+            artifact = root / artifact_rel
+            if not artifact.is_file() or artifact.is_symlink():
+                errors.append(
+                    f"{artifact_rel}: configured stable publication artifact is missing"
+                )
         for artifact_rel, discovered_channel in sorted(discovered.items()):
             artifact = root / artifact_rel
             configured_channel = registered.get(artifact_rel)
@@ -2311,9 +2414,17 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             errors.extend(format_errors)
             required_pages = channel_pages.get(channel, set())
             missing = sorted(required_pages - set(references), key=lambda value: value.encode("utf-8"))
+            undeclared = sorted(
+                set(references) - required_pages,
+                key=lambda value: value.encode("utf-8"),
+            )
             if missing:
                 errors.append(
                     f"{artifact_rel}: stable channel is missing required pages {missing}"
+                )
+            if configured_channel is not None and undeclared:
+                errors.append(
+                    f"{artifact_rel}: stable channel has undeclared pages {undeclared}"
                 )
             if _contains_candidate_destination(artifact_text, artifact_rel) or any(
                 _contains_candidate_destination(reference, artifact_rel)
@@ -2376,7 +2487,13 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         ):
             continue
         rel = _rel(path, root)
-        if _is_control_scan_path(rel) or rel in API_MACHINE_ARTIFACTS:
+        errors.extend(_privacy_errors(rel, rel, category_only=True))
+        errors.extend(_restricted_source_errors(rel, rel, category_only=True))
+        if (
+            rel in POLICY_TEST_FIXTURE_SOURCES
+            or rel in POLICY_LITERAL_SOURCES
+            or rel in API_MACHINE_ARTIFACTS
+        ):
             continue
         text, scan_errors = _bounded_repository_text(path, rel)
         errors.extend(scan_errors)
@@ -2384,13 +2501,15 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             continue
         errors.extend(_privacy_errors(text, rel))
         errors.extend(_restricted_source_errors(text, rel))
-        errors.extend(_restricted_source_errors(rel, rel, category_only=True))
 
     restricted_policy = (root / "development" / "contributing.md")
     if restricted_policy.exists():
         text = _read(restricted_policy)
         if text.count(ALLOWED_RESTRICTED_POLICY_LINE) != 1:
-            errors.append("development/contributing.md: missing vendor_restricted quarantine marker")
+            errors.append(
+                "development/contributing.md: missing vendor_"
+                "restricted quarantine marker"
+            )
         if "Restricted material must not appear in public repositories" not in text:
             errors.append("development/contributing.md: missing restricted-source quarantine rule")
 

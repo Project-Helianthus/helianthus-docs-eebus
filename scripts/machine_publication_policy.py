@@ -26,6 +26,22 @@ PRIVATE_IPV4_NETWORKS = (
     ((172, 16, 0, 0), 12),
     ((192, 168, 0, 0), 16),
 )
+DOCUMENTATION_IPV4_NETWORKS = (
+    ((192, 0, 2, 0), 24),
+    ((198, 51, 100, 0), 24),
+    ((203, 0, 113, 0), 24),
+)
+DOCUMENTATION_IPV6_NETWORKS = (
+    ipaddress.ip_network("2001:db8::/32"),
+    ipaddress.ip_network("3fff::/20"),
+)
+PRIVATE_IPV6_NETWORKS = (
+    ipaddress.ip_network("::/128"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+    ipaddress.ip_network("ff00::/8"),
+)
 
 PRIVATE_HOME_BOUNDARY = r"(?=$|/|_|[^\w/-])"
 PRIVATE_HOME_COMPONENT = r"[^/\s\"'<>]*?[\w-]"
@@ -51,6 +67,34 @@ MAC_PATTERN = re.compile(
     r")(?![0-9A-Fa-f])"
 )
 FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])")
+GIT_OBJECT_FIELD_PATTERN = re.compile(
+    r"(?im)^\s*[\"']?(?:blob|commit|git_commit|source|source_blob|source_commit|"
+    r"source_ref|source_sha)[\"']?\s*[:=]\s*[\"']?([0-9a-f]{40})[\"']?\s*,?\s*$"
+)
+GIT_OBJECT_URL_PATTERN = re.compile(
+    r"https?://[^\s<>\"']+/(?:blob|commit|commits|raw|tree)/([0-9a-f]{40})"
+    r"(?:[/#?]|$)",
+    re.IGNORECASE,
+)
+GIT_SNAPSHOT_FIELD_PATTERN = re.compile(
+    r"(?im)^\s*[\"']?(?:cross_seed_snapshot|source_snapshot)[\"']?\s*[:=]"
+    r"[^\n]*?@([0-9a-f]{40})(?=[:/])"
+)
+GIT_SNAPSHOT_VALUE_PATTERN = re.compile(
+    r"(?:Project-Helianthus/)?[A-Za-z0-9._-]+@([0-9a-f]{40}):"
+    r"[A-Za-z0-9._/-]+"
+)
+GIT_OBJECT_VALUE_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
+GIT_OBJECT_MACHINE_KEYS = {
+    "blob",
+    "commit",
+    "git_commit",
+    "source",
+    "source_blob",
+    "source_commit",
+    "source_ref",
+    "source_sha",
+}
 CANONICAL_DECIMAL_INTEGER_PATTERN = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
 CANONICAL_FRACTION_PATTERN = re.compile(
     r"(-?(?:0|[1-9][0-9]*))/([1-9][0-9]*)\Z"
@@ -372,6 +416,13 @@ def classify_ipv4(candidate: str) -> str | None:
     if octets is None:
         return None
     address = sum(octet << shift for octet, shift in zip(octets, (24, 16, 8, 0)))
+    for network_octets, prefix in DOCUMENTATION_IPV4_NETWORKS:
+        network = sum(
+            octet << shift for octet, shift in zip(network_octets, (24, 16, 8, 0))
+        )
+        mask = ((1 << prefix) - 1) << (32 - prefix)
+        if address & mask == network & mask:
+            return None
     private = False
     for network_octets, prefix in PRIVATE_IPV4_NETWORKS:
         network = sum(
@@ -382,6 +433,28 @@ def classify_ipv4(candidate: str) -> str | None:
             private = True
             break
     return "private network" if private else "network address"
+
+
+def classify_ipv6(candidate: str) -> str | None:
+    try:
+        address = ipaddress.ip_address(candidate.split("%", 1)[0])
+    except ValueError:
+        return None
+    if not isinstance(address, ipaddress.IPv6Address):
+        return None
+    if any(address in network for network in DOCUMENTATION_IPV6_NETWORKS):
+        return None
+    if any(address in network for network in PRIVATE_IPV6_NETWORKS):
+        return "private network"
+    return "network address"
+
+
+def git_fingerprint_exempt_spans(text: str) -> tuple[tuple[int, int], ...]:
+    spans = [match.span(1) for match in GIT_OBJECT_FIELD_PATTERN.finditer(text)]
+    spans.extend(match.span(1) for match in GIT_OBJECT_URL_PATTERN.finditer(text))
+    spans.extend(match.span(1) for match in GIT_SNAPSHOT_FIELD_PATTERN.finditer(text))
+    spans.extend(match.span(1) for match in GIT_SNAPSHOT_VALUE_PATTERN.finditer(text))
+    return tuple(spans)
 
 
 def _has_unexempted_fingerprint(
@@ -400,6 +473,10 @@ def marker_diagnostics(
     fingerprint_exempt_spans: tuple[tuple[int, int], ...] = (),
     scan_fingerprints: bool = True,
 ) -> set[str]:
+    fingerprint_exempt_spans = (
+        *fingerprint_exempt_spans,
+        *git_fingerprint_exempt_spans(text),
+    )
     diagnostics: set[str] = set()
     if PRIVATE_PATH_PATTERN.search(text):
         diagnostics.add("private path")
@@ -429,13 +506,9 @@ def marker_diagnostics(
             diagnostics.add(classification)
 
     for match in IPV6_CANDIDATE_PATTERN.finditer(text):
-        candidate = match.group(0).split("%", 1)[0]
-        try:
-            address = ipaddress.ip_address(candidate)
-        except ValueError:
-            continue
-        if isinstance(address, ipaddress.IPv6Address):
-            diagnostics.add("network address")
+        classification = classify_ipv6(match.group(0))
+        if classification is not None:
+            diagnostics.add(classification)
     return diagnostics
 
 
@@ -593,6 +666,15 @@ def _decoded_marker_diagnostics(
                 diagnostics |= marker_diagnostics(
                     item,
                     fingerprint_exempt_spans=exemptions[key],
+                )
+            elif (
+                isinstance(item, str)
+                and normalized_key in GIT_OBJECT_MACHINE_KEYS
+                and GIT_OBJECT_VALUE_PATTERN.fullmatch(item) is not None
+            ):
+                diagnostics |= marker_diagnostics(
+                    item,
+                    fingerprint_exempt_spans=((0, len(item)),),
                 )
             else:
                 diagnostics |= _decoded_marker_diagnostics(
