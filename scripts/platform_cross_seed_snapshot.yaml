@@ -5,30 +5,292 @@ commit: 153191f72b5b9ecacbadcf2f3d7e480c6fef89a4
 source_manifest_path: docs/platform/manifests/eebus-doc-ownership.yaml
 source_manifest_blob: 8376c472b4ae8c07e35e178c85521cb2bd211542
 source_manifest_entry: cross-runtime-platform-contracts
+source_manifest_content: |
+  schema: helianthus.platform.doc-ownership
+  version: 1
+  entries:
+    - id: eebus-protocol
+      surface: protocol
+      owner:
+        repository: helianthus-docs-eebus
+        path: protocols/ship-spine-overview.md
+      source:
+        repository: helianthus-docs-eebus
+        path: protocols/ship-spine-overview.md
+      canonical: true
+      state: active
+      outputs:
+        candidate: false
+        stable_navigation: true
+        search: true
+        sitemap: true
+        versioned_bundle: true
+        release_bundle: true
+      lifecycle:
+        created_at: "2026-07-10T00:00:00Z"
+        expires_at: null
+        source_issue: Project-Helianthus/helianthus-docs-eebus#6
+        source_pr: Project-Helianthus/helianthus-docs-eebus#7
+        source_ref: null
+        content_sha256: null
+        approved_at: "2026-07-10T00:00:00Z"
+        frozen_at: "2026-07-10T00:00:00Z"
+        cleanup_required: false
+      enforcement:
+        milestone: MSP-DOCS-API-SCHEMA
+        required_state: active
+
+    - id: eebus-architecture
+      surface: architecture
+      owner:
+        repository: helianthus-docs-eebus
+        path: architecture/README.md
+      source:
+        repository: helianthus-docs-eebus
+        path: architecture/README.md
+      canonical: false
+      state: planned
+      outputs:
+        candidate: false
+        stable_navigation: false
+        search: false
+        sitemap: false
+        versioned_bundle: false
+        release_bundle: false
+      lifecycle:
+        created_at: "2026-07-11T00:00:00Z"
+        expires_at: "2026-07-25T00:00:00Z"
+        source_issue: Project-Helianthus/helianthus-execution-plans#58
+        source_pr: null
+        source_ref: null
+        content_sha256: null
+        approved_at: null
+        frozen_at: null
+        cleanup_required: false
+      enforcement:
+        milestone: MSP-DOCS-E2
+        required_state: active
+
+    - id: eebus-api-v1
+      surface: api
+      owner:
+        repository: helianthus-docs-eebus
+        path: api/api-surface-v1.md
+      source:
+        repository: helianthus-docs-eebus
+        path: api/api-surface-v1.md
+      canonical: true
+      state: active
+      outputs:
+        candidate: false
+        stable_navigation: true
+        search: true
+        sitemap: true
+        versioned_bundle: true
+        release_bundle: true
+      lifecycle:
+        created_at: "2026-07-10T00:00:00Z"
+        expires_at: null
+        source_issue: Project-Helianthus/helianthus-docs-eebus#6
+        source_pr: Project-Helianthus/helianthus-docs-eebus#7
+        source_ref: null
+        content_sha256: null
+        approved_at: "2026-07-10T00:00:00Z"
+        frozen_at: "2026-07-10T00:00:00Z"
+        cleanup_required: false
+      enforcement:
+        milestone: MSP-DOCS-API-SCHEMA
+        required_state: active
+
+    - id: cross-runtime-platform-contracts
+      surface: platform
+      owner:
+        repository: helianthus-docs-ebus
+        path: docs/platform/cross-runtime-envelope.md
+      source:
+        repository: helianthus-docs-ebus
+        path: docs/platform/cross-runtime-envelope.md
+      canonical: true
+      state: active
+      outputs:
+        candidate: false
+        stable_navigation: true
+        search: true
+        sitemap: true
+        versioned_bundle: true
+        release_bundle: true
+      lifecycle:
+        created_at: "2026-07-11T00:00:00Z"
+        expires_at: null
+        source_issue: Project-Helianthus/helianthus-docs-ebus#341
+        source_pr: Project-Helianthus/helianthus-docs-ebus#342
+        source_ref: null
+        content_sha256: null
+        approved_at: "2026-07-11T00:00:00Z"
+        frozen_at: "2026-07-11T00:00:00Z"
+        cleanup_required: false
+      enforcement:
+        milestone: MSP-DOCS-PLATFORM
+        required_state: active
+
+    - id: eebusreg-substantive-docs
+      surface: code_repo
+      owner:
+        repository: helianthus-eebusreg
+        path: docs
+      source:
+        repository: helianthus-eebusreg
+        path: docs
+      canonical: false
+      state: planned
+      outputs:
+        candidate: false
+        stable_navigation: false
+        search: false
+        sitemap: false
+        versioned_bundle: false
+        release_bundle: false
+      lifecycle:
+        created_at: "2026-07-11T00:00:00Z"
+        expires_at: "2026-07-25T00:00:00Z"
+        source_issue: Project-Helianthus/helianthus-execution-plans#58
+        source_pr: null
+        source_ref: null
+        content_sha256: null
+        approved_at: null
+        frozen_at: null
+        cleanup_required: false
+      enforcement:
+        milestone: MSP-DOCS-CLEAN
+        required_state: withdrawn
+
+    - id: eebusreg-readme-summary
+      surface: summary_only
+      owner:
+        repository: helianthus-eebusreg
+        path: README.md
+      source:
+        repository: helianthus-docs-eebus
+        path: README.md
+      canonical: false
+      state: planned
+      outputs:
+        candidate: false
+        stable_navigation: false
+        search: false
+        sitemap: false
+        versioned_bundle: false
+        release_bundle: false
+      lifecycle:
+        created_at: "2026-07-11T00:00:00Z"
+        expires_at: "2026-07-25T00:00:00Z"
+        source_issue: Project-Helianthus/helianthus-execution-plans#58
+        source_pr: null
+        source_ref: null
+        content_sha256: null
+        approved_at: null
+        frozen_at: null
+        cleanup_required: false
+      enforcement:
+        milestone: MSP-DOCS-CLEAN
+        required_state: active
 platform_contract_root: docs/platform
 platform_contract_state: active
 targets:
   - path: docs/platform/eebus-raw-first-contract.md
     blob: fc22339747766c9eeda67aa6a21569bc1eadb085
-    normative_statements:
-      - >-
-        GraphQL, Portal, Home Assistant, command routing, raw writes, and
-        promoted semantics wait for per-leaf promotion gates.
-      - >-
-        Stable eeBUS MCP tools are read-only. Snapshot refs bind to runtime,
-        contract, tool or scope, mask tier, and effective auth scope.
+    content: |
+      # eeBUS Raw-First Platform Contract
+
+      Canonical source: this page.
+
+      Plan provenance:
+      `helianthus-execution-plans/multi-runtime-semantic-platform.draft`.
+
+      ## Scope
+
+      eeBUS enters Helianthus as raw SHIP/SPINE runtime visibility first. The first
+      target is VR940f/myVaillant inspection through read-only MCP. GraphQL, Portal,
+      Home Assistant, command routing, raw writes, and promoted semantics wait for
+      per-leaf promotion gates.
+
+      ## Required Order
+
+      1. Control-plane issue matrix and `eebus-transport-gate v0`.
+      2. Platform ownership ADR and eeBUS docs bootstrap.
+      3. `helianthus-eebusreg` raw runtime/evidence repo bootstrap with no runtime
+         contracts, no listeners, no trust store, and no `enbility` dependency.
+      4. Raw identity, snapshot, evidence, and correlation drafts.
+      5. `enbility/eebus-go v0.7.0` feasibility proof behind internal facades.
+      6. Home Assistant add-on networking proof for listener scope, mDNS, manual
+         endpoint fallback, and disposable proof credential persistence.
+      7. Black-box fake-peer and live VR940f interop smoke.
+      8. Production trust and first-trust hardening.
+      9. Disabled-by-default gateway sidecar.
+      10. Read-only `eebus.v1.*` MCP.
+      11. Evidence recorder and draft candidate facts.
+      12. Coexistence proof and per-leaf promotion lock.
+      13. GraphQL, Portal, and HA only for promoted leaves.
+
+      ## Stable MCP Rules
+
+      Stable eeBUS MCP tools are read-only. Snapshot refs bind to runtime, contract,
+      tool or scope, mask tier, and effective auth scope. Dereference requires an
+      exact binding match and never re-masks the same captured ref at read time.
+
+      Hash material uses RFC 8785 JSON canonicalization. Hashes are comparable only
+      for identical tool id, schema version, mask tier, auth scope, and snapshot
+      scope.
+
+      ## Promotion Rule
+
+      M7 candidate facts do not promote leaves. M8 proves coexistence. M8.5 locks
+      individual leaf promotions with a dossier containing source identity,
+      comparator results, coexistence evidence, replay regeneration, terminal
+      negative-state handling, and redacted hashes.
+
+      The canonical correlation and dossier contract is
+      [`raw-correlation-and-leaf-promotion.md`](./raw-correlation-and-leaf-promotion.md).
+
+      The canonical Home Assistant runtime networking proof gate is
+      [`eebus-ha-network-proof.md`](./eebus-ha-network-proof.md).
+
+      The canonical fake-peer and live VR940f smoke gate is
+      [`eebus-interop-smoke.md`](./eebus-interop-smoke.md).
   - path: docs/platform/shared-registry-boundary.md
     blob: 0930cceee01fb842127ce3abadf38a6815958376
-    normative_statements:
-      - >-
-        An adapter may write only its native raw namespace and evidence
-        references.
-      - >-
-        Candidate correlation records live outside stable registry projections.
-        Only a locked per-leaf promotion decision may create or update a
-        canonical semantic leaf, and that decision records all contributing
-        sources and conflict policy.
-      - >-
-        Partial runtime failure preserves last-known valid leaves according to
-        their stale policy. It does not replace a device, zone, or service
-        subtree.
+    content: |
+      Canonical source: this page.
+
+      # Shared Registry Boundary
+
+      ## Authority
+
+      The shared registry is protocol-neutral. Protocol adapters register raw device
+      identity, observations, evidence, and candidate correlations through versioned
+      contracts; they do not create canonical semantic facts by naming a native
+      field like an existing leaf.
+
+      Canonical semantic identity is the tuple of semantic path, schema version, and
+      accepted provenance policy. Runtime ids, protocol addresses, native paths, and
+      vendor labels remain source identity. They may participate in provenance but
+      cannot become cross-runtime registry keys.
+
+      ## Write Boundary
+
+      An adapter may write only its native raw namespace and evidence references.
+      Candidate correlation records live outside stable registry projections. Only a
+      locked per-leaf promotion decision may create or update a canonical semantic
+      leaf, and that decision records all contributing sources and conflict policy.
+
+      Partial runtime failure preserves last-known valid leaves according to their
+      stale policy. It does not replace a device, zone, or service subtree. Conflicts
+      remain explicit and attributable; runtime order, arrival time, and adapter
+      priority do not silently choose semantic authority.
+
+      ## Separation
+
+      Protocol behavior belongs to its protocol documentation owner. Runtime trust,
+      persistence, and lifecycle belong to that runtime's architecture owner. Native
+      API schema and examples belong to its API owner. This page owns only the
+      language-neutral registry boundary shared by every runtime.

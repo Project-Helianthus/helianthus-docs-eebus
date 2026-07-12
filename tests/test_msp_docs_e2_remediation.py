@@ -12,6 +12,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
+SNAPSHOT_TOOL = REPO / "scripts" / "manage_platform_cross_seed_snapshot.py"
 sys.path.insert(0, str(REPO / "scripts"))
 
 from validate_repository_policy import (
@@ -86,16 +87,22 @@ class MspDocsE2RemediationTests(unittest.TestCase):
     def test_clean_stable_publication_artifacts_are_allowed_and_parsed(self) -> None:
         artifacts = {
             "api/search-index.json": (
-                '{"pages":["README.md","api/api-surface-v1.md"]}\n'
+                '{"pages":["README.md","api/api-surface-v1.md",'
+                '"architecture/README.md"]}\n'
             ),
             "api/sitemap.xml": (
                 '<?xml version="1.0" encoding="UTF-8"?>\n'
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                 "<url><loc>README.md</loc></url>"
-                "<url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
+                "<url><loc>api/api-surface-v1.md</loc></url>"
+                "<url><loc>architecture/README.md</loc></url></urlset>\n"
             ),
-            "api/versioned-bundle.txt": "README.md\napi/api-surface-v1.md\n",
-            "api/release-bundle.txt": "README.md\napi/api-surface-v1.md\n",
+            "api/versioned-bundle.txt": (
+                "README.md\napi/api-surface-v1.md\narchitecture/README.md\n"
+            ),
+            "api/release-bundle.txt": (
+                "README.md\napi/api-surface-v1.md\narchitecture/README.md\n"
+            ),
         }
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -365,6 +372,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             "nonexistent": "api/not-found.md\n",
             "candidate": "api/_candidate/runtime-reference.md\n",
             "nonpublishable": "scripts/validate_repository_policy.py\n",
+            "planned page": "devices/vr940f.md\n",
         }
         for channel in ("versioned-bundle.txt", "release-bundle.txt"):
             for name, payload in payloads.items():
@@ -1446,6 +1454,286 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     "MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2",
                     result.stderr,
                 )
+
+    def test_content_discovery_rejects_neutral_unregistered_candidate_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "public/pages.json"
+            artifact.parent.mkdir()
+            artifact.write_text(
+                '{"pages":["api/_candidate/runtime-reference.md"]}\n',
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("unregistered stable publication artifact", result.stderr)
+            self.assertIn("candidate API leaked into search", result.stderr)
+
+    def test_ordinary_json_in_public_root_is_not_a_publisher(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "public/telemetry.data"
+            artifact.parent.mkdir()
+            artifact.write_text('{"status":"public-control"}\n', encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_complete_snapshot_blocks_drive_anti_copy(self) -> None:
+        copied = (
+            "Canonical semantic identity is the tuple of semantic path, schema version, "
+            "and accepted provenance policy."
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture/README.md"
+            page.write_text(
+                page.read_text(encoding="utf-8") + "\n" + copied + "\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "summary-only cross-seed copies pinned platform source content",
+                result.stderr,
+            )
+
+    def test_restricted_source_quarantine_covers_odd_suffix_and_filename(self) -> None:
+        cases = {
+            "misc/notes.opaque": "rationale: paraphrased from restricted material\n",
+            "misc/vendor_restricted_sha256.record": "redacted\n",
+        }
+        for relative_path, payload in cases.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("restricted-source contamination marker found", result.stderr)
+
+    def test_confidentiality_scan_is_suffix_agnostic_and_binary_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "misc/confidential.opaque"
+            artifact.parent.mkdir()
+            artifact.write_text('client_secret: "synthetic-secret"\n', encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("populated sensitive field", result.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "misc/binary.opaque"
+            artifact.parent.mkdir()
+            artifact.write_bytes(b"\x00client_secret: synthetic\xff")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_sitemap_requires_canonical_byte_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            (repo / "api/sitemap.xml").write_text(
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                "<url><loc>architecture/README.md</loc></url>"
+                "<url><loc>README.md</loc></url></urlset>\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("non-canonical publication entry ordering", result.stderr)
+
+    def test_stable_channel_completeness_requires_true_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            (repo / "api/search-index.json").write_text(
+                '{"pages":["api/api-surface-v1.md"]}\n',
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "stable channel is missing required pages ['architecture/README.md']",
+                result.stderr,
+            )
+
+    def test_stable_navigation_completeness_requires_true_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            readme = repo / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    "- [architecture/README.md](architecture/README.md)\n",
+                    "",
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "stable_navigation true page is missing from stable navigation",
+                result.stderr,
+            )
+
+    def test_snapshot_workflow_checks_embedded_blobs_and_gates_refresh(self) -> None:
+        check = subprocess.run(
+            [sys.executable, str(SNAPSHOT_TOOL), "check"],
+            cwd=REPO,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(check.returncode, 0, check.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = Path(tmp) / "snapshot.yaml"
+            snapshot.write_text(
+                (REPO / "scripts/platform_cross_seed_snapshot.yaml")
+                .read_text(encoding="utf-8")
+                .replace("The shared registry is protocol-neutral.", "The shared registry changed."),
+                encoding="utf-8",
+            )
+            changed = subprocess.run(
+                [sys.executable, str(SNAPSHOT_TOOL), "--snapshot", str(snapshot), "check"],
+                cwd=REPO,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(changed.returncode, 1, changed.stderr)
+            self.assertIn("embedded content does not match pinned blob", changed.stderr)
+
+            refresh = subprocess.run(
+                [
+                    sys.executable,
+                    str(SNAPSHOT_TOOL),
+                    "refresh",
+                    "--source-repo",
+                    str(REPO),
+                    "--reviewed-commit",
+                    PLATFORM_COMMIT,
+                    "--output",
+                    str(Path(tmp) / "candidate.yaml"),
+                ],
+                cwd=REPO,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(refresh.returncode, 2, refresh.stderr)
+            self.assertIn("explicit blob review mismatch", refresh.stderr)
+
+        help_result = subprocess.run(
+            [sys.executable, str(SNAPSHOT_TOOL), "--help"],
+            cwd=REPO,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn("reviewing every commit/path blob id", help_result.stdout)
+
+    def test_snapshot_refresh_accepts_only_explicitly_reviewed_blobs(self) -> None:
+        document = yaml.safe_load(
+            (REPO / "scripts/platform_cross_seed_snapshot.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        sources = {
+            document["source_manifest_path"]: document["source_manifest_content"],
+            **{target["path"]: target["content"] for target in document["targets"]},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            source_repo = Path(tmp) / "public-source"
+            source_repo.mkdir()
+            subprocess.run(["git", "init", "-q", str(source_repo)], check=True)
+            subprocess.run(
+                ["git", "-C", str(source_repo), "config", "user.name", "Snapshot Test"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(source_repo), "config", "user.email", "snapshot@example.invalid"],
+                check=True,
+            )
+            for relative_path, content in sources.items():
+                path = source_repo / relative_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            subprocess.run(["git", "-C", str(source_repo), "add", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(source_repo), "commit", "-q", "-m", "snapshot source"],
+                check=True,
+            )
+            commit = subprocess.run(
+                ["git", "-C", str(source_repo), "rev-parse", "HEAD"],
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            accept_arguments: list[str] = []
+            for relative_path in sorted(sources):
+                blob = subprocess.run(
+                    ["git", "-C", str(source_repo), "rev-parse", f"HEAD:{relative_path}"],
+                    check=True,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip()
+                accept_arguments.extend(["--accept-blob", f"{relative_path}={blob}"])
+            output = Path(tmp) / "review-candidate.yaml"
+            refresh = subprocess.run(
+                [
+                    sys.executable,
+                    str(SNAPSHOT_TOOL),
+                    "refresh",
+                    "--source-repo",
+                    str(source_repo),
+                    "--reviewed-commit",
+                    commit,
+                    *accept_arguments,
+                    "--output",
+                    str(output),
+                ],
+                cwd=REPO,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(refresh.returncode, 0, refresh.stderr)
+            self.assertIn("review the diff", refresh.stdout)
+            checked = subprocess.run(
+                [
+                    sys.executable,
+                    str(SNAPSHOT_TOOL),
+                    "--snapshot",
+                    str(output),
+                    "check",
+                    "--source-repo",
+                    str(source_repo),
+                ],
+                cwd=REPO,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(checked.returncode, 0, checked.stderr)
 
 
 if __name__ == "__main__":

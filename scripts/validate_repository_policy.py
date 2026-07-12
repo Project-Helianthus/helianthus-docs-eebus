@@ -128,7 +128,8 @@ CONTROL_MD = {
 PLATFORM_SNAPSHOT_REF = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
 PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
-PLATFORM_SNAPSHOT_SHA256 = "48c553bf8f80e487446bcb0d27147ef09e6d0b1b873253f6d196c09ffc961df5"
+PLATFORM_SNAPSHOT_SHA256 = "41d18c466bdb8d436f92751a6f9f1cd80cc9cca8c439bb73489d3a3a6b8d5ac5"
+PUBLICATION_CHANNELS_PATH = "scripts/publication_channels.yaml"
 PLATFORM_SNAPSHOT_PATTERN = re.compile(
     rf"{re.escape(PLATFORM_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
 )
@@ -140,11 +141,11 @@ CANDIDATE_API_CHANNELS = (
     "versioned_bundle",
     "release_bundle",
 )
-STABLE_OUTPUT_ARTIFACTS = {
-    "search": "api/search-index.json",
-    "sitemap": "api/sitemap.xml",
-    "versioned_bundle": "api/versioned-bundle.txt",
-    "release_bundle": "api/release-bundle.txt",
+STABLE_PUBLICATION_CHANNELS = {
+    "search",
+    "sitemap",
+    "versioned_bundle",
+    "release_bundle",
 }
 SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
 REPOSITORY_TEXT_SUFFIXES = {
@@ -167,16 +168,20 @@ REPOSITORY_TEXT_SUFFIXES = {
     ".yaml",
     ".yml",
 }
-PUBLICATION_ARTIFACT_SUFFIXES = REPOSITORY_TEXT_SUFFIXES - MARKDOWN_SUFFIXES
-PUBLICATION_OUTPUT_DIRECTORY_TOKENS = {
-    "build",
-    "dist",
-    "export",
-    "exports",
-    "output",
-    "public",
-    "release",
-    "site",
+MAX_REPOSITORY_TEXT_SCAN_BYTES = 2 * 1024 * 1024
+CONTROL_SCAN_PREFIXES = (".github/", "scripts/", "tests/")
+CONTROL_SCAN_FILES = {"AGENTS.md", "LICENSE"}
+MIN_PLATFORM_COPY_WORDS = 10
+MIN_PLATFORM_COPY_CHARACTERS = 56
+NONPUBLISHABLE_PUBLICATION_STATUSES = {
+    "blocked",
+    "candidate",
+    "draft",
+    "planned",
+    "planned-target",
+    "removed",
+    "template",
+    "withdrawn",
 }
 SUMMARY_NORMATIVE_PATTERN = re.compile(
     r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
@@ -419,12 +424,18 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
-    r"\bvendor[_ -]restricted\b|"
+    r"\bvendor[\s_-]+restricted(?=$|[\s_.-])|"
     r"\brestricted[ -]+source\b|"
     r"\brestricted\s+vendor\s+"
     r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
     r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
-    r"\bsource\s+class\s*:\s*restricted\b",
+    r"\bsource\s+class\s*:\s*restricted\b|"
+    r"\b(?:restricted|quarantined)[\s_-]+(?:source|vendor|document|material)"
+    r"[^\n]{0,80}\b(?:file(?:name)?|hash|sha(?:256)?|digest|locator|"
+    r"paraphrase|rationale|reason|provenance|origin)\b|"
+    r"\b(?:file(?:name)?|hash|sha(?:256)?|digest|locator|paraphrase|rationale|"
+    r"reason|provenance|origin)\b[^\n]{0,80}"
+    r"\b(?:restricted|quarantined)[\s_-]+(?:source|vendor|document|material)\b",
     re.IGNORECASE,
 )
 ALLOWED_RESTRICTED_POLICY_LINE = (
@@ -502,6 +513,12 @@ def _markdown_body(text: str) -> str:
     return text[end + 5 :] if end >= 0 else text
 
 
+def _git_blob_id(text: str) -> str:
+    content = text.encode("utf-8")
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content).hexdigest()
+
+
 def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str]]:
     snapshot_path = root / PLATFORM_SNAPSHOT_PATH
     invalid = f"{PLATFORM_SNAPSHOT_PATH}: platform cross-seed snapshot is unavailable or invalid"
@@ -528,34 +545,31 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
     }
     if any(document.get(key) != value for key, value in expected.items()):
         return None, [invalid]
-    if re.fullmatch(r"[0-9a-f]{40}", document.get("source_manifest_blob", "")) is None:
+    source_manifest_blob = document.get("source_manifest_blob")
+    source_manifest_content = document.get("source_manifest_content")
+    if (
+        re.fullmatch(r"[0-9a-f]{40}", source_manifest_blob or "") is None
+        or not isinstance(source_manifest_content, str)
+        or _git_blob_id(source_manifest_content) != source_manifest_blob
+    ):
         return None, [invalid]
 
     targets = document.get("targets")
     if not isinstance(targets, list) or not targets:
         return None, [invalid]
     target_paths: set[str] = set()
-    normative_statements: dict[str, tuple[str, ...]] = {}
+    source_contents: dict[str, str] = {}
     for target in targets:
-        if not isinstance(target, dict) or set(target) != {
-            "path",
-            "blob",
-            "normative_statements",
-        }:
+        if not isinstance(target, dict) or set(target) != {"path", "blob", "content"}:
             return None, [invalid]
         path = target.get("path")
         blob = target.get("blob")
-        statements = target.get("normative_statements")
+        content = target.get("content")
         if (
             not isinstance(path, str)
             or not isinstance(blob, str)
-            or not isinstance(statements, list)
-            or not statements
-            or any(
-                not isinstance(statement, str)
-                or len(re.findall(r"[a-z0-9]+", statement.casefold())) < 10
-                for statement in statements
-            )
+            or not isinstance(content, str)
+            or not content.strip()
         ):
             return None, [invalid]
         normalized = posixpath.normpath(path)
@@ -564,18 +578,78 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
             or not path.startswith("docs/platform/")
             or not path.endswith(".md")
             or re.fullmatch(r"[0-9a-f]{40}", blob) is None
+            or _git_blob_id(content) != blob
             or path in target_paths
         ):
             return None, [invalid]
         target_paths.add(path)
-        normative_statements[path] = tuple(statements)
+        source_contents[path] = content
 
     return {
         "repository": document["repository"],
         "commit": document["commit"],
         "targets": target_paths,
-        "normative_statements": normative_statements,
+        "source_contents": source_contents,
     }, []
+
+
+def _load_publication_channels(
+    root: Path,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    invalid = f"{PUBLICATION_CHANNELS_PATH}: publication channel configuration is invalid"
+    path = root / PUBLICATION_CHANNELS_PATH
+    if not path.is_file() or path.is_symlink():
+        return None, [invalid]
+    try:
+        document = yaml.load(_read(path), Loader=UniqueKeySafeLoader)
+    except (UnicodeDecodeError, yaml.YAMLError):
+        return None, [invalid]
+    if not isinstance(document, dict) or set(document) != {
+        "schema",
+        "version",
+        "public_output_roots",
+        "channels",
+    }:
+        return None, [invalid]
+    if (
+        document.get("schema") != "helianthus.publication-channels"
+        or document.get("version") != "1"
+    ):
+        return None, [invalid]
+    roots = document.get("public_output_roots")
+    channels = document.get("channels")
+    if (
+        not isinstance(roots, list)
+        or not roots
+        or any(
+            not isinstance(value, str)
+            or value != posixpath.normpath(value)
+            or PurePosixPath(value).is_absolute()
+            or ".." in PurePosixPath(value).parts
+            for value in roots
+        )
+        or len(set(roots)) != len(roots)
+        or roots != sorted(roots, key=lambda value: value.encode("utf-8"))
+        or not isinstance(channels, dict)
+        or set(channels) != STABLE_PUBLICATION_CHANNELS
+    ):
+        return None, [invalid]
+    registered: dict[str, str] = {}
+    for channel, paths in channels.items():
+        if not isinstance(paths, list) or any(not isinstance(value, str) for value in paths):
+            return None, [invalid]
+        for value in paths:
+            normalized = posixpath.normpath(value)
+            if (
+                value != normalized
+                or PurePosixPath(value).is_absolute()
+                or ".." in PurePosixPath(value).parts
+                or value in registered
+                or not any(value == root_value or value.startswith(root_value + "/") for root_value in roots)
+            ):
+                return None, [invalid]
+            registered[value] = channel
+    return {"roots": tuple(roots), "registered": registered}, []
 
 
 def _reviewed_architecture_claim(
@@ -1102,23 +1176,22 @@ def _platform_normative_copy_targets(
 ) -> set[str]:
     if platform_snapshot is None:
         return set()
-    page_words = re.findall(
-        r"[a-z0-9]+",
-        _visible_markdown_text(_markdown_body(text)).casefold(),
-    )
-    page = " " + " ".join(page_words) + " "
+
+    def fingerprints(value: str) -> set[str]:
+        words = re.findall(r"[a-z0-9]+", _visible_markdown_text(value).casefold())
+        result: set[str] = set()
+        for index in range(len(words) - MIN_PLATFORM_COPY_WORDS + 1):
+            window = " ".join(words[index : index + MIN_PLATFORM_COPY_WORDS])
+            if len(window) < MIN_PLATFORM_COPY_CHARACTERS:
+                continue
+            result.add(hashlib.sha256(window.encode("utf-8")).hexdigest())
+        return result
+
+    page_fingerprints = fingerprints(_markdown_body(text))
     copied: set[str] = set()
-    for target, statements in platform_snapshot["normative_statements"].items():
-        for statement in statements:
-            words = re.findall(r"[a-z0-9]+", statement.casefold())
-            windows = (
-                [words]
-                if len(words) <= 12
-                else [words[index : index + 10] for index in range(len(words) - 9)]
-            )
-            if any(" " + " ".join(window) + " " in page for window in windows):
-                copied.add(target)
-                break
+    for target, source_content in platform_snapshot["source_contents"].items():
+        if page_fingerprints & fingerprints(source_content):
+            copied.add(target)
     return copied
 
 
@@ -1386,37 +1459,82 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     return errors
 
 
-def _is_unregistered_publication_artifact(rel: str) -> bool:
-    if rel in STABLE_OUTPUT_ARTIFACTS.values():
-        return False
-    path = PurePosixPath(rel)
-    if path.suffix.lower() not in PUBLICATION_ARTIFACT_SUFFIXES:
-        return False
+def _lexical_publication_reference(value: str) -> bool:
+    path = PurePosixPath(value)
+    return (
+        bool(value)
+        and value == value.strip()
+        and "\\" not in value
+        and "%" not in value
+        and not path.is_absolute()
+        and ".." not in path.parts
+        and posixpath.normpath(value) == value
+        and re.fullmatch(r"[A-Za-z0-9._/-]+", value) is not None
+        and path.suffix.lower() in MARKDOWN_SUFFIXES
+    )
 
-    stem_tokens = {
-        token for token in re.split(r"[^a-z0-9]+", path.stem.casefold()) if token
-    }
-    collapsed_stem = re.sub(r"[^a-z0-9]+", "", path.stem.casefold())
-    directory_tokens = {
-        token
-        for part in path.parts[:-1]
-        for token in re.split(r"[^a-z0-9]+", part.casefold())
-        if token
-    }
-    search_output = "search" in stem_tokens and (
-        len(stem_tokens) == 1
-        or bool(stem_tokens & {"catalog", "index", "manifest", "pages"})
-    )
-    sitemap_output = "sitemap" in collapsed_stem
-    bundle_output = "bundle" in stem_tokens or "bundle" in collapsed_stem
-    public_export = "export" in stem_tokens and (
-        "public" in stem_tokens
-        or bool(directory_tokens & PUBLICATION_OUTPUT_DIRECTORY_TOKENS)
-    )
-    export_directory = bool(
-        directory_tokens & {"exports", "publicexport", "siteexport"}
-    )
-    return search_output or sitemap_output or bundle_output or public_export or export_directory
+
+def _classify_publication_artifact(text: str) -> str | None:
+    result = decode_machine_json(text.encode("utf-8"))
+    if (
+        result.status == COMPLETE
+        and not result.duplicate_keys
+        and isinstance(result.document, dict)
+        and set(result.document) == {"pages"}
+    ):
+        return "search"
+
+    if not re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
+        try:
+            document = ET.fromstring(text)
+        except ET.ParseError:
+            document = None
+        if document is not None and document.tag in {
+            f"{{{SITEMAP_NAMESPACE}}}urlset",
+            f"{{{SITEMAP_NAMESPACE}}}sitemapindex",
+        }:
+            return "sitemap"
+
+    lines = text.splitlines()
+    if lines and all(_lexical_publication_reference(value) for value in lines):
+        return "bundle"
+    return None
+
+
+def _discover_publication_artifacts(
+    root: Path,
+    configuration: dict[str, Any],
+) -> dict[str, str]:
+    discovered: dict[str, str] = {}
+    registered: dict[str, str] = configuration["registered"]
+    for rel, channel in registered.items():
+        artifact = root / rel
+        if artifact.is_file() and not artifact.is_symlink():
+            discovered[rel] = channel
+
+    for output_root in configuration["roots"]:
+        directory = root / output_root
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for path in sorted(value for value in directory.rglob("*") if value.is_file()):
+            if path.is_symlink():
+                continue
+            rel = _rel(path, root)
+            if rel in discovered or rel in API_MACHINE_ARTIFACTS:
+                continue
+            if path.suffix.lower() in MARKDOWN_SUFFIXES:
+                continue
+            raw = path.read_bytes()
+            if len(raw) > MAX_REPOSITORY_TEXT_SCAN_BYTES or b"\0" in raw:
+                continue
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            channel = _classify_publication_artifact(text)
+            if channel is not None:
+                discovered[rel] = channel
+    return discovered
 
 
 def _canonical_publication_entries(entries: list[str]) -> bool:
@@ -1451,7 +1569,7 @@ def _is_stable_repository_reference(root: Path, value: str) -> bool:
         if front_matter_error is not None or metadata is None:
             return False
         if (
-            metadata.get("publication_status") in {"blocked", "candidate", "removed", "withdrawn"}
+            metadata.get("publication_status") in NONPUBLISHABLE_PUBLICATION_STATUSES
             or metadata.get("candidate_output") == "true"
             or metadata.get("hypothesis_status") in {"blocked", "draft", "withdrawn"}
         ):
@@ -1463,9 +1581,10 @@ def _stable_artifact_references(
     root: Path,
     text: str,
     rel: str,
+    channel: str,
 ) -> tuple[list[str], list[str]]:
     invalid = [f"{rel}: invalid stable publication artifact"]
-    if rel == STABLE_OUTPUT_ARTIFACTS["search"]:
+    if channel == "search":
         result = decode_machine_json(text.encode("utf-8"))
         document = result.document
         if result.status != COMPLETE or result.duplicate_keys:
@@ -1485,7 +1604,7 @@ def _stable_artifact_references(
             return [], [f"{rel}: non-canonical publication entry ordering"]
         return pages, []
 
-    if rel == STABLE_OUTPUT_ARTIFACTS["sitemap"]:
+    if channel == "sitemap":
         if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
             return [], invalid
         try:
@@ -1520,6 +1639,8 @@ def _stable_artifact_references(
             references.append(value)
         if len(set(references)) != len(references):
             return [], invalid
+        if not _canonical_publication_entries(references):
+            return [], [f"{rel}: non-canonical publication entry ordering"]
         return references, []
 
     references = text.splitlines()
@@ -1643,12 +1764,49 @@ def _provenance_errors(
     return errors
 
 
+def _is_control_scan_path(rel: str) -> bool:
+    return rel in CONTROL_SCAN_FILES or any(
+        rel.startswith(prefix) for prefix in CONTROL_SCAN_PREFIXES
+    )
+
+
+def _bounded_repository_text(path: Path, rel: str) -> tuple[str | None, list[str]]:
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None, [f"{rel}: repository artifact is unreadable"]
+    if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        try:
+            with path.open("rb") as handle:
+                prefix = handle.read(8192)
+        except OSError:
+            return None, [f"{rel}: repository artifact is unreadable"]
+        if b"\0" in prefix:
+            return None, []
+        return None, [f"{rel}: UTF-8 text exceeds repository scan size limit"]
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None, [f"{rel}: repository artifact is unreadable"]
+    if b"\0" in raw:
+        return None, []
+    try:
+        return raw.decode("utf-8"), []
+    except UnicodeDecodeError:
+        return None, []
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.resolve()
     stable_navigation_pages: dict[str, str] = {}
+    channel_pages: dict[str, set[str]] = {
+        channel: set() for channel in CANDIDATE_API_CHANNELS
+    }
     platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
     errors.extend(snapshot_errors)
+    publication_channels, publication_channel_errors = _load_publication_channels(root)
+    errors.extend(publication_channel_errors)
 
     symlinks: set[Path] = set()
     for path in sorted(root.rglob("*")):
@@ -1985,7 +2143,17 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         errors.extend(_supported_api_errors(rel, page_text, metadata))
         errors.extend(_candidate_api_errors(rel, metadata))
         errors.extend(_milestone_errors(rel, metadata))
-        if not _is_candidate_api(rel, metadata):
+        candidate_api = _is_candidate_api(rel, metadata)
+        for channel in CANDIDATE_API_CHANNELS:
+            value = metadata.get(channel)
+            if value is not None and value not in {"true", "false"}:
+                errors.append(f"{rel}: {channel} must be the string 'true' or 'false'")
+            if value == "true":
+                if candidate_api or not _is_stable_repository_reference(root, rel):
+                    errors.append(f"{rel}: nonpublishable page cannot enable {channel}")
+                else:
+                    channel_pages[channel].add(rel)
+        if not candidate_api:
             stable_navigation_pages[rel] = page_text
 
         platform_links = _platform_links(page_text)
@@ -2014,6 +2182,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             errors.append(
                 f"{rel}: platform-owned normative text requires canonical "
                 "summary-only cross-seed policy"
+            )
+        if copied_platform_targets:
+            errors.append(
+                f"{rel}: summary-only cross-seed copies pinned platform source content"
             )
         if declares_cross_seed and _reviewed_cross_seed_claim(
             page_text,
@@ -2104,19 +2276,45 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     for rel, text in stable_navigation_pages.items():
         if _contains_candidate_destination(text, rel):
             errors.append(f"{rel}: candidate API leaked into stable_navigation")
-    for channel, artifact_rel in STABLE_OUTPUT_ARTIFACTS.items():
-        artifact = root / artifact_rel
-        if artifact.is_file() and not artifact.is_symlink():
+    navigation_references = {
+        reference
+        for source_rel, text in stable_navigation_pages.items()
+        for destination in _visible_link_destinations(text)
+        for reference in _normalized_reference_paths(destination, source_rel)
+    }
+    for required in sorted(channel_pages["stable_navigation"]):
+        if required not in navigation_references:
+            errors.append(
+                f"{required}: stable_navigation true page is missing from stable navigation"
+            )
+
+    if publication_channels is not None:
+        registered = publication_channels["registered"]
+        discovered = _discover_publication_artifacts(root, publication_channels)
+        for artifact_rel, discovered_channel in sorted(discovered.items()):
+            artifact = root / artifact_rel
+            configured_channel = registered.get(artifact_rel)
+            channel = configured_channel or discovered_channel
+            if configured_channel is None:
+                errors.append(f"{artifact_rel}: unregistered stable publication artifact")
             try:
                 artifact_text = _read(artifact)
             except UnicodeDecodeError:
+                errors.append(f"{artifact_rel}: invalid stable publication artifact")
                 continue
             references, format_errors = _stable_artifact_references(
                 root,
                 artifact_text,
                 artifact_rel,
+                channel,
             )
             errors.extend(format_errors)
+            required_pages = channel_pages.get(channel, set())
+            missing = sorted(required_pages - set(references), key=lambda value: value.encode("utf-8"))
+            if missing:
+                errors.append(
+                    f"{artifact_rel}: stable channel is missing required pages {missing}"
+                )
             if _contains_candidate_destination(artifact_text, artifact_rel) or any(
                 _contains_candidate_destination(reference, artifact_rel)
                 for reference in references
@@ -2133,7 +2331,12 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             rel = _rel(path, root)
             if path.suffix.lower() not in MARKDOWN_SUFFIXES:
                 if top == "api":
-                    if rel not in API_MACHINE_ARTIFACTS and rel not in STABLE_OUTPUT_ARTIFACTS.values():
+                    registered_outputs = (
+                        set(publication_channels["registered"])
+                        if publication_channels is not None
+                        else set()
+                    )
+                    if rel not in API_MACHINE_ARTIFACTS and rel not in registered_outputs:
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
                         continue
                 elif top in MARKDOWN_ONLY_DOMAINS:
@@ -2166,22 +2369,22 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     for path in sorted(
         p for p in root.rglob("*") if p.is_file() and not p.is_symlink()
     ):
-        if ".git" in path.parts or ".pytest_cache" in path.parts:
-            continue
-        rel = _rel(path, root)
-        if _is_unregistered_publication_artifact(rel):
-            errors.append(f"{rel}: unregistered stable publication artifact")
         if (
-            rel in API_MACHINE_ARTIFACTS
-            or rel == PLATFORM_SNAPSHOT_PATH
-            or (path.suffix.lower() not in REPOSITORY_TEXT_SUFFIXES and rel != "LICENSE")
+            ".git" in path.parts
+            or ".pytest_cache" in path.parts
+            or "__pycache__" in path.parts
         ):
             continue
-        try:
-            text = _read(path)
-        except UnicodeDecodeError:
+        rel = _rel(path, root)
+        if _is_control_scan_path(rel) or rel in API_MACHINE_ARTIFACTS:
+            continue
+        text, scan_errors = _bounded_repository_text(path, rel)
+        errors.extend(scan_errors)
+        if text is None:
             continue
         errors.extend(_privacy_errors(text, rel))
+        errors.extend(_restricted_source_errors(text, rel))
+        errors.extend(_restricted_source_errors(rel, rel, category_only=True))
 
     restricted_policy = (root / "development" / "contributing.md")
     if restricted_policy.exists():
