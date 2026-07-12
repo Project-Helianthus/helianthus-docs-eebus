@@ -121,7 +121,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "dee0b8bb8f9b6ba5143388b073219084" "73a8c73b8a825f0222487eb76e9992e8"
+CI_LOCAL_SHA256 = "f9c619762c9f8247523e116669cf1f1b" "08f489b66931f4288c815e1f5160ebe9"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
@@ -675,6 +675,14 @@ def _load_publication_channels(
     path = root / PUBLICATION_CHANNELS_PATH
     if not path.is_file() or path.is_symlink():
         return None, [invalid]
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None, [invalid]
+    if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        return None, [
+            f"{PUBLICATION_CHANNELS_PATH}: publication channel configuration exceeds size limit"
+        ]
     try:
         document = yaml.load(_read(path), Loader=UniqueKeySafeLoader)
     except (UnicodeDecodeError, yaml.YAMLError):
@@ -1630,8 +1638,13 @@ def _xml_publication_references(document: ET.Element) -> list[str]:
     ]
 
 
-def _bundle_publication_references(text: str) -> list[str] | None:
+def _bundle_publication_references(
+    text: str,
+    *,
+    registered: bool = False,
+) -> list[str] | None:
     references: list[str] = []
+    publisher_marker = registered
     headers = {
         "[documents]",
         "[files]",
@@ -1652,6 +1665,7 @@ def _bundle_publication_references(text: str) -> list[str] | None:
     }
     for raw_line in text.removeprefix("\ufeff").splitlines():
         line = raw_line.strip()
+        normalized_header = re.sub(r"\s*:\s*$", ":", line.casefold())
         header_fields = [
             field.strip().casefold()
             for field in re.split(r"[,|\t]", line)
@@ -1661,21 +1675,24 @@ def _bundle_publication_references(text: str) -> list[str] | None:
             and header_fields[0] in {"document", "file", "page", "path"}
             and all(re.fullmatch(r"[a-z_ -]+", field) for field in header_fields)
         )
-        if (
-            not line
-            or line.startswith(("#", ";", "//"))
-            or line.casefold() in headers
-            or structured_header
-        ):
+        if not line or line.startswith(("#", ";", "//")):
             continue
-        if _lexical_publication_reference(line):
-            references.append(line)
+        if normalized_header in headers or structured_header:
+            publisher_marker = True
+            continue
+        entry = re.sub(r"\s+(?:#|;|//).*$", "", line).rstrip()
+        if _lexical_publication_reference(entry):
+            references.append(entry)
             continue
         return None
-    return references or None
+    return references if publisher_marker and references else None
 
 
-def _publication_artifact_shape(text: str) -> tuple[str | None, list[str]]:
+def _publication_artifact_shape(
+    text: str,
+    *,
+    registered_bundle: bool = False,
+) -> tuple[str | None, list[str]]:
     result = decode_machine_json(text.encode("utf-8"))
     if (
         result.status == COMPLETE
@@ -1697,7 +1714,7 @@ def _publication_artifact_shape(text: str) -> tuple[str | None, list[str]]:
         }:
             return "sitemap", _xml_publication_references(document)
 
-    references = _bundle_publication_references(text)
+    references = _bundle_publication_references(text, registered=registered_bundle)
     if references is not None:
         return "bundle", references
     return None, []
@@ -1729,7 +1746,7 @@ def _discover_publication_artifacts(
         ):
             continue
         rel = _rel(path, root)
-        if rel in discovered or rel in API_MACHINE_ARTIFACTS:
+        if rel in discovered:
             continue
         if path.suffix.lower() in MARKDOWN_SUFFIXES:
             continue
@@ -1861,7 +1878,7 @@ def _stable_artifact_references(
             return [], [f"{rel}: non-canonical publication entry ordering"]
         return references, []
 
-    references = text.splitlines()
+    references = _bundle_publication_references(text, registered=True)
     if (
         not references
         or len(set(references)) != len(references)
@@ -2550,7 +2567,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 channel,
             )
             errors.extend(format_errors)
-            _, discovered_references = _publication_artifact_shape(artifact_text)
+            _, discovered_references = _publication_artifact_shape(
+                artifact_text,
+                registered_bundle=configured_channel is not None,
+            )
             required_pages = channel_pages.get(channel, set())
             missing = sorted(required_pages - set(references), key=lambda value: value.encode("utf-8"))
             undeclared = sorted(

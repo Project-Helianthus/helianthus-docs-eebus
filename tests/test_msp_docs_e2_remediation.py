@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,7 @@ SNAPSHOT_TOOL = REPO / "scripts" / "manage_platform_cross_seed_snapshot.py"
 sys.path.insert(0, str(REPO / "scripts"))
 
 from validate_repository_policy import (
+    MAX_REPOSITORY_TEXT_SCAN_BYTES,
     _fully_decode_reference,
     _contains_visible_candidate_destination,
     _visible_headings,
@@ -205,7 +207,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                 "<url><loc>api/api-surface-v1.md</loc></url></urlset>\n"
             ),
-            "exports/release-bundle.txt": "api/api-surface-v1.md\n",
+            "exports/release-bundle.txt": "pages:\napi/api-surface-v1.md\n",
             "output/public-export.json": '{"pages":["README.md"]}\n',
             "docs/search-index.json": '{"pages":["api/api-surface-v1.md"]}\n',
         }
@@ -272,6 +274,11 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             controls = {
                 "public/data.json": '{"metadata":{"values":[1,2]}}\n',
                 "exports/notes.txt": "# ordinary notes\nprose with spaces\n",
+                "exports/references.txt": (
+                    "# related documentation\n"
+                    "README.md\n"
+                    "api/api-surface-v1.md\n"
+                ),
             }
             for relative_path, payload in controls.items():
                 artifact = repo / relative_path
@@ -281,6 +288,80 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_marked_bundle_supports_bom_comments_and_safe_inline_comments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "public/candidate-bundle.txt"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                "\ufeff# generated publication\n"
+                "  PaGeS:  \n"
+                "README.md # stable entry\n"
+                "api/_candidate/runtime-reference.md ; candidate control\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("unregistered stable publication artifact", result.stderr)
+            self.assertIn("candidate API leaked into bundle", result.stderr)
+
+    def test_api_machine_json_is_always_checked_for_publisher_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            schema = repo / "api/schema/helianthus.eebus.api-surface.v1.schema.json"
+            document = json.loads(schema.read_text(encoding="utf-8"))
+            document["pages"] = [CANDIDATE_PATH]
+            schema.write_text(json.dumps(document) + "\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("unregistered stable publication artifact", result.stderr)
+            self.assertIn("candidate API leaked into search", result.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            result = run_validator(repo)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_publication_channel_configuration_is_bounded_before_parse(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            configuration = repo / "scripts/publication_channels.yaml"
+            configuration.write_bytes(b"[" * (MAX_REPOSITORY_TEXT_SCAN_BYTES + 1))
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "scripts/publication_channels.yaml: publication channel configuration exceeds size limit",
+                result.stderr,
+            )
+            self.assertNotIn("publication channel configuration is invalid", result.stderr)
+
+    def test_ci_rejects_oversized_markdown_before_content_scans(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            oversized = repo / "oversized.md"
+            oversized.write_bytes(b"x" * (MAX_REPOSITORY_TEXT_SCAN_BYTES + 1))
+
+            result = subprocess.run(
+                ["bash", "scripts/ci_local.sh"],
+                cwd=repo,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(
+                "oversized.md: repository artifact exceeds scan size limit",
+                result.stderr,
+            )
+            self.assertNotIn("==> validate repository ownership policy", result.stdout)
 
     def test_only_reviewed_supported_api_contract_may_publish_outside_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -262,6 +262,32 @@ def _reject_constant(_: str) -> None:
     raise InvalidJSONConstantError
 
 
+def _machine_json_decoder(
+    numeric_lexemes: list[str],
+) -> json.JSONDecoder:
+    def parse_integer(lexeme: str) -> int | UnrepresentableJSONNumber:
+        numeric_lexemes.append(lexeme)
+        try:
+            return int(lexeme, 10)
+        except (ValueError, OverflowError):
+            return UnrepresentableJSONNumber()
+
+    def parse_decimal(lexeme: str) -> Decimal | UnrepresentableJSONNumber:
+        numeric_lexemes.append(lexeme)
+        try:
+            return Decimal(lexeme)
+        except (DecimalException, ValueError):
+            return UnrepresentableJSONNumber()
+
+    return json.JSONDecoder(
+        object_pairs_hook=_tracked_object,
+        parse_constant=_reject_constant,
+        parse_float=parse_decimal,
+        parse_int=parse_integer,
+        strict=True,
+    )
+
+
 def _exceeds_machine_json_depth(text: str) -> bool:
     """Check container depth without recursively parsing attacker-controlled JSON."""
 
@@ -348,27 +374,7 @@ def decode_machine_json(
 
     numeric_lexemes: list[str] = []
 
-    def parse_integer(lexeme: str) -> int | UnrepresentableJSONNumber:
-        numeric_lexemes.append(lexeme)
-        try:
-            return int(lexeme, 10)
-        except (ValueError, OverflowError):
-            return UnrepresentableJSONNumber()
-
-    def parse_decimal(lexeme: str) -> Decimal | UnrepresentableJSONNumber:
-        numeric_lexemes.append(lexeme)
-        try:
-            return Decimal(lexeme)
-        except (DecimalException, ValueError):
-            return UnrepresentableJSONNumber()
-
-    decoder = json.JSONDecoder(
-        object_pairs_hook=_tracked_object,
-        parse_constant=_reject_constant,
-        parse_float=parse_decimal,
-        parse_int=parse_integer,
-        strict=True,
-    )
+    decoder = _machine_json_decoder(numeric_lexemes)
     start = 0
     while start < len(text) and text[start] in " \t\r\n":
         start += 1
@@ -745,18 +751,29 @@ def machine_publication_diagnostics(result: MachineJSONResult) -> set[str]:
         diagnostics |= marker_diagnostics(lexeme)
     diagnostics |= marker_diagnostics(result.remainder)
 
-    # A boundary-invalid tail can still contain complete escaped JSON strings,
-    # keys, duplicate values, or numbers. Decode each complete trailing value
-    # iteratively so publication policy cannot be bypassed with JSON escapes.
-    tail = result.remainder
-    while tail:
-        trailing = decode_machine_json(tail.encode("utf-8"))
-        if trailing.document is None:
-            break
-        diagnostics |= _decoded_marker_diagnostics(trailing.document)
-        for lexeme in trailing.numeric_lexemes:
+    # Boundary-invalid input may contain additional complete JSON values. Walk
+    # the original decoded buffer by index so every byte is decoded at most once.
+    if result.remainder:
+        index = len(text) - len(result.remainder)
+        trailing_numeric_lexemes: list[str] = []
+        decoder = _machine_json_decoder(trailing_numeric_lexemes)
+        while index < len(text):
+            while index < len(text) and text[index] in " \t\r\n":
+                index += 1
+            if index == len(text):
+                break
+            try:
+                trailing_document, index = decoder.raw_decode(text, index)
+            except (
+                json.JSONDecodeError,
+                InvalidJSONConstantError,
+                DecimalException,
+                OverflowError,
+                RecursionError,
+                ValueError,
+            ):
+                break
+            diagnostics |= _decoded_marker_diagnostics(trailing_document)
+        for lexeme in trailing_numeric_lexemes:
             diagnostics |= marker_diagnostics(lexeme)
-        if trailing.status == COMPLETE or len(trailing.remainder) >= len(tail):
-            break
-        tail = trailing.remainder
     return diagnostics

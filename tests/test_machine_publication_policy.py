@@ -179,6 +179,41 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 self.assertEqual(result.status, TRAILING_CONTENT)
                 self.assertFalse(result.boundary_valid)
 
+    def test_trailing_json_values_use_one_linear_raw_decode_index_walk(self) -> None:
+        original_raw_decode = json.JSONDecoder.raw_decode
+        unit = b'"\\u00' + b'2froot" '
+
+        for bound in (44 * 1024, 256 * 1024):
+            with self.subTest(bound=bound):
+                prefix = b'{"ok":true} '
+                count = (bound - len(prefix)) // len(unit)
+                payload = prefix + unit * count
+                scanned_lengths: list[int] = []
+                indices: list[int] = []
+
+                def counted_raw_decode(
+                    decoder: json.JSONDecoder,
+                    source: str,
+                    index: int = 0,
+                ) -> tuple[Any, int]:
+                    scanned_lengths.append(len(source))
+                    indices.append(index)
+                    return original_raw_decode(decoder, source, index)
+
+                with mock.patch.object(
+                    json.JSONDecoder,
+                    "raw_decode",
+                    new=counted_raw_decode,
+                ):
+                    result = decode_machine_json(payload)
+                    diagnostics = machine_publication_diagnostics(result)
+
+                self.assertEqual(result.status, TRAILING_CONTENT)
+                self.assertIn("private path", diagnostics)
+                self.assertEqual(len(scanned_lengths), count + 1)
+                self.assertEqual(scanned_lengths, [len(payload.decode("utf-8"))] * (count + 1))
+                self.assertEqual(indices, sorted(indices))
+
     def test_second_values_and_escaped_tail_content_are_trailing_content(self) -> None:
         tails = (
             b"\n{}\n",
