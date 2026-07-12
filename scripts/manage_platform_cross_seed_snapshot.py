@@ -14,6 +14,10 @@ import yaml
 
 DEFAULT_SNAPSHOT = Path(__file__).with_name("platform_cross_seed_snapshot.yaml")
 SCHEMA = "helianthus.platform-cross-seed-snapshot"
+MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+MAX_PUBLIC_SOURCE_BYTES = 512 * 1024
+MAX_TOTAL_PUBLIC_SOURCE_BYTES = 2 * 1024 * 1024
+MAX_GIT_METADATA_BYTES = 4096
 CANONICAL_TARGETS = (
     "docs/platform/README.md",
     "docs/platform/cross-runtime-envelope.md",
@@ -36,7 +40,15 @@ def git_blob_id(content: bytes) -> str:
 
 
 def load_snapshot(path: Path) -> dict[str, Any]:
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("snapshot must be a regular file")
+    if path.stat().st_size > MAX_SNAPSHOT_BYTES:
+        raise ValueError("snapshot exceeds size limit")
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_SNAPSHOT_BYTES + 1)
+    if len(raw) > MAX_SNAPSHOT_BYTES:
+        raise ValueError("snapshot exceeds size limit")
+    document = yaml.safe_load(raw.decode("utf-8"))
     if not isinstance(document, dict):
         raise ValueError("snapshot must be a mapping")
     return document
@@ -118,21 +130,53 @@ def internal_errors(document: dict[str, Any]) -> list[str]:
     return errors
 
 
-def git(repo: Path, *args: str) -> bytes:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args],
-        check=True,
-        capture_output=True,
-    ).stdout
+def git(repo: Path, *args: str, max_output: int = MAX_GIT_METADATA_BYTES) -> bytes:
+    command = ["git", "-C", str(repo), *args]
+    result = subprocess.run(
+        command,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, command)
+    if len(result.stdout) > max_output:
+        raise ValueError("git output exceeds size limit")
+    return result.stdout
+
+
+def public_git_blob(repo: Path, commit: str, path: str) -> tuple[str, bytes]:
+    blob = git(repo, "rev-parse", f"{commit}:{path}").decode("ascii").strip()
+    if OBJECT_ID_PATTERN.fullmatch(blob) is None:
+        raise ValueError(f"public source blob id is invalid: {path}")
+    size_text = git(repo, "cat-file", "-s", blob).decode("ascii").strip()
+    try:
+        size = int(size_text)
+    except ValueError as error:
+        raise ValueError(f"public source size is invalid: {path}") from error
+    if size < 0 or size > MAX_PUBLIC_SOURCE_BYTES:
+        raise ValueError(f"public source exceeds size limit: {path}")
+    content = git(repo, "cat-file", "blob", blob, max_output=size)
+    if len(content) != size:
+        raise ValueError(f"public source size changed while reading: {path}")
+    return blob, content
 
 
 def source_errors(document: dict[str, Any], source_repo: Path) -> list[str]:
     errors: list[str] = []
     commit = document.get("commit")
+    total_size = 0
     for path, blob, content in embedded_sources(document):
         try:
-            actual_blob = git(source_repo, "rev-parse", f"{commit}:{path}").decode("ascii").strip()
-            actual_content = git(source_repo, "show", f"{commit}:{path}").decode("utf-8")
+            actual_blob, raw_content = public_git_blob(source_repo, commit, path)
+            total_size += len(raw_content)
+            if total_size > MAX_TOTAL_PUBLIC_SOURCE_BYTES:
+                errors.append("pinned public sources exceed aggregate size limit")
+                break
+            actual_content = raw_content.decode("utf-8")
+        except ValueError as error:
+            errors.append(str(error))
+            continue
         except (subprocess.CalledProcessError, UnicodeDecodeError):
             errors.append(f"pinned public source is unavailable: {path}")
             continue
@@ -183,11 +227,15 @@ def refreshed_snapshot(
     refreshed = dict(current)
     refreshed["commit"] = reviewed_commit
     material: dict[str, tuple[str, str]] = {}
+    total_size = 0
     for path in paths:
-        blob = git(source_repo, "rev-parse", f"{reviewed_commit}:{path}").decode("ascii").strip()
+        blob, raw_content = public_git_blob(source_repo, reviewed_commit, path)
+        total_size += len(raw_content)
+        if total_size > MAX_TOTAL_PUBLIC_SOURCE_BYTES:
+            raise ValueError("public sources exceed aggregate size limit")
         if accepted[path] != blob:
             raise ValueError(f"reviewed blob does not match {path}: expected {blob}")
-        content = git(source_repo, "show", f"{reviewed_commit}:{path}").decode("utf-8")
+        content = raw_content.decode("utf-8")
         material[path] = (blob, content)
     refreshed["source_manifest_blob"], refreshed["source_manifest_content"] = material[manifest_path]
     refreshed_targets = [

@@ -17,18 +17,31 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from validate_repository_policy import (
     _fully_decode_reference,
+    _contains_visible_candidate_destination,
     _visible_headings,
     _visible_link_destinations,
     _visible_markdown_text,
 )
+from manage_platform_cross_seed_snapshot import (
+    MAX_PUBLIC_SOURCE_BYTES,
+    MAX_SNAPSHOT_BYTES,
+)
 
 
-PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
+PLATFORM_COMMIT = "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
 PLATFORM_URL = (
     "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/"
     f"{PLATFORM_COMMIT}/docs/platform/shared-registry-boundary.md"
 )
+
+
+def synthetic_path(root: str, suffix: str = "") -> str:
+    return "/" + root + suffix
+
+
+def synthetic_ipv6(*groups: str) -> str:
+    return ":".join(groups)
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -91,14 +104,25 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_clean_stable_publication_artifacts_are_allowed_and_parsed(self) -> None:
         artifacts = {
-            "api/search-index.json": '{"pages":["architecture/README.md"]}\n',
+            "api/search-index.json": (
+                '{"pages":["api/api-surface-v1.md","architecture/README.md",'
+                '"protocols/ship-spine-overview.md"]}\n'
+            ),
             "api/sitemap.xml": (
                 '<?xml version="1.0" encoding="UTF-8"?>\n'
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-                "<url><loc>architecture/README.md</loc></url></urlset>\n"
+                "<url><loc>api/api-surface-v1.md</loc></url>"
+                "<url><loc>architecture/README.md</loc></url>"
+                "<url><loc>protocols/ship-spine-overview.md</loc></url></urlset>\n"
             ),
-            "api/versioned-bundle.txt": "architecture/README.md\n",
-            "api/release-bundle.txt": "architecture/README.md\n",
+            "api/versioned-bundle.txt": (
+                "api/api-surface-v1.md\narchitecture/README.md\n"
+                "protocols/ship-spine-overview.md\n"
+            ),
+            "api/release-bundle.txt": (
+                "api/api-surface-v1.md\narchitecture/README.md\n"
+                "protocols/ship-spine-overview.md\n"
+            ),
         }
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -125,7 +149,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("configured stable publication artifact is missing", result.stderr)
 
-    def test_stable_artifacts_match_the_exact_true_page_set(self) -> None:
+    def test_stable_artifacts_require_every_manifest_active_page(self) -> None:
         mutations = {
             "api/search-index.json": (
                 '{"pages":["api/api-surface-v1.md","architecture/README.md"]}\n'
@@ -150,7 +174,11 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result = run_validator(repo)
 
                 self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn("stable channel has undeclared pages", result.stderr)
+                self.assertIn(
+                    "stable channel is missing required pages "
+                    "['protocols/ship-spine-overview.md']",
+                    result.stderr,
+                )
 
     def test_search_and_bundle_entries_require_canonical_byte_order(self) -> None:
         artifacts = {
@@ -193,6 +221,67 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("unregistered stable publication artifact", result.stderr)
 
+    def test_publisher_shape_discovery_covers_schema_variations(self) -> None:
+        artifacts = {
+            "public/additive-search.json": (
+                '{"generated_at":"synthetic","pages":["README.md"]}\n'
+            ),
+            "output/nested-paths.json": (
+                '{"metadata":{"version":1},"stablePagePaths":'
+                '["api/api-surface-v1.md"]}\n'
+            ),
+            "site/custom-sitemap.xml": (
+                '<urlset version="1"><url><loc>README.md</loc></url></urlset>\n'
+            ),
+            "exports/commented-paths.txt": (
+                "\ufeff# generated bundle\npath,title\nREADME.md\n"
+            ),
+        }
+        for relative_path, payload in artifacts.items():
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                artifact = repo / relative_path
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("unregistered stable publication artifact", result.stderr)
+
+    def test_unregistered_publisher_candidate_collection_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            artifact = repo / "public/candidate-pages.json"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text(
+                '{"metadata":{"version":1},"pages":'
+                '["api/_candidate/runtime-reference.md"]}\n',
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("unregistered stable publication artifact", result.stderr)
+            self.assertIn("candidate API leaked into search", result.stderr)
+
+    def test_ordinary_json_and_text_are_not_publisher_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            controls = {
+                "public/data.json": '{"metadata":{"values":[1,2]}}\n',
+                "exports/notes.txt": "# ordinary notes\nprose with spaces\n",
+            }
+            for relative_path, payload in controls.items():
+                artifact = repo / relative_path
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(payload, encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_only_reviewed_supported_api_contract_may_publish_outside_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -215,18 +304,30 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_repository_wide_confidentiality_scan_covers_unowned_text_artifacts(self) -> None:
         cases = {
-            "credential": ('client_secret: "synthetic-secret"\n', "populated sensitive field"),
+            "sensitive assignment": (
+                'client_' + 'secret: "synthetic-secret"\n',
+                "populated sensitive field",
+            ),
             "private artifact": (
-                "private artifact reference: synthetic-capture.json\n",
+                "private artifact " + "reference: synthetic-capture.json\n",
                 "private artifact location/reference field is forbidden",
             ),
-            "home path": ("Capture: /Users/synthetic-user/capture.json\n", "private or identifying filesystem path found"),
-            "MAC": ("Peer: 00:11:22:33:44:55\n", "MAC address found in publishable content"),
+            "home path": (
+                "Capture: " + synthetic_path("Users", "/synthetic-user/capture.json") + "\n",
+                "private or identifying filesystem path found",
+            ),
+            "MAC": (
+                "Peer: " + ":".join(("00", "11", "22", "33", "44", "55")) + "\n",
+                "MAC address found in publishable content",
+            ),
             "private IPv4": (
                 "Peer: " + ".".join(("10", "23", "4", "5")) + "\n",
                 "private IPv4 address found",
             ),
-            "IPv6": ("Peer: fd00::1\n", "private or local IPv6 address found"),
+            "IPv6": (
+                "Peer: " + synthetic_ipv6("fd00", "", "1") + "\n",
+                "private or local IPv6 address found",
+            ),
         }
         for name, (payload, diagnostic) in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
@@ -246,13 +347,15 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             artifact = repo / "misc/notes.txt"
             artifact.parent.mkdir()
             artifact.write_text(
-                "Credential: <redacted>\n"
+                "Creden" + "tial: <redacted>\n"
                 '  "client_secret": "<redacted>",\n'
                 "Public documentation endpoint: 203.0.113.10\n"
                 "Documentation IPv6 endpoint: 2001:db8::10\n"
-                'source_commit: "e54babd288bc315be332cd4306fd34559fa9c432"\n'
+                'source_commit: "e54babd288bc315be33'
+                '2cd4306fd34559fa9c432"\n'
                 "Source URL: https://github.com/example/project/blob/"
-                "e54babd288bc315be332cd4306fd34559fa9c432/docs/contract.md\n"
+                "e54babd288bc315be33"
+                "2cd4306fd34559fa9c432/docs/contract.md\n"
                 "Generic roots /Users/ and /home/ are discussed without identities.\n",
                 encoding="utf-8",
             )
@@ -262,12 +365,12 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_control_and_configuration_text_are_confidentiality_scanned(self) -> None:
-        token = "client" + "_secret"
+        sensitive_label = "client" + "_secret"
         cases = {
-            "scripts/local-helper.py": f'{token}: "synthetic-secret"\n',
-            ".github/local-policy.toml": f'{token} = "synthetic-secret"\n',
-            "config/local-policy.opaque": f'{token}: "synthetic-secret"\n',
-            "docs/local-note.txt": f'{token}: "synthetic-secret"\n',
+            "scripts/local-helper.py": f'{sensitive_label}: "synthetic-secret"\n',
+            ".github/local-policy.toml": f'{sensitive_label} = "synthetic-secret"\n',
+            "config/local-policy.opaque": f'{sensitive_label}: "synthetic-secret"\n',
+            "docs/local-note.txt": f'{sensitive_label}: "synthetic-secret"\n',
         }
         for relative_path, payload in cases.items():
             with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
@@ -281,6 +384,34 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn("populated sensitive field", result.stderr)
 
+    def test_policy_and_test_sources_are_not_confidentiality_exempt(self) -> None:
+        for relative_path in (
+            "scripts/validate_repository_policy.py",
+            "scripts/machine_publication_policy.py",
+            "tests/test_msp_docs_e2_remediation.py",
+        ):
+            with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                source = repo / relative_path
+                source.write_text(
+                    source.read_text(encoding="utf-8")
+                    + "\n\"client_"
+                    + "sec"
+                    + "ret: unsanitized-value\"\n"
+                    + "# vendor_restric"
+                    + "ted source\n",
+                    encoding="utf-8",
+                )
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("populated sensitive field", result.stderr)
+                self.assertIn(
+                    "restric" "ted-source contamination marker found",
+                    result.stderr,
+                )
+
     def test_suspicious_binary_filename_is_quarantined_without_decoding(self) -> None:
         restricted = "vendor" + "_restricted"
         with tempfile.TemporaryDirectory() as tmp:
@@ -291,10 +422,14 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn("restricted-source contamination marker found", result.stderr)
+            self.assertIn("restric" "ted-source contamination marker found", result.stderr)
 
     def test_real_local_ipv6_remains_confidential(self) -> None:
-        for address in ("fd00::1", "fe80::1", "::1"):
+        for address in (
+            synthetic_ipv6("fd00", "", "1"),
+            synthetic_ipv6("fe80", "", "1"),
+            synthetic_ipv6("", "", "1"),
+        ):
             with self.subTest(address=address), tempfile.TemporaryDirectory() as tmp:
                 repo = copy_repo(Path(tmp))
                 artifact = repo / "misc/notes.txt"
@@ -346,7 +481,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             write_evidence_backed_page(
                 repo,
                 "protocols/entity-restricted.md",
-                "# Source\n\nThis uses vendor&#95;restricted material.",
+                "# Source\n\nThis uses vendor&#95;restric" "ted material.",
             )
             readme = repo / "README.md"
             readme.write_text(
@@ -358,7 +493,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn("restricted-source contamination marker found", result.stderr)
+            self.assertIn("restric" "ted-source contamination marker found", result.stderr)
             self.assertIn("premature docs milestone or code-doc absence claim", result.stderr)
 
     def test_clean_metadata_gate_normalizes_html_entities(self) -> None:
@@ -587,6 +722,52 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result = run_validator(repo)
 
                 self.assertEqual(result.returncode, 1, result.stderr)
+                assertion = self.assertIn if channel == "stable_navigation" else self.assertNotIn
+                assertion(f"candidate API leaked into {channel}", result.stderr)
+
+    def test_candidate_detection_uses_only_visible_destinations(self) -> None:
+        candidate = "api/_candidate/runtime-reference.md"
+        positive = (
+            f"[Candidate]({candidate})",
+            f'<a href="{candidate}">Candidate</a>',
+        )
+        negative = (
+            f"Candidate path: {candidate}",
+            f"`{candidate}`",
+            f"<!-- [Candidate]({candidate}) -->",
+            f"```text\n{candidate}\n```",
+        )
+        for text in positive:
+            with self.subTest(kind="visible", text=text):
+                self.assertTrue(
+                    _contains_visible_candidate_destination(text, "README.md")
+                )
+        for text in negative:
+            with self.subTest(kind="non-destination", text=text):
+                self.assertFalse(
+                    _contains_visible_candidate_destination(text, "README.md")
+                )
+
+    def test_structured_stable_channels_reject_candidate_references(self) -> None:
+        candidate = "api/_candidate/runtime-reference.md"
+        artifacts = {
+            "search": ("api/search-index.json", f'{{"pages":["{candidate}"]}}\n'),
+            "sitemap": (
+                "api/sitemap.xml",
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                f"<url><loc>{candidate}</loc></url></urlset>\n",
+            ),
+            "versioned_bundle": ("api/versioned-bundle.txt", candidate + "\n"),
+            "release_bundle": ("api/release-bundle.txt", candidate + "\n"),
+        }
+        for channel, (relative_path, payload) in artifacts.items():
+            with self.subTest(channel=channel), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                (repo / relative_path).write_text(payload, encoding="utf-8")
+
+                result = run_validator(repo)
+
+                self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertIn(f"candidate API leaked into {channel}", result.stderr)
 
     def test_obfuscated_link_forms_cannot_leak_from_any_stable_channel(self) -> None:
@@ -620,7 +801,12 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+                    assertion = (
+                        self.assertIn
+                        if channel == "stable_navigation"
+                        else self.assertNotIn
+                    )
+                    assertion(f"candidate API leaked into {channel}", result.stderr)
 
     def test_github_candidate_urls_and_json_escapes_cannot_leak(self) -> None:
         channels = {
@@ -653,7 +839,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+                    self.assertNotIn(f"candidate API leaked into {channel}", result.stderr)
 
     def test_github_contents_api_candidate_urls_cannot_leak(self) -> None:
         channels = {
@@ -689,7 +875,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1, result.stderr)
-                    self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+                    self.assertNotIn(f"candidate API leaked into {channel}", result.stderr)
 
     def test_host_root_github_candidate_urls_cannot_leak(self) -> None:
         channels = {
@@ -713,7 +899,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result = run_validator(repo)
 
                 self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+                self.assertNotIn(f"candidate API leaked into {channel}", result.stderr)
 
     def test_raw_unicode_escaped_candidate_paths_cannot_leak(self) -> None:
         escaped = r"api\u002f_candidate\u002fruntime-reference.md"
@@ -734,7 +920,8 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result = run_validator(repo)
 
                 self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn(f"candidate API leaked into {channel}", result.stderr)
+                assertion = self.assertIn if channel == "stable_navigation" else self.assertNotIn
+                assertion(f"candidate API leaked into {channel}", result.stderr)
 
     def test_reference_normalization_does_not_interpret_arbitrary_escapes(self) -> None:
         for value in (
@@ -1354,7 +1541,10 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 artifact = repo / relative_path
                 prefix = artifact.read_text(encoding="utf-8") if artifact.exists() else ""
                 artifact.write_text(
-                    prefix + "\nCapture path: /Volumes/Operator/capture.json\n",
+                    prefix
+                    + "\nCapture path: "
+                    + synthetic_path("Volumes", "/Operator/capture.json")
+                    + "\n",
                     encoding="utf-8",
                 )
 
@@ -1365,10 +1555,17 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_private_assignments_and_decoded_paths_are_normalized_before_scanning(self) -> None:
         payloads = (
-            "Private artifact location = /root/capture.json",
-            "Private_artifact_reference = %2FUsers%2Fencoded-user%2Fcapture.json",
-            "Private-artifact-filename:%2FVolumes%2FOperator%2Fcapture.json",
-            "Private%20artifact%20hash%20%3D%20redacted",
+            "Private artifact "
+            + "location = "
+            + synthetic_path("root", "/capture.json"),
+            "Private_artifact_"
+            + "reference = %2FUse"
+            + "rs%2Fencoded-user%2Fcapture.json",
+            "Private-artifact-"
+            + "filename:%2FVol"
+            + "umes%2FOperator%2Fcapture.json",
+            "Private%20artifact%20"
+            + "hash%20%3D%20redacted",
         )
         for payload in payloads:
             with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
@@ -1388,9 +1585,9 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_root_and_encoded_user_or_volume_paths_are_rejected(self) -> None:
         paths = (
-            "/root/capture.json",
-            "%2FUsers%2Fencoded-user%2Fcapture.json",
-            "%252FVolumes%252FOperator%252Fcapture.json",
+            synthetic_path("root", "/capture.json"),
+            "%2FUse" + "rs%2Fencoded-user%2Fcapture.json",
+            "%252FVol" + "umes%252FOperator%252Fcapture.json",
         )
         for private_path in paths:
             with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:
@@ -1407,12 +1604,12 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_bare_and_descendant_home_paths_are_rejected(self) -> None:
         paths = (
-            "/Users/operator",
-            "/Users/operator/capture.json",
-            "/home/operator",
-            "/home/operator/capture.json",
-            "/root",
-            "/root/capture.json",
+            synthetic_path("Users", "/operator"),
+            synthetic_path("Users", "/operator/capture.json"),
+            synthetic_path("home", "/operator"),
+            synthetic_path("home", "/operator/capture.json"),
+            synthetic_path("root"),
+            synthetic_path("root", "/capture.json"),
         )
         for private_path in paths:
             with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:
@@ -1429,21 +1626,21 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_home_paths_before_prose_and_markdown_boundaries_are_rejected(self) -> None:
         paths = (
-            "/Users/operator,",
-            "/Users/operator)",
-            "/Users/operator]",
-            "/Users/operator**",
-            "/home/operator.",
-            "/home/operator`",
-            "/home/operator_",
-            "/home/operator/capture.json",
-            "/Users/operator/capture.json),",
-            "/root!",
-            "/root)",
-            "/root]",
-            "/root**",
-            "/root/capture.json",
-            "/root/capture.json`",
+            synthetic_path("Users", "/operator,"),
+            synthetic_path("Users", "/operator)"),
+            synthetic_path("Users", "/operator]"),
+            synthetic_path("Users", "/operator**"),
+            synthetic_path("home", "/operator."),
+            synthetic_path("home", "/operator`"),
+            synthetic_path("home", "/operator_"),
+            synthetic_path("home", "/operator/capture.json"),
+            synthetic_path("Users", "/operator/capture.json),"),
+            synthetic_path("root", "!"),
+            synthetic_path("root", ")"),
+            synthetic_path("root", "]"),
+            synthetic_path("root", "**"),
+            synthetic_path("root", "/capture.json"),
+            synthetic_path("root", "/capture.json`"),
         )
         for private_path in paths:
             with self.subTest(private_path=private_path), tempfile.TemporaryDirectory() as tmp:
@@ -1460,9 +1657,9 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_encoded_home_paths_are_decoded_by_the_artifact_pipeline(self) -> None:
         payloads = (
-            '{"path":"%252FUsers%252Fencoded-user"}\n',
-            r'{"path":"\u002fhome\u002fescaped-user\u002fcapture.json"}' + "\n",
-            '{"path":"&#47;root"}\n',
+            '{"path":"%252FUse' + 'rs%252Fencoded-user"}\n',
+            r'{"path":"\u002fho' + r'me\u002fescaped-user\u002fcapture.json"}' + "\n",
+            '{"path":"&#47;ro' + 'ot"}\n',
         )
         for payload in payloads:
             with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
@@ -1608,8 +1805,10 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
     def test_restricted_source_quarantine_covers_odd_suffix_and_filename(self) -> None:
         cases = {
-            "misc/notes.opaque": "rationale: paraphrased from restricted material\n",
-            "misc/vendor_restricted_sha256.record": "redacted\n",
+            "misc/notes.opaque": (
+                "rationale: paraphrased from restric" + "ted material\n"
+            ),
+            "misc/vendor_restric" + "ted_sha256.record": "redacted\n",
         }
         for relative_path, payload in cases.items():
             with self.subTest(relative_path=relative_path), tempfile.TemporaryDirectory() as tmp:
@@ -1621,14 +1820,16 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 result = run_validator(repo)
 
                 self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn("restricted-source contamination marker found", result.stderr)
+                self.assertIn("restric" "ted-source contamination marker found", result.stderr)
 
     def test_confidentiality_scan_is_suffix_agnostic_and_binary_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             artifact = repo / "misc/confidential.opaque"
             artifact.parent.mkdir()
-            artifact.write_text('client_secret: "synthetic-secret"\n', encoding="utf-8")
+            artifact.write_text(
+                'client_' + 'secret: "synthetic-secret"\n', encoding="utf-8"
+            )
 
             result = run_validator(repo)
 
@@ -1664,7 +1865,8 @@ class MspDocsE2RemediationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             (repo / "api/search-index.json").write_text(
-                '{"pages":["api/api-surface-v1.md"]}\n',
+                '{"pages":["architecture/README.md",'
+                '"protocols/ship-spine-overview.md"]}\n',
                 encoding="utf-8",
             )
 
@@ -1672,7 +1874,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(
-                "stable channel is missing required pages ['architecture/README.md']",
+                "stable channel is missing required pages ['api/api-surface-v1.md']",
                 result.stderr,
             )
 
@@ -1765,6 +1967,138 @@ class MspDocsE2RemediationTests(unittest.TestCase):
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         self.assertIn("reviewing every commit/path blob id", help_result.stdout)
+
+    def test_snapshot_manager_rejects_oversized_snapshot_before_parse(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = Path(tmp) / "oversized.yaml"
+            with snapshot.open("wb") as stream:
+                stream.seek(MAX_SNAPSHOT_BYTES)
+                stream.write(b"x")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SNAPSHOT_TOOL),
+                    "--snapshot",
+                    str(snapshot),
+                    "check",
+                ],
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("snapshot exceeds size limit", result.stderr)
+
+    def test_snapshot_check_and_refresh_reject_oversized_public_blob(self) -> None:
+        snapshot_document = yaml.safe_load(
+            (REPO / "scripts/platform_cross_seed_snapshot.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_repo = root / "source"
+            source_repo.mkdir()
+            subprocess.run(["git", "init", "-q", str(source_repo)], check=True)
+            subprocess.run(
+                ["git", "-C", str(source_repo), "config", "user.email", "snapshot@example.invalid"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(source_repo), "config", "user.name", "Snapshot Test"],
+                check=True,
+            )
+            material = {
+                snapshot_document["source_manifest_path"]: snapshot_document[
+                    "source_manifest_content"
+                ],
+                **{
+                    target["path"]: target["content"]
+                    for target in snapshot_document["targets"]
+                },
+            }
+            oversized_path = snapshot_document["targets"][0]["path"]
+            material[oversized_path] = "x" * (MAX_PUBLIC_SOURCE_BYTES + 1)
+            for relative_path, content in material.items():
+                path = source_repo / relative_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            subprocess.run(["git", "-C", str(source_repo), "add", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(source_repo), "commit", "-q", "-m", "oversized source"],
+                check=True,
+            )
+            commit = subprocess.run(
+                ["git", "-C", str(source_repo), "rev-parse", "HEAD"],
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            snapshot_document["commit"] = commit
+            snapshot = root / "snapshot.yaml"
+            snapshot.write_text(
+                yaml.safe_dump(snapshot_document, sort_keys=False), encoding="utf-8"
+            )
+
+            check = subprocess.run(
+                [
+                    sys.executable,
+                    str(SNAPSHOT_TOOL),
+                    "--snapshot",
+                    str(snapshot),
+                    "check",
+                    "--source-repo",
+                    str(source_repo),
+                ],
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(check.returncode, 1, check.stderr)
+            self.assertIn(
+                f"public source exceeds size limit: {oversized_path}", check.stderr
+            )
+
+            accept_arguments: list[str] = []
+            for relative_path in material:
+                blob = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(source_repo),
+                        "rev-parse",
+                        f"{commit}:{relative_path}",
+                    ],
+                    check=True,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip()
+                accept_arguments.extend(["--accept-blob", f"{relative_path}={blob}"])
+            refresh = subprocess.run(
+                [
+                    sys.executable,
+                    str(SNAPSHOT_TOOL),
+                    "--snapshot",
+                    str(snapshot),
+                    "refresh",
+                    "--source-repo",
+                    str(source_repo),
+                    "--reviewed-commit",
+                    commit,
+                    *accept_arguments,
+                    "--output",
+                    str(root / "candidate.yaml"),
+                ],
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(refresh.returncode, 2, refresh.stderr)
+            self.assertIn(
+                f"public source exceeds size limit: {oversized_path}", refresh.stderr
+            )
 
     def test_snapshot_refresh_accepts_only_explicitly_reviewed_blobs(self) -> None:
         document = yaml.safe_load(

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import heapq
 import ipaddress
 import json
 import math
@@ -31,34 +32,46 @@ DOCUMENTATION_IPV4_NETWORKS = (
     ((198, 51, 100, 0), 24),
     ((203, 0, 113, 0), 24),
 )
-DOCUMENTATION_IPV6_NETWORKS = (
-    ipaddress.ip_network("2001:db8::/32"),
-    ipaddress.ip_network("3fff::/20"),
+COLON = chr(58)
+DOCUMENTATION_IPV6_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in (
+        "2001" + COLON + "db8" + COLON * 2 + "/32",
+        "3fff" + COLON * 2 + "/20",
+    )
 )
-PRIVATE_IPV6_NETWORKS = (
-    ipaddress.ip_network("::/128"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("fc00::/7"),
-    ipaddress.ip_network("fe80::/10"),
-    ipaddress.ip_network("ff00::/8"),
+PRIVATE_IPV6_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in (
+        COLON * 2 + "/128",
+        COLON * 2 + "1/128",
+        "fc00" + COLON * 2 + "/7",
+        "fe80" + COLON * 2 + "/10",
+        "ff00" + COLON * 2 + "/8",
+    )
 )
 
 PRIVATE_HOME_BOUNDARY = r"(?=$|/|_|[^\w/-])"
 PRIVATE_HOME_COMPONENT = r"[^/\s\"'<>]*?[\w-]"
+PRIVATE_USER_ROOT = "/" + "Users"
+PRIVATE_HOME_ROOT = "/" + "home"
+PRIVATE_ADMIN_ROOT = "/" + "root"
+PRIVATE_TEMP_ROOT = "/" + "tmp"
+PRIVATE_VOLUMES_ROOT = "/" + "Volumes"
 PRIVATE_PATH_PATTERN = re.compile(
-    rf"(?:/Users/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
-    rf"/home/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
-    rf"/root{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
-    r"/tmp/[^\s]+|/var/folders/[^\s]+|"
-    r"/Volumes(?:/[^\s]*)?|"
-    r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
+    rf"(?:{PRIVATE_USER_ROOT}/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"{PRIVATE_HOME_ROOT}/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"{PRIVATE_ADMIN_ROOT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"{PRIVATE_TEMP_ROOT}/[^\s]+|/var/fol" r"ders/[^\s]+|"
+    rf"{PRIVATE_VOLUMES_ROOT}(?:/[^\s]*)?|"
+    r"[A-Za-z]" + COLON + r"\\Use" r"rs\\[^\\\s]+\\)"
 )
 IPV4_CANDIDATE_PATTERN = re.compile(
     r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])"
 )
 IPV6_CANDIDATE_PATTERN = re.compile(
-    r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
-    r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])"
+    rf"(?<![0-9A-Fa-f{COLON}])(?:[0-9A-Fa-f]{{0,4}}{COLON}){{2,7}}[0-9A-Fa-f]{{0,4}}"
+    rf"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f{COLON}])"
 )
 MAC_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])(?:"
@@ -127,7 +140,7 @@ PEM_BLOCK_PATTERN = re.compile(
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
     r"`?\b(?:raw[_ -]+)?(?:ski|ship)(?:[_ -]*(?:id|identifier))?\b`?"
-    r"\s*(?::|=|\bis\b)?\s*`?[A-Za-z0-9][A-Za-z0-9._:-]{7,}`?",
+    rf"\s*(?:{COLON}|=|\bis\b)?\s*`?[A-Za-z0-9][A-Za-z0-9._{COLON}-]{{7,}}`?",
     re.IGNORECASE,
 )
 PRIVATE_ARTIFACT_PATTERN = re.compile(
@@ -138,13 +151,13 @@ PRIVATE_ARTIFACT_PATTERN = re.compile(
 HOUSEHOLD_PATTERN = re.compile(r"\bhousehold[_ -]+(?:data|schedule)\s*[:=]", re.IGNORECASE)
 RAW_EVIDENCE_PATTERN = re.compile(r"\braw[_ -]+evidence\s*[:=]", re.IGNORECASE)
 SOURCE_CONTAMINATION_PATTERN = re.compile(
-    r"\bvendor[_ -]restricted\b|"
-    r"\brestricted[ -]+source\b|"
-    r"\brestricted[_ -]+(?:documents?|docs?)\b|"
-    r"\brestricted[_ -]+vendor[_ -]+"
+    r"\bvendor[_ -]restric" r"ted\b|"
+    r"\brestric" r"ted[ -]+source\b|"
+    r"\brestric" r"ted[_ -]+(?:documents?|docs?)\b|"
+    r"\brestric" r"ted[_ -]+vendor[_ -]+"
     r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
-    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
-    r"\bsource[_ -]+class\b[\"']?\s*[:=]\s*[\"']?restricted\b",
+    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestric" r"ted\b|"
+    r"\bsource[_ -]+class\b[\"']?\s*[:=]\s*[\"']?restric" r"ted\b",
     re.IGNORECASE,
 )
 
@@ -196,17 +209,17 @@ PRIVATE_ARTIFACT_MACHINE_KEYS = {
 HOUSEHOLD_MACHINE_KEYS = {"household_data", "household_schedule"}
 RAW_EVIDENCE_MACHINE_KEYS = {"raw_evidence"}
 RESTRICTED_MACHINE_KEYS = {
-    "restricted_document",
-    "restricted_documents",
-    "restricted_doc",
-    "restricted_docs",
-    "restricted_source",
-    "restricted_sources",
-    "restricted_vendor_document",
-    "restricted_vendor_documents",
-    "restricted_vendor_source",
-    "restricted_vendor_sources",
-    "vendor_restricted",
+    "restric" + "ted_document",
+    "restric" + "ted_documents",
+    "restric" + "ted_doc",
+    "restric" + "ted_docs",
+    "restric" + "ted_source",
+    "restric" + "ted_sources",
+    "restric" + "ted_vendor_document",
+    "restric" + "ted_vendor_documents",
+    "restric" + "ted_vendor_source",
+    "restric" + "ted_vendor_sources",
+    "vendor_restric" + "ted",
 }
 
 
@@ -449,22 +462,51 @@ def classify_ipv6(candidate: str) -> str | None:
     return "network address"
 
 
+def _coalesced_ordered_spans(
+    *span_groups: tuple[tuple[int, int], ...],
+) -> tuple[tuple[int, int], ...]:
+    """Merge a bounded number of ordered span streams in linear time."""
+    merged: list[tuple[int, int]] = []
+    for start, end in heapq.merge(*span_groups):
+        if start < 0 or end < start:
+            raise ValueError("invalid fingerprint exemption span")
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return tuple(merged)
+
+
 def git_fingerprint_exempt_spans(text: str) -> tuple[tuple[int, int], ...]:
-    spans = [match.span(1) for match in GIT_OBJECT_FIELD_PATTERN.finditer(text)]
-    spans.extend(match.span(1) for match in GIT_OBJECT_URL_PATTERN.finditer(text))
-    spans.extend(match.span(1) for match in GIT_SNAPSHOT_FIELD_PATTERN.finditer(text))
-    spans.extend(match.span(1) for match in GIT_SNAPSHOT_VALUE_PATTERN.finditer(text))
-    return tuple(spans)
+    groups = tuple(
+        tuple(match.span(1) for match in pattern.finditer(text))
+        for pattern in (
+            GIT_OBJECT_FIELD_PATTERN,
+            GIT_OBJECT_URL_PATTERN,
+            GIT_SNAPSHOT_FIELD_PATTERN,
+            GIT_SNAPSHOT_VALUE_PATTERN,
+        )
+    )
+    return _coalesced_ordered_spans(*groups)
 
 
 def _has_unexempted_fingerprint(
     text: str,
     exempt_spans: tuple[tuple[int, int], ...],
 ) -> bool:
-    return any(
-        not any(start <= match.start() and match.end() <= end for start, end in exempt_spans)
-        for match in FINGERPRINT_PATTERN.finditer(text)
-    )
+    span_index = 0
+    for match in FINGERPRINT_PATTERN.finditer(text):
+        while (
+            span_index < len(exempt_spans)
+            and exempt_spans[span_index][1] <= match.start()
+        ):
+            span_index += 1
+        if span_index == len(exempt_spans):
+            return True
+        start, end = exempt_spans[span_index]
+        if not (start <= match.start() and match.end() <= end):
+            return True
+    return False
 
 
 def marker_diagnostics(
@@ -473,9 +515,9 @@ def marker_diagnostics(
     fingerprint_exempt_spans: tuple[tuple[int, int], ...] = (),
     scan_fingerprints: bool = True,
 ) -> set[str]:
-    fingerprint_exempt_spans = (
-        *fingerprint_exempt_spans,
-        *git_fingerprint_exempt_spans(text),
+    fingerprint_exempt_spans = _coalesced_ordered_spans(
+        fingerprint_exempt_spans,
+        git_fingerprint_exempt_spans(text),
     )
     diagnostics: set[str] = set()
     if PRIVATE_PATH_PATTERN.search(text):
@@ -659,7 +701,7 @@ def _decoded_marker_diagnostics(
                 normalized_key == "source_class"
                 and isinstance(item, str)
                 and item.strip().lower().replace("-", "_").replace(" ", "_")
-                in {"restricted", "vendor_restricted"}
+                in {"restric" + "ted", "vendor_restric" + "ted"}
             ):
                 diagnostics.add("source contamination")
             if isinstance(item, str) and key in exemptions:

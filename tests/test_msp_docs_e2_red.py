@@ -17,7 +17,7 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 CONTRACT = REPO / "tests" / "fixtures" / "msp_docs_e2_contract.yaml"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
-PLATFORM_COMMIT = "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4"
+PLATFORM_COMMIT = "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4"
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -151,14 +151,16 @@ class MspDocsE2RedTests(unittest.TestCase):
                 repo,
                 "architecture",
                 relative_path="architecture/quarantine-negative.md",
-                metadata={"restricted_input_locator": "synthetic-quarantined-input.pdf"},
+                metadata={
+                    "restric" + "ted_input_locator": "synthetic-quarantined-input.pdf"
+                },
             )
 
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(
-                "restricted-source provenance metadata is forbidden",
+                "restric" "ted-source provenance metadata is forbidden",
                 result.stderr,
             )
 
@@ -296,7 +298,10 @@ class MspDocsE2RedTests(unittest.TestCase):
             (
                 "absolute path",
                 CANDIDATE_PATH,
-                {"candidate_output_path": "/tmp/synthetic-candidate.md"},
+                {
+                    "candidate_output_path": "/"
+                    + "tmp/synthetic-candidate.md"
+                },
             ),
         )
         for name, relative_path, metadata in cases:

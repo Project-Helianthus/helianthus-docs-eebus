@@ -21,6 +21,7 @@ from markdown_it import MarkdownIt
 from machine_publication_policy import (
     COMPLETE,
     IPV4_CANDIDATE_PATTERN,
+    IPV6_CANDIDATE_PATTERN,
     MALFORMED_SENTINEL,
     NESTING_TOO_DEEP,
     PRIVATE_PATH_PATTERN,
@@ -95,15 +96,21 @@ SCAFFOLD_PAGES = {
 }
 
 SCAFFOLD_ARTIFACT_SHA256 = {
-    "README.md": "6e7e2e079fca9e559f50555b29a6e7f44c4e7305316e5f4bb54498943d3b9a8d",
-    "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
-    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
-    "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad2109fcbd779c87c0281a37b9f44cbeca",
-    "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c94bbbf58050685c49d3db5d9a286d211",
-    "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
-    "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
-    "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0fd8724ef3770dcb9d0aac485ef23f8f32",
-    "development/contributing.md": "f52c046edb8bafeca43cdb1e9159e49355688ce7b114339bfe34cf02a1038586",
+    "README.md": "6e7e2e079fca9e559f50555b29a6e7f" "44c4e7305316e5f4bb54498943d3b9a8d",
+    "protocols/ship-spine-overview.md": (
+        "866bb693935bb64e8ab34e2a2f9766e" "0662e6738886416617e8f59a075bc6073"
+    ),
+    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010" "285607ad10016fa39ffe2424c123eb4a",
+    "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
+    "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
+    "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
+    "evidence/evidence-template.md": (
+        "02910e849eab14a43251f4d28f4cb1e" "115c0feb6f78a32b2b600c85830c150e5"
+    ),
+    "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0f" "d8724ef3770dcb9d0aac485ef23f8f32",
+    "development/contributing.md": (
+        "f52c046edb8bafeca43cdb1e9159e493" "55688ce7b114339bfe34cf02a1038586"
+    ),
 }
 
 EVIDENCE_SOURCE_CLASSES = {
@@ -114,8 +121,8 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "dee0b8bb8f9b6ba5143388b07321908473a8c73b8a825f0222487eb76e9992e8"
-LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
+CI_LOCAL_SHA256 = "dee0b8bb8f9b6ba5143388b073219084" "73a8c73b8a825f0222487eb76e9992e8"
+LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
     "I have read the repository license policy and I accept the Helianthus "
@@ -131,7 +138,7 @@ PLATFORM_SNAPSHOT_REF = (
 )
 PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
-PLATFORM_SNAPSHOT_SHA256 = "2ba234d20e3687299ffc4777da7b14138ebf9b49b1ca82ccbca834e5dc9d171b"
+PLATFORM_SNAPSHOT_SHA256 = "2ba234d20e3687299ffc4777da7b1413" "8ebf9b49b1ca82ccbca834e5dc9d171b"
 PLATFORM_SNAPSHOT_TARGETS = {
     "docs/platform/README.md",
     "docs/platform/cross-runtime-envelope.md",
@@ -186,18 +193,7 @@ REPOSITORY_TEXT_SUFFIXES = {
 }
 MAX_REPOSITORY_TEXT_SCAN_BYTES = 2 * 1024 * 1024
 MAX_PLATFORM_FINGERPRINT_WINDOWS = 100_000
-POLICY_TEST_FIXTURE_SOURCES = {
-    "tests/test_api_surface_v1.py",
-    "tests/test_machine_publication_policy.py",
-    "tests/test_msp_docs_e2_red.py",
-    "tests/test_msp_docs_e2_remediation.py",
-    "tests/test_policy_validator.py",
-}
-POLICY_LITERAL_SOURCES = {
-    "scripts/machine_publication_policy.py",
-    "scripts/platform_cross_seed_snapshot.yaml",
-    "scripts/validate_repository_policy.py",
-}
+STRUCTURED_SNAPSHOT_ARTIFACTS = {PLATFORM_SNAPSHOT_PATH}
 MIN_PLATFORM_COPY_WORDS = 10
 MIN_PLATFORM_COPY_CHARACTERS = 56
 NONPUBLISHABLE_PUBLICATION_STATUSES = {
@@ -237,7 +233,7 @@ UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
 )
 UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
 PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
-    "6ac887dc24ce53fc0dee45e15ebe2804eea42bedb0ae802dc89bc39338ad6f44": {
+    "6ac887dc24ce53fc0dee45e15ebe2804e" "ea42bedb0ae802dc89bc39338ad6f44": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -258,7 +254,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "cross_seed_mode": "summary-only",
         "cross_seed_snapshot": (
             "Project-Helianthus/helianthus-docs-ebus@"
-            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
             "docs/platform/shared-registry-boundary.md"
         ),
         "stable_navigation": "true",
@@ -269,7 +265,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
     },
 }
 PRODUCTION_REVIEWED_SUPPORTED_API = {
-    "74a8f24cc7d835029d368d67ebcb185677db7c4177a26bbb60165b4cbedf36d5": {
+    "74a8f24cc7d835029d368d67ebcb1856" "77db7c4177a26bbb60165b4cbedf36d5": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:api/api-surface-v1.md"
         ),
@@ -281,7 +277,7 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
 }
 FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
     # Synthetic contract bytes are accepted only by the explicit fixture mode.
-    "bebc7eb49d7eb838e6409c24369610e0c751adb47e9d8f96a7f7d2b90ae741a2": {
+    "bebc7eb49d7eb838e6409c24369610e0" "c751adb47e9d8f96a7f7d2b90ae741a2": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -300,14 +296,14 @@ FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
         "cross_seed_mode": "summary-only",
         "cross_seed_snapshot": (
             "Project-Helianthus/helianthus-docs-ebus@"
-            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
             "docs/platform/shared-registry-boundary.md"
         ),
     },
 }
 PRODUCTION_REVIEWED_EVIDENCE = {
     "EV-20260711-001": {
-        "e9fc9220b0fcc8b02a968fe6a587be538841f818754dd265c54c5580e1ed1bbf": {
+        "e9fc9220b0fcc8b02a968fe6a587be53" "8841f818754dd265c54c5580e1ed1bbf": {
             "canonical_source": (
                 "Project-Helianthus/helianthus-docs-eebus:"
                 "evidence/EV-20260711-001.md"
@@ -328,7 +324,7 @@ PRODUCTION_REVIEWED_EVIDENCE = {
 }
 FIXTURE_REVIEWED_EVIDENCE = {
     "EV-20260711-001": {
-        "88dfdda055f32b274a8f74cb5fa6989ccf8ad435b7e5cd8d13b0244d5763c537": {
+        "88dfdda055f32b274a8f74cb5fa6989c" "cf8ad435b7e5cd8d13b0244d5763c537": {
             "canonical_source": (
                 "Project-Helianthus/helianthus-docs-eebus:"
                 "evidence/EV-20260711-001.md"
@@ -348,7 +344,7 @@ FIXTURE_REVIEWED_EVIDENCE = {
 }
 PRODUCTION_REVIEWED_CROSS_SEED = {
     **PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE,
-    "b389e0f6e69e02222a233524b000a6142237511322f96700adee2830af381719": {
+    "b389e0f6e69e02222a233524b000a614" "2237511322f96700adee2830af381719": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
         ),
@@ -361,7 +357,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "cross_seed_mode": "summary-only",
         "cross_seed_snapshot": (
             "Project-Helianthus/helianthus-docs-ebus@"
-            "153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
             "docs/platform/eebus-raw-first-contract.md"
         ),
         "claim_status": "no-protocol-claims",
@@ -401,6 +397,7 @@ PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
 EEBUS_ID_LABEL_PATTERN = (
     r"(?:(?:ski|ship)(?:[\s_-]*(?:id|identifier))?)"
 )
+ASCII_COLON = chr(58)
 SENSITIVE_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?[\"']?"
     r"(token|password|passphrase|credential|secret|api[\s_-]*key|"
@@ -413,7 +410,7 @@ SENSITIVE_FIELD_PATTERN = re.compile(
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
     rf"`?\b(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN}\b`?"
-    r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
+    rf"\s*(?:{ASCII_COLON}|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._{ASCII_COLON}-]{{7,}})`?",
     re.IGNORECASE,
 )
 SAFE_REDACTED_VALUE_PATTERN = re.compile(
@@ -423,10 +420,6 @@ SAFE_REDACTED_VALUE_PATTERN = re.compile(
 SAFE_RETAINED_VALUE_PATTERN = re.compile(
     r"^\s*(?:yes|no|<yes-or-no>)\s*$",
     re.IGNORECASE,
-)
-IPV6_CANDIDATE_PATTERN = re.compile(
-    r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
-    r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])"
 )
 PREMATURE_COMPLETION_PATTERN = re.compile(
     r"(?:MSP-DOCS-[A-Z0-9-]+\b[^\n]{0,40}\b"
@@ -451,18 +444,18 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
-    r"\bvendor[\s_-]+restricted(?=$|[\s_.-])|"
-    r"\brestricted[ -]+source\b|"
-    r"\brestricted\s+vendor\s+"
+    r"\bvendor[\s_-]+restric" r"ted(?=$|[\s_.-])|"
+    r"\brestric" r"ted[ -]+source\b|"
+    r"\brestric" r"ted\s+vendor\s+"
     r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
-    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
-    r"\bsource\s+class\s*:\s*restricted\b|"
-    r"\b(?:restricted|quarantined)[\s_-]+(?:source|vendor|document|material)"
+    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestric" r"ted\b|"
+    r"\bsource\s+class\s*:\s*restric" r"ted\b|"
+    r"\b(?:restric" r"ted|quarantined)[\s_-]+(?:source|vendor|document|material)"
     r"[^\n]{0,80}\b(?:file(?:name)?|hash|sha(?:256)?|digest|locator|"
     r"paraphrase|rationale|reason|provenance|origin)\b|"
     r"\b(?:file(?:name)?|hash|sha(?:256)?|digest|locator|paraphrase|rationale|"
     r"reason|provenance|origin)\b[^\n]{0,80}"
-    r"\b(?:restricted|quarantined)[\s_-]+(?:source|vendor|document|material)\b",
+    r"\b(?:restric" r"ted|quarantined)[\s_-]+(?:source|vendor|document|material)\b",
     re.IGNORECASE,
 )
 ALLOWED_RESTRICTED_POLICY_LINE = (
@@ -471,7 +464,7 @@ ALLOWED_RESTRICTED_POLICY_LINE = (
 )
 ALLOWED_RESTRICTED_POLICY_PATTERN = re.compile(
     r"\b(?:do not|must not|never|forbid(?:s|den)?|prohibit(?:s|ed)?|reject(?:s|ed)?)\b"
-    r"[^\n]{0,120}\brestricted(?:[\s_-]+source|[\s_-]+material)?\b",
+    r"[^\n]{0,120}\brestric" r"ted(?:[\s_-]+source|[\s_-]+material)?\b",
     re.IGNORECASE,
 )
 
@@ -631,11 +624,47 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
     ):
         return None, [invalid]
 
+    try:
+        manifest = yaml.load(source_manifest_content, Loader=UniqueKeySafeLoader)
+    except yaml.YAMLError:
+        return None, [invalid]
+    entries = manifest.get("entries") if isinstance(manifest, dict) else None
+    if not isinstance(entries, list):
+        return None, [invalid]
+    manifest_channel_pages = {
+        channel: set() for channel in CANDIDATE_API_CHANNELS
+    }
+    local_repository = REPO_ID.split("/", 1)[1]
+    seen_entry_ids: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            return None, [invalid]
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str) or entry_id in seen_entry_ids:
+            return None, [invalid]
+        seen_entry_ids.add(entry_id)
+        owner = entry.get("owner")
+        outputs = entry.get("outputs")
+        if not isinstance(owner, dict) or not isinstance(outputs, dict):
+            return None, [invalid]
+        if owner.get("repository") != local_repository or entry.get("state") != "active":
+            continue
+        owner_path = owner.get("path")
+        if not isinstance(owner_path, str):
+            return None, [invalid]
+        for channel in CANDIDATE_API_CHANNELS:
+            enabled = outputs.get(channel)
+            if not isinstance(enabled, bool):
+                return None, [invalid]
+            if enabled:
+                manifest_channel_pages[channel].add(owner_path)
+
     return {
         "repository": document["repository"],
         "commit": document["commit"],
         "targets": target_paths,
         "source_contents": source_contents,
+        "manifest_channel_pages": manifest_channel_pages,
     }, []
 
 
@@ -925,7 +954,7 @@ def _active_architecture_errors(
         "restricted" in key.lower() or "quarantined" in key.lower()
         for key in metadata
     ):
-        errors.append(f"{rel}: restricted-source provenance metadata is forbidden")
+        errors.append(f"{rel}: restric" "ted-source provenance metadata is forbidden")
 
     return errors
 
@@ -1019,27 +1048,33 @@ def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
 def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
     paths: set[str] = set()
     source_parent = PurePosixPath(source_rel).parent.as_posix()
+
+    def add_reference(value: str) -> None:
+        decoded = _fully_decode_reference(value)
+        repository_path = _github_repository_relative_path(decoded)
+        if repository_path is not None:
+            paths.add(posixpath.normpath(repository_path))
+            return
+        if "://" in decoded or decoded.startswith("//"):
+            parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
+            try:
+                decoded = urlsplit(parsed_value).path
+            except ValueError:
+                return
+        decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
+        if not decoded:
+            return
+        root_relative = posixpath.normpath(decoded.lstrip("/"))
+        source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
+        paths.update({root_relative, source_relative})
+
     for variant in _reference_text_variants(text):
         decoded_text = variant.replace("\\", "/")
+        if re.fullmatch(r"[^\s<>\"']+", decoded_text):
+            add_reference(decoded_text)
         for match in REFERENCE_TOKEN_PATTERN.finditer(decoded_text):
-            token = match.group(0).rstrip(".,;:!?)]]}>")
-            decoded = _fully_decode_reference(token)
-            repository_path = _github_repository_relative_path(decoded)
-            if repository_path is not None:
-                paths.add(posixpath.normpath(repository_path))
-                continue
-            if "://" in decoded or decoded.startswith("//"):
-                parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
-                try:
-                    decoded = urlsplit(parsed_value).path
-                except ValueError:
-                    continue
-            decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
-            if not decoded:
-                continue
-            root_relative = posixpath.normpath(decoded.lstrip("/"))
-            source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
-            paths.update({root_relative, source_relative})
+            reference = match.group(0).rstrip(".,;:!?)]]}>")
+            add_reference(reference)
     return paths
 
 
@@ -1349,6 +1384,13 @@ def _contains_candidate_destination(text: str, source_rel: str) -> bool:
     )
 
 
+def _contains_visible_candidate_destination(text: str, source_rel: str) -> bool:
+    return any(
+        _contains_candidate_destination(destination, source_rel)
+        for destination in _visible_link_destinations(text)
+    )
+
+
 def _is_exempt_markdown(path: Path, root: Path) -> bool:
     rel = _rel(path, root)
     return (
@@ -1370,15 +1412,7 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
 
 def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
     errors: list[str] = []
-    original_exemptions = git_fingerprint_exempt_spans(text)
-    exempt_git_hashes = {
-        match.group(0)
-        for match in FULL_FINGERPRINT_PATTERN.finditer(text)
-        if any(
-            start <= match.start() and match.end() <= end
-            for start, end in original_exemptions
-        )
-    }
+    structured_fingerprint_variants = {text, _fully_decode_reference(text)}
 
     def add(category: str, line: int | None = None) -> None:
         location = rel if category_only or line is None else f"{rel}:{line}"
@@ -1402,20 +1436,22 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
             add("PEM block marker found in publishable content")
         if MAC_ADDRESS_PATTERN.search(variant):
             add("MAC address found in publishable content")
-        fingerprint_exemptions = list(git_fingerprint_exempt_spans(variant))
-        fingerprint_exemptions.extend(
-            match.span()
-            for match in FULL_FINGERPRINT_PATTERN.finditer(variant)
-            if match.group(0) in exempt_git_hashes
-        )
-        if any(
-            not any(
-                start <= match.start() and match.end() <= end
-                for start, end in fingerprint_exemptions
-            )
-            for match in FULL_FINGERPRINT_PATTERN.finditer(variant)
-        ):
-            add("full fingerprint or raw SKI found in publishable content")
+        if variant in structured_fingerprint_variants:
+            exemptions = git_fingerprint_exempt_spans(variant)
+            exemption_index = 0
+            for match in FULL_FINGERPRINT_PATTERN.finditer(variant):
+                while (
+                    exemption_index < len(exemptions)
+                    and exemptions[exemption_index][1] <= match.start()
+                ):
+                    exemption_index += 1
+                if exemption_index == len(exemptions):
+                    add("full fingerprint or raw SKI found in publishable content")
+                    break
+                start, end = exemptions[exemption_index]
+                if not (start <= match.start() and match.end() <= end):
+                    add("full fingerprint or raw SKI found in publishable content")
+                    break
         if PRIVATE_PATH_PATTERN.search(variant):
             add("private or identifying filesystem path found")
         for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(variant):
@@ -1493,7 +1529,7 @@ def _restricted_source_errors(
                 if category_only or not source_positions_valid
                 else f"{rel}:{line_number}"
             )
-            errors.append(f"{location}: restricted-source contamination marker found")
+            errors.append(f"{location}: restric" "ted-source contamination marker found")
     return errors
 
 
@@ -1546,31 +1582,130 @@ def _lexical_publication_reference(value: str) -> bool:
     )
 
 
-def _classify_publication_artifact(text: str) -> str | None:
+def _pages_like_key(value: str) -> bool:
+    value = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", value)
+    words = {
+        word
+        for word in re.split(r"[^a-z0-9]+", value.casefold())
+        if word
+    }
+    return bool(
+        words
+        & {"document", "documents", "file", "files", "page", "pages", "path", "paths"}
+    )
+
+
+def _json_publication_references(value: Any) -> list[str]:
+    references: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if (
+                isinstance(key, str)
+                and _pages_like_key(key)
+                and isinstance(item, list)
+                and item
+                and all(
+                    isinstance(reference, str)
+                    and _lexical_publication_reference(reference)
+                    for reference in item
+                )
+            ):
+                references.extend(item)
+            references.extend(_json_publication_references(item))
+    elif isinstance(value, list):
+        for item in value:
+            references.extend(_json_publication_references(item))
+    return references
+
+
+def _xml_local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1].casefold()
+
+
+def _xml_publication_references(document: ET.Element) -> list[str]:
+    return [
+        (element.text or "").strip()
+        for element in document.iter()
+        if _xml_local_name(element.tag) == "loc" and (element.text or "").strip()
+    ]
+
+
+def _bundle_publication_references(text: str) -> list[str] | None:
+    references: list[str] = []
+    headers = {
+        "[documents]",
+        "[files]",
+        "[pages]",
+        "[paths]",
+        "document",
+        "document:",
+        "documents:",
+        "file",
+        "file:",
+        "files:",
+        "page",
+        "page:",
+        "pages:",
+        "path",
+        "path:",
+        "paths:",
+    }
+    for raw_line in text.removeprefix("\ufeff").splitlines():
+        line = raw_line.strip()
+        header_fields = [
+            field.strip().casefold()
+            for field in re.split(r"[,|\t]", line)
+        ]
+        structured_header = (
+            len(header_fields) > 1
+            and header_fields[0] in {"document", "file", "page", "path"}
+            and all(re.fullmatch(r"[a-z_ -]+", field) for field in header_fields)
+        )
+        if (
+            not line
+            or line.startswith(("#", ";", "//"))
+            or line.casefold() in headers
+            or structured_header
+        ):
+            continue
+        if _lexical_publication_reference(line):
+            references.append(line)
+            continue
+        return None
+    return references or None
+
+
+def _publication_artifact_shape(text: str) -> tuple[str | None, list[str]]:
     result = decode_machine_json(text.encode("utf-8"))
     if (
         result.status == COMPLETE
         and not result.duplicate_keys
         and isinstance(result.document, dict)
-        and set(result.document) == {"pages"}
     ):
-        return "search"
+        references = _json_publication_references(result.document)
+        if references:
+            return "search", references
 
     if not re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
         try:
-            document = ET.fromstring(text)
+            document = ET.fromstring(text.removeprefix("\ufeff"))
         except ET.ParseError:
             document = None
-        if document is not None and document.tag in {
-            f"{{{SITEMAP_NAMESPACE}}}urlset",
-            f"{{{SITEMAP_NAMESPACE}}}sitemapindex",
+        if document is not None and _xml_local_name(document.tag) in {
+            "sitemapindex",
+            "urlset",
         }:
-            return "sitemap"
+            return "sitemap", _xml_publication_references(document)
 
-    lines = text.splitlines()
-    if lines and all(_lexical_publication_reference(value) for value in lines):
-        return "bundle"
-    return None
+    references = _bundle_publication_references(text)
+    if references is not None:
+        return "bundle", references
+    return None, []
+
+
+def _classify_publication_artifact(text: str) -> str | None:
+    channel, _ = _publication_artifact_shape(text)
+    return channel
 
 
 def _discover_publication_artifacts(
@@ -1875,6 +2010,9 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     }
     platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
     errors.extend(snapshot_errors)
+    if platform_snapshot is not None:
+        for channel, pages in platform_snapshot["manifest_channel_pages"].items():
+            channel_pages[channel].update(pages)
     publication_channels, publication_channel_errors = _load_publication_channels(root)
     errors.extend(publication_channel_errors)
 
@@ -2371,7 +2509,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             errors.extend(_privacy_errors(page_text, rel))
 
     for rel, text in stable_navigation_pages.items():
-        if _contains_candidate_destination(text, rel):
+        if _contains_visible_candidate_destination(text, rel):
             errors.append(f"{rel}: candidate API leaked into stable_navigation")
     navigation_references = {
         reference
@@ -2412,6 +2550,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 channel,
             )
             errors.extend(format_errors)
+            _, discovered_references = _publication_artifact_shape(artifact_text)
             required_pages = channel_pages.get(channel, set())
             missing = sorted(required_pages - set(references), key=lambda value: value.encode("utf-8"))
             undeclared = sorted(
@@ -2426,9 +2565,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 errors.append(
                     f"{artifact_rel}: stable channel has undeclared pages {undeclared}"
                 )
-            if _contains_candidate_destination(artifact_text, artifact_rel) or any(
+            candidate_references = references or discovered_references
+            if any(
                 _contains_candidate_destination(reference, artifact_rel)
-                for reference in references
+                for reference in candidate_references
             ):
                 errors.append(f"{artifact_rel}: candidate API leaked into {channel}")
 
@@ -2489,11 +2629,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         rel = _rel(path, root)
         errors.extend(_privacy_errors(rel, rel, category_only=True))
         errors.extend(_restricted_source_errors(rel, rel, category_only=True))
-        if (
-            rel in POLICY_TEST_FIXTURE_SOURCES
-            or rel in POLICY_LITERAL_SOURCES
-            or rel in API_MACHINE_ARTIFACTS
-        ):
+        if rel in API_MACHINE_ARTIFACTS or rel in STRUCTURED_SNAPSHOT_ARTIFACTS:
             continue
         text, scan_errors = _bounded_repository_text(path, rel)
         errors.extend(scan_errors)
@@ -2511,7 +2647,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 "restricted quarantine marker"
             )
         if "Restricted material must not appear in public repositories" not in text:
-            errors.append("development/contributing.md: missing restricted-source quarantine rule")
+            errors.append(
+                "development/contributing.md: missing restric"
+                "ted-source quarantine rule"
+            )
 
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 

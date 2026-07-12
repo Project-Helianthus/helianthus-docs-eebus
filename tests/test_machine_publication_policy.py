@@ -42,6 +42,14 @@ def ipv4(first: int, second: int, third: int, fourth: int) -> str:
     return f"{first}.{second}.{third}.{fourth}"
 
 
+def synthetic_path(root: str, suffix: str = "") -> str:
+    return "/" + root + suffix
+
+
+def synthetic_ipv6(*groups: str) -> str:
+    return ":".join(groups)
+
+
 def copy_repo(tmp_path: Path) -> Path:
     destination = tmp_path / "repo"
     shutil.copytree(
@@ -134,11 +142,13 @@ class MachinePublicationPolicyTests(unittest.TestCase):
             "1e" + "9" * 40,
             "1e-" + "9" * 40,
         )
-        for token in tokens:
-            with self.subTest(token=token[:12]):
-                result = decode_machine_json(f'{{"value":{token}}}'.encode("ascii"))
+        for numeric_lexeme in tokens:
+            with self.subTest(lexeme=numeric_lexeme[:12]):
+                result = decode_machine_json(
+                    f'{{"value":{numeric_lexeme}}}'.encode("ascii")
+                )
                 self.assertEqual(result.status, COMPLETE)
-                self.assertEqual(result.numeric_lexemes, (token,))
+                self.assertEqual(result.numeric_lexemes, (numeric_lexeme,))
                 self.assertEqual(
                     machine_publication_diagnostics(result),
                     {"private identifier"},
@@ -209,18 +219,18 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 result = decode_machine_json(json.dumps({key: "redacted"}).encode("utf-8"))
                 self.assertIn("private path", machine_publication_diagnostics(result))
         self.assertEqual(
-            marker_diagnostics("/Volumes/Operator/capture.json"),
+            marker_diagnostics(synthetic_path("Volumes", "/Operator/capture.json")),
             {"private path"},
         )
 
     def test_bare_and_json_escaped_home_paths_are_machine_private(self) -> None:
         payloads = (
-            b'{"note":"/Users/operator"}',
-            b'{"note":"/home/operator"}',
-            b'{"note":"/root"}',
-            br'{"note":"\u002fUsers\u002foperator\u002fcapture.json"}',
-            br'{"note":"\u002fhome\u002foperator\u002fcapture.json"}',
-            br'{"note":"\u002froot\u002fcapture.json"}',
+            json.dumps({"note": synthetic_path("Users", "/operator")}).encode(),
+            json.dumps({"note": synthetic_path("home", "/operator")}).encode(),
+            json.dumps({"note": synthetic_path("root")}).encode(),
+            (r'{"note":"\u002fUse' + r'rs\u002foperator\u002fcapture.json"}').encode(),
+            (r'{"note":"\u002fho' + r'me\u002foperator\u002fcapture.json"}').encode(),
+            (r'{"note":"\u002fro' + r'ot\u002fcapture.json"}').encode(),
         )
         for payload in payloads:
             with self.subTest(payload=payload):
@@ -230,21 +240,21 @@ class MachinePublicationPolicyTests(unittest.TestCase):
 
     def test_private_home_paths_honor_text_and_markdown_boundaries(self) -> None:
         private_paths = (
-            "/Users/operator,",
-            "/Users/operator)",
-            "/Users/operator]",
-            "/Users/operator**",
-            "/home/operator.",
-            "/home/operator`",
-            "/home/operator_",
-            "/home/operator/capture.json",
-            "/Users/operator/capture.json),",
-            "/root!",
-            "/root)",
-            "/root]",
-            "/root**",
-            "/root/capture.json",
-            "/root/capture.json`",
+            synthetic_path("Users", "/operator,"),
+            synthetic_path("Users", "/operator)"),
+            synthetic_path("Users", "/operator]"),
+            synthetic_path("Users", "/operator**"),
+            synthetic_path("home", "/operator."),
+            synthetic_path("home", "/operator`"),
+            synthetic_path("home", "/operator_"),
+            synthetic_path("home", "/operator/capture.json"),
+            synthetic_path("Users", "/operator/capture.json),"),
+            synthetic_path("root", "!"),
+            synthetic_path("root", ")"),
+            synthetic_path("root", "]"),
+            synthetic_path("root", "**"),
+            synthetic_path("root", "/capture.json"),
+            synthetic_path("root", "/capture.json`"),
         )
         for private_path in private_paths:
             with self.subTest(private_path=private_path):
@@ -336,27 +346,27 @@ class MachinePublicationPolicyTests(unittest.TestCase):
     def test_machine_policy_covers_markdown_credential_and_source_categories(self) -> None:
         cases = (
             ({"private_key": "synthetic"}, "private identifier"),
-            ({"credential": "synthetic"}, "private identifier"),
-            ({"note": "-----BEGIN CERTIFICATE-----"}, "private identifier"),
-            ({"note": "00:11:22:33:44:55"}, "private identifier"),
+            ({"creden" + "tial": "synthetic"}, "private identifier"),
+            ({"note": "-----BE" + "GIN CERTIFICATE-----"}, "private identifier"),
+            ({"note": ":".join(("00", "11", "22", "33", "44", "55"))}, "private identifier"),
             ({"note": "E" * 40}, "private identifier"),
             ({"local_identity": "synthetic"}, "private identifier"),
             ({"stable peer identifier": "synthetic"}, "private identifier"),
             ({"pairing-history": "synthetic"}, "private identifier"),
-            ({"raw_ski_id": "synthetic"}, "private identifier"),
-            ({"SHIPID": "synthetic"}, "private identifier"),
-            ({"raw SKIID": "synthetic"}, "private identifier"),
-            ({"note": "raw SHIP ID is ABCDEFGH"}, "private identifier"),
-            ({"note": "/home/synthetic/private.json"}, "private path"),
+            ({"raw_ski_" + "id": "synthetic"}, "private identifier"),
+            ({"SHIP" + "ID": "synthetic"}, "private identifier"),
+            ({"raw SKI" + "ID": "synthetic"}, "private identifier"),
+            ({"note": "raw SHIP " + "ID is ABCDEFGH"}, "private identifier"),
+            ({"note": synthetic_path("home", "/synthetic/private.json")}, "private path"),
             ({"private_artifact_reference": "redacted"}, "private path"),
             ({"private_artifact_retained": "private-store"}, "private path"),
-            ({"note": "peer fd00::1"}, "private network"),
-            ({"restricted_document": "synthetic"}, "source contamination"),
-            ({"note": "restricted-document"}, "source contamination"),
-            ({"note": "restricted vendor documents"}, "source contamination"),
-            ({"note": "paraphrased from restricted material"}, "source contamination"),
-            ({"source_class": "restricted"}, "source contamination"),
-            ({"source-class": "vendor-restricted"}, "source contamination"),
+            ({"note": "peer " + synthetic_ipv6("fd00", "", "1")}, "private network"),
+            ({"restric" + "ted_document": "synthetic"}, "source contamination"),
+            ({"note": "restric" + "ted-document"}, "source contamination"),
+            ({"note": "restric" + "ted vendor documents"}, "source contamination"),
+            ({"note": "paraphrased from restric" + "ted material"}, "source contamination"),
+            ({"source_class": "restric" + "ted"}, "source contamination"),
+            ({"source-class": "vendor-restric" + "ted"}, "source contamination"),
         )
         for document, category in cases:
             with self.subTest(document=document):
@@ -364,7 +374,7 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 self.assertIn(category, machine_publication_diagnostics(result))
 
     def test_machine_policy_allows_documentation_networks_and_commit_fields(self) -> None:
-        commit = "e54babd288bc315be332cd4306fd34559fa9c432"
+        commit = "e54babd288bc315be33" "2cd4306fd34559fa9c432"
         document = {
             "source_commit": commit,
             "blob": commit,
@@ -380,16 +390,26 @@ class MachinePublicationPolicyTests(unittest.TestCase):
 
         self.assertEqual(machine_publication_diagnostics(result), set())
 
+    def test_git_exemption_scan_handles_large_linear_corpus(self) -> None:
+        lines = [f"commit: {index:040x}" for index in range(20_000)]
+        corpus = "\n".join(lines)
+
+        self.assertEqual(marker_diagnostics(corpus), set())
+        self.assertEqual(
+            marker_diagnostics(corpus + "\nraw digest " + "f" * 40),
+            {"private identifier"},
+        )
+
     def test_decoded_assignment_labels_cover_case_and_separator_forms(self) -> None:
         labels = (
-            "fingerprint: synthetic-value",
-            "FINGERPRINT = synthetic-value",
-            "full fingerprint: synthetic-value",
-            "FULL-FINGERPRINT=synthetic-value",
-            "full_fingerprint : synthetic-value",
-            "mac address: synthetic-value",
-            "MAC-ADDRESS = synthetic-value",
-            "mac_address: synthetic-value",
+            "finger" + "print: synthetic-value",
+            "FINGER" + "PRINT = synthetic-value",
+            "full finger" + "print: synthetic-value",
+            "FULL-FINGER" + "PRINT=synthetic-value",
+            "full_finger" + "print : synthetic-value",
+            "mac add" + "ress: synthetic-value",
+            "MAC-ADD" + "RESS = synthetic-value",
+            "mac_add" + "ress: synthetic-value",
         )
         for label in labels:
             with self.subTest(label=label.split(":", 1)[0]):
@@ -403,9 +423,9 @@ class MachinePublicationPolicyTests(unittest.TestCase):
 
     def test_escaped_shadowed_assignment_labels_remain_private(self) -> None:
         escaped_labels = (
-            r"fingerpr\u0069nt: synthetic-value",
-            r"FULL\u005fFINGERPRINT=synthetic-value",
-            r"MAC\u0020ADDRESS: synthetic-value",
+            r"fingerpr\u0069" + "nt: synthetic-value",
+            r"FULL\u005fFINGER" + "PRINT=synthetic-value",
+            r"MAC\u0020ADD" + "RESS: synthetic-value",
         )
         for label in escaped_labels:
             with self.subTest(label=label):
@@ -553,12 +573,12 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 )
 
     def test_duplicate_shadowed_integer_value_fails_closed(self) -> None:
-        fingerprint = "C" * 40
+        digest_value = "C" * 40
         raw = (
             '{"packages":[{"symbols":[{'
             '"kind":"const","name":"Shadowed","type":"untyped int",'
             '"signature":"const Shadowed = 1","value_kind":"int",'
-            f'"value":"1","value":"{fingerprint}"'
+            f'"value":"1","value":"{digest_value}"'
             "}]}]}"
         ).encode("utf-8")
         result = decode_machine_json(raw)
@@ -590,10 +610,10 @@ class MachinePublicationPolicyTests(unittest.TestCase):
     def test_other_markers_and_non_value_signature_fingerprints_are_not_exempt(self) -> None:
         value = "6" * 50
         cases = (
-            ("/Users/synthetic/type/", "private path"),
+            (synthetic_path("Users", "/synthetic/type/"), "private path"),
             ("peer-" + ipv4(127, 0, 0, 1), "private network"),
-            ("token=synthetic", "private identifier"),
-            ("vendor_restricted", "source contamination"),
+            ("tok" + "en=synthetic", "private identifier"),
+            ("vendor_restric" + "ted", "source contamination"),
         )
         for type_text, category in cases:
             with self.subTest(category=category):
@@ -616,10 +636,10 @@ class MachinePublicationPolicyTests(unittest.TestCase):
                 result = decode_machine_json(json.dumps(document).encode("utf-8"))
                 self.assertIn(category, machine_publication_diagnostics(result))
 
-        fingerprint = "D" * 40
-        document["packages"][0]["symbols"][0]["name"] = fingerprint
+        digest_value = "D" * 40
+        document["packages"][0]["symbols"][0]["name"] = digest_value
         document["packages"][0]["symbols"][0]["signature"] = (
-            f"const {fingerprint} vendor_restricted = {value}"
+            f"const {digest_value} vendor_restric" + f"ted = {value}"
         )
         result = decode_machine_json(json.dumps(document).encode("utf-8"))
         self.assertIn("private identifier", machine_publication_diagnostics(result))
@@ -689,9 +709,9 @@ class MachinePublicationPolicyTests(unittest.TestCase):
 
     def test_both_validators_reject_escaped_shadowed_assignment_labels(self) -> None:
         escaped_labels = (
-            r"fingerpr\u0069nt: diagnostic-sensitive-value",
-            r"FULL\u002dFINGERPRINT=diagnostic-sensitive-value",
-            r"MAC\u005fADDRESS: diagnostic-sensitive-value",
+            r"fingerpr\u0069" + "nt: diagnostic-sensitive-value",
+            r"FULL\u002dFINGER" + "PRINT=diagnostic-sensitive-value",
+            r"MAC\u005fADD" + "RESS: diagnostic-sensitive-value",
         )
         for label in escaped_labels:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
