@@ -33,6 +33,7 @@ SCHEMA_REL = Path("api/schema/helianthus.eebus.api-surface.v1.schema.json")
 POSITIVE_REL = Path("api/fixtures/v1/positive")
 NEGATIVE_REL = Path("api/fixtures/v1/negative")
 SCHEMA_SHA256 = "45a2adf50298870974e11c321d7a3d76bb98caa694e780cbab460320401dad83"
+MAX_MACHINE_JSON_BYTES = 2 * 1024 * 1024
 
 SYMBOL_KINDS = {"const", "func", "method", "type", "var"}
 VALUE_KINDS = {"bool", "string", "int", "float", "complex"}
@@ -942,9 +943,18 @@ def _load_machine_json(
     allow_malformed_sentinel: bool = False,
 ) -> tuple[MachineJSONResult | None, bytes | None, set[str]]:
     try:
-        raw = path.read_bytes()
+        size = path.stat().st_size
     except OSError:
         return None, None, {"missing regular artifact"}
+    if size > MAX_MACHINE_JSON_BYTES:
+        return None, None, {"artifact exceeds size limit"}
+    try:
+        with path.open("rb") as stream:
+            raw = stream.read(MAX_MACHINE_JSON_BYTES + 1)
+    except OSError:
+        return None, None, {"missing regular artifact"}
+    if len(raw) > MAX_MACHINE_JSON_BYTES:
+        return None, None, {"artifact exceeds size limit"}
     result = decode_machine_json(
         raw,
         allow_malformed_sentinel=allow_malformed_sentinel,

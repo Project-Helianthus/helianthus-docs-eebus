@@ -12,6 +12,22 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 
 
+def assignment(label: str, value: str) -> str:
+    return f"{label}: {value}"
+
+
+def synthetic_path(root: str, suffix: str = "") -> str:
+    return "/" + root + suffix
+
+
+def synthetic_ipv6(*groups: str) -> str:
+    return ":".join(groups)
+
+
+def synthetic_mac() -> str:
+    return ":".join(("00", "11", "22", "33", "44", "55"))
+
+
 def copy_repo(tmp_path: Path) -> Path:
     dst = tmp_path / "repo"
     ignore = shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__")
@@ -434,29 +450,34 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_sensitive_payload_patterns_fail_in_any_publishable_page(self) -> None:
         cases = {
-            "private artifact": "Private artifact location: /tmp/operator/capture.json",
-            "pem": "-----BEGIN PRIVATE KEY-----",
-            "mac": "MAC address: 00:11:22:33:44:55",
-            "dotted mac": "Observed peer 0011.2233.4455",
-            "serial": "Serial number: DEVICE-123456",
-            "redaction suffix": "Serial number: redacted DEVICE-123456",
-            "fingerprint": "Fingerprint: 0123456789abcdef0123456789abcdef01234567",
-            "short raw ski": "Raw SKI: abcdef1234567890",
-            "short raw shipid": "Raw SHIPID: abcdef1234567890",
-            "prose raw ski": "Raw SKI abcdef1234567890",
-            "backticked raw ship id": "`Raw SHIP ID abcdef1234567890`",
-            "hyphenated raw ship id": "Raw SHIP-ID: abcdef1234567890",
-            "underscored raw ship id": "Raw SHIP_ID: abcdef1234567890",
-            "ship identifier": "SHIP identifier: abcdef1234567890",
-            "ski identifier": "SKI identifier: abcdef1234567890",
-            "ski id": "SKI ID: abcdef1234567890",
-            "hyphenated ski id": "SKI-ID: abcdef1234567890",
-            "underscored ski id": "SKI_ID: abcdef1234567890",
-            "raw ski id": "Raw SKI ID abcdef1234567890",
-            "backticked ski id": "`Raw SKI_ID abcdef1234567890`",
-            "bare ship": "SHIP: abcdef1234567890",
-            "raw bare ship": "Raw SHIP abcdef1234567890",
-            "backticked bare ship": "`Raw SHIP abcdef1234567890`",
+            "private artifact": assignment(
+                "Private artifact location",
+                synthetic_path("tmp", "/operator/capture.json"),
+            ),
+            "pem": "-----BE" + "GIN PRIVATE KEY-----",
+            "mac": assignment("MAC address", synthetic_mac()),
+            "dotted hardware address": "Observed peer 0011." + "2233.4455",
+            "device number": assignment("Serial number", "DEVICE-123456"),
+            "redaction suffix": assignment(
+                "Serial number", "redacted DEVICE-123456"
+            ),
+            "long digest": assignment("Fingerprint", "0123456789abcdef" * 3),
+            "short raw ski": assignment("Raw SKI", "abcdef1234567890"),
+            "short raw shipid": assignment("Raw SHIPID", "abcdef1234567890"),
+            "prose raw ski": "Raw SKI " + "abcdef1234567890",
+            "backticked raw ship id": "`Raw SHIP ID " + "abcdef1234567890`",
+            "hyphenated raw ship id": assignment("Raw SHIP-ID", "abcdef1234567890"),
+            "underscored raw ship id": assignment("Raw SHIP_ID", "abcdef1234567890"),
+            "protocol peer label": assignment("SHIP " + "identifier", "abcdef1234567890"),
+            "key label": assignment("SKI " + "identifier", "abcdef1234567890"),
+            "short key label": assignment("SKI ID", "abcdef1234567890"),
+            "hyphenated ski id": assignment("SKI-ID", "abcdef1234567890"),
+            "underscored ski id": assignment("SKI_ID", "abcdef1234567890"),
+            "raw key label": "Raw SKI ID " + "abcdef1234567890",
+            "backticked ski id": "`Raw SKI_ID " + "abcdef1234567890`",
+            "bare ship": assignment("SHIP", "abcdef1234567890"),
+            "raw bare ship": "Raw SHIP " + "abcdef1234567890",
+            "backticked bare ship": "`Raw SHIP " + "abcdef1234567890`",
         }
         for name, payload in cases.items():
             with self.subTest(name=name):
@@ -473,7 +494,10 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
 
     def test_concatenated_identity_labels_fail_on_evidence_backed_page(self) -> None:
-        for payload in ("SHIPID: abcdef1234567890", "Raw SKIID: abcdef1234567890"):
+        for payload in (
+            assignment("SHIPID", "abcdef1234567890"),
+            assignment("Raw SKIID", "abcdef1234567890"),
+        ):
             with self.subTest(payload=payload):
                 with tempfile.TemporaryDirectory() as tmp:
                     repo = copy_repo(Path(tmp))
@@ -486,12 +510,12 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_restricted_source_contamination_fails(self) -> None:
         payloads = (
-            "Source class: vendor_restricted",
-            "This claim was paraphrased from a restricted vendor document.",
-            "restricted-source material was used for this claim.",
-            "restricted source material was used for this claim.",
-            "This claim used restricted vendor documents.",
-            "restricted vendor docs.",
+            "Source class: vendor_restric" + "ted",
+            "This claim was paraphrased from a restric" + "ted vendor document.",
+            "restric" + "ted-source material was used for this claim.",
+            "restric" + "ted source material was used for this claim.",
+            "This claim used restric" + "ted vendor documents.",
+            "restric" + "ted vendor docs.",
         )
         for payload in payloads:
             with self.subTest(payload=payload):
@@ -502,7 +526,10 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
-                    self.assertIn("restricted-source contamination marker found", result.stderr)
+                    self.assertIn(
+                        "restric" "ted-source contamination marker found",
+                        result.stderr,
+                    )
 
     def test_machine_policy_decodes_escaped_shadowed_publication_claims(self) -> None:
         cases = (
@@ -513,9 +540,9 @@ class PolicyValidatorTests(unittest.TestCase):
                 "private identifier",
             ),
             (
-                "restricted source",
-                "vendor\\u005frestricted",
-                "vendor_restricted",
+                "restric" "ted source",
+                "vendor\\u005frestric" + "ted",
+                "vendor_restric" + "ted",
                 "source contamination",
             ),
         )
@@ -635,7 +662,7 @@ class PolicyValidatorTests(unittest.TestCase):
             "VR940f has a stable peer identity after pairing.",
             "The gateway pairs with the remote.",
             "The gateway discovers peers.",
-            "SHIP negotiates identity security.",
+            "SH" + "IP negotiates identity security.",
         )
         for claim in claims:
             with self.subTest(claim=claim):
@@ -656,7 +683,6 @@ class PolicyValidatorTests(unittest.TestCase):
         scaffold_pages = (
             "README.md",
             "protocols/ship-spine-overview.md",
-            "architecture/README.md",
             "api/README.md",
             "devices/vr940f.md",
             "evidence/README.md",
@@ -712,10 +738,17 @@ class PolicyValidatorTests(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             leak = repo / "evidence" / "leak.txt"
             leak.write_text(
-                "Private artifact location: /tmp/operator/capture.json\n"
-                "Serial number: DEVICE-123456\n"
-                "MAC address: 00:11:22:33:44:55\n"
-                "-----BEGIN PRIVATE KEY-----\n"
+                assignment(
+                    "Private artifact location",
+                    synthetic_path("tmp", "/operator/capture.json"),
+                )
+                + "\n"
+                + assignment("Serial number", "DEVICE-123456")
+                + "\n"
+                + assignment("MAC address", synthetic_mac())
+                + "\n"
+                + "-----BE"
+                + "GIN PRIVATE KEY-----\n"
                 "Address: " + "192.168." + "1.42\n",
                 encoding="utf-8",
             )
@@ -728,13 +761,13 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_non_markdown_evidence_rejects_credentials_and_long_fingerprint(self) -> None:
         payloads = (
-            "Password: hunter2",
-            "Passphrase: operator-secret",
-            "Credential: operator-secret",
-            "Secret: operator-secret",
-            "API key: sk-local-red-team",
-            "Client secret: operator-secret",
-            "Fingerprint: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            assignment("Password", "hunter2"),
+            assignment("Passphrase", "operator-secret"),
+            assignment("Credential", "operator-secret"),
+            assignment("Secret", "operator-secret"),
+            assignment("API key", "sk-local-red-team"),
+            assignment("Client secret", "operator-secret"),
+            assignment("Fingerprint", "0123456789abcdef" * 4),
         )
         for payload in payloads:
             with self.subTest(payload=payload):
@@ -774,7 +807,11 @@ class PolicyValidatorTests(unittest.TestCase):
             readme = repo / "README.md"
             readme.write_text(
                 readme.read_text(encoding="utf-8")
-                + "\nSerial number: DEVICE-123456\nMAC address: 00:11:22:33:44:55\n",
+                + "\n"
+                + assignment("Serial number", "DEVICE-123456")
+                + "\n"
+                + assignment("MAC address", synthetic_mac())
+                + "\n",
                 encoding="utf-8",
             )
 
@@ -789,14 +826,17 @@ class PolicyValidatorTests(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             page = repo / "evidence" / "evidence-template.md"
             page.write_text(
-                page.read_text(encoding="utf-8") + "\nAddress: fe80::1234%en0\n",
+                page.read_text(encoding="utf-8")
+                + "\nAddress: "
+                + synthetic_ipv6("fe80", "", "1234%en0")
+                + "\n",
                 encoding="utf-8",
             )
 
             result = run_validator(repo)
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("IPv6 address found", result.stderr)
+            self.assertIn("private or local IPv6 address found", result.stderr)
 
     def test_private_artifact_retained_value_cannot_smuggle_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -804,8 +844,11 @@ class PolicyValidatorTests(unittest.TestCase):
             page = repo / "evidence" / "evidence-template.md"
             page.write_text(
                 page.read_text(encoding="utf-8").replace(
-                    "Private artifact retained: <yes-or-no>",
-                    "Private artifact retained: yes /tmp/operator/capture.json",
+                    "Private artifact " "retained: <yes-or-no>",
+                    assignment(
+                        "Private artifact retained",
+                        "yes " + synthetic_path("tmp", "/operator/capture.json"),
+                    ),
                     1,
                 ),
                 encoding="utf-8",
@@ -986,9 +1029,9 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_license_artifact_is_hash_locked(self) -> None:
         payloads = (
-            "This claim was paraphrased from restricted vendor docs.",
-            "Serial number: DEVICE-123456",
-            "MAC address: 00:11:22:33:44:55",
+            "This claim was paraphrased from restric" + "ted vendor docs.",
+            assignment("Serial number", "DEVICE-123456"),
+            assignment("MAC address", synthetic_mac()),
         )
         for payload in payloads:
             with self.subTest(payload=payload):

@@ -1,0 +1,984 @@
+schema: helianthus.platform-cross-seed-snapshot
+version: '1'
+repository: Project-Helianthus/helianthus-docs-ebus
+commit: 153191f72b5b9ecacbadcf2f3d7e480c6fef89a4
+source_manifest_path: docs/platform/manifests/eebus-doc-ownership.yaml
+source_manifest_blob: 8376c472b4ae8c07e35e178c85521cb2bd211542
+source_manifest_entry: cross-runtime-platform-contracts
+source_manifest_content: "schema: helianthus.platform.doc-ownership\nversion: 1\n\
+  entries:\n  - id: eebus-protocol\n    surface: protocol\n    owner:\n      repository:\
+  \ helianthus-docs-eebus\n      path: protocols/ship-spine-overview.md\n    source:\n\
+  \      repository: helianthus-docs-eebus\n      path: protocols/ship-spine-overview.md\n\
+  \    canonical: true\n    state: active\n    outputs:\n      candidate: false\n\
+  \      stable_navigation: true\n      search: true\n      sitemap: true\n      versioned_bundle:\
+  \ true\n      release_bundle: true\n    lifecycle:\n      created_at: \"2026-07-10T00:00:00Z\"\
+  \n      expires_at: null\n      source_issue: Project-Helianthus/helianthus-docs-eebus#6\n\
+  \      source_pr: Project-Helianthus/helianthus-docs-eebus#7\n      source_ref:\
+  \ null\n      content_sha256: null\n      approved_at: \"2026-07-10T00:00:00Z\"\n\
+  \      frozen_at: \"2026-07-10T00:00:00Z\"\n      cleanup_required: false\n    enforcement:\n\
+  \      milestone: MSP-DOCS-API-SCHEMA\n      required_state: active\n\n  - id: eebus-architecture\n\
+  \    surface: architecture\n    owner:\n      repository: helianthus-docs-eebus\n\
+  \      path: architecture/README.md\n    source:\n      repository: helianthus-docs-eebus\n\
+  \      path: architecture/README.md\n    canonical: false\n    state: planned\n\
+  \    outputs:\n      candidate: false\n      stable_navigation: false\n      search:\
+  \ false\n      sitemap: false\n      versioned_bundle: false\n      release_bundle:\
+  \ false\n    lifecycle:\n      created_at: \"2026-07-11T00:00:00Z\"\n      expires_at:\
+  \ \"2026-07-25T00:00:00Z\"\n      source_issue: Project-Helianthus/helianthus-execution-plans#58\n\
+  \      source_pr: null\n      source_ref: null\n      content_sha256: null\n   \
+  \   approved_at: null\n      frozen_at: null\n      cleanup_required: false\n  \
+  \  enforcement:\n      milestone: MSP-DOCS-E2\n      required_state: active\n\n\
+  \  - id: eebus-api-v1\n    surface: api\n    owner:\n      repository: helianthus-docs-eebus\n\
+  \      path: api/api-surface-v1.md\n    source:\n      repository: helianthus-docs-eebus\n\
+  \      path: api/api-surface-v1.md\n    canonical: true\n    state: active\n   \
+  \ outputs:\n      candidate: false\n      stable_navigation: true\n      search:\
+  \ true\n      sitemap: true\n      versioned_bundle: true\n      release_bundle:\
+  \ true\n    lifecycle:\n      created_at: \"2026-07-10T00:00:00Z\"\n      expires_at:\
+  \ null\n      source_issue: Project-Helianthus/helianthus-docs-eebus#6\n      source_pr:\
+  \ Project-Helianthus/helianthus-docs-eebus#7\n      source_ref: null\n      content_sha256:\
+  \ null\n      approved_at: \"2026-07-10T00:00:00Z\"\n      frozen_at: \"2026-07-10T00:00:00Z\"\
+  \n      cleanup_required: false\n    enforcement:\n      milestone: MSP-DOCS-API-SCHEMA\n\
+  \      required_state: active\n\n  - id: cross-runtime-platform-contracts\n    surface:\
+  \ platform\n    owner:\n      repository: helianthus-docs-ebus\n      path: docs/platform/cross-runtime-envelope.md\n\
+  \    source:\n      repository: helianthus-docs-ebus\n      path: docs/platform/cross-runtime-envelope.md\n\
+  \    canonical: true\n    state: active\n    outputs:\n      candidate: false\n\
+  \      stable_navigation: true\n      search: true\n      sitemap: true\n      versioned_bundle:\
+  \ true\n      release_bundle: true\n    lifecycle:\n      created_at: \"2026-07-11T00:00:00Z\"\
+  \n      expires_at: null\n      source_issue: Project-Helianthus/helianthus-docs-ebus#341\n\
+  \      source_pr: Project-Helianthus/helianthus-docs-ebus#342\n      source_ref:\
+  \ null\n      content_sha256: null\n      approved_at: \"2026-07-11T00:00:00Z\"\n\
+  \      frozen_at: \"2026-07-11T00:00:00Z\"\n      cleanup_required: false\n    enforcement:\n\
+  \      milestone: MSP-DOCS-PLATFORM\n      required_state: active\n\n  - id: eebusreg-substantive-docs\n\
+  \    surface: code_repo\n    owner:\n      repository: helianthus-eebusreg\n   \
+  \   path: docs\n    source:\n      repository: helianthus-eebusreg\n      path:\
+  \ docs\n    canonical: false\n    state: planned\n    outputs:\n      candidate:\
+  \ false\n      stable_navigation: false\n      search: false\n      sitemap: false\n\
+  \      versioned_bundle: false\n      release_bundle: false\n    lifecycle:\n  \
+  \    created_at: \"2026-07-11T00:00:00Z\"\n      expires_at: \"2026-07-25T00:00:00Z\"\
+  \n      source_issue: Project-Helianthus/helianthus-execution-plans#58\n      source_pr:\
+  \ null\n      source_ref: null\n      content_sha256: null\n      approved_at: null\n\
+  \      frozen_at: null\n      cleanup_required: false\n    enforcement:\n      milestone:\
+  \ MSP-DOCS-CLEAN\n      required_state: withdrawn\n\n  - id: eebusreg-readme-summary\n\
+  \    surface: summary_only\n    owner:\n      repository: helianthus-eebusreg\n\
+  \      path: README.md\n    source:\n      repository: helianthus-docs-eebus\n \
+  \     path: README.md\n    canonical: false\n    state: planned\n    outputs:\n\
+  \      candidate: false\n      stable_navigation: false\n      search: false\n \
+  \     sitemap: false\n      versioned_bundle: false\n      release_bundle: false\n\
+  \    lifecycle:\n      created_at: \"2026-07-11T00:00:00Z\"\n      expires_at: \"\
+  2026-07-25T00:00:00Z\"\n      source_issue: Project-Helianthus/helianthus-execution-plans#58\n\
+  \      source_pr: null\n      source_ref: null\n      content_sha256: null\n   \
+  \   approved_at: null\n      frozen_at: null\n      cleanup_required: false\n  \
+  \  enforcement:\n      milestone: MSP-DOCS-CLEAN\n      required_state: active\n"
+platform_contract_root: docs/platform
+platform_contract_state: active
+targets:
+- path: docs/platform/README.md
+  blob: 3b4f69fa06f6f126afb9e06a9f6519d798ad06a3
+  content: "# Helianthus Platform Contracts\n\nThis directory is the temporary canonical\
+    \ home for cross-protocol Helianthus\nplatform contracts.\n\nIt owns contracts\
+    \ that apply across protocol families:\n\n- MCP-first lifecycle and namespace\
+    \ governance;\n- raw evidence and snapshot rules;\n- semantic promotion gates;\n\
+    - multi-runtime coexistence and conflict handling;\n- consumer rollout order for\
+    \ GraphQL, Portal, and Home Assistant.\n\nCurrent platform contracts:\n\n- [`cross-runtime-envelope.md`](./cross-runtime-envelope.md)\n\
+    - [`hash-auth-binding.md`](./hash-auth-binding.md)\n- [`shared-registry-boundary.md`](./shared-registry-boundary.md)\n\
+    - [`promotion-and-consumer-contract.md`](./promotion-and-consumer-contract.md)\n\
+    - [`ownership-validation.md`](./ownership-validation.md)\n- [`ownership-and-doc-gates.md`](./ownership-and-doc-gates.md)\n\
+    - [`eebus-raw-first-contract.md`](./eebus-raw-first-contract.md)\n- [`raw-correlation-and-leaf-promotion.md`](./raw-correlation-and-leaf-promotion.md)\n\
+    - [`eebus-ha-network-proof.md`](./eebus-ha-network-proof.md)\n- [`eebus-interop-smoke.md`](./eebus-interop-smoke.md)\n\
+    \nThe authoritative eeBUS ownership state is the versioned\n[`manifests/eebus-doc-ownership.yaml`](./manifests/eebus-doc-ownership.yaml)\n\
+    manifest.\n\nProtocol-specific repositories may link here, but they must not duplicate\
+    \ these\ncontracts as normative text. Non-owning pages are summary-only.\n\n##\
+    \ Transition Rule\n\nThis directory remains the platform-contract home until a\
+    \ separate\n`helianthus-docs-platform` repository is created after the current\
+    \ eeBUS\nraw-first bootstrap. The trigger is either:\n\n- a later non-eBUS protocol\
+    \ reaches a promoted-leaf gate; or\n- a cross-protocol contract changes for reasons\
+    \ unrelated to eBUS or the eeBUS\n  VR940f raw-first track.\n\nWhen that happens,\
+    \ platform pages move as a unit, this directory keeps stubs,\nand canonical links\
+    \ are updated.\n"
+- path: docs/platform/cross-runtime-envelope.md
+  blob: 43ea1471930fd857fa667e9c2a112ae2dd1bf3c6
+  content: 'Canonical source: this page.
+
+
+    # Cross-Runtime Envelope Contract
+
+
+    ## Scope
+
+
+    This page defines the language-neutral envelope shared by protocol runtimes.
+
+    It does not define eeBUS, SHIP, SPINE, eBUS, or any implementation API. A
+
+    runtime may use native types internally, but every value crossing the platform
+
+    boundary uses this versioned envelope.
+
+
+    ## Envelope Version 1
+
+
+    The closed logical fields are:
+
+
+    | Field | Meaning |
+
+    | --- | --- |
+
+    | `envelope_version` | Integer contract version, currently `1`. |
+
+    | `runtime_id` | Stable adapter-instance identifier within one installation. |
+
+    | `runtime_kind` | Protocol adapter family, used for routing rather than semantics.
+    |
+
+    | `captured_at` | RFC 3339 UTC instant supplied by the capture clock. |
+
+    | `scope` | Versioned request or snapshot scope. |
+
+    | `payload` | Language-neutral data conforming to the named payload schema. |
+
+    | `status` | `ok`, `partial`, `unavailable`, or `rejected`. |
+
+    | `provenance` | Source identity and evidence references needed for replay. |
+
+
+    Unknown fields are rejected at a frozen envelope version. Producers never
+
+    encode implementation pointers, native error objects, host paths, credentials,
+
+    network endpoints, or private device identifiers. Numeric units, nullability,
+
+    ordering, and stale behavior belong to the payload schema and are not inferred
+
+    from a runtime''s native representation.
+
+
+    `partial` preserves valid leaves and identifies unavailable leaves. It is not
+
+    coerced to `ok` or replaced wholesale. `unavailable` and `rejected` are explicit
+
+    negative states and never become an empty successful payload.
+
+
+    ## Compatibility
+
+
+    Additive envelope fields require a new envelope version because the field set
+
+    is closed. A consumer rejects an unsupported version before reading `payload`.
+
+    Payload schema evolution is independently versioned and cannot silently change
+
+    the meaning, unit, scope, or provenance of an existing leaf.
+
+
+    Serialization syntax is transport-owned. JSON, Go, Python, and future runtimes
+
+    must represent the same logical fields and validation rules.
+
+    '
+- path: docs/platform/eebus-ha-network-proof.md
+  blob: bdc6f7b3a1a82d40870f316973e96d64336bac60
+  content: "# eeBUS HA Network Proof Gate\n\nCanonical source: this page.\n\nPlan\
+    \ provenance:\n`helianthus-execution-plans/multi-runtime-semantic-platform.draft`.\n\
+    \nImplementation hook:\n`helianthus-ha-addon/EEBUS_HA_NETWORK_PROOF.md`.\n\n##\
+    \ Scope\n\nMSP-03C proves Home Assistant add-on runtime networking readiness for\
+    \ a future\nraw eeBUS SHIP/SPINE sidecar. It does not enable eeBUS in production,\
+    \ import\nthe gateway eeBUS runtime, expose MCP tools, pair with VR940f, or persist\n\
+    production trust.\n\nThis gate covers `eebus-transport-gate-v0` cases:\n\n| Case\
+    \ | Required proof |\n| --- | --- |\n| `EEBUS-G05` | Listener binds only a configured\
+    \ interface or subnet. Wildcard bind and unexpected container-bridge exposure\
+    \ fail. |\n| `EEBUS-G06` | An external LAN peer can browse and resolve the SHIP\
+    \ mDNS service `_ship._tcp`. Same-container and same-bridge checks are insufficient.\
+    \ |\n| `EEBUS-G07` | Disabled mDNS, unavailable Avahi/DBus, and closed-pairing\
+    \ advertisement shutdown are explicit negative states. |\n| `EEBUS-G08` | Manual\
+    \ endpoint fallback reaches the peer when discovery is unavailable. |\n| `EEBUS-G09`\
+    \ | Disposable proof credentials survive restart without writing production trust\
+    \ state. |\n\n## Contract Fixture vs Lab Evidence\n\nThe add-on repository may\
+    \ keep a CI contract fixture that validates artifact\nshape, ordering, redaction,\
+    \ and fail-closed invariants. That fixture is not lab\nevidence and cannot close\
+    \ MSP-03C by itself.\n\nMSP-03C acceptance requires a redacted `lab_run` artifact\
+    \ collected from a real\nHome Assistant runtime and an external LAN peer. The\
+    \ validator must reject\nartifacts that claim LAN proof from only the same container,\
+    \ same host bridge,\nor unredacted local identifiers. Merely changing a contract\
+    \ fixture from\n`\"mode\": \"contract_fixture\"` to `\"mode\": \"lab_run\"` is\
+    \ invalid; lab artifacts\nmust include concrete redacted runtime references.\n\
+    \n## Public Artifact Requirements\n\nPublic artifacts must include:\n\n- repo,\
+    \ issue id, contract id, generated timestamp, and required case list;\n- Home\
+    \ Assistant add-on network facts, including host-network and host-DBus\n  posture;\n\
+    - branch, 40-character commit SHA, add-on build id, and command-log reference;\n\
+    - external LAN peer scope, with no raw private IP address;\n- configured interface\
+    \ or subnet reference;\n- listener bind policy and bridge/wildcard exposure results;\n\
+    - listener socket reference, mDNS browse reference, and mDNS resolve reference\n\
+    \  for `_ship._tcp`;\n- manual endpoint fallback result;\n- disposable credential\
+    \ storage path, permission modes, restart continuity, and\n  proof that production\
+    \ trust was not written.\n- per-case evidence IDs for `EEBUS-G05` through `EEBUS-G09`.\n\
+    \nPublic artifacts must not include:\n\n- PEM blocks, private keys, passwords,\
+    \ tokens, or secret-bearing values;\n- private or link-local IP addresses;\n-\
+    \ MAC addresses;\n- device serials;\n- full SKIs, fingerprints, stable peer ids,\
+    \ or pairing history;\n- vendor-restricted protocol details.\n\nUse short redacted\
+    \ hashes such as `sha256:<12-hex>` for continuity checks.\nThese hashes prove\
+    \ equality within the run only; they are not semantic facts and\nmust not be promoted\
+    \ into registries or consumer APIs.\n\n## Negative States\n\nAvahi/DBus unavailable\
+    \ is a degraded networking state, not an empty success.\nIf host DBus is unavailable\
+    \ to the add-on, the artifact must state that\nexplicitly and must also prove\
+    \ manual endpoint fallback.\n\nDiscovery disabled and pairing closed are different\
+    \ negative states. A valid\nartifact records both when applicable:\n\n- discovery\
+    \ disabled: no service is advertised or resolved;\n- pairing closed: advertised\
+    \ pairing service is absent or expires after TTL.\n\n## Credential Boundary\n\n\
+    M3 uses disposable proof credentials only. The proof store lives under an\nexplicit\
+    \ proof path, uses directory mode `0700` and file mode `0600`, rejects\nsymlinks\
+    \ and path traversal, and is safe to remove after the proof.\n\nProduction trust-store\
+    \ semantics, clone/restore lockout, quarantine/backoff,\nand first-trust confirmation\
+    \ are M4 work. MSP-03C evidence must not claim those\nproperties.\n\n## Promotion\
+    \ Boundary\n\nMSP-03C evidence is runtime feasibility evidence. It cannot:\n\n\
+    - create candidate semantic facts;\n- enrich B509/B524/B555 leaves;\n- expose\
+    \ GraphQL, Portal, or Home Assistant entities;\n- justify command routing or raw\
+    \ writes.\n\nThose steps remain gated by later evidence recording, coexistence,\
+    \ and\nper-leaf promotion dossiers.\n"
+- path: docs/platform/eebus-interop-smoke.md
+  blob: 6d7a7c990dae7c820584c2d94fc5fc1d76d4a331
+  content: "# eeBUS Interop Smoke Gate\n\nCanonical source: this page.\n\nPlan provenance:\n\
+    `helianthus-execution-plans/multi-runtime-semantic-platform.draft`.\n\nImplementation\
+    \ hook:\n`helianthus-eebusreg/internal/eebusinteropsmoke`.\n\n## Scope\n\nMSP-03D\
+    \ proves raw eeBUS runtime feasibility after the internal\n`eebus-go v0.7.0` facade\
+    \ and Home Assistant network gates. It does not enable\nan eeBUS gateway sidecar,\
+    \ freeze the raw runtime contract, write production\ntrust, expose MCP tools,\
+    \ create candidate semantic facts, or enrich B509/B524\nleaves.\n\nThis gate covers\
+    \ `eebus-transport-gate-v0` cases:\n\n| Case | Required proof |\n| --- | --- |\n\
+    | `EEBUS-G01` | A black-box fake peer completes SHIP/TLS/session setup without\
+    \ importing the Helianthus facade under test. |\n| `EEBUS-G17` | A live VR940f/myVaillant\
+    \ device completes discovery, pairing/session establishment, feature graph extraction,\
+    \ and reconnect after restart. |\n\n## Fake Peer Boundary\n\nFake peer success\
+    \ is supporting evidence only. A valid `EEBUS-G01` artifact\nmust show:\n\n- the\
+    \ exact `github.com/enbility/eebus-go v0.7.0` module evidence;\n- disposable,\
+    \ in-memory proof credentials;\n- no production trust-store writes;\n- no gateway,\
+    \ GraphQL, Portal, Home Assistant, command-routing, raw-write, or\n  semantic-registry\
+    \ surface;\n- an import-boundary check proving the peer side did not import the\n\
+    \  Helianthus facade under test;\n- a redacted PASS/FAIL table for `EEBUS-G01`.\n\
+    \nPassing `EEBUS-G01` cannot replace `EEBUS-G17`, cannot close M3 by itself, and\n\
+    cannot justify a gateway import.\n\n## Live VR940f Boundary\n\nLive VR940f evidence\
+    \ must be collected only from a real LAN-visible SHIP\nservice. The minimum PASS\
+    \ requires:\n\n- `_ship._tcp` discovery from the relevant LAN/runtime namespace;\n\
+    - approved pairing/session establishment;\n- feature graph extraction as raw SHIP/SPINE\
+    \ evidence;\n- reconnect after runtime restart;\n- redacted command-log or scripted-harness\
+    \ refs.\n\nIf no `_ship._tcp` service is visible, the result is `BLOCKED` with\
+    \ an explicit\n`no_visible_ship_service` style state. It is not a PASS and must\
+    \ not be\ntreated as proof that VR940f lacks eeBUS support.\n\nIf a SHIP service\
+    \ is visible but no approved remote SKI or out-of-band pairing\nconfirmation is\
+    \ available, the result is also `BLOCKED`. The artifact may\nrecord service visibility,\
+    \ but it must not claim pairing/session, feature\ngraph, reconnect, or semantic\
+    \ facts.\n\n## Public Artifact Requirements\n\nPublic MSP-03D artifacts must include:\n\
+    \n- repo, branch, commit, issue id, mode, required cases, and generated\n  timestamp;\n\
+    - Go/toolchain and module evidence;\n- disposable credential posture;\n- per-case\
+    \ PASS/FAIL/BLOCKED rows;\n- command-log or scripted-harness references;\n- redacted\
+    \ endpoint, service, and interface references.\n\nPublic artifacts must not include\
+    \ raw:\n\n- SKIs, certificate fingerprints, peer ids, session ids, pairing history;\n\
+    - IP addresses, MAC addresses, serials;\n- PEM blocks, private keys, tokens, or\
+    \ passwords;\n- vendor-restricted protocol details.\n\nUse short redacted digest\
+    \ refs only for continuity inside the same evidence\nrun. These refs are not semantic\
+    \ facts and must not be copied into eBUS\nregistries, eeBUS candidate facts, GraphQL,\
+    \ Portal, or Home Assistant.\n\n## Promotion Boundary\n\nMSP-03D is M3 feasibility\
+    \ evidence. M3.5 may freeze raw identity and evidence\nshapes only after `EEBUS-G01`\
+    \ and `EEBUS-G17` are both accepted. M4 trust work,\nM5 gateway sidecar import,\
+    \ M6 MCP, and later B509/B524/B555 enrichment remain\nseparate gates.\n"
+- path: docs/platform/eebus-raw-first-contract.md
+  blob: fc22339747766c9eeda67aa6a21569bc1eadb085
+  content: "# eeBUS Raw-First Platform Contract\n\nCanonical source: this page.\n\n\
+    Plan provenance:\n`helianthus-execution-plans/multi-runtime-semantic-platform.draft`.\n\
+    \n## Scope\n\neeBUS enters Helianthus as raw SHIP/SPINE runtime visibility first.\
+    \ The first\ntarget is VR940f/myVaillant inspection through read-only MCP. GraphQL,\
+    \ Portal,\nHome Assistant, command routing, raw writes, and promoted semantics\
+    \ wait for\nper-leaf promotion gates.\n\n## Required Order\n\n1. Control-plane\
+    \ issue matrix and `eebus-transport-gate v0`.\n2. Platform ownership ADR and eeBUS\
+    \ docs bootstrap.\n3. `helianthus-eebusreg` raw runtime/evidence repo bootstrap\
+    \ with no runtime\n   contracts, no listeners, no trust store, and no `enbility`\
+    \ dependency.\n4. Raw identity, snapshot, evidence, and correlation drafts.\n\
+    5. `enbility/eebus-go v0.7.0` feasibility proof behind internal facades.\n6. Home\
+    \ Assistant add-on networking proof for listener scope, mDNS, manual\n   endpoint\
+    \ fallback, and disposable proof credential persistence.\n7. Black-box fake-peer\
+    \ and live VR940f interop smoke.\n8. Production trust and first-trust hardening.\n\
+    9. Disabled-by-default gateway sidecar.\n10. Read-only `eebus.v1.*` MCP.\n11.\
+    \ Evidence recorder and draft candidate facts.\n12. Coexistence proof and per-leaf\
+    \ promotion lock.\n13. GraphQL, Portal, and HA only for promoted leaves.\n\n##\
+    \ Stable MCP Rules\n\nStable eeBUS MCP tools are read-only. Snapshot refs bind\
+    \ to runtime, contract,\ntool or scope, mask tier, and effective auth scope. Dereference\
+    \ requires an\nexact binding match and never re-masks the same captured ref at\
+    \ read time.\n\nHash material uses RFC 8785 JSON canonicalization. Hashes are\
+    \ comparable only\nfor identical tool id, schema version, mask tier, auth scope,\
+    \ and snapshot\nscope.\n\n## Promotion Rule\n\nM7 candidate facts do not promote\
+    \ leaves. M8 proves coexistence. M8.5 locks\nindividual leaf promotions with a\
+    \ dossier containing source identity,\ncomparator results, coexistence evidence,\
+    \ replay regeneration, terminal\nnegative-state handling, and redacted hashes.\n\
+    \nThe canonical correlation and dossier contract is\n[`raw-correlation-and-leaf-promotion.md`](./raw-correlation-and-leaf-promotion.md).\n\
+    \nThe canonical Home Assistant runtime networking proof gate is\n[`eebus-ha-network-proof.md`](./eebus-ha-network-proof.md).\n\
+    \nThe canonical fake-peer and live VR940f smoke gate is\n[`eebus-interop-smoke.md`](./eebus-interop-smoke.md).\n"
+- path: docs/platform/hash-auth-binding.md
+  blob: 053bd237ca0772f92e0de72b5238ba96af05e882
+  content: 'Canonical source: this page.
+
+
+    # Deterministic Hash And Auth Binding
+
+
+    ## Canonical Material
+
+
+    Cross-runtime JSON hash material uses RFC 8785 JSON Canonicalization Scheme
+
+    bytes and SHA-256. Hash input excludes transport framing and formatting but
+
+    includes the complete versioned binding object and payload. Non-JSON payloads
+
+    must first map to the language-neutral envelope without lossy conversion.
+
+
+    The binding object contains:
+
+
+    - envelope and payload schema version;
+
+    - runtime id and runtime kind;
+
+    - tool or operation id and version;
+
+    - snapshot or request scope;
+
+    - mask tier;
+
+    - effective auth scope;
+
+    - capture instant or window;
+
+    - payload.
+
+
+    Two hashes are comparable only when every binding field matches exactly. A
+
+    hash is evidence of byte equality under that binding, not proof of semantic
+
+    equivalence, authorization, freshness, or device identity.
+
+
+    ## Authorization
+
+
+    The producer calculates effective auth scope after authentication and policy
+
+    evaluation. A caller-provided scope is never authoritative. Snapshot creation
+
+    binds the effective scope and mask tier before hashing; dereference requires an
+
+    exact match and does not re-mask captured data under a broader scope.
+
+
+    Authentication material, tokens, keys, certificate data, raw peer identifiers,
+
+    network endpoints, and local paths are never included in public artifacts.
+
+    Authorization failure is `rejected`, while unavailable policy or identity
+
+    state is `unavailable`; neither is represented as an empty successful result.
+
+
+    ## Verification
+
+
+    Verification reconstructs the complete binding object, applies RFC 8785, and
+
+    compares the SHA-256 digest in constant-time where the runtime exposes secret
+
+    or authorization-sensitive references. Missing binding fields make the hash
+
+    non-comparable and terminal for promotion.
+
+    '
+- path: docs/platform/ownership-and-doc-gates.md
+  blob: f3299d4d06e51c095ccba0c929fcc543bf28f65c
+  content: '# Platform Documentation Ownership And Doc Gates
+
+
+    ## Purpose
+
+
+    This ADR defines where platform contracts and protocol facts live while
+
+    Helianthus expands from eBUS to eeBUS and later protocol families.
+
+
+    ## Canonical Ownership
+
+
+    | Content | Canonical owner |
+
+    | --- | --- |
+
+    | Cross-protocol MCP lifecycle | `helianthus-docs-ebus/docs/platform/` |
+
+    | Raw evidence, snapshot, and hash contract | `helianthus-docs-ebus/docs/platform/`
+    |
+
+    | Raw correlation and leaf-promotion dossiers | `helianthus-docs-ebus/docs/platform/`
+    |
+
+    | Semantic promotion gate | `helianthus-docs-ebus/docs/platform/` |
+
+    | Multi-runtime coexistence policy | `helianthus-docs-ebus/docs/platform/` |
+
+    | GraphQL, Portal, and HA rollout order | `helianthus-docs-ebus/docs/platform/`
+    |
+
+    | eBUS wire protocol and Vaillant eBUS facts | `helianthus-docs-ebus/protocols/`
+    |
+
+    | eeBUS SHIP/SPINE, VR940f, and eeBUS evidence | `helianthus-docs-eebus/` |
+
+
+    `helianthus-docs-ebus/docs/platform/` is a transitional platform home. Protocol
+
+    repositories never become long-term owners of cross-protocol contracts.
+
+
+    ## Summary-Only Pages
+
+
+    Non-owning pages may summarize canonical material only with this shape:
+
+
+    ```text
+
+    Canonical source: <repo/path>. This page is summary-only and non-normative.
+
+
+    <one-paragraph purpose>
+
+
+    Links:
+
+    - <canonical page>
+
+
+    Local usage notes:
+
+    - <optional>
+
+    ```
+
+
+    Summary-only pages must not contain requirements, mandatory language,
+
+    acceptance criteria, checklists, version tables, deprecation policy, or
+
+    approval steps.
+
+
+    The ownership validator evaluates prose semantics outside code blocks. It does
+
+    not rely on a particular H1 spelling: alternate headings and summary labels do
+
+    not permit protocol behavior, runtime architecture, or eeBUS Go API rules to be
+
+    copied into platform pages. Non-normative summaries and platform evidence-gate
+
+    requirements remain valid when they do not define the protocol, runtime, or API.
+
+
+    ## Doc-Gate Rules
+
+
+    Every PR that changes architecture, API, protocol behavior, runtime behavior,
+
+    state-machine behavior, reverse-engineered knowledge, or consumer-visible
+
+    semantics must update the canonical owner docs in the same PR or link already
+
+    merged documentation commits from the canonical owner.
+
+
+    A PR fails doc-gate when it:
+
+
+    - adds normative platform text outside `docs/platform/`;
+
+    - duplicates acceptance criteria from the canonical page;
+
+    - publishes protocol claims without a publishable evidence id;
+
+    - treats an operator note as a protocol fact;
+
+    - introduces candidate or conflicted values into consumer docs as stable.
+
+
+    The staged ownership gate is strict only at the milestone that owns the
+
+    transition. `MSP-DOCS-PLATFORM` must pass against the then-current exact refs
+
+    before E2 begins. `MSP-DOCS-E2` must advance its planned entries, and
+
+    `MSP-DOCS-CLEAN` must withdraw code-repository docs and activate the minimal
+
+    README summary. Main expiry CI prevents planned or candidate state from being
+
+    left behind indefinitely.
+
+
+    ## Future Platform Repository
+
+
+    Create `helianthus-docs-platform` after this eeBUS raw-first bootstrap when a
+
+    later non-eBUS protocol reaches a promoted-leaf gate, or when a cross-protocol
+
+    contract changes for reasons unrelated to eBUS or the eeBUS VR940f raw-first
+
+    track. The migration moves platform pages, leaves stubs here, and updates
+
+    canonical links. Protocol repositories remain protocol-fact homes only.
+
+    '
+- path: docs/platform/ownership-validation.md
+  blob: 110fd28ce979ce6cc223706cd4a15d34803839e1
+  content: "Canonical source: this page.\n\n# Ownership Manifest And Cross-Repository\
+    \ Validation\n\n## Manifest\n\n`manifests/eebus-doc-ownership.yaml` is the authoritative\
+    \ versioned ownership\nmanifest. Its schema is closed. Each of the six surfaces\
+    \ has exactly one entry,\nevery owner/source pair is globally unique, and a canonical\
+    \ owner path may occur\nonly once. All repository paths are portable relative\
+    \ paths with no traversal,\nprivate path, private identifier, credential, or network\
+    \ data. Every path\nsegment also excludes Windows-reserved characters, trailing\
+    \ dots or spaces, and\nreserved device names (including reserved names followed\
+    \ by an extension).\n\nThe loader retains YAML mapping pairs until duplicate-key\
+    \ validation is\ncomplete. It rejects duplicate keys at any depth, cyclic aliases,\
+    \ more than 16\naliases, nesting beyond 24 nodes, more than 8192 YAML tokens,\
+    \ more than 4096\ncomposed nodes, and UTF-8 input larger than 64 KiB. Parser and\
+    \ resource failures\nemit only `manifest.schema`; values, paths, parser text,\
+    \ and tracebacks are never\nreported.\n\nThe six required surfaces are `protocol`,\
+    \ `architecture`, `api`, `platform`,\n`code_repo`, and `summary_only`. Ownership\
+    \ is exclusive:\n\n| Surface | Owner |\n| --- | --- |\n| Protocol behavior | `helianthus-docs-eebus/protocols`\
+    \ |\n| Runtime, trust, persistence, lifecycle | `helianthus-docs-eebus/architecture`\
+    \ |\n| eeBUS Go API schema, reference, examples | `helianthus-docs-eebus/api`\
+    \ |\n| Language-neutral contracts | `helianthus-docs-ebus/docs/platform` |\n|\
+    \ Substantive code-repository docs | Removed by `MSP-DOCS-CLEAN` |\n| Code README\
+    \ | Minimal summary-only pointer after `MSP-DOCS-CLEAN` |\n\nThe validator freezes\
+    \ these repository and path-prefix bindings. Canonical\nsurfaces are canonical\
+    \ exactly while `active`; planned, candidate, withdrawn,\ncode-repository, and\
+    \ summary-only entries are noncanonical. In particular,\nprotocol ownership cannot\
+    \ be reassigned to the code README or marked\nnoncanonical while active.\n\nPlatform\
+    \ governance prose may require an artifact to record or report evidence,\nincluding\
+    \ whether protocol activity was observed. That exemption is local to\nthe reporting\
+    \ predicate and its single bounded observation complement. The\nvalidator accepts\
+    \ owned behavior inside that complement only when it begins as\na bounded grammatical\
+    \ observation subject; it then masks only the validated\nownership or governance\
+    \ span and checks all remaining predicate content. A\ndeterministic clause splitter\
+    \ propagates a normative modal across punctuation,\nconjunction, relative-clause,\
+    \ and shared-modal predicate boundaries, so\ncoordinated protocol, architecture,\
+    \ or API behavior cannot inherit an exemption.\n\n## State Contract\n\n| State\
+    \ | Expiry | Output | Required artifact rule |\n| --- | --- | --- | --- |\n| `planned`\
+    \ | Exactly 14 days after `created_at` | No candidate or stable output; noncanonical\
+    \ and nonlinkable | Owner/source may be absent or may be pre-existing material\
+    \ that has no publication authority |\n| `candidate` | Exactly 30 days after `created_at`\
+    \ | Candidate output only from a hidden `_candidate` area | Regular owner and\
+    \ source files plus the direct commit object at the pinned source checkout HEAD\
+    \ and exact content hash |\n| `active` | No expiry | All stable outputs after\
+    \ approval and freeze | Regular owner and source files |\n| `withdrawn` | No expiry\
+    \ | No output and never consumer-visible | Owner and every distinct source artifact\
+    \ absent immediately; cleanup mandatory |\n\nEvery present lifecycle timestamp\
+    \ (`created_at`, `expires_at`, `approved_at`, or\n`frozen_at`) uses the same strict\
+    \ RFC 3339 UTC extended form described below.\nMalformed present values fail manifest\
+    \ schema validation before state-specific\npresence or absence rules are evaluated.\n\
+    \nEvery required owner/source file is checked at the repository root named by\
+    \ the\nmanifest. The root must be the expected GitHub repository top level. The\
+    \ file\nmust remain inside that root, exist, be a regular file, and have no symlink\
+    \ at\nany path component. Absolute and relative symlinks are equally invalid.\n\
+    \n## Staged Enforcement\n\nThe ordered enforcement stages are `MSP-DOCS-API-SCHEMA`,\n\
+    `MSP-DOCS-PLATFORM`, `MSP-DOCS-E2`, and `MSP-DOCS-CLEAN`. Before an entry's\n\
+    owning milestone, its state must be `planned` or `candidate`. At and after that\n\
+    milestone, its state must equal `enforcement.required_state`. A terminal\n`withdrawn`\
+    \ alternative is valid only when `required_state` is `candidate` or\n`withdrawn`;\
+    \ an `active` obligation cannot be cancelled through withdrawal.\nFor a valid\
+    \ withdrawal, cleanup must be required, owner and source artifacts\nmust be absent\
+    \ immediately, and later stages never resurrect the entry. This\napplies to `code_repo`\
+    \ before `MSP-DOCS-CLEAN`; the CLEAN-stage substantive\ncode-document check remains\
+    \ an independent requirement for both withdrawn and\nnon-withdrawn entries.\n\n\
+    Terminal withdrawal is also checked against history. When a trusted prior\nmanifest\
+    \ exists, pass it as `--prior-manifest PATH`. Every prior `withdrawn`\nentry remains\
+    \ indexed by both `surface` and `id`, remains the sole entry for that\nsurface,\
+    \ and remains `withdrawn`. For the same surface and ID, the complete\nnormalized\
+    \ manifest entry is an immutable tombstone: lifecycle and provenance,\nenforcement,\
+    \ owner/source metadata, output flags, and any additional fields must\nall remain\
+    \ byte-for-value equivalent after YAML normalization. A new ID cannot\nresurrect\
+    \ that surface as `planned`, `candidate`, or `active`, and a duplicate\nreplacement\
+    \ cannot coexist with the tombstone. Artifact absence remains a\nseparate current-state\
+    \ rule for every distinct owner and source location. A\nmissing, unreadable, non-regular,\
+    \ malformed, or internally inconsistent\nexplicitly supplied prior manifest fails\
+    \ closed. When the trusted base commit\ntree truly has no manifest, omitting the\
+    \ option is the valid first-introduction\ncase.\n\nThe current PLATFORM transition\
+    \ is:\n\n- existing protocol ownership and the API representation schema are `active`;\n\
+    - the platform contracts become `active` at `MSP-DOCS-PLATFORM`;\n- the architecture\
+    \ ownership landing remains `planned` with no stable output\n  until it transitions\
+    \ to `active` at `MSP-DOCS-E2`;\n- current `helianthus-eebusreg/docs` and its\
+    \ README remain `planned` and are not\n  failures during PLATFORM or E2;\n- at\
+    \ `MSP-DOCS-CLEAN`, code-repository docs must transition\n  `planned -> withdrawn`,\
+    \ while the README must transition\n  `planned -> active` as a minimal summary-only\
+    \ pointer.\n\nAt CLEAN, the validator also scans documentation-like files throughout\
+    \ the\neebusreg checkout, including root architecture files and alternate nested\n\
+    locations. Normative protocol, architecture, or API authority is rejected\noutside\
+    \ the canonical docs repository. The scan is bounded to documentation\nnames and\
+    \ extensions, skips Git metadata and generated, build, vendor, and cache\ntrees,\
+    \ and deterministically ignores binary files. Markdown fenced, indented,\nand\
+    \ inline code remains non-authoritative. Other documentation formats,\nincluding\
+    \ `.txt`, `.rst`, and `.adoc`, are scanned as raw prose so indentation\ncannot\
+    \ suppress normative text. The active minimal README, noncanonical links,\nand\
+    \ evidence summaries remain governed by their narrower summary and\npredicate-local\
+    \ contracts.\n\nAn E2 or CLEAN check cannot reuse PLATFORM enforcement: each successor\
+    \ invokes\nthe same combined-ref validator with its own required stage. Planned\
+    \ entries\nalso expire after 14 days, so main expiry CI fails inclusively if a\
+    \ required\nsuccessor transition is not completed. Candidate entries transition\
+    \ only to\ntheir declared required state or to `withdrawn` cleanup, while candidate\
+    \ output\nremains excluded from every stable channel.\n\n## Combined-Ref Pull\
+    \ Request Validation\n\n`Docs CI / Platform Contracts Combined Ref` is a required\
+    \ pull-request job. It\nchecks out the current PR head SHA for docs-ebus and these\
+    \ merged dependency\ncommits:\n\n- docs-eebus: `f23a7c35e6803501f185923de061f935bbac1466`;\n\
+    - eebusreg: `0e58327dfdb86ef243a19e18d590564813feaa00`.\n\nAll three values are\
+    \ explicit immutable 40-hex commits. Each repository is\nchecked out into a separate\
+    \ clean root and validated without sibling discovery\nor ambient checkout state.\
+    \ A missing, symbolic, moving, mismatched, dirty, or\nincorrect repository root\
+    \ is terminal. Dependency pins change only in the PR\nthat owns the corresponding\
+    \ successor transition.\n\nFor pull requests, both Docs Checks and Combined Ref\
+    \ independently check out the\ntrusted base at `github.event.pull_request.base.sha`\
+    \ into a sibling of the\ncandidate checkout. Combined Ref executes its validator\
+    \ and dependency lock\nonly from that official trusted-base checkout; candidate\
+    \ and dependency\ncheckouts are input data and their scripts are never executed.\
+    \ The one-time\nbootstrap from base `114072fe8bdf027cfdd3472d7f2b0896a2496db4`,\
+    \ which predates\nthe validator, uses reviewed immutable validator commit\n`c4d87b2d1fbdc9627a3a2aedaae298547f1908d2`.\
+    \ The workflow verifies the trusted\nvalidator commit and regular script/lock\
+    \ files before execution. It separately\nwalks every prior-manifest path component\
+    \ with `git ls-tree`, requires tree\nobjects for parents and a regular blob mode\
+    \ for the final object, and extracts\nthat inspected blob with `git cat-file`\
+    \ into a private path under\n`RUNNER_TEMP`. A missing tree entry is the only valid\
+    \ first-introduction case;\nsymbolic links, wrong object types, malformed content,\
+    \ and inspection,\nextraction, or read failures fail closed. Candidate and dependency\
+    \ refs remain\nexplicit immutable commits in Combined Ref, including fork pull\
+    \ requests.\n\nLocal CI uses the same file contract. A developer with a trusted\
+    \ prior checkout\ninvokes it deterministically as:\n\n```bash\nPLATFORM_PRIOR_MANIFEST=/path/to/trusted-base/docs/platform/manifests/eebus-doc-ownership.yaml\
+    \ \\\n  ./scripts/ci_local.sh\n```\n\nLeave `PLATFORM_PRIOR_MANIFEST` unset only\
+    \ when no prior manifest exists. If it\nis set, `ci_local.sh` passes the path\
+    \ unchanged to `--prior-manifest`, so bad or\nmissing explicit input fails closed.\
+    \ The validator rejects a symbolic link at\nthe file or any parent path component\
+    \ before reading the manifest.\n\nGitHub uses exact Python `3.12.10`, its bundled\
+    \ pip `25.0.1`, and PyYAML\n`6.0.2`. Before the commit-pinned setup action runs,\
+    \ the workflow downloads the\npip `25.0.1` wheel from a fixed URL and verifies\
+    \ its SHA-256 digest. The setup\naction receives only that local wheel through\
+    \ `PIP_FIND_LINKS` with index access\ndisabled, then the workflow explicitly verifies\
+    \ both Python and pip versions.\nEvery direct and transitive CI dependency is\
+    \ fully pinned in\n`requirements-ci.txt`; installation uses `--require-hashes`,\
+    \ `--no-deps`, and\n`--no-build-isolation`, so an index may serve only an artifact\
+    \ accepted by the\nlock. The lock includes the accepted universal wheels and\n\
+    source distributions plus PyYAML wheels for GitHub Linux x86_64 and local macOS\n\
+    x86_64/arm64. The validator reads the actual Python runtime and installed\nPyYAML\
+    \ distribution/module versions; caller strings cannot assert them. Local\ndevelopers\
+    \ use the documented `supported` mode: Python `>=3.12.0,<3.15.0` and\nPyYAML `>=6.0.2,<7.0.0`,\
+    \ with distribution and imported-module versions equal.\nGitHub always uses `exact`\
+    \ mode.\n\nWorkflow validation is gated by actionlint `v1.7.7`; runtime-state\
+    \ schema\nvalidation is gated by `jv v0.7.0`. Both binaries are installed at pinned\
+    \ Go\nmodule versions and their reported versions are verified before use.\n\n\
+    ## Main Expiry Validation\n\nMain-branch validation runs separately in `main-expiry`\
+    \ mode. It receives a\nnamed timestamp source and a strict RFC 3339 UTC extended\
+    \ timestamp of the form\n`YYYY-MM-DDTHH:MM:SSZ`. Fractions are optional and, when\
+    \ present, contain one\nthrough six decimal digits. Basic ISO forms, spaces, lowercase\
+    \ `z`, leap\nseconds, commas, more than six fractional digits, and every numeric\
+    \ UTC offset\nincluding `+00:00` are rejected.\n\nThe validator never reads the\
+    \ local clock implicitly. Expiry is inclusive: an\nentry is expired when the evaluation\
+    \ instant equals or exceeds `expires_at`.\nEvery diagnostic is terminal and consists\
+    \ only of a sorted unique category id.\n\nThe repository privacy gate and platform\
+    \ validator share the same structured IP\nliteral parser. They reject private,\
+    \ carrier-grade NAT, and link-local IPv4\naddresses, plus IPv6 unique-local, link-local,\
+    \ loopback, scoped private literals,\nand IPv4-mapped private addresses. Public\
+    \ and documentation IPv6 literals,\nhashes, versions, localhost IPv4 examples,\
+    \ and ordinary colon-bearing prose are\nnot addresses under this contract.\n\n\
+    Platform pages may reference only platform pages merged in the same repository\n\
+    or immutable active targets present at the supplied docs-eebus commit. Inline,\n\
+    reference-style, HTML, autolink, and bare GitHub URL forms are parsed outside\n\
+    fenced, indented, and inline code. GitHub owner and repository names are\ncompared\
+    \ case-insensitively. Normalized reference identifiers use Markdown's\nfirst-definition-wins\
+    \ behavior, including duplicate identifiers that differ\nby case, whitespace,\
+    \ escaped punctuation, or character references. Before\nclassification, destinations\
+    \ normalize HTML character references and only the\nASCII punctuation escapes\
+    \ defined by CommonMark; unrelated backslashes and\nescaped link text are not\
+    \ blanket-unescaped. Moving, candidate, planned,\nwithdrawn, missing, and symlink\
+    \ targets fail.\n"
+- path: docs/platform/promotion-and-consumer-contract.md
+  blob: 44e9c8b3435dc698efa8f48d266d2e588fc842fd
+  content: 'Canonical source: this page.
+
+
+    # Promotion And Consumer Contract
+
+
+    ## Per-Leaf Gate
+
+
+    Promotion is per-leaf, never per device, runtime, candidate bundle, or protocol.
+
+    Each leaf requires a locked dossier with exact source identity, versioned
+
+    comparator, raw evidence, deterministic replay, coexistence evidence, stale and
+
+    conflict policy, and terminal negative-state handling.
+
+
+    `planned` and `candidate` material is not canonical semantic data. Candidate
+
+    material may be inspected only through an explicitly candidate output and must
+
+    remain absent from stable navigation, search, sitemap, versioned bundles,
+
+    release bundles, registry projections, and consumer APIs. `withdrawn` material
+
+    is never consumer-visible and requires cleanup.
+
+
+    ## Delivery Order
+
+
+    After a dossier locks a leaf, delivery remains serialized:
+
+
+    1. A read-only MCP prototype exposes the raw and promoted views with provenance.
+
+    2. GraphQL parity freezes the stable consumer schema for that leaf.
+
+    3. Portal adopts the frozen GraphQL shape.
+
+    4. Home Assistant adopts the same stable shape after Portal validation.
+
+
+    One consumer cannot justify promotion for another. GraphQL, Portal, and Home
+
+    Assistant must not infer or rename an unpromoted native field. A failed or
+
+    expired gate removes candidate outputs and cannot leave a stale consumer link.
+
+
+    ## Mutable Leaves
+
+
+    Write support is a separate gate after read promotion. It requires explicit
+
+    authorization scope, command ownership, optimistic and observed state rules,
+
+    replay-safe idempotency, failure compensation, and a runtime-specific safety
+
+    review. Read promotion alone never authorizes a write.
+
+    '
+- path: docs/platform/raw-correlation-and-leaf-promotion.md
+  blob: 474d431f84d5d63977d3c1650b4ff59327dac796
+  content: "# Raw Correlation And Leaf Promotion\n\nCanonical source: this page.\n\
+    \nPlan provenance:\n`helianthus-execution-plans/multi-runtime-semantic-platform.draft`,\
+    \ MSP-02C.\n\n## Purpose\n\nThis contract defines how Helianthus may compare raw\
+    \ eeBUS evidence with\nexisting eBUS and myVaillant observations without turning\
+    \ that comparison into\nconsumer-facing semantics. It also defines the Leaf Promotion\
+    \ Dossier that is\nrequired before any correlated leaf can move from raw/candidate\
+    \ evidence into\nGraphQL, Portal, Home Assistant, command routing, or the semantic\
+    \ registry.\n\n## Scope\n\nThis page covers:\n\n- raw correlation policy for eeBUS/eBUS/myVaillant\
+    \ evidence;\n- anti-leak rules between raw eeBUS and existing eBUS/semantic surfaces;\n\
+    - required evidence fields for candidate facts;\n- the Leaf Promotion Dossier\
+    \ template;\n- mutable-proof constraints for any future write-capable validation.\n\
+    \nThis page does not define:\n\n- SHIP/SPINE protocol facts or VR940f device facts;\n\
+    - eBUS B509/B524/B555 register semantics;\n- runtime capture format beyond the\
+    \ raw evidence refs already defined by\n  `helianthus-eebusreg`;\n- GraphQL, Portal,\
+    \ Home Assistant, or command-routing schemas.\n\neeBUS-native protocol and device\
+    \ evidence lives in `helianthus-docs-eebus`.\nDurable cross-protocol promotion\
+    \ rules and consumer rollout gates live here.\n\n## Raw Correlation Policy\n\n\
+    Raw correlation is evidence comparison only. It may create candidate facts in\n\
+    M7, but candidate facts do not promote leaves. M8 proves coexistence. M8.5\nlocks\
+    \ individual leaves through a completed dossier.\n\nCorrelation input may include\
+    \ only publishable evidence:\n\n- redacted eeBUS evidence refs from `eebus.v1.*`\
+    \ or replay bundles;\n- existing read-only eBUS evidence, including B509/B524/B555\
+    \ source-family\n  identity;\n- user-visible myVaillant observations recorded\
+    \ as publishable evidence IDs;\n- redacted hashes and replay outputs generated\
+    \ from the same capture window.\n\nCorrelation input may not include `vendor_restricted`\
+    \ material in public\nrepositories, public issues, public PRs, public review comments,\
+    \ or public ADR\nrationale. Private notes can guide local investigation, but public\
+    \ claims cite\nonly publishable evidence IDs.\n\n### Anti-Leak Rule\n\nNo raw\
+    \ `eebus.v1.*` field, label, entity, service, feature, path, evidence ref,\nor\
+    \ candidate fact may be merged into:\n\n- `ebus.v1.*` MCP outputs;\n- GraphQL\
+    \ outputs;\n- Portal outputs;\n- Home Assistant outputs;\n- command-routing decisions;\n\
+    - `helianthus-ebusreg` registry, projection, or semantic outputs.\n\nThe only\
+    \ permitted bridge before M8.5 is a candidate correlation record that\nstores\
+    \ source evidence, comparator parameters, pass/fail results, terminal\nnegative\
+    \ states, replay references, coexistence evidence, and redacted hashes.\n\n###\
+    \ Candidate Status\n\nCandidate status controls which evidence fields are mandatory:\n\
+    \n| Status | Meaning | Coexistence evidence |\n| --- | --- | --- |\n| `draft`\
+    \ | Correlation is being investigated. | Optional; use `pending` or omit. |\n\
+    | `rejected` | Comparator or terminal negative state disproved the candidate.\
+    \ | Optional; include when rejection depends on coexistence evidence. |\n| `coexistence_proven`\
+    \ | M8 has shown no eeBUS/eBUS runtime drift for this leaf. | Required. |\n| `locked`\
+    \ | M8.5 dossier is accepted for promotion. | Required. |\n| `superseded` | Replaced\
+    \ by a newer candidate or dossier. | Preserve previous value if one existed. |\n\
+    \n### Correlation Keys\n\nEvery candidate correlation record must carry the fields\
+    \ below. Fields marked\n`pending` are allowed only for `draft` or `rejected` candidates\
+    \ and must be\nresolved before `coexistence_proven` or `locked`:\n\n| Field |\
+    \ Meaning |\n| --- | --- |\n| `candidate_id` | Stable local identifier for the\
+    \ candidate dossier. |\n| `leaf_path` | Proposed protocol-agnostic semantic leaf\
+    \ path; candidate-only before M8.5. |\n| `eebus_ref` | Raw eeBUS evidence ref\
+    \ with runtime, contract, tool/scope, mask tier, and auth scope. |\n| `ebus_source_family`\
+    \ | B509, B524, B555, or other source family; family-specific identity is defined\
+    \ below. |\n| `myvaillant_evidence_id` | Optional publishable evidence ID for\
+    \ app-visible or API-visible observations. |\n| `comparator_id` | Versioned comparator\
+    \ definition, including units, tolerance, cadence, and stale policy. |\n| `coexistence_bundle_id`\
+    \ | Evidence that eeBUS observation did not perturb eBUS runtime behavior; `pending`\
+    \ only for `draft` or `rejected`. |\n| `replay_bundle_id` | Replay artifact able\
+    \ to regenerate the candidate result. |\n| `redacted_hashes` | Hashes of raw inputs\
+    \ and normalized candidate output. |\n| `status` | `draft`, `rejected`, `coexistence_proven`,\
+    \ `locked`, or `superseded`. |\n\nField names in code may differ by package convention,\
+    \ but the same information\nmust be reviewable in the dossier before promotion.\n\
+    \n### eBUS Source-Family Identity\n\nThe source-family identity must be precise\
+    \ enough to avoid collisions between\nregister families, target devices, and schedule\
+    \ namespaces.\n\n| Family | Required identity fields |\n| --- | --- |\n| B509\
+    \ | target address, target device/product identity when known, register family,\
+    \ register id, unit/scale source, and whether the value is authoritative or mirror/fallback\
+    \ evidence. |\n| B524 | full opcode-scoped tuple `(opcode, GG, II, RR)`, target/source\
+    \ address context, group meaning, instance gate, register category, and unit/scale\
+    \ source. |\n| B555 | device family, schedule/program identity, slot/day/time\
+    \ identity when applicable, operation mode context, and unit/scale source. |\n\
+    | Other | protocol family, address/device context, exact read identity, unit/scale\
+    \ source, and evidence status. |\n\nIf a family-specific field is unavailable,\
+    \ the candidate remains `draft` or is\n`rejected`; it cannot be locked with a\
+    \ generic \"register identity\" placeholder.\n\n### Hash And Replay Comparability\n\
+    \nEvidence hashes are comparable only when the binding fields match. Every\nevidence\
+    \ row used for a candidate must therefore record:\n\n- contract or schema version;\n\
+    - tool id or replay tool id;\n- snapshot scope;\n- mask tier;\n- auth scope;\n\
+    - data timestamp or capture window;\n- data hash;\n- replay tool version;\n- replay\
+    \ input bundle id;\n- normalized output hash.\n\nMissing binding fields keep the\
+    \ candidate in `draft` or `rejected`.\n\n### Comparator Requirements\n\nA comparator\
+    \ is not just a value equality check. It must define:\n\n- source leaf identity\
+    \ on both sides;\n- unit and scaling rules;\n- sampling window and clock source;\n\
+    - stale TTL and missing-data behavior;\n- tolerance or exact-match rule;\n- hysteresis\
+    \ or debounce, when applicable;\n- pass count and fail count thresholds;\n- conflict\
+    \ handling when sources disagree;\n- terminal negative states that conclusively\
+    \ reject the candidate.\n\nIf any comparator parameter is unknown, the candidate\
+    \ remains `draft` or\n`rejected`; it cannot be promoted by reviewer intuition.\n\
+    \n### Terminal Negative States\n\nTerminal negative states prevent accidental\
+    \ promotion from partial matches.\nExamples include:\n\n- eeBUS leaf absent while\
+    \ the eBUS source family is live and stable;\n- eBUS leaf absent while eeBUS reports\
+    \ a stable but incompatible path;\n- unit mismatch that cannot be normalized without\
+    \ undocumented assumptions;\n- value moves in opposite direction across a controlled\
+    \ state transition;\n- coexistence proof shows eBUS behavior drift after eeBUS\
+    \ runtime activation;\n- replay cannot regenerate the candidate output from the\
+    \ recorded evidence.\n\nRejected candidates remain useful evidence. They must\
+    \ stay out of consumer\noutputs and may be retained only as raw/candidate records.\n\
+    \n## Leaf Promotion Dossier Template\n\nEach promoted leaf needs one dossier.\
+    \ A dossier may start in M7, but promotion\nis locked only in M8.5 after coexistence\
+    \ evidence exists.\n\n```markdown\n# Leaf Promotion Dossier: <candidate_id>\n\n\
+    Status: draft | rejected | coexistence_proven | locked | superseded\nOwner:\n\
+    Reviewers:\nTarget milestone:\nRetest trigger:\n\n## Candidate Leaf\n\n- Proposed\
+    \ semantic leaf path:\n- User-visible meaning:\n- Read-only or mutable:\n- Consumer\
+    \ targets after lock:\n\n## Source Identity\n\n| Source | Identity | Evidence\
+    \ ID | Notes |\n| --- | --- | --- | --- |\n| eeBUS | entity/service/feature/path\
+    \ |  |  |\n| eBUS B509 | target address; device/product identity; register family;\
+    \ register id; unit/scale source; authoritative or mirror/fallback |  |  |\n|\
+    \ eBUS B524 | `(opcode, GG, II, RR)`; target/source address context; group meaning;\
+    \ instance gate; register category; unit/scale source |  |  |\n| eBUS B555 | device\
+    \ family; schedule/program identity; slot/day/time identity; operation mode context;\
+    \ unit/scale source |  |  |\n| eBUS other | protocol family; address/device context;\
+    \ exact read identity; unit/scale source; evidence status |  |  |\n| myVaillant\
+    \ | app/API observation ID, if used |  |  |\n\n## Evidence Inventory\n\n| Evidence\
+    \ ID | Source | Contract/schema | Tool/scope | Mask tier | Auth scope | Capture\
+    \ window | Data hash | Replay tool/version | Replay input | Output hash |\n| ---\
+    \ | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n|  |  |  |  |\
+    \  |  |  |  |  |  |  |\n\n## Comparator\n\n- Comparator ID and version:\n- Units\
+    \ and scaling:\n- Sampling cadence:\n- Clock source:\n- Stale TTL:\n- Missing-data\
+    \ behavior:\n- Tolerance:\n- Hysteresis/debounce:\n- Pass threshold:\n- Fail threshold:\n\
+    - Conflict rule:\n\n## Pass/Fail Results\n\n| Run ID | Input evidence | Result\
+    \ | Reason |\n| --- | --- | --- | --- |\n|  |  | pass/fail |  |\n\n## Terminal\
+    \ Negative States\n\n- Negative state:\n- Evidence ID:\n- Disposition:\n\n## Coexistence\
+    \ Evidence\n\n- Required for `coexistence_proven` and `locked`:\n- eBUS baseline\
+    \ bundle:\n- eeBUS-enabled bundle:\n- Drift checks:\n- Anti-leak checks:\n- Existing\
+    \ consumer smoke result:\n\n## Replay Regeneration\n\n- Replay command or tool:\n\
+    - Replay tool version:\n- Replay input bundle:\n- Expected output hash:\n- Actual\
+    \ output hash:\n- Determinism result:\n\n## Security And Privacy\n\n- Public evidence\
+    \ only:\n- `vendor_restricted` quarantine checked:\n- Redaction/mask tier checked:\n\
+    - Raw eeBUS field anti-leak checked:\n- Mutable-proof appendix required: yes/no\n\
+    \n## Mutable-Proof Appendix\n\nRequired only when the candidate leaf is mutable.\n\
+    \n- Lab lease:\n- Exclusive writer proof:\n- Gateway/router write path proof:\n\
+    - Direct adapter writes excluded:\n- Abort conditions:\n- Rollback verification\
+    \ per cycle:\n- Perturbation cycle 1 evidence:\n- Perturbation cycle 2 evidence:\n\
+    - Perturbation cycle 3 evidence:\n- Consumer mutable-control gate:\n\n## Promotion\
+    \ Decision\n\n- Decision:\n- Locked semantic leaf:\n- Linked docs PRs:\n- Linked\
+    \ code PRs:\n- Rollback plan:\n```\n\n## Mutable-Proof Appendix\n\nAny mutable\
+    \ proof is a separate gate. The dossier may not authorize writes\nunless all of\
+    \ these conditions are satisfied:\n\n- lab lease is recorded;\n- exactly one writer\
+    \ is active;\n- writes go through the gateway/router path only;\n- no direct adapter\
+    \ writes are used;\n- abort conditions are explicit before the run starts;\n-\
+    \ rollback verification runs after every cycle;\n- three independent perturbation\
+    \ cycles pass;\n- no consumer-facing mutable control ships before the promotion\
+    \ lock and\n  command-routing gate.\n\n## Cross-Seeding Rules\n\n`helianthus-docs-eebus`\
+    \ may keep eeBUS-native RE notes, VR940f observations,\nand SHIP/SPINE device\
+    \ details. When those observations become durable\ncross-protocol promotion knowledge,\
+    \ the dossier or summary must be cross-linked\nfrom this platform page or from\
+    \ a future platform docs repository.\n\neBUS register facts remain under `helianthus-docs-ebus/protocols/`.\
+    \ eeBUS\ndevice facts remain under `helianthus-docs-eebus`. The dossier is the\
+    \ bridge;\nit is not a new protocol registry.\n"
+- path: docs/platform/shared-registry-boundary.md
+  blob: 0930cceee01fb842127ce3abadf38a6815958376
+  content: 'Canonical source: this page.
+
+
+    # Shared Registry Boundary
+
+
+    ## Authority
+
+
+    The shared registry is protocol-neutral. Protocol adapters register raw device
+
+    identity, observations, evidence, and candidate correlations through versioned
+
+    contracts; they do not create canonical semantic facts by naming a native
+
+    field like an existing leaf.
+
+
+    Canonical semantic identity is the tuple of semantic path, schema version, and
+
+    accepted provenance policy. Runtime ids, protocol addresses, native paths, and
+
+    vendor labels remain source identity. They may participate in provenance but
+
+    cannot become cross-runtime registry keys.
+
+
+    ## Write Boundary
+
+
+    An adapter may write only its native raw namespace and evidence references.
+
+    Candidate correlation records live outside stable registry projections. Only a
+
+    locked per-leaf promotion decision may create or update a canonical semantic
+
+    leaf, and that decision records all contributing sources and conflict policy.
+
+
+    Partial runtime failure preserves last-known valid leaves according to their
+
+    stale policy. It does not replace a device, zone, or service subtree. Conflicts
+
+    remain explicit and attributable; runtime order, arrival time, and adapter
+
+    priority do not silently choose semantic authority.
+
+
+    ## Separation
+
+
+    Protocol behavior belongs to its protocol documentation owner. Runtime trust,
+
+    persistence, and lifecycle belong to that runtime''s architecture owner. Native
+
+    API schema and examples belong to its API owner. This page owns only the
+
+    language-neutral registry boundary shared by every runtime.
+
+    '

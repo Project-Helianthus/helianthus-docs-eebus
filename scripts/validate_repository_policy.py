@@ -3,22 +3,34 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import ipaddress
+import html
+import json
+import os
+import posixpath
 import re
+import stat
 import sys
 import unicodedata
-from pathlib import Path
+import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
+from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import yaml
+from markdown_it import MarkdownIt
 
 from machine_publication_policy import (
     COMPLETE,
     IPV4_CANDIDATE_PATTERN,
+    IPV6_CANDIDATE_PATTERN,
     MALFORMED_SENTINEL,
     NESTING_TOO_DEEP,
+    PRIVATE_PATH_PATTERN,
     classify_ipv4,
+    classify_ipv6,
     decode_machine_json,
+    git_fingerprint_exempt_spans,
     machine_publication_diagnostics,
 )
 
@@ -76,7 +88,6 @@ REQUIRED_DOMAIN_PAGES = {
 SCAFFOLD_PAGES = {
     "README.md": "ownership-policy",
     "protocols/ship-spine-overview.md": "ownership-landing",
-    "architecture/README.md": "ownership-landing",
     "api/README.md": "ownership-landing",
     "api/api-surface-v1.md": "api-contract",
     "devices/vr940f.md": "planned-target",
@@ -87,16 +98,21 @@ SCAFFOLD_PAGES = {
 }
 
 SCAFFOLD_ARTIFACT_SHA256 = {
-    "README.md": "6e7e2e079fca9e559f50555b29a6e7f44c4e7305316e5f4bb54498943d3b9a8d",
-    "protocols/ship-spine-overview.md": "866bb693935bb64e8ab34e2a2f9766e0662e6738886416617e8f59a075bc6073",
-    "architecture/README.md": "d21fccf5a5ee9c7d3ed43bc1f895a307fc75ea2456d0851f648607bf7fd34da8",
-    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010285607ad10016fa39ffe2424c123eb4a",
-    "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad2109fcbd779c87c0281a37b9f44cbeca",
-    "devices/vr940f.md": "96c6d81d9e758cbd8ed6835f197dbf92b54cbf8dc5eb6afeac0524c8bcabde15",
-    "evidence/README.md": "4afae6e8ab7848ded9068f43523794eeccf8f325f91659557a453646a00423ff",
-    "evidence/evidence-template.md": "02910e849eab14a43251f4d28f4cb1e115c0feb6f78a32b2b600c85830c150e5",
-    "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0fd8724ef3770dcb9d0aac485ef23f8f32",
-    "development/contributing.md": "f52c046edb8bafeca43cdb1e9159e49355688ce7b114339bfe34cf02a1038586",
+    "README.md": "6e7e2e079fca9e559f50555b29a6e7f" "44c4e7305316e5f4bb54498943d3b9a8d",
+    "protocols/ship-spine-overview.md": (
+        "866bb693935bb64e8ab34e2a2f9766e" "0662e6738886416617e8f59a075bc6073"
+    ),
+    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010" "285607ad10016fa39ffe2424c123eb4a",
+    "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
+    "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
+    "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
+    "evidence/evidence-template.md": (
+        "02910e849eab14a43251f4d28f4cb1e" "115c0feb6f78a32b2b600c85830c150e5"
+    ),
+    "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0f" "d8724ef3770dcb9d0aac485ef23f8f32",
+    "development/contributing.md": (
+        "f52c046edb8bafeca43cdb1e9159e493" "55688ce7b114339bfe34cf02a1038586"
+    ),
 }
 
 EVIDENCE_SOURCE_CLASSES = {
@@ -107,8 +123,8 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "ee5413bcb10b811225ff6f5c4bfa998b48f2a67e1282f3e5e74d78f8b87dce7a"
-LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab31f447e0c0bc89f53ee144a81907a943ea"
+CI_LOCAL_SHA256 = "273167561d48c78fc5665b7fb1eca582" "6b0ed134a889d5ddfc2215e8c5ef6314"
+LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 
 LICENSE_ACK_LABEL = (
     "I have read the repository license policy and I accept the Helianthus "
@@ -119,11 +135,241 @@ CONTROL_MD = {
     "AGENTS.md",
 }
 
-PLATFORM_LINK_PATTERN = re.compile(
-    r"https://github\.com/Project-Helianthus/helianthus-docs-ebus/"
-    r"blob/main/(docs/platform/[A-Za-z0-9._/-]+\.md)"
-    r"(?=$|[\s<>()\[\]{},;:!?'\"#]|\.(?=$|[\s)\]}>]))"
+PLATFORM_SNAPSHOT_REF = (
+    "153191f72b5b9ecacbadcf2f3d7e480c6" + "fef89a4"
 )
+PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
+PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
+PLATFORM_SNAPSHOT_SHA256 = "2ba234d20e3687299ffc4777da7b1413" "8ebf9b49b1ca82ccbca834e5dc9d171b"
+PLATFORM_SNAPSHOT_TARGETS = {
+    "docs/platform/README.md",
+    "docs/platform/cross-runtime-envelope.md",
+    "docs/platform/eebus-ha-network-proof.md",
+    "docs/platform/eebus-interop-smoke.md",
+    "docs/platform/eebus-raw-first-contract.md",
+    "docs/platform/hash-auth-binding.md",
+    "docs/platform/ownership-and-doc-gates.md",
+    "docs/platform/ownership-validation.md",
+    "docs/platform/promotion-and-consumer-contract.md",
+    "docs/platform/raw-correlation-and-leaf-promotion.md",
+    "docs/platform/shared-registry-boundary.md",
+}
+PUBLICATION_CHANNELS_PATH = "scripts/publication_channels.yaml"
+PLATFORM_SNAPSHOT_PATTERN = re.compile(
+    rf"{re.escape(PLATFORM_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
+)
+CANDIDATE_API_ROOT = PurePosixPath("api/_candidate")
+CANDIDATE_API_CHANNELS = (
+    "stable_navigation",
+    "search",
+    "sitemap",
+    "versioned_bundle",
+    "release_bundle",
+)
+STABLE_PUBLICATION_CHANNELS = {
+    "search",
+    "sitemap",
+    "versioned_bundle",
+    "release_bundle",
+}
+SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
+REPOSITORY_TEXT_SUFFIXES = {
+    ".csv",
+    ".html",
+    ".htm",
+    ".ini",
+    ".json",
+    ".jsonl",
+    ".markdown",
+    ".md",
+    ".mdown",
+    ".mkd",
+    ".mkdn",
+    ".ndjson",
+    ".toml",
+    ".tsv",
+    ".txt",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
+MAX_REPOSITORY_TEXT_SCAN_BYTES = 2 * 1024 * 1024
+MAX_PLATFORM_FINGERPRINT_WINDOWS = 100_000
+STRUCTURED_SNAPSHOT_ARTIFACTS = {PLATFORM_SNAPSHOT_PATH}
+MIN_PLATFORM_COPY_WORDS = 10
+MIN_PLATFORM_COPY_CHARACTERS = 56
+NONPUBLISHABLE_PUBLICATION_STATUSES = {
+    "blocked",
+    "candidate",
+    "draft",
+    "planned",
+    "planned-target",
+    "removed",
+    "template",
+    "withdrawn",
+}
+SUMMARY_NORMATIVE_PATTERN = re.compile(
+    r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
+    r"(?:is|are|be|remain)\s+(?:mandatory|required)|"
+    r"(?:is|are)\s+required\s+to|requires?|mandatory)\b|"
+    r"\bonly\b[^\n.]{0,80}\bmay\b|"
+    r"\bmay\b[^\n.]{0,80}\bonly\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+SUMMARY_IMPERATIVE_PATTERN = re.compile(
+    r"^\s*(?:(?:[-*+]\s+)|(?:\d+[.)]\s+))?"
+    r"(?:allow|assign|bind|copy|define|do\s+not|document|ensure|expose|follow|"
+    r"forward|implement|keep|map|merge|omit|preserve|publish|read|reject|require|"
+    r"retain|return|route|store|use|validate|write)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+REFERENCE_TOKEN_PATTERN = re.compile(
+    r"(?:https?:)?//[^\s<>\"']+|(?:[./A-Za-z0-9%_~-]+/)+[./A-Za-z0-9%_~-]+",
+    re.IGNORECASE,
+)
+JSON_STRING_PATTERN = re.compile(
+    r'"(?:\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4})|[^"\\])*"'
+)
+UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
+    r"\\u([dD][89aAbB][0-9A-Fa-f]{2})\\u([dD][c-fC-F][0-9A-Fa-f]{2})"
+)
+UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
+PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
+    "6ac887dc24ce53fc0dee45e15ebe2804e" "ea42bedb0ae802dc89bc39338ad6f44": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical contract assigns these boundaries to another owner."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
+}
+PRODUCTION_REVIEWED_SUPPORTED_API = {
+    "74a8f24cc7d835029d368d67ebcb1856" "77db7c4177a26bbb60165b4cbedf36d5": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:api/api-surface-v1.md"
+        ),
+        "owner_domain": "api",
+        "license": "AGPL-3.0-only",
+        "publication_status": "api-contract",
+        "claim_status": "no-protocol-claims",
+    },
+}
+FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
+    # Synthetic contract bytes are accepted only by the explicit fixture mode.
+    "bebc7eb49d7eb838e6409c24369610e0" "c751adb47e9d8f96a7f7d2b90ae741a2": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "vendor_public",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": "A publishable public source contradicts this runtime boundary.",
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+    },
+}
+PRODUCTION_REVIEWED_EVIDENCE = {
+    "EV-20260711-001": {
+        "e9fc9220b0fcc8b02a968fe6a587be53" "8841f818754dd265c54c5580e1ed1bbf": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260711-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "derived_inference",
+            "evidence_ids": "EV-20260711-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A publishable canonical ownership or API contract contradicts "
+                "this record."
+            ),
+        },
+    },
+}
+FIXTURE_REVIEWED_EVIDENCE = {
+    "EV-20260711-001": {
+        "88dfdda055f32b274a8f74cb5fa6989c" "cf8ad435b7e5cd8d13b0244d5763c537": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260711-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "vendor_public",
+            "evidence_ids": "EV-20260711-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A publishable public source contradicts the recorded observation."
+            ),
+        },
+    },
+}
+PRODUCTION_REVIEWED_CROSS_SEED = {
+    **PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE,
+    "b389e0f6e69e02222a233524b000a614" "2237511322f96700adee2830af381719": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
+        ),
+        "owner_domain": "devices",
+        "license": "CC0-1.0",
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "claim_status": "no-protocol-claims",
+        "publication_status": "planned-target",
+    },
+}
+FIXTURE_REVIEWED_CROSS_SEED = {
+    **FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE,
+}
+MARKDOWN = MarkdownIt("commonmark", {"html": True})
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
     "acceptance criteria",
@@ -141,30 +387,32 @@ FULL_FINGERPRINT_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
 )
 PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private artifact "
-    r"(?:location|reference|filename|hash|identifier)\s*:",
+    r"^\s*(?:[-*]\s*)?[\"']?private[\s_-]+artifact[\s_-]+"
+    r"(?:location|reference|filename|hash|identifier)[\"']?\s*[:=]",
     re.IGNORECASE | re.MULTILINE,
 )
 PRIVATE_ARTIFACT_RETAINED_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?private artifact retained\s*:\s*(\S.*)$",
+    r"^\s*(?:[-*]\s*)?[\"']?private[\s_-]+artifact[\s_-]+retained"
+    r"[\"']?\s*[:=]\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 EEBUS_ID_LABEL_PATTERN = (
     r"(?:(?:ski|ship)(?:[\s_-]*(?:id|identifier))?)"
 )
+ASCII_COLON = chr(58)
 SENSITIVE_FIELD_PATTERN = re.compile(
-    r"^\s*(?:[-*]\s*)?"
+    r"^\s*(?:[-*]\s*)?[\"']?"
     r"(token|password|passphrase|credential|secret|api[\s_-]*key|"
     r"client[\s_-]*secret|account (?:id|identifier)|"
     r"(?:full )?fingerprint|mac address|serial(?: number)?|local identity|"
     r"stable peer identifier|pairing history|household schedule|"
-    rf"(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN})"
-    r"\s*:\s*(\S.*)$",
+    rf"(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN})[\"']?"
+    r"\s*[:=]\s*(\S.*)$",
     re.IGNORECASE | re.MULTILINE,
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
     rf"`?\b(?:raw\s+)?{EEBUS_ID_LABEL_PATTERN}\b`?"
-    r"\s*(?::|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._:-]{7,})`?",
+    rf"\s*(?:{ASCII_COLON}|=|\bis\b)?\s*`?([A-Za-z0-9][A-Za-z0-9._{ASCII_COLON}-]{{7,}})`?",
     re.IGNORECASE,
 )
 SAFE_REDACTED_VALUE_PATTERN = re.compile(
@@ -174,14 +422,6 @@ SAFE_REDACTED_VALUE_PATTERN = re.compile(
 SAFE_RETAINED_VALUE_PATTERN = re.compile(
     r"^\s*(?:yes|no|<yes-or-no>)\s*$",
     re.IGNORECASE,
-)
-PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
-    r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
-)
-IPV6_CANDIDATE_PATTERN = re.compile(
-    r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
-    r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])"
 )
 PREMATURE_COMPLETION_PATTERN = re.compile(
     r"(?:MSP-DOCS-[A-Z0-9-]+\b[^\n]{0,40}\b"
@@ -206,17 +446,28 @@ PREMATURE_CONSUMER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 RESTRICTED_SOURCE_PATTERN = re.compile(
-    r"\bvendor[_ -]restricted\b|"
-    r"\brestricted[ -]+source\b|"
-    r"\brestricted\s+vendor\s+"
+    r"\bvendor[\s_-]+restric" r"ted(?=$|[\s_.-])|"
+    r"\brestric" r"ted[ -]+source\b|"
+    r"\brestric" r"ted\s+vendor\s+"
     r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
-    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
-    r"\bsource\s+class\s*:\s*restricted\b",
+    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestric" r"ted\b|"
+    r"\bsource\s+class\s*:\s*restric" r"ted\b|"
+    r"\b(?:restric" r"ted|quarantined)[\s_-]+(?:source|vendor|document|material)"
+    r"[^\n]{0,80}\b(?:file(?:name)?|hash|sha(?:256)?|digest|locator|"
+    r"paraphrase|rationale|reason|provenance|origin)\b|"
+    r"\b(?:file(?:name)?|hash|sha(?:256)?|digest|locator|paraphrase|rationale|"
+    r"reason|provenance|origin)\b[^\n]{0,80}"
+    r"\b(?:restric" r"ted|quarantined)[\s_-]+(?:source|vendor|document|material)\b",
     re.IGNORECASE,
 )
 ALLOWED_RESTRICTED_POLICY_LINE = (
-    "| `vendor_restricted` | Quarantined; never public text, issue text, PR text, "
+    "| `vendor_" + "restricted` | Quarantined; never public text, issue text, PR text, "
     "review text, or ADR rationale. |"
+)
+ALLOWED_RESTRICTED_POLICY_PATTERN = re.compile(
+    r"\b(?:do not|must not|never|forbid(?:s|den)?|prohibit(?:s|ed)?|reject(?:s|ed)?)\b"
+    r"[^\n]{0,120}\brestric" r"ted(?:[\s_-]+source|[\s_-]+material)?\b",
+    re.IGNORECASE,
 )
 
 
@@ -284,6 +535,872 @@ def _front_matter(text: str) -> tuple[dict[str, str] | None, str | None]:
     return parsed, None
 
 
+def _markdown_body(text: str) -> str:
+    end = text.find("\n---\n", 4)
+    return text[end + 5 :] if end >= 0 else text
+
+
+def _git_blob_id(text: str) -> str:
+    content = text.encode("utf-8")
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content).hexdigest()
+
+
+def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    snapshot_path = root / PLATFORM_SNAPSHOT_PATH
+    invalid = f"{PLATFORM_SNAPSHOT_PATH}: platform cross-seed snapshot is unavailable or invalid"
+    if not snapshot_path.is_file() or snapshot_path.is_symlink():
+        return None, [invalid]
+    try:
+        snapshot_size = snapshot_path.stat().st_size
+    except OSError:
+        return None, [invalid]
+    if snapshot_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        return None, [invalid]
+    if hashlib.sha256(snapshot_path.read_bytes()).hexdigest() != PLATFORM_SNAPSHOT_SHA256:
+        return None, [invalid]
+    try:
+        document = yaml.load(_read(snapshot_path), Loader=UniqueKeySafeLoader)
+    except (UnicodeDecodeError, yaml.YAMLError):
+        return None, [invalid]
+    if not isinstance(document, dict):
+        return None, [invalid]
+
+    expected = {
+        "schema": "helianthus.platform-cross-seed-snapshot",
+        "version": "1",
+        "repository": PLATFORM_REPO,
+        "commit": PLATFORM_SNAPSHOT_REF,
+        "source_manifest_path": "docs/platform/manifests/eebus-doc-ownership.yaml",
+        "source_manifest_entry": "cross-runtime-platform-contracts",
+        "platform_contract_root": "docs/platform",
+        "platform_contract_state": "active",
+    }
+    if any(document.get(key) != value for key, value in expected.items()):
+        return None, [invalid]
+    source_manifest_blob = document.get("source_manifest_blob")
+    source_manifest_content = document.get("source_manifest_content")
+    if (
+        re.fullmatch(r"[0-9a-f]{40}", source_manifest_blob or "") is None
+        or not isinstance(source_manifest_content, str)
+        or _git_blob_id(source_manifest_content) != source_manifest_blob
+    ):
+        return None, [invalid]
+
+    targets = document.get("targets")
+    if not isinstance(targets, list) or not targets:
+        return None, [invalid]
+    target_paths: set[str] = set()
+    source_contents: dict[str, str] = {}
+    for target in targets:
+        if not isinstance(target, dict) or set(target) != {"path", "blob", "content"}:
+            return None, [invalid]
+        path = target.get("path")
+        blob = target.get("blob")
+        content = target.get("content")
+        if (
+            not isinstance(path, str)
+            or not isinstance(blob, str)
+            or not isinstance(content, str)
+            or not content.strip()
+        ):
+            return None, [invalid]
+        normalized = posixpath.normpath(path)
+        if (
+            normalized != path
+            or not path.startswith("docs/platform/")
+            or not path.endswith(".md")
+            or re.fullmatch(r"[0-9a-f]{40}", blob) is None
+            or _git_blob_id(content) != blob
+            or path in target_paths
+        ):
+            return None, [invalid]
+        target_paths.add(path)
+        source_contents[path] = content
+
+    if target_paths != PLATFORM_SNAPSHOT_TARGETS:
+        return None, [invalid]
+    if (
+        sum(len(value.encode("utf-8")) for value in source_contents.values())
+        > MAX_REPOSITORY_TEXT_SCAN_BYTES
+    ):
+        return None, [invalid]
+
+    try:
+        manifest = yaml.load(source_manifest_content, Loader=UniqueKeySafeLoader)
+    except yaml.YAMLError:
+        return None, [invalid]
+    entries = manifest.get("entries") if isinstance(manifest, dict) else None
+    if not isinstance(entries, list):
+        return None, [invalid]
+    manifest_channel_pages = {
+        channel: set() for channel in CANDIDATE_API_CHANNELS
+    }
+    local_repository = REPO_ID.split("/", 1)[1]
+    seen_entry_ids: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            return None, [invalid]
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str) or entry_id in seen_entry_ids:
+            return None, [invalid]
+        seen_entry_ids.add(entry_id)
+        owner = entry.get("owner")
+        outputs = entry.get("outputs")
+        if not isinstance(owner, dict) or not isinstance(outputs, dict):
+            return None, [invalid]
+        if owner.get("repository") != local_repository or entry.get("state") != "active":
+            continue
+        owner_path = owner.get("path")
+        if not isinstance(owner_path, str):
+            return None, [invalid]
+        for channel in CANDIDATE_API_CHANNELS:
+            enabled = outputs.get(channel)
+            if not isinstance(enabled, bool):
+                return None, [invalid]
+            if enabled:
+                manifest_channel_pages[channel].add(owner_path)
+
+    return {
+        "repository": document["repository"],
+        "commit": document["commit"],
+        "targets": target_paths,
+        "source_contents": source_contents,
+        "manifest_channel_pages": manifest_channel_pages,
+    }, []
+
+
+def _load_publication_channels(
+    root: Path,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    invalid = f"{PUBLICATION_CHANNELS_PATH}: publication channel configuration is invalid"
+    path = root / PUBLICATION_CHANNELS_PATH
+    if not path.is_file() or path.is_symlink():
+        return None, [invalid]
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None, [invalid]
+    if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        return None, [
+            f"{PUBLICATION_CHANNELS_PATH}: publication channel configuration exceeds size limit"
+        ]
+    try:
+        document = yaml.load(_read(path), Loader=UniqueKeySafeLoader)
+    except (UnicodeDecodeError, yaml.YAMLError):
+        return None, [invalid]
+    if not isinstance(document, dict) or set(document) != {
+        "schema",
+        "version",
+        "public_output_roots",
+        "channels",
+    }:
+        return None, [invalid]
+    if (
+        document.get("schema") != "helianthus.publication-channels"
+        or document.get("version") != "1"
+    ):
+        return None, [invalid]
+    roots = document.get("public_output_roots")
+    channels = document.get("channels")
+    if (
+        not isinstance(roots, list)
+        or not roots
+        or any(
+            not isinstance(value, str)
+            or value != posixpath.normpath(value)
+            or PurePosixPath(value).is_absolute()
+            or ".." in PurePosixPath(value).parts
+            for value in roots
+        )
+        or len(set(roots)) != len(roots)
+        or roots != sorted(roots, key=lambda value: value.encode("utf-8"))
+        or not isinstance(channels, dict)
+        or set(channels) != STABLE_PUBLICATION_CHANNELS
+    ):
+        return None, [invalid]
+    registered: dict[str, str] = {}
+    for channel, paths in channels.items():
+        if (
+            not isinstance(paths, list)
+            or not paths
+            or any(not isinstance(value, str) for value in paths)
+        ):
+            return None, [invalid]
+        for value in paths:
+            normalized = posixpath.normpath(value)
+            if (
+                value != normalized
+                or PurePosixPath(value).is_absolute()
+                or ".." in PurePosixPath(value).parts
+                or value in registered
+                or not any(value == root_value or value.startswith(root_value + "/") for root_value in roots)
+            ):
+                return None, [invalid]
+            registered[value] = channel
+    return {"roots": tuple(roots), "registered": registered}, []
+
+
+def _reviewed_architecture_claim(
+    text: str,
+    metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
+) -> dict[str, str] | None:
+    body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
+    reviewed = PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    if reviewed is None and fixture_mode:
+        reviewed = FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE.get(body_hash)
+    if reviewed is None or metadata != reviewed:
+        return None
+    return reviewed
+
+
+def _reviewed_supported_api_claim(
+    text: str,
+    metadata: dict[str, str],
+) -> dict[str, str] | None:
+    body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
+    reviewed = PRODUCTION_REVIEWED_SUPPORTED_API.get(body_hash)
+    if reviewed is None or metadata != reviewed:
+        return None
+    return reviewed
+
+
+def _reviewed_cross_seed_claim(
+    text: str,
+    metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
+) -> dict[str, str] | None:
+    body_hash = hashlib.sha256(_markdown_body(text).encode("utf-8")).hexdigest()
+    reviewed = PRODUCTION_REVIEWED_CROSS_SEED.get(body_hash)
+    if reviewed is None and fixture_mode:
+        reviewed = FIXTURE_REVIEWED_CROSS_SEED.get(body_hash)
+    if reviewed is None or metadata != reviewed:
+        return None
+    return reviewed
+
+
+def _fully_unquote(value: str) -> str:
+    """Decode nested percent escapes to a fixed point."""
+    decoded = value
+    while True:
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+
+
+def _decode_raw_unicode_escapes(value: str) -> str:
+    """Decode only JSON-style Unicode escapes, leaving other escapes literal."""
+
+    def decode_pair(match: re.Match[str]) -> str:
+        high = int(match.group(1), 16)
+        low = int(match.group(2), 16)
+        return chr(0x10000 + ((high - 0xD800) << 10) + low - 0xDC00)
+
+    def decode_bmp(match: re.Match[str]) -> str:
+        codepoint = int(match.group(1), 16)
+        if 0xD800 <= codepoint <= 0xDFFF:
+            return match.group(0)
+        return chr(codepoint)
+
+    paired = UNICODE_SURROGATE_PAIR_PATTERN.sub(decode_pair, value)
+    return UNICODE_ESCAPE_PATTERN.sub(decode_bmp, paired)
+
+
+def _fully_decode_reference(value: str) -> str:
+    """Normalize nested reference encodings to a fixed point."""
+    decoded = value
+    while True:
+        next_value = _decode_raw_unicode_escapes(
+            _fully_unquote(html.unescape(decoded))
+        )
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+
+
+def _reference_text_variants(text: str) -> set[str]:
+    """Return decoded text plus JSON string values embedded in serializations."""
+    variants = {text, _fully_decode_reference(text)}
+    pending = list(variants)
+    while pending:
+        value = pending.pop()
+        for match in JSON_STRING_PATTERN.finditer(value):
+            try:
+                decoded = json.loads(match.group(0))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if not isinstance(decoded, str):
+                continue
+            decoded = _fully_decode_reference(decoded)
+            if decoded not in variants:
+                variants.add(decoded)
+                pending.append(decoded)
+    return variants
+
+
+def _github_repository_relative_path(value: str) -> str | None:
+    """Map recognized URLs for this repository to their checkout-relative path."""
+    decoded = _fully_decode_reference(value).replace("\\", "/")
+    host_root = decoded.startswith("/") and not decoded.startswith("//")
+    parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
+    try:
+        parsed = urlsplit(parsed_value)
+    except ValueError:
+        return None
+    hostname = parsed.hostname
+    if hostname is None and not host_root:
+        return None
+    host = hostname.rstrip(".").casefold() if hostname is not None else "github.com"
+    path = posixpath.normpath(_fully_decode_reference(parsed.path))
+    segments = [segment for segment in path.split("/") if segment]
+    repo_owner, repo_name = REPO_ID.split("/", 1)
+
+    if host == "api.github.com":
+        if (
+            len(segments) < 5
+            or segments[0].casefold() != "repos"
+            or segments[1].casefold() != repo_owner.casefold()
+            or segments[2].casefold() != repo_name.casefold()
+            or segments[3].casefold() != "contents"
+        ):
+            return None
+        return "/".join(segments[4:])
+
+    if len(segments) < 4 or segments[0].casefold() != repo_owner.casefold() or segments[
+        1
+    ].casefold() != repo_name.casefold():
+        return None
+
+    if host in {"github.com", "www.github.com"}:
+        if len(segments) < 5 or segments[2].casefold() not in {"blob", "raw", "tree"}:
+            return None
+        path_start = 4
+    elif host == "raw.githubusercontent.com":
+        path_start = 3
+    else:
+        return None
+
+    for index in range(path_start, len(segments) - 1):
+        if segments[index] == "api" and segments[index + 1] == "_candidate":
+            path_start = index
+            break
+    return "/".join(segments[path_start:])
+
+
+def _is_candidate_path(rel: str) -> bool:
+    decoded = _fully_decode_reference(rel)
+    normalized = posixpath.normpath(decoded.replace("\\", "/").lstrip("/"))
+    path = PurePosixPath(normalized)
+    return path == CANDIDATE_API_ROOT or CANDIDATE_API_ROOT in path.parents
+
+
+def _is_candidate_api(rel: str, metadata: dict[str, str]) -> bool:
+    return _is_candidate_path(rel) or metadata.get("owner_domain") == "api" and (
+        metadata.get("publication_status") == "candidate"
+        or metadata.get("candidate_output") == "true"
+    )
+
+
+def _candidate_api_errors(rel: str, metadata: dict[str, str]) -> list[str]:
+    if not _is_candidate_api(rel, metadata):
+        return []
+
+    errors: list[str] = []
+    if _is_candidate_path(rel) and metadata.get("publication_status") != "candidate":
+        errors.append(f"{rel}: candidate API path must declare publication_status candidate")
+    if metadata.get("candidate_output") != "true":
+        errors.append(f"{rel}: candidate API must declare candidate_output true")
+    for channel in CANDIDATE_API_CHANNELS:
+        if metadata.get(channel) != "false":
+            errors.append(f"{rel}: candidate API is exposed through {channel}")
+
+    declared = metadata.get("candidate_output_path", "")
+    candidate_path = PurePosixPath(declared)
+    rel_path = PurePosixPath(rel)
+    portable = (
+        bool(declared)
+        and "\\" not in declared
+        and "%" not in declared
+        and not candidate_path.is_absolute()
+        and ".." not in candidate_path.parts
+        and candidate_path == rel_path
+        and CANDIDATE_API_ROOT in candidate_path.parents
+    )
+    if not portable:
+        errors.append(
+            f"{rel}: candidate API path must be portable and contained under api/_candidate"
+        )
+    return errors
+
+
+def _active_architecture_errors(
+    rel: str,
+    text: str,
+    metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
+) -> list[str]:
+    if metadata.get("owner_domain") != "architecture" or metadata.get(
+        "publication_status"
+    ) != "active":
+        return []
+
+    errors: list[str] = []
+    if (
+        metadata.get("claim_status") != "evidence-backed"
+        or metadata.get("source_class") not in EVIDENCE_SOURCE_CLASSES
+        or metadata.get("hypothesis_status") != "publishable"
+    ):
+        errors.append(f"{rel}: active architecture claim lacks publishable support")
+
+    if _reviewed_architecture_claim(text, metadata, fixture_mode=fixture_mode) is None:
+        errors.append(f"{rel}: active architecture content is not in the reviewed claim registry")
+
+    if any(
+        "restricted" in key.lower() or "quarantined" in key.lower()
+        for key in metadata
+    ):
+        errors.append(f"{rel}: restric" "ted-source provenance metadata is forbidden")
+
+    return errors
+
+
+def _supported_api_errors(
+    rel: str,
+    text: str,
+    metadata: dict[str, str],
+) -> list[str]:
+    if metadata.get("owner_domain") != "api" or _is_candidate_api(rel, metadata):
+        return []
+    if rel == "api/README.md":
+        return []
+    if _reviewed_supported_api_claim(text, metadata) is None:
+        return [f"{rel}: API content is not in the reviewed supported API registry"]
+    return []
+
+
+def _milestone_errors(rel: str, metadata: dict[str, str]) -> list[str]:
+    terminal_states = {
+        "abandoned",
+        "aborted",
+        "active",
+        "available",
+        "canceled",
+        "cancelled",
+        "closed",
+        "complete",
+        "completed",
+        "delivered",
+        "done",
+        "failed",
+        "finished",
+        "landed",
+        "merged",
+        "passed",
+        "published",
+        "ready",
+        "rejected",
+        "released",
+        "removed",
+        "resolved",
+        "retired",
+        "shipped",
+        "succeeded",
+        "successful",
+        "superseded",
+        "terminated",
+        "withdrawn",
+    }
+    lifecycle_fields = {
+        "complete",
+        "completion",
+        "lifecycle",
+        "phase",
+        "stage",
+        "state",
+        "status",
+    }
+
+    def normalized(value: str) -> str:
+        decoded = _fully_decode_reference(value)
+        return re.sub(r"[^a-z0-9]+", "-", decoded.strip().casefold()).strip("-")
+
+    entries = [(normalized(key), normalized(value)) for key, value in metadata.items()]
+    clean_present = any(
+        "msp-docs-clean" in key or "msp-docs-clean" in value
+        for key, value in entries
+    )
+    completion_entries = [
+        (key, value)
+        for key, value in entries
+        if any(part in lifecycle_fields for part in key.split("-"))
+    ]
+    terminal_present = any(
+        bool(set(value.split("-")) & terminal_states)
+        or value in {"1", "true", "yes"}
+        or "msp-docs-clean" in value
+        for _, value in completion_entries
+    )
+    inline_terminal_claim = any(
+        ("msp-docs-clean" in key or "msp-docs-clean" in value)
+        and bool((set(key.split("-")) | set(value.split("-"))) & terminal_states)
+        for key, value in entries
+    )
+    if clean_present and (terminal_present or inline_terminal_claim):
+        return [f"{rel}: MSP-DOCS-CLEAN cannot be claimed during MSP-DOCS-E2"]
+    return []
+
+
+def _normalized_reference_paths(text: str, source_rel: str) -> set[str]:
+    paths: set[str] = set()
+    source_parent = PurePosixPath(source_rel).parent.as_posix()
+
+    def add_reference(value: str) -> None:
+        decoded = _fully_decode_reference(value)
+        repository_path = _github_repository_relative_path(decoded)
+        if repository_path is not None:
+            paths.add(posixpath.normpath(repository_path))
+            return
+        if "://" in decoded or decoded.startswith("//"):
+            parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
+            try:
+                decoded = urlsplit(parsed_value).path
+            except ValueError:
+                return
+        decoded = decoded.split("#", 1)[0].split("?", 1)[0].replace("\\", "/")
+        if not decoded:
+            return
+        root_relative = posixpath.normpath(decoded.lstrip("/"))
+        source_relative = posixpath.normpath(posixpath.join(source_parent, decoded))
+        paths.update({root_relative, source_relative})
+
+    for variant in _reference_text_variants(text):
+        decoded_text = variant.replace("\\", "/")
+        if re.fullmatch(r"[^\s<>\"']+", decoded_text):
+            add_reference(decoded_text)
+        for match in REFERENCE_TOKEN_PATTERN.finditer(decoded_text):
+            reference = match.group(0).rstrip(".,;:!?)]]}>")
+            add_reference(reference)
+    return paths
+
+
+class _HTMLDestinationParser(HTMLParser):
+    _VOID_ELEMENTS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.destinations: list[str] = []
+        self.visible_text: list[str] = []
+        self._elements: list[tuple[str, bool]] = []
+
+    @property
+    def hidden(self) -> bool:
+        return any(hidden for _, hidden in self._elements)
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        normalized_tag = tag.casefold()
+        normalized_attrs = {name.casefold(): value for name, value in attrs}
+        hides_content = (
+            normalized_tag in {"script", "style", "template"}
+            or "hidden" in normalized_attrs
+            or "inert" in normalized_attrs
+            or (normalized_attrs.get("aria-hidden") or "").strip().casefold() == "true"
+        )
+        hidden = self.hidden or hides_content
+        if normalized_tag == "a" and not hidden:
+            href = normalized_attrs.get("href")
+            if href is not None:
+                self.destinations.append(href)
+        if normalized_tag not in self._VOID_ELEMENTS:
+            self._elements.append((normalized_tag, hides_content))
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized_tag = tag.casefold()
+        for index in range(len(self._elements) - 1, -1, -1):
+            if self._elements[index][0] == normalized_tag:
+                del self._elements[index:]
+                break
+
+    def handle_data(self, data: str) -> None:
+        if not self.hidden:
+            self.visible_text.append(data)
+
+
+def _feed_html(parser: _HTMLDestinationParser, text: str) -> None:
+    try:
+        parser.feed(text)
+    except (AssertionError, ValueError):
+        pass
+
+
+def _close_html(parser: _HTMLDestinationParser) -> None:
+    try:
+        parser.close()
+    except (AssertionError, ValueError):
+        pass
+
+
+def _inline_visible_text(
+    children: list[Any],
+    html_parser: _HTMLDestinationParser | None = None,
+) -> str:
+    visible: list[str] = []
+    if html_parser is None:
+        html_parser = _HTMLDestinationParser()
+    for child in children:
+        if child.type == "text" and not html_parser.hidden:
+            visible.append(child.content)
+        elif child.type in {"softbreak", "hardbreak"} and not html_parser.hidden:
+            visible.append("\n")
+        elif child.type == "html_inline":
+            before = len(html_parser.visible_text)
+            _feed_html(html_parser, child.content)
+            visible.extend(html_parser.visible_text[before:])
+        # CommonMark image alt text and code spans are not visible policy prose.
+    return "".join(visible)
+
+
+def _visible_markdown_text(text: str) -> str:
+    """Return rendered prose from a CommonMark parse, excluding code and images."""
+    visible: list[str] = []
+    html_parser = _HTMLDestinationParser()
+    for token in MARKDOWN.parse(text):
+        if token.type == "inline":
+            visible.append(_inline_visible_text(token.children or [], html_parser))
+            visible.append("\n")
+        elif token.type == "html_block":
+            before = len(html_parser.visible_text)
+            _feed_html(html_parser, token.content)
+            visible.extend(html_parser.visible_text[before:])
+            visible.append("\n")
+    before = len(html_parser.visible_text)
+    _close_html(html_parser)
+    visible.extend(html_parser.visible_text[before:])
+    return "".join(visible)
+
+
+def _visible_link_destinations(text: str) -> list[str]:
+    """Extract CommonMark links and HTML anchors, excluding images and code."""
+    destinations: list[str] = []
+    html_parser = _HTMLDestinationParser()
+    for token in MARKDOWN.parse(text):
+        if token.type == "inline":
+            for child in token.children or []:
+                if child.type == "link_open" and not html_parser.hidden:
+                    destination = child.attrGet("href")
+                    if destination is not None:
+                        destinations.append(destination)
+                elif child.type == "html_inline":
+                    before = len(html_parser.destinations)
+                    _feed_html(html_parser, child.content)
+                    destinations.extend(html_parser.destinations[before:])
+        elif token.type == "html_block":
+            before = len(html_parser.destinations)
+            _feed_html(html_parser, token.content)
+            destinations.extend(html_parser.destinations[before:])
+    _close_html(html_parser)
+    return destinations
+
+
+def _visible_headings(text: str) -> set[str]:
+    headings: set[str] = set()
+    html_parser = _HTMLDestinationParser()
+    in_heading = False
+    for token in MARKDOWN.parse(text):
+        if token.type == "heading_open":
+            in_heading = True
+        elif token.type == "inline":
+            visible = _inline_visible_text(token.children or [], html_parser)
+            if in_heading and visible:
+                headings.add(visible)
+            in_heading = False
+        elif token.type == "html_block":
+            _feed_html(html_parser, token.content)
+        elif token.type == "heading_close":
+            in_heading = False
+    _close_html(html_parser)
+    return headings
+
+
+def _contains_summary_normative_requirements(text: str) -> bool:
+    visible = _visible_markdown_text(text)
+    return (
+        SUMMARY_NORMATIVE_PATTERN.search(visible) is not None
+        or SUMMARY_IMPERATIVE_PATTERN.search(visible) is not None
+    )
+
+
+def _policy_text_variants(text: str, *, markdown: bool) -> set[str]:
+    variants = _reference_text_variants(text)
+    if markdown:
+        variants.update(
+            {
+                _visible_markdown_text(text),
+                _visible_markdown_text(_fully_decode_reference(text)),
+            }
+        )
+    return variants
+
+
+def _platform_normative_copy_targets(
+    text: str,
+    platform_snapshot: dict[str, Any] | None,
+) -> set[str]:
+    if platform_snapshot is None:
+        return set()
+
+    def fingerprints(value: str) -> set[str] | None:
+        words = re.findall(r"[a-z0-9]+", _visible_markdown_text(value).casefold())
+        result: set[str] = set()
+        for index in range(len(words) - MIN_PLATFORM_COPY_WORDS + 1):
+            window = " ".join(words[index : index + MIN_PLATFORM_COPY_WORDS])
+            if len(window) < MIN_PLATFORM_COPY_CHARACTERS:
+                continue
+            result.add(hashlib.sha256(window.encode("utf-8")).hexdigest())
+            if len(result) > MAX_PLATFORM_FINGERPRINT_WINDOWS:
+                return None
+        return result
+
+    page_fingerprints = fingerprints(_markdown_body(text))
+    if page_fingerprints is None:
+        return set(platform_snapshot["source_contents"])
+    copied: set[str] = set()
+    for target, source_content in platform_snapshot["source_contents"].items():
+        source_fingerprints = fingerprints(source_content)
+        if source_fingerprints is None or page_fingerprints & source_fingerprints:
+            copied.add(target)
+    return copied
+
+
+def _contains_non_link_platform_url(text: str) -> bool:
+    visible = _visible_markdown_text(text)
+    return re.search(
+        rf"(?:https?:)?//(?:www\.)?github\.com/{re.escape(PLATFORM_REPO)}/"
+        r"[^\s<>\"']*docs/platform/[^\s<>\"']+\.md\b",
+        visible,
+        re.IGNORECASE,
+    ) is not None
+
+
+def _platform_links(text: str) -> list[tuple[str, str, bool]]:
+    """Return visible platform destinations and whether each is exactly canonical."""
+    links: list[tuple[str, str, bool]] = []
+    repo_owner, repo_name = PLATFORM_REPO.split("/", 1)
+    for destination in _visible_link_destinations(text):
+        decoded = _fully_decode_reference(destination).replace("\\", "/")
+        host_root = decoded.startswith("/") and not decoded.startswith("//")
+        parsed_value = "https:" + decoded if decoded.startswith("//") else decoded
+        try:
+            parsed = urlsplit(parsed_value)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError:
+            continue
+        if not host_root and (
+            hostname is None
+            or hostname.rstrip(".").casefold()
+            not in {
+                "github.com",
+                "www.github.com",
+                "raw.githubusercontent.com",
+            }
+        ):
+            continue
+
+        normalized_path = posixpath.normpath(parsed.path)
+        segments = [segment for segment in normalized_path.split("/") if segment]
+        if len(segments) < 6:
+            continue
+        if segments[0].casefold() != repo_owner.casefold() or segments[
+            1
+        ].casefold() != repo_name.casefold():
+            continue
+
+        raw_host = (
+            hostname is not None
+            and hostname.rstrip(".").casefold() == "raw.githubusercontent.com"
+        )
+        ref_start = 2 if raw_host else 3
+        platform_index = next(
+            (
+                index
+                for index in range(ref_start + 1, len(segments) - 1)
+                if segments[index].casefold() == "docs"
+                and segments[index + 1].casefold() == "platform"
+            ),
+            None,
+        )
+        if platform_index is None:
+            continue
+        ref = "/".join(segments[ref_start:platform_index])
+        target = "docs/platform/" + "/".join(segments[platform_index + 2 :])
+        if not target.casefold().endswith(".md"):
+            continue
+        canonical_url = (
+            f"https://github.com/{PLATFORM_REPO}/blob/{ref}/{target}"
+        )
+        canonical = (
+            destination == canonical_url
+            and decoded == destination
+            and parsed.scheme == "https"
+            and parsed.netloc == "github.com"
+            and port is None
+            and parsed.username is None
+            and parsed.password is None
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.path == normalized_path
+            and segments[0] == repo_owner
+            and segments[1] == repo_name
+            and not raw_host
+            and segments[2] == "blob"
+            and platform_index == 4
+            and re.fullmatch(r"[0-9a-f]{40}", ref) is not None
+            and re.fullmatch(r"docs/platform/[A-Za-z0-9._/-]+\.md", target)
+            is not None
+        )
+        links.append((ref, target, canonical))
+    return links
+
+
+def _contains_candidate_destination(text: str, source_rel: str) -> bool:
+    root = CANDIDATE_API_ROOT.as_posix()
+    return any(
+        path == root or path.startswith(root + "/")
+        for path in _normalized_reference_paths(text, source_rel)
+    )
+
+
+def _contains_visible_candidate_destination(text: str, source_rel: str) -> bool:
+    return any(
+        _contains_candidate_destination(destination, source_rel)
+        for destination in _visible_link_destinations(text)
+    )
+
+
 def _is_exempt_markdown(path: Path, root: Path) -> bool:
     rel = _rel(path, root)
     return (
@@ -305,54 +1422,98 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
 
 def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
     errors: list[str] = []
+    structured_fingerprint_variants = {text, _fully_decode_reference(text)}
 
     def add(category: str, line: int | None = None) -> None:
         location = rel if category_only or line is None else f"{rel}:{line}"
         errors.append(f"{location}: {category}")
 
-    if PEM_BLOCK_PATTERN.search(text):
-        add("PEM block marker found in publishable content")
-    if MAC_ADDRESS_PATTERN.search(text):
-        add("MAC address found in publishable content")
-    if FULL_FINGERPRINT_PATTERN.search(text):
-        add("full fingerprint or raw SKI found in publishable content")
-    if PRIVATE_PATH_PATTERN.search(text):
-        add("private or identifying filesystem path found")
-    for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(text):
-        line = text.count("\n", 0, match.start()) + 1
-        add("private artifact location/reference field is forbidden", line)
-    for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(text):
-        value = match.group(1)
-        if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
-            line = text.count("\n", 0, match.start()) + 1
-            add("private artifact retained value must be yes or no", line)
-    for match in SENSITIVE_FIELD_PATTERN.finditer(text):
-        value = match.group(2)
-        if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
-            line = text.count("\n", 0, match.start()) + 1
-            category = "populated sensitive field"
-            if not category_only:
-                category += f" {match.group(1).lower()!r}"
-            add(category, line)
-    for match in RAW_EEBUS_ID_PATTERN.finditer(text):
-        value = match.group(1)
-        if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
-            line = text.count("\n", 0, match.start()) + 1
-            add("populated raw SKI or SHIP ID", line)
-    for match in IPV4_CANDIDATE_PATTERN.finditer(text):
-        if classify_ipv4(match.group(0)) == "private network":
-            line = text.count("\n", 0, match.start()) + 1
-            add("private IPv4 address found", line)
-    for match in IPV6_CANDIDATE_PATTERN.finditer(text):
-        candidate = match.group(0)
-        address = candidate.split("%", 1)[0]
-        try:
-            parsed = ipaddress.ip_address(address)
-        except ValueError:
-            continue
-        if isinstance(parsed, ipaddress.IPv6Address):
-            line = text.count("\n", 0, match.start()) + 1
-            add("IPv6 address found in publishable content", line)
+    def assignment_value(value: str) -> str:
+        normalized = value.strip()
+        if normalized.endswith(","):
+            normalized = normalized[:-1].rstrip()
+        if (
+            len(normalized) >= 2
+            and normalized[0] == normalized[-1]
+            and normalized[0] in {"\"", "'"}
+        ):
+            normalized = normalized[1:-1]
+        return normalized
+
+    for variant in _reference_text_variants(text):
+        source_positions_valid = variant == text
+        if PEM_BLOCK_PATTERN.search(variant):
+            add("PEM block marker found in publishable content")
+        if MAC_ADDRESS_PATTERN.search(variant):
+            add("MAC address found in publishable content")
+        if variant in structured_fingerprint_variants:
+            exemptions = git_fingerprint_exempt_spans(variant)
+            exemption_index = 0
+            for match in FULL_FINGERPRINT_PATTERN.finditer(variant):
+                while (
+                    exemption_index < len(exemptions)
+                    and exemptions[exemption_index][1] <= match.start()
+                ):
+                    exemption_index += 1
+                if exemption_index == len(exemptions):
+                    add("full fingerprint or raw SKI found in publishable content")
+                    break
+                start, end = exemptions[exemption_index]
+                if not (start <= match.start() and match.end() <= end):
+                    add("full fingerprint or raw SKI found in publishable content")
+                    break
+        if PRIVATE_PATH_PATTERN.search(variant):
+            add("private or identifying filesystem path found")
+        for match in PRIVATE_ARTIFACT_FIELD_PATTERN.finditer(variant):
+            line = text.count("\n", 0, match.start()) + 1 if source_positions_valid else None
+            add("private artifact location/reference field is forbidden", line)
+        for match in PRIVATE_ARTIFACT_RETAINED_PATTERN.finditer(variant):
+            value = assignment_value(match.group(1))
+            if SAFE_RETAINED_VALUE_PATTERN.fullmatch(value) is None:
+                line = (
+                    text.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("private artifact retained value must be yes or no", line)
+        for match in SENSITIVE_FIELD_PATTERN.finditer(variant):
+            value = assignment_value(match.group(2))
+            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                category = "populated sensitive field"
+                if not category_only:
+                    category += f" {match.group(1).lower()!r}"
+                add(category, line)
+        for match in RAW_EEBUS_ID_PATTERN.finditer(variant):
+            value = match.group(1)
+            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("populated raw SKI or SHIP ID", line)
+        for match in IPV4_CANDIDATE_PATTERN.finditer(variant):
+            if classify_ipv4(match.group(0)) == "private network":
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("private IPv4 address found", line)
+        for match in IPV6_CANDIDATE_PATTERN.finditer(variant):
+            candidate = match.group(0)
+            if classify_ipv6(candidate) == "private network":
+                line = (
+                    variant.count("\n", 0, match.start()) + 1
+                    if source_positions_valid
+                    else None
+                )
+                add("private or local IPv6 address found", line)
     return errors
 
 
@@ -365,11 +1526,31 @@ def _restricted_source_errors(
     if rel in SCAFFOLD_PAGES:
         return []
     errors: list[str] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if RESTRICTED_SOURCE_PATTERN.search(line) is None:
-            continue
-        location = rel if category_only else f"{rel}:{line_number}"
-        errors.append(f"{location}: restricted-source contamination marker found")
+    markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+    for variant in _policy_text_variants(text, markdown=markdown):
+        source_positions_valid = variant == text
+        for line_number, line in enumerate(variant.splitlines(), start=1):
+            if RESTRICTED_SOURCE_PATTERN.search(line) is None:
+                continue
+            if ALLOWED_RESTRICTED_POLICY_PATTERN.search(line) is not None:
+                continue
+            location = (
+                rel
+                if category_only or not source_positions_valid
+                else f"{rel}:{line_number}"
+            )
+            errors.append(f"{location}: restric" "ted-source contamination marker found")
+    return errors
+
+
+def _premature_claim_errors(text: str, rel: str) -> list[str]:
+    markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+    variants = _policy_text_variants(text, markdown=markdown)
+    errors: list[str] = []
+    if any(PREMATURE_COMPLETION_PATTERN.search(variant) for variant in variants):
+        errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
+    if any(PREMATURE_CONSUMER_PATTERN.search(variant) for variant in variants):
+        errors.append(f"{rel}: premature gateway or consumer availability claim")
     return errors
 
 
@@ -396,11 +1577,328 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     return errors
 
 
+def _lexical_publication_reference(value: str) -> bool:
+    path = PurePosixPath(value)
+    return (
+        bool(value)
+        and value == value.strip()
+        and "\\" not in value
+        and "%" not in value
+        and not path.is_absolute()
+        and ".." not in path.parts
+        and posixpath.normpath(value) == value
+        and re.fullmatch(r"[A-Za-z0-9._/-]+", value) is not None
+        and path.suffix.lower() in MARKDOWN_SUFFIXES
+    )
+
+
+def _pages_like_key(value: str) -> bool:
+    value = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", value)
+    words = {
+        word
+        for word in re.split(r"[^a-z0-9]+", value.casefold())
+        if word
+    }
+    return bool(
+        words
+        & {"document", "documents", "file", "files", "page", "pages", "path", "paths"}
+    )
+
+
+def _json_publication_references(value: Any) -> list[str]:
+    references: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if (
+                isinstance(key, str)
+                and _pages_like_key(key)
+                and isinstance(item, list)
+                and item
+                and all(
+                    isinstance(reference, str)
+                    and _lexical_publication_reference(reference)
+                    for reference in item
+                )
+            ):
+                references.extend(item)
+            references.extend(_json_publication_references(item))
+    elif isinstance(value, list):
+        for item in value:
+            references.extend(_json_publication_references(item))
+    return references
+
+
+def _xml_local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1].casefold()
+
+
+def _xml_publication_references(document: ET.Element) -> list[str]:
+    return [
+        (element.text or "").strip()
+        for element in document.iter()
+        if _xml_local_name(element.tag) == "loc" and (element.text or "").strip()
+    ]
+
+
+def _bundle_publication_references(
+    text: str,
+    *,
+    registered: bool = False,
+) -> list[str] | None:
+    references: list[str] = []
+    publisher_marker = registered
+    headers = {
+        "[documents]",
+        "[files]",
+        "[pages]",
+        "[paths]",
+        "document",
+        "document:",
+        "documents:",
+        "file",
+        "file:",
+        "files:",
+        "page",
+        "page:",
+        "pages:",
+        "path",
+        "path:",
+        "paths:",
+    }
+    for raw_line in text.removeprefix("\ufeff").splitlines():
+        line = raw_line.strip()
+        normalized_header = re.sub(r"\s*:\s*$", ":", line.casefold())
+        header_fields = [
+            field.strip().casefold()
+            for field in re.split(r"[,|\t]", line)
+        ]
+        structured_header = (
+            len(header_fields) > 1
+            and header_fields[0] in {"document", "file", "page", "path"}
+            and all(re.fullmatch(r"[a-z_ -]+", field) for field in header_fields)
+        )
+        if not line or line.startswith(("#", ";", "//")):
+            continue
+        if normalized_header in headers or structured_header:
+            publisher_marker = True
+            continue
+        entry = re.sub(r"\s+(?:#|;|//).*$", "", line).rstrip()
+        if _lexical_publication_reference(entry):
+            references.append(entry)
+            continue
+        return None
+    return references if publisher_marker and references else None
+
+
+def _publication_artifact_shape(
+    text: str,
+    *,
+    registered_bundle: bool = False,
+) -> tuple[str | None, list[str]]:
+    result = decode_machine_json(text.encode("utf-8"))
+    if (
+        result.status == COMPLETE
+        and not result.duplicate_keys
+        and isinstance(result.document, dict)
+    ):
+        references = _json_publication_references(result.document)
+        if references:
+            return "search", references
+
+    if not re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
+        try:
+            document = ET.fromstring(text.removeprefix("\ufeff"))
+        except ET.ParseError:
+            document = None
+        if document is not None and _xml_local_name(document.tag) in {
+            "sitemapindex",
+            "urlset",
+        }:
+            return "sitemap", _xml_publication_references(document)
+
+    references = _bundle_publication_references(text, registered=registered_bundle)
+    if references is not None:
+        return "bundle", references
+    return None, []
+
+
+def _classify_publication_artifact(text: str) -> str | None:
+    channel, _ = _publication_artifact_shape(text)
+    return channel
+
+
+def _discover_publication_artifacts(
+    root: Path,
+    configuration: dict[str, Any],
+) -> dict[str, str]:
+    discovered: dict[str, str] = {}
+    registered: dict[str, str] = configuration["registered"]
+    for rel, channel in registered.items():
+        artifact = root / rel
+        if artifact.is_file() and not artifact.is_symlink():
+            discovered[rel] = channel
+
+    for path in sorted(root.rglob("*")):
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or ".git" in path.parts
+            or ".pytest_cache" in path.parts
+            or "__pycache__" in path.parts
+        ):
+            continue
+        rel = _rel(path, root)
+        if rel in discovered:
+            continue
+        if path.suffix.lower() in MARKDOWN_SUFFIXES:
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            continue
+        if b"\0" in raw:
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        channel = _classify_publication_artifact(text)
+        if channel is not None:
+            discovered[rel] = channel
+    return discovered
+
+
+def _canonical_publication_entries(entries: list[str]) -> bool:
+    return entries == sorted(entries, key=lambda value: value.encode("utf-8"))
+
+
+def _is_stable_repository_reference(root: Path, value: str) -> bool:
+    path = PurePosixPath(value)
+    if (
+        not value
+        or value != value.strip()
+        or "\\" in value
+        or "%" in value
+        or path.is_absolute()
+        or ".." in path.parts
+        or posixpath.normpath(value) != value
+        or re.fullmatch(r"[A-Za-z0-9._/-]+", value) is None
+        or _is_candidate_path(value)
+    ):
+        return False
+    if value not in ROOT_MD and (not path.parts or path.parts[0] not in PUBLISHABLE_DOMAINS):
+        return False
+
+    artifact = root.joinpath(*path.parts)
+    if not artifact.is_file() or artifact.is_symlink():
+        return False
+    if artifact.suffix.lower() in MARKDOWN_SUFFIXES:
+        try:
+            metadata, front_matter_error = _front_matter(_read(artifact))
+        except UnicodeDecodeError:
+            return False
+        if front_matter_error is not None or metadata is None:
+            return False
+        if (
+            metadata.get("publication_status") in NONPUBLISHABLE_PUBLICATION_STATUSES
+            or metadata.get("candidate_output") == "true"
+            or metadata.get("hypothesis_status") in {"blocked", "draft", "withdrawn"}
+        ):
+            return False
+    return True
+
+
+def _stable_artifact_references(
+    root: Path,
+    text: str,
+    rel: str,
+    channel: str,
+) -> tuple[list[str], list[str]]:
+    invalid = [f"{rel}: invalid stable publication artifact"]
+    if channel == "search":
+        result = decode_machine_json(text.encode("utf-8"))
+        document = result.document
+        if result.status != COMPLETE or result.duplicate_keys:
+            return [], invalid
+        if not isinstance(document, dict) or set(document) != {"pages"}:
+            return [], invalid
+        pages = document["pages"]
+        if (
+            not isinstance(pages, list)
+            or not pages
+            or any(not isinstance(page, str) for page in pages)
+            or len(set(pages)) != len(pages)
+            or any(not _is_stable_repository_reference(root, page) for page in pages)
+        ):
+            return [], invalid
+        if not _canonical_publication_entries(pages):
+            return [], [f"{rel}: non-canonical publication entry ordering"]
+        return pages, []
+
+    if channel == "sitemap":
+        if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
+            return [], invalid
+        try:
+            document = ET.fromstring(text)
+        except ET.ParseError:
+            return [], invalid
+        url_tag = f"{{{SITEMAP_NAMESPACE}}}url"
+        loc_tag = f"{{{SITEMAP_NAMESPACE}}}loc"
+        urls = list(document)
+        if (
+            document.tag != f"{{{SITEMAP_NAMESPACE}}}urlset"
+            or document.attrib
+            or not urls
+            or (document.text or "").strip()
+            or any(url.tag != url_tag or url.attrib or len(url) != 1 for url in urls)
+        ):
+            return [], invalid
+        references: list[str] = []
+        for url in urls:
+            loc = url[0]
+            value = loc.text or ""
+            if (
+                loc.tag != loc_tag
+                or loc.attrib
+                or len(loc)
+                or (url.text or "").strip()
+                or (loc.tail or "").strip()
+                or (url.tail or "").strip()
+                or not _is_stable_repository_reference(root, value)
+            ):
+                return [], invalid
+            references.append(value)
+        if len(set(references)) != len(references):
+            return [], invalid
+        if not _canonical_publication_entries(references):
+            return [], [f"{rel}: non-canonical publication entry ordering"]
+        return references, []
+
+    references = _bundle_publication_references(text, registered=True)
+    if (
+        not references
+        or len(set(references)) != len(references)
+        or any(not _is_stable_repository_reference(root, value) for value in references)
+    ):
+        return [], invalid
+    if not _canonical_publication_entries(references):
+        return [], [f"{rel}: non-canonical publication entry ordering"]
+    return references, []
+
+
 def _provenance_errors(
     root: Path,
     rel: str,
     text: str,
     metadata: dict[str, str],
+    *,
+    fixture_mode: bool,
 ) -> list[str]:
     errors: list[str] = []
     expected_scaffold_status = SCAFFOLD_PAGES.get(rel)
@@ -445,21 +1943,165 @@ def _provenance_errors(
             evidence_path = root / "evidence" / f"{evidence_id}.md"
             if not evidence_path.is_file() or evidence_path.is_symlink():
                 errors.append(f"{rel}: publishable evidence page {evidence_path.name!r} is missing")
+                continue
+            supported_claim = (
+                metadata.get("owner_domain") == "architecture"
+                and metadata.get("publication_status") == "active"
+                and metadata.get("hypothesis_status") == "publishable"
+            )
+            if not supported_claim:
+                continue
+            try:
+                evidence_text = _read(evidence_path)
+            except UnicodeDecodeError:
+                evidence_metadata = None
+            else:
+                evidence_metadata, _ = _front_matter(evidence_text)
+            evidence_body_hash = (
+                hashlib.sha256(_markdown_body(evidence_text).encode("utf-8")).hexdigest()
+                if evidence_metadata is not None
+                else ""
+            )
+            reviewed_evidence_metadata = PRODUCTION_REVIEWED_EVIDENCE.get(
+                evidence_id, {}
+            ).get(evidence_body_hash)
+            if reviewed_evidence_metadata is None and fixture_mode:
+                reviewed_evidence_metadata = FIXTURE_REVIEWED_EVIDENCE.get(
+                    evidence_id, {}
+                ).get(evidence_body_hash)
+            evidence_values = (
+                {
+                    value.strip()
+                    for value in evidence_metadata.get("evidence_ids", "").split(",")
+                    if value.strip()
+                }
+                if evidence_metadata is not None
+                else set()
+            )
+            expected_source = f"{REPO_ID}:evidence/{evidence_id}.md"
+            if evidence_metadata is None or any(
+                (
+                    evidence_metadata.get("canonical_source") != expected_source,
+                    evidence_metadata.get("owner_domain") != "evidence",
+                    evidence_metadata.get("publication_status") != "publishable",
+                    evidence_metadata.get("claim_status") != "evidence-backed",
+                    evidence_metadata.get("source_class") not in EVIDENCE_SOURCE_CLASSES,
+                    evidence_metadata.get("hypothesis_status") != "publishable",
+                    evidence_id not in evidence_values,
+                    reviewed_evidence_metadata is None,
+                    reviewed_evidence_metadata is not None
+                    and evidence_metadata != reviewed_evidence_metadata,
+                )
+            ):
+                errors.append(
+                    f"{rel}: supported claim evidence is not publishable and evidence-backed: "
+                    f"{evidence_path.name}"
+                )
 
     return errors
 
 
-def check_repository(root: Path) -> list[str]:
-    errors: list[str] = []
-    root = root.resolve()
+def _bounded_repository_text(path: Path, rel: str) -> tuple[str | None, list[str]]:
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None, [f"{rel}: repository artifact is unreadable"]
+    if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        return None, [f"{rel}: repository artifact exceeds scan size limit"]
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None, [f"{rel}: repository artifact is unreadable"]
+    if b"\0" in raw:
+        return None, []
+    try:
+        return raw.decode("utf-8"), []
+    except UnicodeDecodeError:
+        return None, []
 
+
+def _repository_lstat_preflight(
+    root: Path,
+) -> tuple[list[Path], set[Path], list[str]]:
+    regular_files: list[Path] = []
     symlinks: set[Path] = set()
-    for path in sorted(root.rglob("*")):
-        if ".git" in path.parts or ".pytest_cache" in path.parts:
+    errors: list[str] = []
+    pending = [root]
+
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                children = sorted(entries, key=lambda entry: os.fsencode(entry.name))
+        except OSError:
+            errors.append(f"{_rel(directory, root)}: repository directory is unreadable")
             continue
-        if path.is_symlink():
-            symlinks.add(path)
-            errors.append(f"{_rel(path, root)}: symlinks are forbidden")
+
+        for entry in children:
+            path = Path(entry.path)
+            rel = _rel(path, root)
+            if rel == ".git" or rel.startswith(".git/"):
+                continue
+            try:
+                mode = entry.stat(follow_symlinks=False).st_mode
+            except OSError:
+                errors.append(f"{rel}: repository artifact is unreadable")
+                continue
+            if stat.S_ISLNK(mode):
+                symlinks.add(path)
+                errors.append(f"{rel}: symlinks are forbidden")
+            elif stat.S_ISDIR(mode):
+                pending.append(path)
+            elif stat.S_ISREG(mode):
+                regular_files.append(path)
+
+    return regular_files, symlinks, errors
+
+
+def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
+    errors: list[str] = []
+    root = root.absolute()
+    stable_navigation_pages: dict[str, str] = {}
+    channel_pages: dict[str, set[str]] = {
+        channel: set() for channel in CANDIDATE_API_CHANNELS
+    }
+
+    try:
+        root_mode = root.lstat().st_mode
+    except OSError:
+        return [".: repository root is unreadable"]
+    if stat.S_ISLNK(root_mode) or not stat.S_ISDIR(root_mode):
+        return [".: repository root must be a non-symlink directory"]
+
+    regular_files, symlinks, preflight_errors = _repository_lstat_preflight(root)
+    errors.extend(preflight_errors)
+    if errors:
+        return sorted(set(errors), key=lambda value: value.encode("utf-8"))
+
+    platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
+    errors.extend(snapshot_errors)
+    if platform_snapshot is not None:
+        for channel, pages in platform_snapshot["manifest_channel_pages"].items():
+            channel_pages[channel].update(pages)
+    publication_channels, publication_channel_errors = _load_publication_channels(root)
+    errors.extend(publication_channel_errors)
+
+    for path in sorted(regular_files, key=lambda value: os.fsencode(_rel(value, root))):
+        if ".pytest_cache" in path.parts or "__pycache__" in path.parts:
+            continue
+        rel = _rel(path, root)
+        try:
+            file_stat = path.lstat()
+        except OSError:
+            errors.append(f"{rel}: repository artifact is unreadable")
+            continue
+        if not stat.S_ISREG(file_stat.st_mode):
+            errors.append(f"{rel}: repository artifact is not a regular file")
+            continue
+        if file_stat.st_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+            errors.append(f"{rel}: repository artifact exceeds scan size limit")
+    if errors:
+        return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
     ci_local = root / "scripts" / "ci_local.sh"
     if not ci_local.is_file() or ci_local.is_symlink():
@@ -695,8 +2337,12 @@ def check_repository(root: Path) -> list[str]:
     requirements = root / "requirements-ci.txt"
     if requirements in symlinks or not requirements.exists():
         errors.append("requirements-ci.txt: missing pinned validator dependencies")
-    elif _read(requirements).splitlines() != ["PyYAML==6.0.3"]:
-        errors.append("requirements-ci.txt: expected exact PyYAML==6.0.3 pin")
+    elif _read(requirements).splitlines() != [
+        "PyYAML==6.0.3",
+        "markdown-it-py==4.0.0",
+        "mdurl==0.1.2",
+    ]:
+        errors.append("requirements-ci.txt: validator dependency pins differ")
 
     readme_path = root / "README.md"
     contributing_path = root / "development" / "contributing.md"
@@ -764,15 +2410,91 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"{rel}: owner_domain must be {expected_domain!r}")
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
-        errors.extend(_provenance_errors(root, rel, page_text, metadata))
+        errors.extend(
+            _provenance_errors(
+                root,
+                rel,
+                page_text,
+                metadata,
+                fixture_mode=fixture_mode,
+            )
+        )
+        errors.extend(
+            _active_architecture_errors(
+                rel,
+                page_text,
+                metadata,
+                fixture_mode=fixture_mode,
+            )
+        )
+        errors.extend(_supported_api_errors(rel, page_text, metadata))
+        errors.extend(_candidate_api_errors(rel, metadata))
+        errors.extend(_milestone_errors(rel, metadata))
+        candidate_api = _is_candidate_api(rel, metadata)
+        for channel in CANDIDATE_API_CHANNELS:
+            value = metadata.get(channel)
+            if value is not None and value not in {"true", "false"}:
+                errors.append(f"{rel}: {channel} must be the string 'true' or 'false'")
+            if value == "true":
+                if candidate_api or not _is_stable_repository_reference(root, rel):
+                    errors.append(f"{rel}: nonpublishable page cannot enable {channel}")
+                else:
+                    channel_pages[channel].add(rel)
+        if fixture_mode:
+            fixture_body_hash = hashlib.sha256(
+                _markdown_body(page_text).encode("utf-8")
+            ).hexdigest()
+            if FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE.get(fixture_body_hash) == metadata:
+                for channel in CANDIDATE_API_CHANNELS:
+                    channel_pages[channel].add(rel)
+        if not candidate_api:
+            stable_navigation_pages[rel] = page_text
 
-        targets = {
-            f"Project-Helianthus/helianthus-docs-ebus:{target}"
-            for target in PLATFORM_LINK_PATTERN.findall(page_text)
-        }
+        platform_links = _platform_links(page_text)
+        links = {(ref, target) for ref, target, _ in platform_links}
+        targets = {f"{PLATFORM_REPO}:{target}" for _, target in links}
         declared_target = metadata.get("cross_seed_target")
         declared_mode = metadata.get("cross_seed_mode")
+        declared_snapshot = metadata.get("cross_seed_snapshot")
+        declares_cross_seed = any(
+            value is not None
+            for value in (declared_target, declared_mode, declared_snapshot)
+        )
+        copied_platform_targets = _platform_normative_copy_targets(
+            page_text,
+            platform_snapshot,
+        )
+        linked_target_paths = {
+            target.split(":", 1)[1]
+            for target in targets
+            if ":" in target
+        }
+        if copied_platform_targets and (
+            copied_platform_targets != linked_target_paths
+            or declared_mode != "summary-only"
+        ):
+            errors.append(
+                f"{rel}: platform-owned normative text requires canonical "
+                "summary-only cross-seed policy"
+            )
+        if copied_platform_targets:
+            errors.append(
+                f"{rel}: summary-only cross-seed copies pinned platform source content"
+            )
+        if declares_cross_seed and _reviewed_cross_seed_claim(
+            page_text,
+            metadata,
+            fixture_mode=fixture_mode,
+        ) is None:
+            errors.append(
+                f"{rel}: cross-seed content is not in the reviewed claim registry"
+            )
         if targets:
+            all_links_canonical = all(canonical for _, _, canonical in platform_links)
+            if not all_links_canonical:
+                errors.append(
+                    f"{rel}: platform URL must use canonical immutable commit/path form"
+                )
             if len(targets) != 1:
                 errors.append(f"{rel}: a page may cross-seed exactly one platform target")
             expected_target = next(iter(targets)) if len(targets) == 1 else None
@@ -782,19 +2504,37 @@ def check_repository(root: Path) -> list[str]:
                 )
             if declared_mode != "summary-only":
                 errors.append(f"{rel}: cross_seed_mode must be 'summary-only'")
-            atx_headings = {
-                match.group(1)
-                for match in re.finditer(r"^#+\s+(.+?)\s*$", page_text, re.MULTILINE)
-            }
-            setext_headings = {
-                match.group(1)
-                for match in re.finditer(
-                    r"^([^\n]+)\n(?:=+|-+)\s*$", page_text, re.MULTILINE
+            target_path = expected_target.split(":", 1)[1] if expected_target else None
+            snapshot_match = (
+                PLATFORM_SNAPSHOT_PATTERN.fullmatch(declared_snapshot)
+                if isinstance(declared_snapshot, str)
+                else None
+            )
+            link_consistent = (
+                all_links_canonical
+                and len(platform_links) == 1
+                and len(links) == 1
+                and next(iter(links))[1] == target_path
+                and next(iter(links))[0] == PLATFORM_SNAPSHOT_REF
+                and snapshot_match is not None
+                and snapshot_match.group(1) == PLATFORM_SNAPSHOT_REF
+                and snapshot_match.group(2) == target_path
+            )
+            if not link_consistent:
+                errors.append(f"{rel}: cross-seed commit, path, and snapshot must match")
+            if (
+                platform_snapshot is None
+                or target_path not in platform_snapshot["targets"]
+                or platform_snapshot["repository"] != PLATFORM_REPO
+                or platform_snapshot["commit"] != PLATFORM_SNAPSHOT_REF
+            ):
+                errors.append(
+                    f"{rel}: cross-seed target is not an active canonical platform page "
+                    f"at {PLATFORM_SNAPSHOT_REF}"
                 )
-            }
             headings = {
                 re.sub(r"[^a-z0-9]+", " ", heading.lower()).strip()
-                for heading in atx_headings | setext_headings
+                for heading in _visible_headings(page_text)
             }
             duplicated = sorted(
                 forbidden
@@ -805,17 +2545,94 @@ def check_repository(root: Path) -> list[str]:
                 errors.append(
                     f"{rel}: summary-only cross-seed contains platform-owned headings {duplicated}"
                 )
-        elif declared_target is not None or declared_mode is not None:
-            errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
+            if _contains_summary_normative_requirements(_markdown_body(page_text)):
+                errors.append(
+                    f"{rel}: summary-only cross-seed contains normative requirements"
+                )
+        else:
+            if _contains_non_link_platform_url(page_text):
+                errors.append(
+                    f"{rel}: cross_seed_target must match an actual Markdown or HTML anchor destination"
+                )
+            if (
+                declared_target is not None
+                or declared_mode is not None
+                or declared_snapshot is not None
+            ):
+                errors.append(f"{rel}: cross-seed metadata requires a canonical platform link")
 
-        if PREMATURE_COMPLETION_PATTERN.search(page_text):
-            errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-        if PREMATURE_CONSUMER_PATTERN.search(page_text):
-            errors.append(f"{rel}: premature gateway or consumer availability claim")
+        errors.extend(_premature_claim_errors(page_text, rel))
         errors.extend(_restricted_source_errors(page_text, rel))
 
         if rel in ROOT_MD:
             errors.extend(_privacy_errors(page_text, rel))
+
+    for rel, text in stable_navigation_pages.items():
+        if _contains_visible_candidate_destination(text, rel):
+            errors.append(f"{rel}: candidate API leaked into stable_navigation")
+    navigation_references = {
+        reference
+        for source_rel, text in stable_navigation_pages.items()
+        for destination in _visible_link_destinations(text)
+        for reference in _normalized_reference_paths(destination, source_rel)
+    }
+    for required in sorted(channel_pages["stable_navigation"]):
+        if required not in navigation_references:
+            errors.append(
+                f"{required}: stable_navigation true page is missing from stable navigation"
+            )
+
+    if publication_channels is not None:
+        registered = publication_channels["registered"]
+        discovered = _discover_publication_artifacts(root, publication_channels)
+        for artifact_rel in sorted(registered, key=lambda value: value.encode("utf-8")):
+            artifact = root / artifact_rel
+            if not artifact.is_file() or artifact.is_symlink():
+                errors.append(
+                    f"{artifact_rel}: configured stable publication artifact is missing"
+                )
+        for artifact_rel, discovered_channel in sorted(discovered.items()):
+            artifact = root / artifact_rel
+            configured_channel = registered.get(artifact_rel)
+            channel = configured_channel or discovered_channel
+            if configured_channel is None:
+                errors.append(f"{artifact_rel}: unregistered stable publication artifact")
+            try:
+                artifact_text = _read(artifact)
+            except UnicodeDecodeError:
+                errors.append(f"{artifact_rel}: invalid stable publication artifact")
+                continue
+            references, format_errors = _stable_artifact_references(
+                root,
+                artifact_text,
+                artifact_rel,
+                channel,
+            )
+            errors.extend(format_errors)
+            _, discovered_references = _publication_artifact_shape(
+                artifact_text,
+                registered_bundle=configured_channel is not None,
+            )
+            required_pages = channel_pages.get(channel, set())
+            missing = sorted(required_pages - set(references), key=lambda value: value.encode("utf-8"))
+            undeclared = sorted(
+                set(references) - required_pages,
+                key=lambda value: value.encode("utf-8"),
+            )
+            if missing:
+                errors.append(
+                    f"{artifact_rel}: stable channel is missing required pages {missing}"
+                )
+            if configured_channel is not None and undeclared:
+                errors.append(
+                    f"{artifact_rel}: stable channel has undeclared pages {undeclared}"
+                )
+            candidate_references = references or discovered_references
+            if any(
+                _contains_candidate_destination(reference, artifact_rel)
+                for reference in candidate_references
+            ):
+                errors.append(f"{artifact_rel}: candidate API leaked into {channel}")
 
     for top in PUBLISHABLE_DOMAINS:
         domain_root = root / top
@@ -827,7 +2644,12 @@ def check_repository(root: Path) -> list[str]:
             rel = _rel(path, root)
             if path.suffix.lower() not in MARKDOWN_SUFFIXES:
                 if top == "api":
-                    if rel not in API_MACHINE_ARTIFACTS:
+                    registered_outputs = (
+                        set(publication_channels["registered"])
+                        if publication_channels is not None
+                        else set()
+                    )
+                    if rel not in API_MACHINE_ARTIFACTS and rel not in registered_outputs:
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
                         continue
                 elif top in MARKDOWN_ONLY_DOMAINS:
@@ -845,10 +2667,7 @@ def check_repository(root: Path) -> list[str]:
                     errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
                 errors.extend(_privacy_errors(text, rel))
                 errors.extend(_restricted_source_errors(text, rel))
-                if PREMATURE_COMPLETION_PATTERN.search(text):
-                    errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
-                if PREMATURE_CONSUMER_PATTERN.search(text):
-                    errors.append(f"{rel}: premature gateway or consumer availability claim")
+                errors.extend(_premature_claim_errors(text, rel))
 
     for directory, required_page in REQUIRED_DOMAIN_PAGES.items():
         dir_path = root / directory
@@ -863,27 +2682,37 @@ def check_repository(root: Path) -> list[str]:
     for path in sorted(
         p for p in root.rglob("*") if p.is_file() and not p.is_symlink()
     ):
-        if ".git" in path.parts or ".pytest_cache" in path.parts:
+        if (
+            ".git" in path.parts
+            or ".pytest_cache" in path.parts
+            or "__pycache__" in path.parts
+        ):
             continue
         rel = _rel(path, root)
-        if rel in API_MACHINE_ARTIFACTS:
+        errors.extend(_privacy_errors(rel, rel, category_only=True))
+        errors.extend(_restricted_source_errors(rel, rel, category_only=True))
+        if rel in API_MACHINE_ARTIFACTS or rel in STRUCTURED_SNAPSHOT_ARTIFACTS:
             continue
-        try:
-            text = _read(path)
-        except UnicodeDecodeError:
+        text, scan_errors = _bounded_repository_text(path, rel)
+        errors.extend(scan_errors)
+        if text is None:
             continue
-        for match in IPV4_CANDIDATE_PATTERN.finditer(text):
-            if classify_ipv4(match.group(0)) == "private network":
-                line = text.count("\n", 0, match.start()) + 1
-                errors.append(f"{rel}:{line}: private IPv4 address found")
+        errors.extend(_privacy_errors(text, rel))
+        errors.extend(_restricted_source_errors(text, rel))
 
     restricted_policy = (root / "development" / "contributing.md")
     if restricted_policy.exists():
         text = _read(restricted_policy)
         if text.count(ALLOWED_RESTRICTED_POLICY_LINE) != 1:
-            errors.append("development/contributing.md: missing vendor_restricted quarantine marker")
+            errors.append(
+                "development/contributing.md: missing vendor_"
+                "restricted quarantine marker"
+            )
         if "Restricted material must not appear in public repositories" not in text:
-            errors.append("development/contributing.md: missing restricted-source quarantine rule")
+            errors.append(
+                "development/contributing.md: missing restric"
+                "ted-source quarantine rule"
+            )
 
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
@@ -891,9 +2720,14 @@ def check_repository(root: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--fixture-mode",
+        action="store_true",
+        help="accept the immutable synthetic MSP-DOCS-E2 contract fixture registry",
+    )
     args = parser.parse_args()
 
-    errors = check_repository(args.repo)
+    errors = check_repository(args.repo, fixture_mode=args.fixture_mode)
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

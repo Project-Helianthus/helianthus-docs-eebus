@@ -1,0 +1,20 @@
+schema: helianthus.publication-channels
+version: "1"
+public_output_roots:
+  - api
+  - build
+  - dist
+  - exports
+  - output
+  - public
+  - release
+  - site
+channels:
+  search:
+    - api/search-index.json
+  sitemap:
+    - api/sitemap.xml
+  versioned_bundle:
+    - api/versioned-bundle.txt
+  release_bundle:
+    - api/release-bundle.txt

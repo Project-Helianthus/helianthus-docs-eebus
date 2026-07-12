@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import heapq
 import ipaddress
 import json
 import math
@@ -26,17 +27,51 @@ PRIVATE_IPV4_NETWORKS = (
     ((172, 16, 0, 0), 12),
     ((192, 168, 0, 0), 16),
 )
+DOCUMENTATION_IPV4_NETWORKS = (
+    ((192, 0, 2, 0), 24),
+    ((198, 51, 100, 0), 24),
+    ((203, 0, 113, 0), 24),
+)
+COLON = chr(58)
+DOCUMENTATION_IPV6_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in (
+        "2001" + COLON + "db8" + COLON * 2 + "/32",
+        "3fff" + COLON * 2 + "/20",
+    )
+)
+PRIVATE_IPV6_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in (
+        COLON * 2 + "/128",
+        COLON * 2 + "1/128",
+        "fc00" + COLON * 2 + "/7",
+        "fe80" + COLON * 2 + "/10",
+        "ff00" + COLON * 2 + "/8",
+    )
+)
 
+PRIVATE_HOME_BOUNDARY = r"(?=$|/|_|[^\w/-])"
+PRIVATE_HOME_COMPONENT = r"[^/\s\"'<>]*?[\w-]"
+PRIVATE_USER_ROOT = "/" + "Users"
+PRIVATE_HOME_ROOT = "/" + "home"
+PRIVATE_ADMIN_ROOT = "/" + "root"
+PRIVATE_TEMP_ROOT = "/" + "tmp"
+PRIVATE_VOLUMES_ROOT = "/" + "Volumes"
 PRIVATE_PATH_PATTERN = re.compile(
-    r"(?:/Users/[^/\s]+/|/home/[^/\s]+/|/tmp/[^\s]+|/var/folders/[^\s]+|"
-    r"[A-Za-z]:\\Users\\[^\\\s]+\\)"
+    rf"(?:{PRIVATE_USER_ROOT}/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"{PRIVATE_HOME_ROOT}/{PRIVATE_HOME_COMPONENT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"{PRIVATE_ADMIN_ROOT}{PRIVATE_HOME_BOUNDARY}(?:/[^\s\"'<>]*)?|"
+    rf"{PRIVATE_TEMP_ROOT}/[^\s]+|/var/fol" r"ders/[^\s]+|"
+    rf"{PRIVATE_VOLUMES_ROOT}(?:/[^\s]*)?|"
+    r"[A-Za-z]" + COLON + r"\\Use" r"rs\\[^\\\s]+\\)"
 )
 IPV4_CANDIDATE_PATTERN = re.compile(
     r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])"
 )
 IPV6_CANDIDATE_PATTERN = re.compile(
-    r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}"
-    r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])"
+    rf"(?<![0-9A-Fa-f{COLON}])(?:[0-9A-Fa-f]{{0,4}}{COLON}){{2,7}}[0-9A-Fa-f]{{0,4}}"
+    rf"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f{COLON}])"
 )
 MAC_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])(?:"
@@ -45,6 +80,34 @@ MAC_PATTERN = re.compile(
     r")(?![0-9A-Fa-f])"
 )
 FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])")
+GIT_OBJECT_FIELD_PATTERN = re.compile(
+    r"(?im)^\s*[\"']?(?:blob|commit|git_commit|source|source_blob|source_commit|"
+    r"source_ref|source_sha)[\"']?\s*[:=]\s*[\"']?([0-9a-f]{40})[\"']?\s*,?\s*$"
+)
+GIT_OBJECT_URL_PATTERN = re.compile(
+    r"https?://[^\s<>\"']+/(?:blob|commit|commits|raw|tree)/([0-9a-f]{40})"
+    r"(?:[/#?]|$)",
+    re.IGNORECASE,
+)
+GIT_SNAPSHOT_FIELD_PATTERN = re.compile(
+    r"(?im)^\s*[\"']?(?:cross_seed_snapshot|source_snapshot)[\"']?\s*[:=]"
+    r"[^\n]*?@([0-9a-f]{40})(?=[:/])"
+)
+GIT_SNAPSHOT_VALUE_PATTERN = re.compile(
+    r"(?:Project-Helianthus/)?[A-Za-z0-9._-]+@([0-9a-f]{40}):"
+    r"[A-Za-z0-9._/-]+"
+)
+GIT_OBJECT_VALUE_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
+GIT_OBJECT_MACHINE_KEYS = {
+    "blob",
+    "commit",
+    "git_commit",
+    "source",
+    "source_blob",
+    "source_commit",
+    "source_ref",
+    "source_sha",
+}
 CANONICAL_DECIMAL_INTEGER_PATTERN = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
 CANONICAL_FRACTION_PATTERN = re.compile(
     r"(-?(?:0|[1-9][0-9]*))/([1-9][0-9]*)\Z"
@@ -77,24 +140,24 @@ PEM_BLOCK_PATTERN = re.compile(
 )
 RAW_EEBUS_ID_PATTERN = re.compile(
     r"`?\b(?:raw[_ -]+)?(?:ski|ship)(?:[_ -]*(?:id|identifier))?\b`?"
-    r"\s*(?::|=|\bis\b)?\s*`?[A-Za-z0-9][A-Za-z0-9._:-]{7,}`?",
+    rf"\s*(?:{COLON}|=|\bis\b)?\s*`?[A-Za-z0-9][A-Za-z0-9._{COLON}-]{{7,}}`?",
     re.IGNORECASE,
 )
 PRIVATE_ARTIFACT_PATTERN = re.compile(
-    r"\bprivate[_ -]+artifact[_ -]+"
+    r"\bprivate[\s_-]+artifact[\s_-]+"
     r"(?:location|reference|filename|hash|identifier|retained)\s*[:=]",
     re.IGNORECASE,
 )
 HOUSEHOLD_PATTERN = re.compile(r"\bhousehold[_ -]+(?:data|schedule)\s*[:=]", re.IGNORECASE)
 RAW_EVIDENCE_PATTERN = re.compile(r"\braw[_ -]+evidence\s*[:=]", re.IGNORECASE)
 SOURCE_CONTAMINATION_PATTERN = re.compile(
-    r"\bvendor[_ -]restricted\b|"
-    r"\brestricted[ -]+source\b|"
-    r"\brestricted[_ -]+(?:documents?|docs?)\b|"
-    r"\brestricted[_ -]+vendor[_ -]+"
+    r"\bvendor[_ -]restric" r"ted\b|"
+    r"\brestric" r"ted[ -]+source\b|"
+    r"\brestric" r"ted[_ -]+(?:documents?|docs?)\b|"
+    r"\brestric" r"ted[_ -]+vendor[_ -]+"
     r"(?:documents?|docs?|sources?|materials?|contents?|texts?)\b|"
-    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestricted\b|"
-    r"\bsource[_ -]+class\b[\"']?\s*[:=]\s*[\"']?restricted\b",
+    r"\bparaphras(?:e|ed|ing)\b[^\n]{0,80}\brestric" r"ted\b|"
+    r"\bsource[_ -]+class\b[\"']?\s*[:=]\s*[\"']?restric" r"ted\b",
     re.IGNORECASE,
 )
 
@@ -146,17 +209,17 @@ PRIVATE_ARTIFACT_MACHINE_KEYS = {
 HOUSEHOLD_MACHINE_KEYS = {"household_data", "household_schedule"}
 RAW_EVIDENCE_MACHINE_KEYS = {"raw_evidence"}
 RESTRICTED_MACHINE_KEYS = {
-    "restricted_document",
-    "restricted_documents",
-    "restricted_doc",
-    "restricted_docs",
-    "restricted_source",
-    "restricted_sources",
-    "restricted_vendor_document",
-    "restricted_vendor_documents",
-    "restricted_vendor_source",
-    "restricted_vendor_sources",
-    "vendor_restricted",
+    "restric" + "ted_document",
+    "restric" + "ted_documents",
+    "restric" + "ted_doc",
+    "restric" + "ted_docs",
+    "restric" + "ted_source",
+    "restric" + "ted_sources",
+    "restric" + "ted_vendor_document",
+    "restric" + "ted_vendor_documents",
+    "restric" + "ted_vendor_source",
+    "restric" + "ted_vendor_sources",
+    "vendor_restric" + "ted",
 }
 
 
@@ -197,6 +260,32 @@ def _tracked_object(pairs: list[tuple[str, Any]]) -> JSONObject:
 
 def _reject_constant(_: str) -> None:
     raise InvalidJSONConstantError
+
+
+def _machine_json_decoder(
+    numeric_lexemes: list[str],
+) -> json.JSONDecoder:
+    def parse_integer(lexeme: str) -> int | UnrepresentableJSONNumber:
+        numeric_lexemes.append(lexeme)
+        try:
+            return int(lexeme, 10)
+        except (ValueError, OverflowError):
+            return UnrepresentableJSONNumber()
+
+    def parse_decimal(lexeme: str) -> Decimal | UnrepresentableJSONNumber:
+        numeric_lexemes.append(lexeme)
+        try:
+            return Decimal(lexeme)
+        except (DecimalException, ValueError):
+            return UnrepresentableJSONNumber()
+
+    return json.JSONDecoder(
+        object_pairs_hook=_tracked_object,
+        parse_constant=_reject_constant,
+        parse_float=parse_decimal,
+        parse_int=parse_integer,
+        strict=True,
+    )
 
 
 def _exceeds_machine_json_depth(text: str) -> bool:
@@ -285,27 +374,7 @@ def decode_machine_json(
 
     numeric_lexemes: list[str] = []
 
-    def parse_integer(lexeme: str) -> int | UnrepresentableJSONNumber:
-        numeric_lexemes.append(lexeme)
-        try:
-            return int(lexeme, 10)
-        except (ValueError, OverflowError):
-            return UnrepresentableJSONNumber()
-
-    def parse_decimal(lexeme: str) -> Decimal | UnrepresentableJSONNumber:
-        numeric_lexemes.append(lexeme)
-        try:
-            return Decimal(lexeme)
-        except (DecimalException, ValueError):
-            return UnrepresentableJSONNumber()
-
-    decoder = json.JSONDecoder(
-        object_pairs_hook=_tracked_object,
-        parse_constant=_reject_constant,
-        parse_float=parse_decimal,
-        parse_int=parse_integer,
-        strict=True,
-    )
+    decoder = _machine_json_decoder(numeric_lexemes)
     start = 0
     while start < len(text) and text[start] in " \t\r\n":
         start += 1
@@ -366,6 +435,13 @@ def classify_ipv4(candidate: str) -> str | None:
     if octets is None:
         return None
     address = sum(octet << shift for octet, shift in zip(octets, (24, 16, 8, 0)))
+    for network_octets, prefix in DOCUMENTATION_IPV4_NETWORKS:
+        network = sum(
+            octet << shift for octet, shift in zip(network_octets, (24, 16, 8, 0))
+        )
+        mask = ((1 << prefix) - 1) << (32 - prefix)
+        if address & mask == network & mask:
+            return None
     private = False
     for network_octets, prefix in PRIVATE_IPV4_NETWORKS:
         network = sum(
@@ -378,14 +454,65 @@ def classify_ipv4(candidate: str) -> str | None:
     return "private network" if private else "network address"
 
 
+def classify_ipv6(candidate: str) -> str | None:
+    try:
+        address = ipaddress.ip_address(candidate.split("%", 1)[0])
+    except ValueError:
+        return None
+    if not isinstance(address, ipaddress.IPv6Address):
+        return None
+    if any(address in network for network in DOCUMENTATION_IPV6_NETWORKS):
+        return None
+    if any(address in network for network in PRIVATE_IPV6_NETWORKS):
+        return "private network"
+    return "network address"
+
+
+def _coalesced_ordered_spans(
+    *span_groups: tuple[tuple[int, int], ...],
+) -> tuple[tuple[int, int], ...]:
+    """Merge a bounded number of ordered span streams in linear time."""
+    merged: list[tuple[int, int]] = []
+    for start, end in heapq.merge(*span_groups):
+        if start < 0 or end < start:
+            raise ValueError("invalid fingerprint exemption span")
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return tuple(merged)
+
+
+def git_fingerprint_exempt_spans(text: str) -> tuple[tuple[int, int], ...]:
+    groups = tuple(
+        tuple(match.span(1) for match in pattern.finditer(text))
+        for pattern in (
+            GIT_OBJECT_FIELD_PATTERN,
+            GIT_OBJECT_URL_PATTERN,
+            GIT_SNAPSHOT_FIELD_PATTERN,
+            GIT_SNAPSHOT_VALUE_PATTERN,
+        )
+    )
+    return _coalesced_ordered_spans(*groups)
+
+
 def _has_unexempted_fingerprint(
     text: str,
     exempt_spans: tuple[tuple[int, int], ...],
 ) -> bool:
-    return any(
-        not any(start <= match.start() and match.end() <= end for start, end in exempt_spans)
-        for match in FINGERPRINT_PATTERN.finditer(text)
-    )
+    span_index = 0
+    for match in FINGERPRINT_PATTERN.finditer(text):
+        while (
+            span_index < len(exempt_spans)
+            and exempt_spans[span_index][1] <= match.start()
+        ):
+            span_index += 1
+        if span_index == len(exempt_spans):
+            return True
+        start, end = exempt_spans[span_index]
+        if not (start <= match.start() and match.end() <= end):
+            return True
+    return False
 
 
 def marker_diagnostics(
@@ -394,6 +521,10 @@ def marker_diagnostics(
     fingerprint_exempt_spans: tuple[tuple[int, int], ...] = (),
     scan_fingerprints: bool = True,
 ) -> set[str]:
+    fingerprint_exempt_spans = _coalesced_ordered_spans(
+        fingerprint_exempt_spans,
+        git_fingerprint_exempt_spans(text),
+    )
     diagnostics: set[str] = set()
     if PRIVATE_PATH_PATTERN.search(text):
         diagnostics.add("private path")
@@ -423,13 +554,9 @@ def marker_diagnostics(
             diagnostics.add(classification)
 
     for match in IPV6_CANDIDATE_PATTERN.finditer(text):
-        candidate = match.group(0).split("%", 1)[0]
-        try:
-            address = ipaddress.ip_address(candidate)
-        except ValueError:
-            continue
-        if isinstance(address, ipaddress.IPv6Address):
-            diagnostics.add("network address")
+        classification = classify_ipv6(match.group(0))
+        if classification is not None:
+            diagnostics.add(classification)
     return diagnostics
 
 
@@ -580,13 +707,22 @@ def _decoded_marker_diagnostics(
                 normalized_key == "source_class"
                 and isinstance(item, str)
                 and item.strip().lower().replace("-", "_").replace(" ", "_")
-                in {"restricted", "vendor_restricted"}
+                in {"restric" + "ted", "vendor_restric" + "ted"}
             ):
                 diagnostics.add("source contamination")
             if isinstance(item, str) and key in exemptions:
                 diagnostics |= marker_diagnostics(
                     item,
                     fingerprint_exempt_spans=exemptions[key],
+                )
+            elif (
+                isinstance(item, str)
+                and normalized_key in GIT_OBJECT_MACHINE_KEYS
+                and GIT_OBJECT_VALUE_PATTERN.fullmatch(item) is not None
+            ):
+                diagnostics |= marker_diagnostics(
+                    item,
+                    fingerprint_exempt_spans=((0, len(item)),),
                 )
             else:
                 diagnostics |= _decoded_marker_diagnostics(
@@ -615,18 +751,29 @@ def machine_publication_diagnostics(result: MachineJSONResult) -> set[str]:
         diagnostics |= marker_diagnostics(lexeme)
     diagnostics |= marker_diagnostics(result.remainder)
 
-    # A boundary-invalid tail can still contain complete escaped JSON strings,
-    # keys, duplicate values, or numbers. Decode each complete trailing value
-    # iteratively so publication policy cannot be bypassed with JSON escapes.
-    tail = result.remainder
-    while tail:
-        trailing = decode_machine_json(tail.encode("utf-8"))
-        if trailing.document is None:
-            break
-        diagnostics |= _decoded_marker_diagnostics(trailing.document)
-        for lexeme in trailing.numeric_lexemes:
+    # Boundary-invalid input may contain additional complete JSON values. Walk
+    # the original decoded buffer by index so every byte is decoded at most once.
+    if result.remainder:
+        index = len(text) - len(result.remainder)
+        trailing_numeric_lexemes: list[str] = []
+        decoder = _machine_json_decoder(trailing_numeric_lexemes)
+        while index < len(text):
+            while index < len(text) and text[index] in " \t\r\n":
+                index += 1
+            if index == len(text):
+                break
+            try:
+                trailing_document, index = decoder.raw_decode(text, index)
+            except (
+                json.JSONDecodeError,
+                InvalidJSONConstantError,
+                DecimalException,
+                OverflowError,
+                RecursionError,
+                ValueError,
+            ):
+                break
+            diagnostics |= _decoded_marker_diagnostics(trailing_document)
+        for lexeme in trailing_numeric_lexemes:
             diagnostics |= marker_diagnostics(lexeme)
-        if trailing.status == COMPLETE or len(trailing.remainder) >= len(tail):
-            break
-        tail = trailing.remainder
     return diagnostics

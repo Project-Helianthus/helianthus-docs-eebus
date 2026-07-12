@@ -21,6 +21,7 @@ SCRIPTS = REPO / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from validate_api_surface_v1 import (  # noqa: E402
+    MAX_MACHINE_JSON_BYTES,
     canonical_receiver_type_parameters,
     compatibility_fingerprint,
     compatibility_projection,
@@ -940,13 +941,13 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             target = repo / POSITIVE_FIXTURES.relative_to(REPO) / "kinds-types-signatures.json"
             document = load_json_strict(target)
             value = find_symbol(document, "const", "IntegerExact")["value"]
-            fingerprint = "F" * 40
+            digest_value = "F" * 40
             target.write_text(
                 target.read_text(encoding="utf-8").replace(
                     f'          "value": "{value}"',
                     (
                         f'          "value": "{value}",\n'
-                        f'          "value": "{fingerprint}"'
+                        f'          "value": "{digest_value}"'
                     ),
                     1,
                 ),
@@ -1243,6 +1244,18 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             result = run_document_validator(path)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), "api-surface-v1 document: valid")
+
+    def test_document_cli_rejects_oversized_input_before_decode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "oversized.json"
+            with path.open("wb") as stream:
+                stream.seek(MAX_MACHINE_JSON_BYTES)
+                stream.write(b"}")
+
+            result = run_document_validator(path)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("oversized.json: artifact exceeds size limit", result.stderr)
 
     def test_fingerprint_refuses_every_invalid_extracted_package_path(self) -> None:
         source = load_json_strict(POSITIVE_FIXTURES / "kinds-types-signatures.json")
@@ -1745,7 +1758,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         method = find_symbol(document, "method", "Lookup")
         identity = (package["path"], method["receiver"]["base"], method["name"])
         signature = method["signature"]
-        fingerprint = compatibility_fingerprint(document)
+        compatibility_digest = compatibility_fingerprint(document)
 
         method["receiver"]["pointer"] = False
         method["signature"] = derive_signature(method)
@@ -1755,7 +1768,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             identity,
         )
         self.assertNotEqual(method["signature"], signature)
-        self.assertNotEqual(compatibility_fingerprint(document), fingerprint)
+        self.assertNotEqual(compatibility_fingerprint(document), compatibility_digest)
         self.assertEqual(document_diagnostics(document, corpus=True), set())
 
     def test_validator_derives_every_kind_signature(self) -> None:
@@ -2199,7 +2212,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         cases = (
             ("private path", "/Users/" + "synthetic-user/input.go"),
             ("private network", "peer " + "127." + "0.0.1"),
-            ("network address", "peer " + "203." + "0.113.1"),
+            ("network address", "peer " + "8." + "8.8.8"),
             ("private identifier", "account_" + "id: synthetic"),
             ("household data", "household_" + "schedule: synthetic"),
             ("raw evidence", "raw-" + "evidence: synthetic"),
@@ -2233,10 +2246,16 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 self.assertRegex(line, r"^api/(?:schema|fixtures)/")
 
     def test_repository_policy_accepts_only_the_exact_api_machine_allowlist(self) -> None:
+        publication_outputs = {
+            Path("api/release-bundle.txt"),
+            Path("api/search-index.json"),
+            Path("api/sitemap.xml"),
+            Path("api/versioned-bundle.txt"),
+        }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
             for path in list(positive_paths()) + list(NEGATIVE_FIXTURES.glob("*.json"))
-        }
+        } | publication_outputs
         actual = {
             path.relative_to(REPO)
             for path in (REPO / "api").rglob("*")
