@@ -7,21 +7,33 @@ name: Docs CI
       - main
       - "issue/**"
 
+permissions:
+  contents: read
+
 jobs:
   docs-checks:
     name: Docs Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
 
       - name: Install policy validator dependencies
-        run: python -m pip install -r requirements-ci.txt
+        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'
 
       - name: Run local docs CI
         run: ./scripts/ci_local.sh
+
+      - name: Produce post-merge publication evidence
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          python scripts/render_publication.py render --repo . --output "$RUNNER_TEMP/publication" --evidence-core "$RUNNER_TEMP/publication-evidence.json" --source-commit "$GITHUB_SHA"
+          python scripts/render_publication.py verify --repo . --output "$RUNNER_TEMP/publication" --source-commit "$GITHUB_SHA"
+          python scripts/attest_publication.py --evidence-core "$RUNNER_TEMP/publication-evidence.json" --output "$RUNNER_TEMP/publication-attestation.json"

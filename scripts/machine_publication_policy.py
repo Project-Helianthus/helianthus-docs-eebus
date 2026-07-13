@@ -81,9 +81,16 @@ MAC_PATTERN = re.compile(
 )
 FINGERPRINT_PATTERN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40,}(?![0-9A-Fa-f])")
 GIT_OBJECT_FIELD_PATTERN = re.compile(
-    r"(?im)^\s*[\"']?(?:blob|commit|git_commit|source|source_blob|source_commit|"
-    r"source_ref|source_sha)[\"']?\s*[:=]\s*[\"']?([0-9a-f]{40})[\"']?\s*,?\s*$"
+    r"(?im)^\s*[\"']?(?:blob|commit|git_commit|oid|source|source_blob|source_commit|"
+    r"source_manifest_oid|source_merge|source_ref|source_sha)[\"']?\s*[:=]\s*"
+    r"[\"']?([0-9a-f]{40})[\"']?\s*,?\s*$"
 )
+SHA256_FIELD_PATTERN = re.compile(
+    r"(?im)^\s*[\"']?[A-Za-z0-9_.-]*sha256[\"']?\s*[:=]\s*"
+    r"[\"']?([0-9a-f]{64})[\"']?\s*,?\s*$"
+)
+ACTION_PIN_PATTERN = re.compile(r"(?im)^\s*uses\s*:\s*[^\s@]+@([0-9a-f]{40})\s*$")
+REQUIREMENT_HASH_PATTERN = re.compile(r"--hash=sha256:([0-9a-f]{64})(?:\s|$)")
 GIT_OBJECT_URL_PATTERN = re.compile(
     r"https?://[^\s<>\"']+/(?:blob|commit|commits|raw|tree)/([0-9a-f]{40})"
     r"(?:[/#?]|$)",
@@ -488,6 +495,9 @@ def git_fingerprint_exempt_spans(text: str) -> tuple[tuple[int, int], ...]:
         tuple(match.span(1) for match in pattern.finditer(text))
         for pattern in (
             GIT_OBJECT_FIELD_PATTERN,
+            SHA256_FIELD_PATTERN,
+            ACTION_PIN_PATTERN,
+            REQUIREMENT_HASH_PATTERN,
             GIT_OBJECT_URL_PATTERN,
             GIT_SNAPSHOT_FIELD_PATTERN,
             GIT_SNAPSHOT_VALUE_PATTERN,

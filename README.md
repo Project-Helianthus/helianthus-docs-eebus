@@ -4,6 +4,8 @@ owner_domain: "repository"
 license: "AGPL-3.0-only"
 claim_status: "no-protocol-claims"
 publication_status: "ownership-policy"
+milestone: "MSP-DOCS-E2"
+milestone_state: "active"
 ---
 
 # Helianthus eeBUS Documentation
@@ -55,10 +57,10 @@ noncanonical migration/adjudication inputs only:
 - `docs/snapshot-envelope-evidence.md`
 - `docs/toolchain-boundary-proof.md`
 
-Ownership is transferred by policy now. MSP-DOCS-E2 later migrates or discards
-supported material, and MSP-DOCS-CLEAN later deletes `helianthus-eebusreg/docs/`
-and installs the absence gate. This repository must not claim those files are
-already physically absent.
+Ownership is transferred by policy now. MSP-DOCS-E2 is active and publishes
+supported material within the boundaries above. MSP-DOCS-CLEAN later deletes
+`helianthus-eebusreg/docs/` and installs the absence gate. This repository must
+not claim those files are already physically absent.
 
 Cross-seeding from eeBUS docs to `helianthus-docs-ebus/docs/platform/` is
 allowed only for language-neutral cross-runtime contracts. A cross-seed must

@@ -1,5 +1,48 @@
 schema: helianthus.publication-channels
-version: "1"
+version: "2"
+platform_contract:
+  source_repository: Project-Helianthus/helianthus-docs-ebus
+  source_merge: 8872f65b888048db001bc640ae04a4f460ee8db1
+  source_manifest_path: docs/platform/manifests/eebus-doc-ownership.yaml
+  source_manifest_blob_mode: "100644"
+  source_manifest_oid: 1f7c7c0a94504614949e3478387fca4def079c2e
+  source_manifest_sha256: 3f7b16f32ded7f16b12ecd644d361f315df1ba6d10d462a9c9054585774fd04e
+  completion_proof_sha256: 0b695b603f19dff35b857ddf47e03fe0ae02ac39ca89c353de8482872fd8c3de
+  channel_registry:
+    canonical:
+      visibility: stable
+      owner: canonical_documentation_owner
+  eligible_channels:
+    cross-runtime-platform-contracts:
+      - canonical
+    eebus-api-v1:
+      - canonical
+    eebus-architecture:
+      - canonical
+    eebus-protocol:
+      - canonical
+    platform-cross-runtime-envelope:
+      - canonical
+    platform-hash-auth-binding:
+      - canonical
+    platform-ownership-validation:
+      - canonical
+    platform-promotion-consumer-contract:
+      - canonical
+    platform-shared-registry-boundary:
+      - canonical
+  exact_memberships:
+    canonical:
+      - cross-runtime-platform-contracts
+      - eebus-api-v1
+      - eebus-architecture
+      - eebus-protocol
+      - platform-cross-runtime-envelope
+      - platform-hash-auth-binding
+      - platform-ownership-validation
+      - platform-promotion-consumer-contract
+      - platform-shared-registry-boundary
+  candidate_inventory: []
 public_output_roots:
   - api
   - build
@@ -9,12 +52,34 @@ public_output_roots:
   - public
   - release
   - site
+publisher:
+  repository: Project-Helianthus/helianthus-docs-eebus
+  path: scripts/render_publication.py
+  blob_mode: "100755"
+  oid: 19e44ea59c6fbe9e28fbfa6a8ce18eef513f7239
+  sha256: 00582dac5aaf91b9a5de2ca14a51b9f5381515a1090dd33e225d531dbe860d0c
 channels:
   search:
-    - api/search-index.json
+    artifact: api/search-index.json
+    members:
+      - api/api-surface-v1.md
+      - architecture/README.md
+      - protocols/ship-spine-overview.md
   sitemap:
-    - api/sitemap.xml
+    artifact: api/sitemap.xml
+    members:
+      - api/api-surface-v1.md
+      - architecture/README.md
+      - protocols/ship-spine-overview.md
   versioned_bundle:
-    - api/versioned-bundle.txt
+    artifact: api/versioned-bundle.txt
+    members:
+      - api/api-surface-v1.md
+      - architecture/README.md
+      - protocols/ship-spine-overview.md
   release_bundle:
-    - api/release-bundle.txt
+    artifact: api/release-bundle.txt
+    members:
+      - api/api-surface-v1.md
+      - architecture/README.md
+      - protocols/ship-spine-overview.md

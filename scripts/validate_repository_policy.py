@@ -98,7 +98,7 @@ SCAFFOLD_PAGES = {
 }
 
 SCAFFOLD_ARTIFACT_SHA256 = {
-    "README.md": "6e7e2e079fca9e559f50555b29a6e7f" "44c4e7305316e5f4bb54498943d3b9a8d",
+    "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
     "protocols/ship-spine-overview.md": (
         "866bb693935bb64e8ab34e2a2f9766e" "0662e6738886416617e8f59a075bc6073"
     ),
@@ -125,6 +125,23 @@ HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
 CI_LOCAL_SHA256 = "273167561d48c78fc5665b7fb1eca582" "6b0ed134a889d5ddfc2215e8c5ef6314"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
+LOCKED_REQUIREMENTS = (
+    "PyYAML==6.0.3 \\\n"
+    "    --hash=sha256:41715c910c881bc081f1e8872880d3c650acf13dfa8214bad49ed4cede7c34ea \\\n"
+    "    --hash=sha256:5fcd34e47f6e0b794d17de1b4ff496c00986e1c83f7ab2fb8fcfe9616ff7477b \\\n"
+    "    --hash=sha256:5fdec68f91a0c6739b380c83b951e2c72ac0197ace422360e6d5a959d8d97b2c \\\n"
+    "    --hash=sha256:64386e5e707d03a7e172c0701abfb7e10f0fb753ee1d773128192742712a98fd \\\n"
+    "    --hash=sha256:7f047e29dcae44602496db43be01ad42fc6f1cc0d8cd6c83d342306c32270196 \\\n"
+    "    --hash=sha256:8dc52c23056b9ddd46818a57b78404882310fb473d63f17b07d5c40421e47f8e \\\n"
+    "    --hash=sha256:9149cad251584d5fb4981be1ecde53a1ca46c891a79788c0df828d2f166bda28 \\\n"
+    "    --hash=sha256:96b533f0e99f6579b3d4d4995707cf36df9100d67e0c8303a0c55b27b5f99bc5 \\\n"
+    "    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc \\\n"
+    "    --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0\n"
+    "markdown-it-py==4.0.0 \\\n"
+    "    --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147\n"
+    "mdurl==0.1.2 \\\n"
+    "    --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8\n"
+)
 
 LICENSE_ACK_LABEL = (
     "I have read the repository license policy and I accept the Helianthus "
@@ -171,6 +188,49 @@ STABLE_PUBLICATION_CHANNELS = {
     "sitemap",
     "versioned_bundle",
     "release_bundle",
+}
+PUBLICATION_PLATFORM_CONTRACT = {
+    "source_repository": "Project-Helianthus/helianthus-docs-ebus",
+    "source_merge": "8872f65b888048db001bc640ae04a4f460ee8db1",
+    "source_manifest_path": "docs/platform/manifests/eebus-doc-ownership.yaml",
+    "source_manifest_blob_mode": "100644",
+    "source_manifest_oid": "1f7c7c0a94504614949e3478387fca4def079c2e",
+    "source_manifest_sha256": "3f7b16f32ded7f16b12ecd644d361f315df1ba6d10d462a9c9054585774fd04e",
+    "completion_proof_sha256": "0b695b603f19dff35b857ddf47e03fe0ae02ac39ca89c353de8482872fd8c3de",
+    "channel_registry": {
+        "canonical": {
+            "visibility": "stable",
+            "owner": "canonical_documentation_owner",
+        }
+    },
+    "eligible_channels": {
+        member: ["canonical"]
+        for member in [
+            "cross-runtime-platform-contracts",
+            "eebus-api-v1",
+            "eebus-architecture",
+            "eebus-protocol",
+            "platform-cross-runtime-envelope",
+            "platform-hash-auth-binding",
+            "platform-ownership-validation",
+            "platform-promotion-consumer-contract",
+            "platform-shared-registry-boundary",
+        ]
+    },
+    "exact_memberships": {
+        "canonical": [
+            "cross-runtime-platform-contracts",
+            "eebus-api-v1",
+            "eebus-architecture",
+            "eebus-protocol",
+            "platform-cross-runtime-envelope",
+            "platform-hash-auth-binding",
+            "platform-ownership-validation",
+            "platform-promotion-consumer-contract",
+            "platform-shared-registry-boundary",
+        ]
+    },
+    "candidate_inventory": [],
 }
 SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
 REPOSITORY_TEXT_SUFFIXES = {
@@ -690,19 +750,19 @@ def _load_publication_channels(
     except (UnicodeDecodeError, yaml.YAMLError):
         return None, [invalid]
     if not isinstance(document, dict) or set(document) != {
-        "schema",
-        "version",
-        "public_output_roots",
-        "channels",
+        "schema", "version", "platform_contract", "public_output_roots",
+        "publisher", "channels",
     }:
         return None, [invalid]
     if (
         document.get("schema") != "helianthus.publication-channels"
-        or document.get("version") != "1"
+        or document.get("version") != "2"
+        or document.get("platform_contract") != PUBLICATION_PLATFORM_CONTRACT
     ):
         return None, [invalid]
     roots = document.get("public_output_roots")
     channels = document.get("channels")
+    publisher = document.get("publisher")
     if (
         not isinstance(roots, list)
         or not roots
@@ -717,27 +777,72 @@ def _load_publication_channels(
         or roots != sorted(roots, key=lambda value: value.encode("utf-8"))
         or not isinstance(channels, dict)
         or set(channels) != STABLE_PUBLICATION_CHANNELS
+        or not isinstance(publisher, dict)
+        or set(publisher) != {"repository", "path", "blob_mode", "oid", "sha256"}
+    ):
+        return None, [invalid]
+    publisher_path = publisher.get("path")
+    if (
+        publisher.get("repository") != REPO_ID
+        or publisher_path != "scripts/render_publication.py"
+        or publisher.get("blob_mode") != "100755"
+        or not isinstance(publisher.get("oid"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", publisher["oid"]) is None
+        or not isinstance(publisher.get("sha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", publisher["sha256"]) is None
+    ):
+        return None, [invalid]
+    publisher_file = root / publisher_path
+    if not publisher_file.is_file() or publisher_file.is_symlink():
+        return None, [invalid]
+    publisher_bytes = publisher_file.read_bytes()
+    measured_blob_mode = (
+        "100755" if publisher_file.lstat().st_mode & 0o111 else "100644"
+    )
+    publisher_oid = hashlib.sha1(
+        f"blob {len(publisher_bytes)}\0".encode() + publisher_bytes
+    ).hexdigest()
+    if (
+        publisher["blob_mode"] != measured_blob_mode
+        or publisher["oid"] != publisher_oid
+        or publisher["sha256"] != hashlib.sha256(publisher_bytes).hexdigest()
     ):
         return None, [invalid]
     registered: dict[str, str] = {}
-    for channel, paths in channels.items():
+    for channel, specification in channels.items():
         if (
-            not isinstance(paths, list)
-            or not paths
-            or any(not isinstance(value, str) for value in paths)
+            not isinstance(specification, dict)
+            or set(specification) != {"artifact", "members"}
         ):
             return None, [invalid]
-        for value in paths:
-            normalized = posixpath.normpath(value)
+        value = specification.get("artifact")
+        members = specification.get("members")
+        if (
+            not isinstance(value, str)
+            or not isinstance(members, list)
+            or not members
+            or any(not isinstance(member, str) for member in members)
+            or len(set(members)) != len(members)
+            or members != sorted(members, key=lambda member: member.encode("utf-8"))
+        ):
+            return None, [invalid]
+        for member in members:
             if (
-                value != normalized
-                or PurePosixPath(value).is_absolute()
-                or ".." in PurePosixPath(value).parts
-                or value in registered
-                or not any(value == root_value or value.startswith(root_value + "/") for root_value in roots)
+                member != posixpath.normpath(member)
+                or PurePosixPath(member).is_absolute()
+                or ".." in PurePosixPath(member).parts
             ):
                 return None, [invalid]
-            registered[value] = channel
+        normalized = posixpath.normpath(value)
+        if (
+            value != normalized
+            or PurePosixPath(value).is_absolute()
+            or ".." in PurePosixPath(value).parts
+            or value in registered
+            or not any(value == root_value or value.startswith(root_value + "/") for root_value in roots)
+        ):
+            return None, [invalid]
+        registered[value] = channel
     return {"roots": tuple(roots), "registered": registered}, []
 
 
@@ -2303,6 +2408,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 )
         jobs = workflow_data.get("jobs") if isinstance(workflow_data, dict) else None
         run_commands = []
+        if not isinstance(workflow_data, dict) or workflow_data.get("permissions") != {
+            "contents": "read"
+        }:
+            errors.append(".github/workflows/docs-ci.yml: permissions must be contents read")
         docs_job = jobs.get("docs-checks") if isinstance(jobs, dict) else None
         if not isinstance(docs_job, dict):
             errors.append(".github/workflows/docs-ci.yml: docs-checks job is required")
@@ -2318,30 +2427,54 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             steps = docs_job.get("steps")
             if isinstance(steps, list):
                 for step in steps:
+                    if not isinstance(step, dict):
+                        continue
+                    action = step.get("uses")
+                    if isinstance(action, str) and re.fullmatch(r"[^@]+@[0-9a-f]{40}", action) is None:
+                        errors.append(".github/workflows/docs-ci.yml: action refs must be immutable")
                     if isinstance(step, dict) and isinstance(step.get("run"), str):
                         run_commands.append(step["run"].strip())
                         if step["run"].strip() in {
                             "./scripts/ci_local.sh",
-                            "python -m pip install -r requirements-ci.txt",
+                            "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt",
                         } and any(key in step for key in ("if", "continue-on-error", "shell")):
                             errors.append(
                                 ".github/workflows/docs-ci.yml: validator steps must be unconditional"
                             )
+                checkout = next(
+                    (
+                        step for step in steps
+                        if isinstance(step, dict)
+                        and str(step.get("uses", "")).startswith("actions/checkout@")
+                    ),
+                    {},
+                )
+                setup_python = next(
+                    (
+                        step for step in steps
+                        if isinstance(step, dict)
+                        and str(step.get("uses", "")).startswith("actions/setup-python@")
+                    ),
+                    {},
+                )
+                if checkout.get("with", {}).get("persist-credentials") is not False:
+                    errors.append(".github/workflows/docs-ci.yml: checkout credentials must not persist")
+                if setup_python.get("with", {}).get("python-version") != "3.12.10":
+                    errors.append(".github/workflows/docs-ci.yml: Python must be exactly 3.12.10")
         if "./scripts/ci_local.sh" not in run_commands:
             errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh exactly")
-        if "python -m pip install -r requirements-ci.txt" not in run_commands:
+        if (
+            "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt"
+            not in run_commands
+        ):
             errors.append(
-                ".github/workflows/docs-ci.yml: must install pinned validator dependencies"
+                ".github/workflows/docs-ci.yml: must install hash-locked validator dependencies"
             )
 
     requirements = root / "requirements-ci.txt"
     if requirements in symlinks or not requirements.exists():
         errors.append("requirements-ci.txt: missing pinned validator dependencies")
-    elif _read(requirements).splitlines() != [
-        "PyYAML==6.0.3",
-        "markdown-it-py==4.0.0",
-        "mdurl==0.1.2",
-    ]:
+    elif _read(requirements) != LOCKED_REQUIREMENTS:
         errors.append("requirements-ci.txt: validator dependency pins differ")
 
     readme_path = root / "README.md"
