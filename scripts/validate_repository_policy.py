@@ -127,17 +127,20 @@ CI_LOCAL_SHA256 = "273167561d48c78fc5665b7fb1eca582" "6b0ed134a889d5ddfc2215e8c5
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 LOCKED_REQUIREMENTS = (
     "PyYAML==6.0.3 \\\n"
+    "    --hash=sha256:41715c910c881bc081f1e8872880d3c650acf13dfa8214bad49ed4cede7c34ea \\\n"
+    "    --hash=sha256:5fcd34e47f6e0b794d17de1b4ff496c00986e1c83f7ab2fb8fcfe9616ff7477b \\\n"
+    "    --hash=sha256:5fdec68f91a0c6739b380c83b951e2c72ac0197ace422360e6d5a959d8d97b2c \\\n"
+    "    --hash=sha256:64386e5e707d03a7e172c0701abfb7e10f0fb753ee1d773128192742712a98fd \\\n"
     "    --hash=sha256:7f047e29dcae44602496db43be01ad42fc6f1cc0d8cd6c83d342306c32270196 \\\n"
+    "    --hash=sha256:8dc52c23056b9ddd46818a57b78404882310fb473d63f17b07d5c40421e47f8e \\\n"
     "    --hash=sha256:9149cad251584d5fb4981be1ecde53a1ca46c891a79788c0df828d2f166bda28 \\\n"
+    "    --hash=sha256:96b533f0e99f6579b3d4d4995707cf36df9100d67e0c8303a0c55b27b5f99bc5 \\\n"
     "    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc \\\n"
-    "    --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f \\\n"
     "    --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0\n"
     "markdown-it-py==4.0.0 \\\n"
-    "    --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147 \\\n"
-    "    --hash=sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3\n"
+    "    --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147\n"
     "mdurl==0.1.2 \\\n"
-    "    --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 \\\n"
-    "    --hash=sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba\n"
+    "    --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8\n"
 )
 
 LICENSE_ACK_LABEL = (
@@ -793,11 +796,15 @@ def _load_publication_channels(
     if not publisher_file.is_file() or publisher_file.is_symlink():
         return None, [invalid]
     publisher_bytes = publisher_file.read_bytes()
+    measured_blob_mode = (
+        "100755" if publisher_file.lstat().st_mode & 0o111 else "100644"
+    )
     publisher_oid = hashlib.sha1(
         f"blob {len(publisher_bytes)}\0".encode() + publisher_bytes
     ).hexdigest()
     if (
-        publisher["oid"] != publisher_oid
+        publisher["blob_mode"] != measured_blob_mode
+        or publisher["oid"] != publisher_oid
         or publisher["sha256"] != hashlib.sha256(publisher_bytes).hexdigest()
     ):
         return None, [invalid]
@@ -2429,7 +2436,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                         run_commands.append(step["run"].strip())
                         if step["run"].strip() in {
                             "./scripts/ci_local.sh",
-                            "python -m pip install --require-hashes -r requirements-ci.txt",
+                            "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt",
                         } and any(key in step for key in ("if", "continue-on-error", "shell")):
                             errors.append(
                                 ".github/workflows/docs-ci.yml: validator steps must be unconditional"
@@ -2456,7 +2463,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     errors.append(".github/workflows/docs-ci.yml: Python must be exactly 3.12.10")
         if "./scripts/ci_local.sh" not in run_commands:
             errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh exactly")
-        if "python -m pip install --require-hashes -r requirements-ci.txt" not in run_commands:
+        if (
+            "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt"
+            not in run_commands
+        ):
             errors.append(
                 ".github/workflows/docs-ci.yml: must install hash-locked validator dependencies"
             )

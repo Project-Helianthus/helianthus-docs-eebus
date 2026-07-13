@@ -114,9 +114,10 @@ def _validate_evidence(raw: bytes) -> dict[str, Any]:
     source = document["source"]
     if (
         not isinstance(source, dict)
-        or set(source) != {"repository", "commit"}
+        or set(source) != {"repository", "commit", "verification"}
         or source.get("repository") != REPOSITORY
         or COMMIT_PATTERN.fullmatch(str(source.get("commit", ""))) is None
+        or source.get("verification") not in {"git_object", "synthetic_fixture"}
     ):
         raise AttestationError("evidence source binding is invalid")
     artifacts = document["artifacts"]

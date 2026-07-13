@@ -14,7 +14,7 @@ import sys
 import tempfile
 import urllib.parse
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -140,6 +140,75 @@ def _blob_identity(root: Path, commit: str, path: str) -> dict[str, str]:
     return {"mode": mode, "oid": oid, "path": path, "sha256": _sha256(result.stdout)}
 
 
+def _verify_worktree_matches_tree(root: Path, commit: str) -> None:
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-tree", "-rz", commit],
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise TokenError("publication-token.git-object")
+    for record in result.stdout.split(b"\0"):
+        if not record:
+            continue
+        try:
+            metadata, raw_path = record.split(b"\t", 1)
+            mode, object_type, oid = metadata.decode("ascii").split()
+            path = raw_path.decode("utf-8")
+        except (UnicodeDecodeError, ValueError):
+            raise TokenError("publication-token.worktree-drift") from None
+        relative = PurePosixPath(path)
+        if (
+            mode not in {"100644", "100755"}
+            or object_type != "blob"
+            or OID.fullmatch(oid) is None
+            or relative.is_absolute()
+            or any(part in {"", ".", ".."} for part in relative.parts)
+        ):
+            raise TokenError("publication-token.worktree-drift")
+        current = root
+        for index, part in enumerate(relative.parts):
+            current /= part
+            try:
+                item_mode = current.lstat().st_mode
+            except OSError:
+                raise TokenError("publication-token.worktree-drift") from None
+            if stat.S_ISLNK(item_mode):
+                raise TokenError("publication-token.worktree-drift")
+            if index < len(relative.parts) - 1 and not stat.S_ISDIR(item_mode):
+                raise TokenError("publication-token.worktree-drift")
+        if not stat.S_ISREG(item_mode):
+            raise TokenError("publication-token.worktree-drift")
+        try:
+            before = current.lstat()
+            descriptor = os.open(current, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        except OSError:
+            raise TokenError("publication-token.worktree-drift") from None
+        try:
+            after = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(after.st_mode)
+                or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
+                or stat.S_IMODE(before.st_mode) != stat.S_IMODE(after.st_mode)
+            ):
+                raise TokenError("publication-token.worktree-drift")
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(descriptor, 65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b"".join(chunks)
+        finally:
+            os.close(descriptor)
+        measured_mode = "100755" if after.st_mode & 0o111 else "100644"
+        measured_oid = hashlib.sha1(
+            f"blob {len(raw)}\0".encode("ascii") + raw
+        ).hexdigest()
+        if measured_mode != mode or measured_oid != oid:
+            raise TokenError("publication-token.worktree-drift")
+
+
 def _commit_time(root: Path, merge_oid: str) -> datetime:
     raw = _git(root, "show", "-s", "--format=%cI", merge_oid)
     try:
@@ -232,7 +301,11 @@ def _publication_evidence(root: Path, merge_oid: str) -> tuple[dict[str, Any], s
         evidence = _strict_json(raw)
         if (
             evidence.get("source")
-            != {"repository": EXPECTED_REPOSITORY, "commit": merge_oid}
+            != {
+                "repository": EXPECTED_REPOSITORY,
+                "commit": merge_oid,
+                "verification": "git_object",
+            }
             or attestation.get("evidence_core_sha256") != _sha256(raw)
             or raw != _canonical_json(evidence) + b"\n"
         ):
@@ -273,6 +346,7 @@ def build_token(args: argparse.Namespace) -> dict[str, Any]:
     for oid in oids:
         if _git(root, "cat-file", "-t", oid) != "commit":
             raise TokenError("publication-token.git-object")
+    _verify_worktree_matches_tree(root, args.merge_oid)
     ancestry = _git(root, "rev-list", "--parents", "-n", "1", args.merge_oid).split()
     if ancestry != [args.merge_oid, args.base_oid]:
         raise TokenError("publication-token.base-drift")

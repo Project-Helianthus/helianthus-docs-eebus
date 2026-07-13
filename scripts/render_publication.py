@@ -10,6 +10,7 @@ import posixpath
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import urllib.parse
@@ -240,17 +241,36 @@ def _file_under(root: Path, relative: str, limit: int) -> bytes:
 
 def _decoded_variants(text: str) -> set[str]:
     variants = {text}
-    for _ in range(8):
+    for _ in range(32):
         expanded = set(variants)
         for value in variants:
             expanded.add(html.unescape(value))
             expanded.add(urllib.parse.unquote(value))
             expanded.add(UNICODE_ESCAPE.sub(lambda item: chr(int(item.group(1), 16)), value))
             expanded.add(HEX_ESCAPE.sub(lambda item: chr(int(item.group(1), 16)), value))
+        if len(expanded) > 1024:
+            raise PublicationError("encoded publication text exceeds normalization limits")
         if expanded == variants:
-            break
+            return variants
         variants = expanded
-    return variants
+    raise PublicationError("encoded publication text exceeds normalization depth")
+
+
+def _normalized_url_paths(text: str) -> set[str]:
+    normalized = text.replace("\\", "/").casefold()
+    fragments = re.split(r"[\s\"'<>()[\]{};,=]+", normalized)
+    paths: set[str] = set()
+    for fragment in fragments:
+        if not fragment:
+            continue
+        try:
+            parsed = urllib.parse.urlsplit(fragment)
+        except ValueError:
+            raise PublicationError("publication text contains an invalid URL") from None
+        raw_path = parsed.path or fragment
+        canonical = posixpath.normpath("/" + raw_path.lstrip("/"))
+        paths.add(canonical)
+    return paths
 
 
 def _reject_candidate(text: str, label: str) -> None:
@@ -258,6 +278,11 @@ def _reject_candidate(text: str, label: str) -> None:
         normalized = variant.replace("\\", "/").casefold()
         if re.search(r"api/+_candidate(?:/|$|[^a-z0-9_])", normalized):
             raise PublicationError(f"{label}: candidate publication reference is forbidden")
+        for path in _normalized_url_paths(variant):
+            if re.search(r"/api/+_candidate(?:/|$|[^a-z0-9_])", path):
+                raise PublicationError(
+                    f"{label}: normalized candidate publication reference is forbidden"
+                )
 
 
 def _load_registry(root: Path) -> dict[str, Any]:
@@ -309,11 +334,14 @@ def _load_registry(root: Path) -> dict[str, Any]:
     }:
         raise PublicationError("publisher binding is invalid")
     publisher_path = _relative_path(publisher.get("path"), "publisher")
+    publisher_file = root / publisher_path
     payload = _file_under(root, publisher_path, MAX_CONTROL_BYTES)
+    publisher_mode = publisher_file.lstat().st_mode
+    measured_blob_mode = "100755" if publisher_mode & 0o111 else "100644"
     expected_publisher = {
         "repository": REPOSITORY,
         "path": "scripts/render_publication.py",
-        "blob_mode": "100755",
+        "blob_mode": measured_blob_mode,
         "oid": hashlib.sha1(f"blob {len(payload)}\0".encode() + payload).hexdigest(),
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
@@ -450,7 +478,9 @@ def _replace_output(output: Path, rendered: dict[str, bytes]) -> None:
             shutil.rmtree(staging)
 
 
-def _evidence(registry: dict[str, Any], rendered: dict[str, bytes], commit: str) -> bytes:
+def _evidence(
+    registry: dict[str, Any], rendered: dict[str, bytes], commit: str, *, synthetic: bool
+) -> bytes:
     artifacts = [
         {
             "channel": channel,
@@ -467,7 +497,11 @@ def _evidence(registry: dict[str, Any], rendered: dict[str, bytes], commit: str)
         "version": 1,
         "milestone": MILESTONE,
         "state": "PUBLISH",
-        "source": {"repository": REPOSITORY, "commit": commit},
+        "source": {
+            "repository": REPOSITORY,
+            "commit": commit,
+            "verification": "synthetic_fixture" if synthetic else "git_object",
+        },
         "publisher": registry["publisher"],
         "platform_contract": registry["platform_contract"],
         "artifacts": artifacts,
@@ -508,6 +542,29 @@ def _actual_outputs(output: Path) -> dict[str, bytes]:
     return actual
 
 
+def _verify_git_source(root: Path, commit: str) -> None:
+    commands = (
+        ("cat-file", "-e", f"{commit}^{{commit}}"),
+        ("rev-parse", "HEAD"),
+        ("status", "--porcelain=v1", "--untracked-files=all"),
+    )
+    results = [
+        subprocess.run(
+            ["git", "-C", str(root), *command],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        for command in commands
+    ]
+    if (
+        any(result.returncode != 0 for result in results)
+        or results[1].stdout.strip() != commit
+        or results[2].stdout.strip()
+    ):
+        raise PublicationError("source commit is not the clean repository HEAD")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Render or verify the frozen publication closure")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -516,6 +573,7 @@ def main() -> int:
         subparser.add_argument("--repo", type=Path, required=True)
         subparser.add_argument("--output", type=Path, required=True)
         subparser.add_argument("--source-commit", required=True)
+        subparser.add_argument("--synthetic-source", action="store_true")
         if command == "render":
             subparser.add_argument("--evidence-core", type=Path, required=True)
     args = parser.parse_args()
@@ -527,6 +585,8 @@ def main() -> int:
         if output == repo or repo in output.parents or output in repo.parents:
             raise PublicationError("publication output must be outside the repository")
         registry = _load_registry(repo)
+        if not args.synthetic_source:
+            _verify_git_source(repo, args.source_commit)
         rendered = _render_outputs(registry)
         if args.command == "render":
             evidence = args.evidence_core.absolute()
@@ -540,7 +600,12 @@ def main() -> int:
                 raise PublicationError(
                     "evidence core must be outside the repository and publication tree"
                 )
-            evidence_payload = _evidence(registry, rendered, args.source_commit)
+            evidence_payload = _evidence(
+                registry,
+                rendered,
+                args.source_commit,
+                synthetic=args.synthetic_source,
+            )
             _replace_output(output, rendered)
             _write_atomic(evidence, evidence_payload)
         else:

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -123,7 +124,8 @@ def render(repo: Path, output: Path, evidence: Path, commit: str = SOURCE_COMMIT
            ) -> subprocess.CompletedProcess[str]:
     return run_tool(
         RENDERER, "render", "--repo", str(repo), "--output", str(output),
-        "--evidence-core", str(evidence), "--source-commit", commit, cwd=cwd, env=env,
+        "--evidence-core", str(evidence), "--source-commit", commit,
+        "--synthetic-source", cwd=cwd, env=env,
     )
 
 def build_token_fixture(parent: Path) -> tuple[Path, str, str, str]:
@@ -206,8 +208,13 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
         if setup.get("with", {}).get("python-version") != "3.12.10":
             errors.append("Python must be pinned to 3.12.10")
         install_runs = [str(step.get("run", "")) for step in steps if "pip install" in str(step.get("run", ""))]
-        if not any("--require-hashes" in command and "requirements-ci.txt" in command for command in install_runs):
-            errors.append("dependency bootstrap must use --require-hashes")
+        if not any(
+            "--only-binary=:all:" in command
+            and "--require-hashes" in command
+            and "requirements-ci.txt" in command
+            for command in install_runs
+        ):
+            errors.append("dependency bootstrap must use wheel-only --require-hashes")
         requirements = (REPO / "requirements-ci.txt").read_text(encoding="utf-8")
         for block in requirement_blocks(requirements):
             requirement = block.split()[0]
@@ -309,8 +316,10 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
             self.assertEqual(tree_bytes(first), expected_outputs(registry))
             self.assertEqual(tree_bytes(second), tree_bytes(first))
             self.assertEqual(evidence_b.read_bytes(), evidence_a.read_bytes())
-            verified = run_tool(RENDERER, "verify", "--repo", str(repo),
-                                "--output", str(first), "--source-commit", SOURCE_COMMIT)
+            verified = run_tool(
+                RENDERER, "verify", "--repo", str(repo), "--output", str(first),
+                "--source-commit", SOURCE_COMMIT, "--synthetic-source",
+            )
             self.assertEqual(verified.returncode, 0, verified.stderr)
 
     def test_renderer_is_hermetic_and_honors_the_supplied_root(self) -> None:
@@ -342,11 +351,22 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
         self.assertTrue(RENDERER.is_file(), "missing PUBLISH renderer interface")
         cases = {
             "encoded alternate-case member": ("API/%255fCaNdIdAtE/runtime-reference.md", "synthetic public page\n"),
+            "normalized dot-segment redirect": (
+                "public/stable-dot-redirect.html",
+                '<meta http-equiv="refresh" content="0;url=api/stable/../_candidate/runtime-reference.md">\n',
+            ),
             "encoded redirect": (
                 "public/stable-redirect.html",
                 '<meta http-equiv="refresh" content="0;url=api/%255FCaNdIdAtE/runtime-reference.md">\n',
             ),
         }
+        deeply_encoded = "api/_candidate/runtime-reference.md"
+        for _ in range(12):
+            deeply_encoded = urllib.parse.quote(deeply_encoded, safe="")
+        cases["deeply encoded redirect"] = (
+            "public/deep-redirect.html",
+            f'<meta http-equiv="refresh" content="0;url={deeply_encoded}">\n',
+        )
         for label, (member, content) in cases.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
@@ -370,9 +390,11 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
                 '{"pages":["API\\u002f_CaNdIdAtE\\u002fruntime-reference.md"]}\n',
                 encoding="utf-8",
             )
-            verified = run_tool(RENDERER, "verify", "--repo", str(repo),
-                                "--output", str(root / "output"),
-                                "--source-commit", SOURCE_COMMIT)
+            verified = run_tool(
+                RENDERER, "verify", "--repo", str(repo),
+                "--output", str(root / "output"),
+                "--source-commit", SOURCE_COMMIT, "--synthetic-source",
+            )
             self.assertNotEqual(verified.returncode, 0, verified.stderr)
             self.assertIn("candidate", verified.stderr.lower())
 
@@ -405,7 +427,14 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
             })
             self.assertEqual(evidence["schema"], "helianthus.docs-publication-evidence")
             self.assertEqual((evidence["version"], evidence["milestone"], evidence["state"]), (1, MILESTONE, "PUBLISH"))
-            self.assertEqual(evidence["source"], {"repository": REPOSITORY, "commit": SOURCE_COMMIT})
+            self.assertEqual(
+                evidence["source"],
+                {
+                    "repository": REPOSITORY,
+                    "commit": SOURCE_COMMIT,
+                    "verification": "synthetic_fixture",
+                },
+            )
             self.assertEqual(evidence["publisher"], load_registry(repo)["publisher"])
             self.assertEqual(
                 evidence["platform_contract"],
@@ -511,6 +540,33 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
             self.assertEqual(rejected.returncode, 1)
             self.assertEqual(rejected.stderr, "publication-token.identity\n")
 
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, base_oid, head_oid, merge_oid = build_token_fixture(Path(tmp))
+            renderer = repo / "scripts" / "render_publication.py"
+            subprocess.run(
+                ["git", "update-index", "--assume-unchanged", "scripts/render_publication.py"],
+                cwd=repo,
+                check=True,
+            )
+            renderer.write_text(
+                renderer.read_text(encoding="utf-8") + "\n# hidden fixture drift\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                subprocess.check_output(
+                    ["git", "status", "--porcelain=v1"], cwd=repo, text=True
+                ),
+                "",
+            )
+            rejected = subprocess.run(
+                completion_token_command(repo, base_oid, head_oid, merge_oid),
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(rejected.returncode, 1)
+            self.assertEqual(rejected.stderr, "publication-token.worktree-drift\n")
+
     def test_publication_outputs_reject_symlinked_ancestor_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -534,14 +590,38 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
             self.assertNotEqual(attested.returncode, 0, attested.stderr)
             self.assertIn("unsafe", attested.stderr)
 
-    def test_hash_locks_cover_linux_macos_and_source_fallbacks(self) -> None:
+    def test_hash_locks_are_wheel_only_and_cover_supported_platforms(self) -> None:
         blocks = requirement_blocks(
             (REPO / "requirements-ci.txt").read_text(encoding="utf-8")
         )
         locks = {block.split()[0]: block.count("--hash=sha256:") for block in blocks}
         self.assertEqual(
             locks,
-            {"PyYAML==6.0.3": 5, "markdown-it-py==4.0.0": 2, "mdurl==0.1.2": 2},
+            {"PyYAML==6.0.3": 10, "markdown-it-py==4.0.0": 1, "mdurl==0.1.2": 1},
         )
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("pip install --only-binary=:all: --require-hashes", workflow)
+        self.assertNotIn("--synthetic-source", workflow)
+
+    def test_standalone_source_and_publisher_mode_are_measured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = copy_repo(root)
+            unverified = run_tool(
+                RENDERER, "render", "--repo", str(repo),
+                "--output", str(root / "unverified-output"),
+                "--evidence-core", str(root / "unverified-evidence.json"),
+                "--source-commit", SOURCE_COMMIT,
+            )
+            self.assertNotEqual(unverified.returncode, 0, unverified.stderr)
+            self.assertIn("source commit", unverified.stderr)
+
+            renderer = repo / "scripts" / "render_publication.py"
+            renderer.chmod(0o644)
+            wrong_mode = render(
+                repo, root / "wrong-mode-output", root / "wrong-mode-evidence.json"
+            )
+            self.assertNotEqual(wrong_mode.returncode, 0, wrong_mode.stderr)
+            self.assertIn("binding differs", wrong_mode.stderr)
 if __name__ == "__main__":
     unittest.main()

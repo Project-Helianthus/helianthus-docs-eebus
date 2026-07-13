@@ -926,14 +926,14 @@ class PolicyValidatorTests(unittest.TestCase):
                 1,
             ),
             "dependency condition": lambda text: text.replace(
-                "        run: python -m pip install --require-hashes -r requirements-ci.txt\n",
+                "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n",
                 "        if: ${{ false }}\n"
-                "        run: python -m pip install --require-hashes -r requirements-ci.txt\n",
+                "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n",
                 1,
             ),
             "missing dependency install": lambda text: text.replace(
                 "      - name: Install policy validator dependencies\n"
-                "        run: python -m pip install --require-hashes -r requirements-ci.txt\n\n",
+                "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n\n",
                 "",
                 1,
             ),
