@@ -19,6 +19,7 @@ WORKFLOW = REPO / ".github" / "workflows" / "docs-ci.yml"
 REGISTRY = Path("scripts/publication_channels.yaml")
 RENDERER = REPO / "scripts" / "render_publication.py"
 ATTESTER = REPO / "scripts" / "attest_publication.py"
+COMPLETION_TOKEN = REPO / "scripts" / "publication_completion_token.py"
 REPOSITORY = "Project-Helianthus/helianthus-docs-eebus"
 MILESTONE = "MSP-DOCS-E2R-PUBLISH"
 SOURCE_COMMIT = "1" * 40
@@ -124,6 +125,65 @@ def render(repo: Path, output: Path, evidence: Path, commit: str = SOURCE_COMMIT
         RENDERER, "render", "--repo", str(repo), "--output", str(output),
         "--evidence-core", str(evidence), "--source-commit", commit, cwd=cwd, env=env,
     )
+
+def build_token_fixture(parent: Path) -> tuple[Path, str, str, str]:
+    repo = copy_repo(parent)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://github.com/Project-Helianthus/helianthus-docs-eebus.git"],
+        cwd=repo,
+        check=True,
+    )
+    env = os.environ.copy()
+    env.update(
+        {
+            "GIT_AUTHOR_DATE": "2026-07-13T18:00:00Z",
+            "GIT_COMMITTER_DATE": "2026-07-13T18:00:00Z",
+        }
+    )
+    marker = repo / "fixture-phase.txt"
+    marker.write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "base"],
+        cwd=repo,
+        check=True,
+        env=env,
+    )
+    base_oid = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    marker.write_text("head\n", encoding="utf-8")
+    subprocess.run(["git", "add", str(marker)], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "head"],
+        cwd=repo,
+        check=True,
+        env=env,
+    )
+    head_oid = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    tree_oid = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=repo, text=True).strip()
+    merge_oid = subprocess.check_output(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit-tree", tree_oid, "-p", base_oid, "-m", "squash merge"],
+        cwd=repo,
+        text=True,
+        env=env,
+    ).strip()
+    subprocess.run(["git", "reset", "--hard", "-q", merge_oid], cwd=repo, check=True)
+    return repo, base_oid, head_oid, merge_oid
+
+def completion_token_command(repo: Path, base_oid: str, head_oid: str,
+                             merge_oid: str) -> list[str]:
+    return [
+        sys.executable,
+        str(repo / "scripts" / "publication_completion_token.py"),
+        "--root", str(repo),
+        "--repository", REPOSITORY,
+        "--pr", "11",
+        "--base-oid", base_oid,
+        "--head-oid", head_oid,
+        "--merge-oid", merge_oid,
+        "--evaluated-at", "2026-07-13T18:00:01Z",
+        "--observation-source", "test.fixture-clock",
+    ]
 
 class MspDocsE2RPublishRedTests(unittest.TestCase):
     def test_ci_is_immutable_least_privilege_hash_locked_and_post_merge(self) -> None:
@@ -408,5 +468,80 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
             )
             self.assertNotEqual(rejected.returncode, 0, rejected.stderr)
             self.assertNotIn(marker, attestation.read_text(encoding="utf-8"))
+
+    def test_post_merge_completion_token_binds_exact_git_objects_and_replay(self) -> None:
+        self.assertTrue(COMPLETION_TOKEN.is_file(), "missing post-merge completion token")
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, base_oid, head_oid, merge_oid = build_token_fixture(Path(tmp))
+            command = completion_token_command(repo, base_oid, head_oid, merge_oid)
+            first = subprocess.run(command, check=False, capture_output=True, text=True)
+            second = subprocess.run(command, check=False, capture_output=True, text=True)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(first.stdout, second.stdout)
+            envelope = json.loads(first.stdout)
+            self.assertEqual(envelope["schema_version"], 2)
+            self.assertEqual(envelope["producer_id"], MILESTONE)
+            self.assertEqual(envelope["consumer_id"], "MSP-DOCS-E2R-AGGREGATE")
+            self.assertEqual(envelope["repository"], REPOSITORY)
+            self.assertEqual(envelope["pr"], 11)
+            self.assertEqual(envelope["base_oid"], base_oid)
+            self.assertEqual(envelope["head_oid"], head_oid)
+            self.assertEqual(envelope["merge_oid"], merge_oid)
+            self.assertEqual(
+                envelope["tree_oid"],
+                subprocess.check_output(
+                    ["git", "rev-parse", f"{merge_oid}^{{tree}}"], cwd=repo, text=True
+                ).strip(),
+            )
+            core = json.dumps(
+                envelope["evidence_core"],
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode()
+            self.assertEqual(envelope["evidence_core_sha256"], hashlib.sha256(core).hexdigest())
+            evidence = envelope["evidence_core"]["publication_evidence"]
+            self.assertEqual(evidence["source"]["commit"], merge_oid)
+            self.assertEqual(envelope["prior_token_digest"], PLATFORM_B_COMPLETION_SHA256)
+
+            dirty = repo / "untracked.txt"
+            dirty.write_text("drift\n", encoding="utf-8")
+            rejected = subprocess.run(command, check=False, capture_output=True, text=True)
+            self.assertEqual(rejected.returncode, 1)
+            self.assertEqual(rejected.stderr, "publication-token.identity\n")
+
+    def test_publication_outputs_reject_symlinked_ancestor_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = copy_repo(root)
+            real = root / "real"
+            real.mkdir()
+            linked = root / "linked"
+            linked.symlink_to(real, target_is_directory=True)
+            rejected = render(repo, linked / "publication", root / "evidence.json")
+            self.assertNotEqual(rejected.returncode, 0, rejected.stderr)
+            self.assertIn("unsafe", rejected.stderr)
+
+            evidence = root / "source-evidence.json"
+            rendered = render(repo, real / "publication", evidence)
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            attested = run_tool(
+                ATTESTER,
+                "--evidence-core", str(evidence),
+                "--output", str(linked / "attestation.json"),
+            )
+            self.assertNotEqual(attested.returncode, 0, attested.stderr)
+            self.assertIn("unsafe", attested.stderr)
+
+    def test_hash_locks_cover_linux_macos_and_source_fallbacks(self) -> None:
+        blocks = requirement_blocks(
+            (REPO / "requirements-ci.txt").read_text(encoding="utf-8")
+        )
+        locks = {block.split()[0]: block.count("--hash=sha256:") for block in blocks}
+        self.assertEqual(
+            locks,
+            {"PyYAML==6.0.3": 5, "markdown-it-py==4.0.0": 2, "mdurl==0.1.2": 2},
+        )
 if __name__ == "__main__":
     unittest.main()

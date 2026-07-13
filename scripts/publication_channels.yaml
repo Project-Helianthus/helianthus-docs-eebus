@@ -56,8 +56,8 @@ publisher:
   repository: Project-Helianthus/helianthus-docs-eebus
   path: scripts/render_publication.py
   blob_mode: "100755"
-  oid: 83253a6cda303e222c3ac10889aa3b9211f83d97
-  sha256: b94bceb7ac48e2df25b6735005ac637dde6793e29b04764880bffe3f7cbe983d
+  oid: a2def3817082f188d44d932191685143ed2a2d49
+  sha256: e93183a47fde936d20ef5ccab1be731bcdaa6c4582facd627c44295dc1385a40
 channels:
   search:
     artifact: api/search-index.json

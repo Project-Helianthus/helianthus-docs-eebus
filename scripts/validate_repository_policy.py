@@ -127,11 +127,17 @@ CI_LOCAL_SHA256 = "273167561d48c78fc5665b7fb1eca582" "6b0ed134a889d5ddfc2215e8c5
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 LOCKED_REQUIREMENTS = (
     "PyYAML==6.0.3 \\\n"
-    "    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc\n"
+    "    --hash=sha256:7f047e29dcae44602496db43be01ad42fc6f1cc0d8cd6c83d342306c32270196 \\\n"
+    "    --hash=sha256:9149cad251584d5fb4981be1ecde53a1ca46c891a79788c0df828d2f166bda28 \\\n"
+    "    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc \\\n"
+    "    --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f \\\n"
+    "    --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0\n"
     "markdown-it-py==4.0.0 \\\n"
-    "    --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147\n"
+    "    --hash=sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147 \\\n"
+    "    --hash=sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3\n"
     "mdurl==0.1.2 \\\n"
-    "    --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8\n"
+    "    --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 \\\n"
+    "    --hash=sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba\n"
 )
 
 LICENSE_ACK_LABEL = (
@@ -2395,7 +2401,9 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 )
         jobs = workflow_data.get("jobs") if isinstance(workflow_data, dict) else None
         run_commands = []
-        if workflow_data.get("permissions") != {"contents": "read"}:
+        if not isinstance(workflow_data, dict) or workflow_data.get("permissions") != {
+            "contents": "read"
+        }:
             errors.append(".github/workflows/docs-ci.yml: permissions must be contents read")
         docs_job = jobs.get("docs-checks") if isinstance(jobs, dict) else None
         if not isinstance(docs_job, dict):

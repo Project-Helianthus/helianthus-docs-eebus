@@ -28,6 +28,38 @@ class AttestationError(ValueError):
     pass
 
 
+def _temporary_directory_chain(path: Path, *, create: bool) -> None:
+    absolute = path.absolute()
+    candidates = {Path(tempfile.gettempdir()).absolute()}
+    for name in ("RUNNER_TEMP", "TMPDIR"):
+        if os.environ.get(name):
+            candidates.add(Path(os.environ[name]).absolute())
+    matches = [
+        candidate
+        for candidate in candidates
+        if absolute == candidate or candidate in absolute.parents
+    ]
+    if not matches:
+        raise AttestationError("attestation paths must be under a temporary root")
+    current = max(matches, key=lambda item: len(item.parts))
+    if not current.is_dir():
+        raise AttestationError("attestation path is unsafe")
+    for part in absolute.relative_to(current).parts:
+        current /= part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            if not create:
+                raise AttestationError("attestation path is unavailable") from None
+            try:
+                current.mkdir()
+            except FileExistsError:
+                pass
+            mode = current.lstat().st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+            raise AttestationError("attestation path is unsafe")
+
+
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     document: dict[str, Any] = {}
     for key, value in pairs:
@@ -38,6 +70,7 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _read_regular(path: Path) -> bytes:
+    _temporary_directory_chain(path.parent, create=False)
     try:
         before = path.lstat()
     except OSError as error:
@@ -117,8 +150,9 @@ def _validate_evidence(raw: bytes) -> dict[str, Any]:
 
 
 def _write_atomic(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.parent.is_symlink() or path.is_symlink() or path.exists() and not path.is_file():
+    absolute_parent = path.parent.absolute()
+    _temporary_directory_chain(absolute_parent, create=True)
+    if path.is_symlink() or path.exists() and not path.is_file():
         raise AttestationError("attestation output path is unsafe")
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary_path = Path(temporary)
@@ -138,7 +172,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        raw = _read_regular(args.evidence_core.absolute())
+        evidence_path = args.evidence_core.absolute()
+        output_path = args.output.absolute()
+        if evidence_path == output_path:
+            raise AttestationError("attestation output must differ from evidence core")
+        raw = _read_regular(evidence_path)
         evidence = _validate_evidence(raw)
         attestation = {
             "schema": "helianthus.docs-publication-attestation",
@@ -154,7 +192,7 @@ def main() -> int:
             json.dumps(attestation, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
             + "\n"
         ).encode()
-        _write_atomic(args.output.absolute(), payload)
+        _write_atomic(output_path, payload)
     except (OSError, AttestationError) as error:
         print(f"attestation failed: {error}", file=sys.stderr)
         return 1

@@ -261,6 +261,23 @@ def _reject_candidate(text: str, label: str) -> None:
 
 
 def _load_registry(root: Path) -> dict[str, Any]:
+    absolute = root.absolute()
+    temporary = Path(tempfile.gettempdir()).absolute()
+    current = (
+        temporary
+        if absolute == temporary or temporary in absolute.parents
+        else Path(absolute.anchor)
+    )
+    try:
+        for part in absolute.relative_to(current).parts:
+            current /= part
+            mode = current.lstat().st_mode
+            if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+                raise PublicationError(
+                    "repository root must have no symlinked directory components"
+                )
+    except OSError as error:
+        raise PublicationError("repository root is unavailable") from error
     root_mode = root.lstat().st_mode
     if stat.S_ISLNK(root_mode) or not stat.S_ISDIR(root_mode):
         raise PublicationError("repository root must be a non-symlink directory")
@@ -358,10 +375,45 @@ def _render_outputs(registry: dict[str, Any]) -> dict[str, bytes]:
     return outputs
 
 
-def _ensure_directory(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True)
-    if stat.S_ISLNK(path.lstat().st_mode) or not path.is_dir():
+def _trusted_temporary_root(path: Path) -> Path:
+    absolute = path.absolute()
+    candidates = {Path(tempfile.gettempdir()).absolute()}
+    for name in ("RUNNER_TEMP", "TMPDIR"):
+        if os.environ.get(name):
+            candidates.add(Path(os.environ[name]).absolute())
+    matches = [
+        candidate
+        for candidate in candidates
+        if absolute == candidate or candidate in absolute.parents
+    ]
+    if not matches:
+        raise PublicationError(f"{path}: output must be under a temporary root")
+    return max(matches, key=lambda item: len(item.parts))
+
+
+def _directory_chain(path: Path, *, create: bool) -> None:
+    absolute = path.absolute()
+    current = _trusted_temporary_root(absolute)
+    if not current.is_dir():
         raise PublicationError(f"{path}: directory path is unsafe")
+    for part in absolute.relative_to(current).parts:
+        current /= part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            if not create:
+                raise PublicationError(f"{path}: directory path is unavailable") from None
+            try:
+                current.mkdir()
+            except FileExistsError:
+                pass
+            mode = current.lstat().st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+            raise PublicationError(f"{path}: directory path is unsafe")
+
+
+def _ensure_directory(path: Path) -> None:
+    _directory_chain(path, create=True)
 
 
 def _write_atomic(path: Path, payload: bytes) -> None:
@@ -428,6 +480,7 @@ def _evidence(registry: dict[str, Any], rendered: dict[str, bytes], commit: str)
 
 
 def _actual_outputs(output: Path) -> dict[str, bytes]:
+    _directory_chain(output, create=False)
     if output.is_symlink() or not output.is_dir():
         raise PublicationError("publication output must be a non-symlink directory")
     actual: dict[str, bytes] = {}
@@ -471,12 +524,22 @@ def main() -> int:
             raise PublicationError("source commit must be a lowercase full object id")
         repo = args.repo.absolute()
         output = args.output.absolute()
+        if output == repo or repo in output.parents or output in repo.parents:
+            raise PublicationError("publication output must be outside the repository")
         registry = _load_registry(repo)
         rendered = _render_outputs(registry)
         if args.command == "render":
             evidence = args.evidence_core.absolute()
-            if evidence == output or output in evidence.parents:
-                raise PublicationError("evidence core must be outside the publication tree")
+            if (
+                evidence == output
+                or output in evidence.parents
+                or evidence == repo
+                or repo in evidence.parents
+                or evidence in repo.parents
+            ):
+                raise PublicationError(
+                    "evidence core must be outside the repository and publication tree"
+                )
             evidence_payload = _evidence(registry, rendered, args.source_commit)
             _replace_output(output, rendered)
             _write_atomic(evidence, evidence_payload)
