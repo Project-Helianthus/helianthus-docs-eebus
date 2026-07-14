@@ -2,29 +2,76 @@
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:protocols/ship-spine-overview.md"
 owner_domain: "protocols"
 license: "CC0-1.0"
-claim_status: "no-protocol-claims"
-publication_status: "ownership-landing"
+publication_status: "publishable"
+claim_status: "evidence-backed"
+source_class: "observed_runtime"
+evidence_ids: "EV-20260714-001"
+hypothesis_status: "publishable"
+falsifier: "A later accepted public gate contract changes the G17 or G19 acceptance boundary."
 ---
 
-# SHIP/SPINE Overview For Helianthus eeBUS
+# G17/G19 SHIP/SPINE Interop Gates
 
 ## Scope
 
-This ownership landing page contains no accepted protocol or runtime behavior.
-Future behavior pages require publishable evidence metadata and a falsifier.
+This page defines the accepted evidence boundary for the MSP-03D-R live interop
+gates. It records transport-stage acceptance only. It does not publish SPINE
+semantics or a consumer surface.
 
-## Initial Observation Targets
+## G17: Local Announcement
 
-- discovery advertisement;
-- SHIP session establishment;
-- pairing state;
-- remote SKI and SHIP id after redaction;
-- SPINE entities;
-- features;
-- usecase claims;
-- reconnect behavior.
+G17 proves all of the following in one bounded live run:
 
-## Publication Status
+- Helianthus publishes the configured local service announcement;
+- an independent LAN observer discovers that announcement;
+- myVaillant shows the corresponding trust visibility;
+- withdrawal is observed with exact `TTL=0`; and
+- the post-withdrawal negative confirms no inbound connection attributable to
+  the withdrawn announcement.
 
-No protocol claim is made on this page. Claims become publishable only after
-evidence ids are linked under `evidence/`.
+G17 never establishes that VR940 advertises or exposes a server endpoint for
+SHIP. Its
+direction remains a local Helianthus announcement that may lead to an inbound
+VR940 connection.
+
+## G19: Inbound Direct Access
+
+G19 starts with VR940 acting as the client and Helianthus accepting the inbound
+connection. Acceptance requires one ordered TCP, TLS, and WebSocket sequence,
+completion of SHIP, and then the first redacted SPINE evidence from that same
+live run and connection generation. Evidence from another run or connection
+generation does not complete G19.
+
+The first SPINE evidence proves only that data reached the redacted evidence
+boundary. It does not promote any protocol meaning.
+
+## Evidence Authority
+
+Live observer evidence and deterministic CI replay have separate authority.
+Live evidence establishes what happened on the LAN and in the operator trust
+flow. CI replay establishes deterministic handling of negative cases and
+fail-closed validation. A replay result cannot substitute for a missing live
+observation.
+
+A negative or partial live run is terminal for that attempt. It narrows what
+was observed without establishing that the same result applies to every
+environment or later run.
+
+## Run Binding And Redaction
+
+A valid operator proof is bound to a fresh run challenge, a bounded acceptance
+window, redacted endpoint and expected-peer references, and the transport
+evidence from that run. The ordered transport proof and first redacted SPINE
+evidence remain bound to one current connection generation. Stale, reused,
+cross-run, or cross-generation proof is rejected.
+
+Public evidence contains redacted references, digests, stage results, and
+authority labels. It omits packet captures, raw transcripts, sensitive
+material, private addresses, and raw peer identity.
+
+## Candidate Implementation Status
+
+The inspected code worktree proposes concrete fields for the run challenge,
+time window, redacted references, transport digest, connection generation, and
+first-SPINE digest. Those field choices are uncommitted candidate details. This
+page supports the contract above, not a landed runtime or public API shape.

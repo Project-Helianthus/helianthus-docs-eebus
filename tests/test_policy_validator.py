@@ -656,7 +656,7 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("substantive documentation must use a Markdown extension", result.stderr)
 
-    def test_scaffold_body_is_locked_against_asserted_behavior(self) -> None:
+    def test_reviewed_protocol_body_is_locked_against_unreviewed_behavior(self) -> None:
         claims = (
             "VR940f uses TLS pairing with myVaillant.",
             "VR940f has a stable peer identity after pairing.",
@@ -677,12 +677,30 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
-                    self.assertIn("scaffold artifact differs", result.stderr)
+                    self.assertIn("reviewed protocol artifact differs", result.stderr)
+
+    def test_reviewed_protocol_front_matter_is_byte_locked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "ship-spine-overview.md"
+            text = page.read_text(encoding="utf-8")
+            page.write_text(
+                text.replace(
+                    "\n---\n",
+                    '\nreview_ticket: "unreviewed"\n---\n',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("reviewed protocol artifact differs", result.stderr)
 
     def test_scaffold_front_matter_is_locked_against_asserted_behavior(self) -> None:
         scaffold_pages = (
             "README.md",
-            "protocols/ship-spine-overview.md",
             "api/README.md",
             "devices/vr940f.md",
             "evidence/README.md",
@@ -709,6 +727,24 @@ class PolicyValidatorTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("scaffold artifact differs", result.stderr)
+
+    def test_new_live_evidence_body_is_bound_to_reviewed_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            evidence = repo / "evidence" / "EV-20260714-001.md"
+            evidence.write_text(
+                evidence.read_text(encoding="utf-8")
+                + "\nAn unreviewed sentence changes the live claim.\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "supported claim evidence is not publishable and evidence-backed",
+                result.stderr,
+            )
 
     def test_evidence_backed_claim_requires_existing_evidence_page(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
