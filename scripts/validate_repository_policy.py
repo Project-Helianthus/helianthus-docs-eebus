@@ -87,7 +87,6 @@ REQUIRED_DOMAIN_PAGES = {
 
 SCAFFOLD_PAGES = {
     "README.md": "ownership-policy",
-    "protocols/ship-spine-overview.md": "ownership-landing",
     "api/README.md": "ownership-landing",
     "api/api-surface-v1.md": "api-contract",
     "devices/vr940f.md": "planned-target",
@@ -99,9 +98,6 @@ SCAFFOLD_PAGES = {
 
 SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
-    "protocols/ship-spine-overview.md": (
-        "866bb693935bb64e8ab34e2a2f9766e" "0662e6738886416617e8f59a075bc6073"
-    ),
     "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010" "285607ad10016fa39ffe2424c123eb4a",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
@@ -112,6 +108,12 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0f" "d8724ef3770dcb9d0aac485ef23f8f32",
     "development/contributing.md": (
         "f52c046edb8bafeca43cdb1e9159e493" "55688ce7b114339bfe34cf02a1038586"
+    ),
+}
+
+PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
+    "protocols/ship-spine-overview.md": (
+        "8e238089d340fd39e3064c62293caebe" "3c551789971c18eab87de5c7fcc4bfda"
     ),
 }
 
@@ -295,7 +297,7 @@ UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
 )
 UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
 PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
-    "6ac887dc24ce53fc0dee45e15ebe2804e" "ea42bedb0ae802dc89bc39338ad6f44": {
+    "aabc70602faa89a7220cf1dac98bda52" "79adad19b313fe468e6872518456882d": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -304,10 +306,11 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "claim_status": "evidence-backed",
         "publication_status": "active",
         "source_class": "derived_inference",
-        "evidence_ids": "EV-20260711-001",
+        "evidence_ids": "EV-20260711-001, EV-20260714-001",
         "hypothesis_status": "publishable",
         "falsifier": (
-            "A publishable canonical contract assigns these boundaries to another owner."
+            "A publishable canonical contract changes these ownership or "
+            "evidence-acceptance boundaries."
         ),
         "cross_seed_target": (
             "Project-Helianthus/helianthus-docs-ebus:"
@@ -380,6 +383,25 @@ PRODUCTION_REVIEWED_EVIDENCE = {
             "falsifier": (
                 "A publishable canonical ownership or API contract contradicts "
                 "this record."
+            ),
+        },
+    },
+    "EV-20260714-001": {
+        "89e3c9f6d44f3abb1bb41f10de8942e" "79841f8dca4635231b3c565164b447f85": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260714-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "observed_runtime",
+            "evidence_ids": "EV-20260714-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A redacted report with the cited digest demonstrates inbound "
+                "transport or protocol acceptance in this attempt."
             ),
         },
     },
@@ -2006,6 +2028,13 @@ def _provenance_errors(
     fixture_mode: bool,
 ) -> list[str]:
     errors: list[str] = []
+    expected_protocol_hash = PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256.get(rel)
+    if (
+        expected_protocol_hash is not None
+        and hashlib.sha256(text.encode("utf-8")).hexdigest() != expected_protocol_hash
+    ):
+        errors.append(f"{rel}: reviewed protocol artifact differs")
+
     expected_scaffold_status = SCAFFOLD_PAGES.get(rel)
     claim_status = metadata.get("claim_status")
 
