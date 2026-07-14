@@ -59,28 +59,37 @@ Identity fields use `eebusraw.RedactedID`. Opaque raw observations use
 contains credential material, an unmasked device identity, a network endpoint,
 vendor implementation type, or promoted semantic identifier.
 
-The closed candidate enums are versioned observation vocabularies:
+The exact closed candidate enum inventory is:
 
-- `SnapshotContractV1` identifies
-  `helianthus.eebus.runtime.raw-snapshot.v1`;
-- `ObservedRuntimeStateV1` covers only `unknown`, `stopped`, `starting`,
-  `ready`, `degraded`, and `shutdown` observations;
-- `DegradationReasonV1` covers explicit missing discovery, denied trust,
-  remote disconnect, certificate unavailable, no visible services, and no data
-  observations;
-- `ServiceKindV1`, `ObservedSessionStateV1`, and `FeatureRoleV1` are closed raw
-  structural vocabularies with no free-form semantic labels.
+| Type or constant | Values |
+| --- | --- |
+| `SnapshotContractV1` | `helianthus.eebus.runtime.raw-snapshot.v1` |
+| `ObservedRuntimeStateV1` | `unknown`, `stopped`, `starting`, `ready`, `degraded`, `shutdown` |
+| `DegradationReasonV1` | `missing-discovery`, `denied-trust`, `remote-disconnect`, `certificate-unavailable`, `no-visible-services`, `no-data` |
+| `ServiceKindV1` | `local`, `remote` |
+| `ObservedSessionStateV1` | `unknown`, `connecting`, `connected`, `disconnected`, `degraded` |
+| `FeatureRoleV1` | `""`, `client`, `server` |
+
+These are raw structural vocabularies with no free-form semantic labels.
 
 ## Allowed Operations
 
-MSP-036 may expose only value-oriented operations:
+MSP-036 may expose only this exact value-oriented operation inventory:
 
-- `NewSnapshotV1` constructs a detached snapshot;
-- `Validate` rejects malformed, unredacted, duplicate, or inconsistent data;
-- `Clone` returns a complete defensive copy;
-- `ComputeDataHash` hashes the canonical data payload without `data_hash`;
-- `MarshalJSON` emits the validated canonical representation; and
-- safe display formatting reveals no identifier or opaque payload.
+| Operation | Contract |
+| --- | --- |
+| `NewSnapshotV1` | constructs a detached snapshot |
+| `Validate` | rejects malformed, unredacted, duplicate, inconsistent, or hash-mismatched data |
+| `Clone` | returns a complete defensive copy |
+| `ComputeDataHash` | hashes the context-bound canonical payload without `data_hash` |
+| `MarshalJSON` | emits the validated canonical representation |
+| `String` | returns a redacted display value |
+| `GoString` | returns a redacted display value |
+| `Format` | writes a redacted display value |
+
+The type, field, enum, and operation tables are closed inventories. MSP-036
+permits no additional exported declaration outside those tables and the frozen
+MSP-035 `eebusraw` and `eebusevidence` dependencies.
 
 There is no public `Runtime`, `View`, `SnapshotSource`, store handle, capture
 set, dereference operation, or update method in this milestone. `Start`,
@@ -105,10 +114,23 @@ storage:
 - unknown fields use their frozen path/digest/value order; and
 - timestamps are normalized to UTC and must be valid JSON timestamps.
 
-`data_hash` uses the Helianthus canonical `sha256:<64 lowercase hex>` form over
-the JSON object containing `data_timestamp`, `status`, `pairing`, `services`,
-`sessions`, `topology`, and `raw`, with `data_hash` itself omitted. Equivalent
-input orderings must produce byte-identical JSON and the same hash.
+`data_hash` uses the Helianthus canonical `sha256:<64 lowercase hex>` form. Its
+JSON hash view contains `contract`, `runtime`, `local_ski`, `mask_tier`,
+`data_timestamp`, `status`, `pairing`, `services`, `sessions`, `topology`, and
+`raw`; only `captured_at` and `data_hash` are omitted. The identity and mask
+context therefore cannot be substituted while retaining a valid hash.
+`Validate` recomputes every non-empty `data_hash` and rejects a mismatch.
+Equivalent input orderings must produce byte-identical JSON and the same hash.
+
+## Forbidden Public Inventory
+
+MSP-036 expressly forbids the public types `Runtime`, `RuntimeV1`, `View`,
+`ViewV1`, `SnapshotSource`, `Store`, `CaptureRef`, and `ViewResult`. It also
+forbids public `Start`, `Shutdown`, `Snapshot`, `PairingState`,
+`RegisterRemoteSKI`, `UnregisterRemoteSKI`, `SetPairingWindow`,
+`UpdateSnapshot`, `Capture`, `Drop`, `CapturedSnapshot`, and `Dereference`
+operations. These names may be introduced only by their later owning
+milestones and gates.
 
 ## Explicit Non-Authority
 
