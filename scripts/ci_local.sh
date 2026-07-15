@@ -125,6 +125,9 @@ PY
 echo "==> validate API surface v1 contract"
 python3 scripts/validate_api_surface_v1.py
 
+echo "==> validate MSP-055 exact-head API candidate"
+python3 scripts/validate_msp_055_api_candidate.py
+
 echo "==> run policy validator tests"
 python3 -m unittest discover -s tests -p 'test_*.py'
 

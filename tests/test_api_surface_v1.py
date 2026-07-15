@@ -2252,10 +2252,17 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             Path("api/sitemap.xml"),
             Path("api/versioned-bundle.txt"),
         }
+        msp_055_candidate_artifacts = {
+            Path("api/_candidate/msp-055/attestation.json"),
+            Path("api/_candidate/msp-055/candidate-record.json"),
+            Path("api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json"),
+            Path("api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json"),
+            Path("api/_candidate/msp-055/verification.json"),
+        }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
             for path in list(positive_paths()) + list(NEGATIVE_FIXTURES.glob("*.json"))
-        } | publication_outputs
+        } | publication_outputs | msp_055_candidate_artifacts
         actual = {
             path.relative_to(REPO)
             for path in (REPO / "api").rglob("*")
