@@ -1,0 +1,75 @@
+{
+  "schema": "helianthus.docs.eebus.msp-055-api-candidate.v1",
+  "state": "candidate",
+  "source": {
+    "repository": "Project-Helianthus/helianthus-eebusreg",
+    "issue": 24,
+    "pull_request": 25,
+    "pull_request_url": "https://github.com/Project-Helianthus/helianthus-eebusreg/pull/25",
+    "head": "ad79f0bbe589d95d56cc738203604fec78639d90",
+    "ref": "refs/heads/issue/24-msp055-lifecycle-facade"
+  },
+  "run": {
+    "id": 29397818751,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "conclusion": "success",
+    "url": "https://github.com/Project-Helianthus/helianthus-eebusreg/actions/runs/29397818751",
+    "created_at": "2026-07-15T07:34:51Z",
+    "expires_at": "2026-08-14T07:34:51Z"
+  },
+  "artifact": {
+    "id": 8335827060,
+    "name": "helianthus-eebusreg-api-surface-v1-29397818751-1",
+    "expires_at": "2026-10-13T07:34:53Z"
+  },
+  "attestation": {
+    "predicate_type": "https://project-helianthus.github.io/attestations/eebus-api-surface/v1",
+    "signer_workflow": "Project-Helianthus/helianthus-eebusreg/.github/workflows/ci.yml",
+    "runner_environment": "github-hosted"
+  },
+  "artifacts": {
+    "manifest": {
+      "path": "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
+      "sha256": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c"
+    },
+    "predicate": {
+      "path": "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
+      "sha256": "5960ac6dc00942ea7a19d2559934b382ac700ae445b492abb8d223a6f14b72e4"
+    },
+    "bundle": {
+      "path": "api/_candidate/msp-055/attestation.json",
+      "sha256": "2419bb9ab2187c19642f80f01d1e776b6b52df8cdf182e41ac9329e916ebdfc9"
+    },
+    "verification": {
+      "path": "api/_candidate/msp-055/verification.json",
+      "sha256": "a1de3f1ff4163871dcb416348723b104afab4edfe3f0d4e1fe0a3f0fef58cbf0"
+    }
+  },
+  "verification_policy": {
+    "offline": [
+      "record-shape-and-candidate-state",
+      "exact-artifact-byte-hashes",
+      "api-surface-v1-manifest-validation",
+      "predicate-and-statement-consistency",
+      "source-run-workflow-schema-and-digest-consistency",
+      "hidden-page-inventory-and-exclusions"
+    ],
+    "online": [
+      "source-pr-org-owned-open-unmerged-exact-head",
+      "workflow-dispatch-success-exact-head-and-attempt",
+      "artifact-present-and-unexpired",
+      "attestation-verify-repository-bundle-predicate-source-digest-source-ref-signer-workflow-deny-self-hosted-runners"
+    ]
+  },
+  "invalidation_conditions": [
+    "state-is-not-candidate",
+    "source-pull-request-is-not-org-owned-open-unmerged",
+    "source-head-or-ref-differs",
+    "run-event-conclusion-head-or-attempt-differs",
+    "artifact-is-missing-or-expired",
+    "attestation-or-artifact-byte-digest-differs",
+    "attestation-verification-fails",
+    "candidate-expiry-has-passed"
+  ]
+}

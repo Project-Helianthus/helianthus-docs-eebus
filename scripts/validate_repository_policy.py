@@ -55,6 +55,11 @@ MARKDOWN_ONLY_DOMAINS = {
     "re-notes",
 }
 API_MACHINE_ARTIFACTS = {
+    "api/_candidate/msp-055/attestation.json",
+    "api/_candidate/msp-055/candidate-record.json",
+    "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
+    "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
+    "api/_candidate/msp-055/verification.json",
     "api/schema/helianthus.eebus.api-surface.v1.schema.json",
     "api/fixtures/v1/positive/canonical-go-rendering.json",
     "api/fixtures/v1/positive/kinds-types-signatures.json",
@@ -69,6 +74,11 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-declaration.json",
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
+}
+MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS = {
+    "api/_candidate/msp-055/candidate-record.json",
+    "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
+    "api/_candidate/msp-055/verification.json",
 }
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
@@ -125,7 +135,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "273167561d48c78fc5665b7fb1eca582" "6b0ed134a889d5ddfc2215e8c5ef6314"
+CI_LOCAL_SHA256 = "2d8a9214a09485a366c9d5aedfbd106b" "0082b4552faef4ddf99d6906560cfacf"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 LOCKED_REQUIREMENTS = (
     "PyYAML==6.0.3 \\\n"
@@ -1695,9 +1705,12 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
         allow_malformed_sentinel=allow_sentinel,
     )
     expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
+    diagnostics = machine_publication_diagnostics(result)
+    if rel in MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS:
+        diagnostics.discard("private identifier")
     errors = [
         f"{rel}: {category}"
-        for category in sorted(machine_publication_diagnostics(result))
+        for category in sorted(diagnostics)
     ]
     if result.status not in {expected_status, NESTING_TOO_DEEP}:
         errors.append(f"{rel}: machine publication boundary")
