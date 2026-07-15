@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
 hypothesis_status: "draft"
-falsifier: "A merged MSP-04A implementation or accepted architecture review demonstrates that this candidate cannot meet its durability, confinement, or secret-handling contract."
+falsifier: "An accepted architecture review or conformance result demonstrates that the merged MSP-04A implementation cannot meet this candidate's durability, confinement, or secret-handling contract."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -19,9 +19,11 @@ release_bundle: "false"
 
 ## Status And Authority
 
-This document is the pre-implementation architecture contract for MSP-04A. Its
-normative terms constrain the later implementation, but they do not claim that
-the store, schema, migrations, or recovery behavior have landed.
+This document remains candidate and non-stable architecture documentation for
+MSP-04A. The implementation merged in `helianthus-eebusreg` at the
+[implementation commit][implementation-commit]. Recording that merge is status
+context only: this page remains excluded from stable publication and does not
+itself promote support.
 
 The design provenance is the [MSP-04A documentation issue][docs-issue], the
 [companion code issue][code-issue], the [locked MSP-04A execution-plan row][plan-row],
@@ -291,8 +293,8 @@ Records are unique by `record_id`, `remote_ski`, and `remote_ship_id` and sort
 by decoded `record_id` bytes. Duplicate, empty, or non-canonically ordered
 records are malformed. Identity values remain inside generation content and
 are never used in paths, errors, metrics, or diagnostic formatting. V1 stores
-no pairing, trust, quarantine, retry, or lifecycle policy. Later milestones may
-add policy only through an explicit schema version and migration edge.
+no pairing, trust, quarantine, retry, or lifecycle policy. The MSP-04B private
+trust coordinator owns those decisions; the store schema remains policy-free.
 
 ### Record Ownership
 
@@ -300,7 +302,7 @@ add policy only through an explicit schema version and migration edge.
 | --- | --- | --- |
 | Certificate chain and protected-key reference | MSP-04A store | Internal identity owner; no public mutation surface. |
 | Local SKI | MSP-04A store | Internal identity owner; the store does not derive protocol meaning. |
-| Remote SKI and remote SHIP ID | MSP-04A association record | Later trust/lifecycle owner; MSP-04A only validates and persists opaque values. |
+| Remote SKI and remote SHIP ID | MSP-04A association record | MSP-04B private trust coordinator; MSP-04A only validates and persists opaque values. |
 | Generation sequence, parent binding, manifest epoch, and digests | MSP-04A store | Store commit and integrity classification only. |
 
 ## Canonical JSON Profile
@@ -654,10 +656,12 @@ MSP-04A adds none of the following:
 - public API declaration, stable file-format promise, or protocol
   documentation.
 
-Those surfaces remain assigned to later separately reviewed milestones. A
-later implementation revision may be linked from this candidate only after it
-exists; this document does not invent one.
+Those surfaces remain assigned to later separately reviewed milestones. The
+current merged implementation is already linked above as status context.
+Future implementation revisions may be linked only after merge and review;
+this document does not predict one.
 
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/14
 [code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/20
+[implementation-commit]: https://github.com/Project-Helianthus/helianthus-eebusreg/tree/034c4cc5f7a58bdab08c95d5b59fa8af13c5dd1d/
 [plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/97b22b342688a7fc3b1f0bc384f61f359aadf17f/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L849-L872
