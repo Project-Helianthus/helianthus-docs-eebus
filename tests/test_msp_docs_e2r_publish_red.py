@@ -48,6 +48,7 @@ CHANNELS = {
 }
 MEMBERS = [
     "api/api-surface-v1.md",
+    "api/eebusruntime-v1/reference.md",
     "architecture/README.md",
     "protocols/ship-spine-overview.md",
 ]

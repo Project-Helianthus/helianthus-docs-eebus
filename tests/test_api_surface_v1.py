@@ -2259,10 +2259,18 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             Path("api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json"),
             Path("api/_candidate/msp-055/verification.json"),
         }
+        msp_055_active_artifacts = {
+            Path("api/eebusruntime-v1/attestation.json"),
+            Path("api/eebusruntime-v1/manifest.json"),
+            Path("api/eebusruntime-v1/predicate.json"),
+            Path("api/eebusruntime-v1/publication-record.json"),
+            Path("api/eebusruntime-v1/verification.json"),
+            Path("api/schema/helianthus.docs.eebus.msp-055-api-freeze.v1.schema.json"),
+        }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
             for path in list(positive_paths()) + list(NEGATIVE_FIXTURES.glob("*.json"))
-        } | publication_outputs | msp_055_candidate_artifacts
+        } | publication_outputs | msp_055_candidate_artifacts | msp_055_active_artifacts
         actual = {
             path.relative_to(REPO)
             for path in (REPO / "api").rglob("*")

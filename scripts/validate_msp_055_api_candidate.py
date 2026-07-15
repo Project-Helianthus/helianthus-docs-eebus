@@ -24,6 +24,7 @@ RECORD_REL = Path("api/_candidate/msp-055/candidate-record.json")
 PAGE_REL = Path("api/_candidate/runtime-reference.md")
 SOURCE_REPOSITORY = "Project-Helianthus/helianthus-eebusreg"
 SOURCE_HEAD = "ad79f0bbe589d95d56cc" + "738203604fec78639d90"
+MERGED_SOURCE = "59cbea0593f27caf558b" + "c4cc9b665c52fc50b683"
 SOURCE_REF = "refs/heads/issue/24-msp055-lifecycle-facade"
 RUN_ID = 29397818751
 RUN_ATTEMPT = 1
@@ -39,7 +40,7 @@ EXPECTED_HASHES = {
     "bundle": "2419bb9ab2187c19642f80f01d1e776b6b52df8cdf182e41ac9329e916ebdfc9",
     "verification": "a1de3f1ff4163871dcb416348723b104afab4edfe3f0d4e1fe0a3f0fef58cbf0",
 }
-RECORD_SHA256 = "584a3426f30616873078bc0af47b9cbc865b2cc46defd4878090ae09e2799f31"
+RECORD_SHA256 = "73c1b2bf1bc7408a5603dad0bd4ca30e77f9aa57b933588e1a398f71e321111c"
 EXPECTED_PATHS = {
     "manifest": "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
     "predicate": "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
@@ -47,7 +48,8 @@ EXPECTED_PATHS = {
     "verification": "api/_candidate/msp-055/verification.json",
 }
 PAGE_TOKENS = (
-    "publication_status: \"candidate\"",
+    "publication_status: \"retired-candidate\"",
+    "hypothesis_status: \"withdrawn\"",
     "candidate_output: \"true\"",
     "stable_navigation: \"false\"",
     "search: \"false\"",
@@ -126,7 +128,11 @@ def _record_shape_errors(record: Any, now: datetime) -> set[str]:
         return {"offline: record-shape"}
     exact = {
         ("schema",): "helianthus.docs.eebus.msp-055-api-candidate.v1",
-        ("state",): "candidate",
+        ("state",): "retired",
+        ("retirement", "reason"): "promoted-to-active",
+        ("retirement", "active_version"): "api/eebusruntime-v1",
+        ("retirement", "publication_record"): "api/eebusruntime-v1/publication-record.json",
+        ("retirement", "source_commit"): MERGED_SOURCE,
         ("source", "repository"): SOURCE_REPOSITORY,
         ("source", "issue"): 24,
         ("source", "pull_request"): 25,
@@ -148,7 +154,7 @@ def _record_shape_errors(record: Any, now: datetime) -> set[str]:
     for path, expected in exact.items():
         if _value(record, *path) != expected:
             _category(errors, "offline: record-identity")
-    if record.get("state") != "candidate":
+    if record.get("state") != "retired":
         _category(errors, "offline: candidate-state")
     created = _iso8601(_value(record, "run", "created_at"))
     expires = _iso8601(_value(record, "run", "expires_at"))

@@ -108,22 +108,26 @@ class MspDocsE2RemediationTests(unittest.TestCase):
     def test_clean_stable_publication_artifacts_are_allowed_and_parsed(self) -> None:
         artifacts = {
             "api/search-index.json": (
-                '{"pages":["api/api-surface-v1.md","architecture/README.md",'
+                '{"pages":["api/api-surface-v1.md",'
+                '"api/eebusruntime-v1/reference.md","architecture/README.md",'
                 '"protocols/ship-spine-overview.md"]}\n'
             ),
             "api/sitemap.xml": (
                 '<?xml version="1.0" encoding="UTF-8"?>\n'
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                 "<url><loc>api/api-surface-v1.md</loc></url>"
+                "<url><loc>api/eebusruntime-v1/reference.md</loc></url>"
                 "<url><loc>architecture/README.md</loc></url>"
                 "<url><loc>protocols/ship-spine-overview.md</loc></url></urlset>\n"
             ),
             "api/versioned-bundle.txt": (
-                "api/api-surface-v1.md\narchitecture/README.md\n"
+                "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
+                "architecture/README.md\n"
                 "protocols/ship-spine-overview.md\n"
             ),
             "api/release-bundle.txt": (
-                "api/api-surface-v1.md\narchitecture/README.md\n"
+                "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
+                "architecture/README.md\n"
                 "protocols/ship-spine-overview.md\n"
             ),
         }
@@ -155,18 +159,22 @@ class MspDocsE2RemediationTests(unittest.TestCase):
     def test_stable_artifacts_require_every_manifest_active_page(self) -> None:
         mutations = {
             "api/search-index.json": (
-                '{"pages":["api/api-surface-v1.md","architecture/README.md"]}\n'
+                '{"pages":["api/api-surface-v1.md",'
+                '"api/eebusruntime-v1/reference.md","architecture/README.md"]}\n'
             ),
             "api/sitemap.xml": (
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                 "<url><loc>api/api-surface-v1.md</loc></url>"
+                "<url><loc>api/eebusruntime-v1/reference.md</loc></url>"
                 "<url><loc>architecture/README.md</loc></url></urlset>\n"
             ),
             "api/versioned-bundle.txt": (
-                "api/api-surface-v1.md\narchitecture/README.md\n"
+                "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
+                "architecture/README.md\n"
             ),
             "api/release-bundle.txt": (
-                "api/api-surface-v1.md\narchitecture/README.md\n"
+                "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
+                "architecture/README.md\n"
             ),
         }
         for relative_path, payload in mutations.items():
@@ -2020,7 +2028,8 @@ class MspDocsE2RemediationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             (repo / "api/search-index.json").write_text(
-                '{"pages":["architecture/README.md",'
+                '{"pages":["api/eebusruntime-v1/reference.md",'
+                '"architecture/README.md",'
                 '"protocols/ship-spine-overview.md"]}\n',
                 encoding="utf-8",
             )

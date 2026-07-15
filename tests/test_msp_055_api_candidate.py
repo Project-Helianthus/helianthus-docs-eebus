@@ -25,6 +25,8 @@ from validate_msp_055_api_candidate import (  # noqa: E402
 from validate_repository_policy import (  # noqa: E402
     API_MACHINE_ARTIFACTS,
     MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS,
+    MSP055_PROVENANCE_MACHINE_FINGERPRINTS,
+    _machine_artifact_errors,
 )
 
 
@@ -108,8 +110,31 @@ class MSP055APICandidateTests(unittest.TestCase):
                 RECORD_REL.as_posix(),
                 EXPECTED_PATHS["predicate"],
                 EXPECTED_PATHS["verification"],
+                "api/eebusruntime-v1/predicate.json",
+                "api/eebusruntime-v1/publication-record.json",
+                "api/eebusruntime-v1/verification.json",
+                "api/schema/helianthus.docs.eebus.msp-055-api-freeze.v1.schema.json",
             },
         )
+        self.assertEqual(
+            set(MSP055_PROVENANCE_MACHINE_FINGERPRINTS),
+            MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS,
+        )
+
+    def test_provenance_machine_exemptions_reject_unlisted_fingerprint(self) -> None:
+        injected = "f" * 40
+        for rel in sorted(MSP055_PROVENANCE_MACHINE_FINGERPRINTS):
+            with self.subTest(rel=rel):
+                document = json.loads((REPO / rel).read_text(encoding="utf-8"))
+                if isinstance(document, dict):
+                    document["unexpected_fingerprint"] = injected
+                else:
+                    document.append({"unexpected_fingerprint": injected})
+                errors = _machine_artifact_errors(json.dumps(document), rel)
+                self.assertTrue(
+                    any(error.endswith(": private identifier") for error in errors),
+                    errors,
+                )
 
     def test_source_push_is_terminal_online_failure(self) -> None:
         runner = self.online_runner(pr={

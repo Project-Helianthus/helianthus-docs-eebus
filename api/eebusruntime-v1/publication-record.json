@@ -1,0 +1,117 @@
+{
+  "schema_id": "helianthus.docs.eebus.msp-055-api-freeze.v1",
+  "schema_version": 1,
+  "state": "active",
+  "version": "eebusruntime-v1",
+  "source": {
+    "repository": "Project-Helianthus/helianthus-eebusreg",
+    "pull_request": 25,
+    "commit": "59cbea0593f27caf558bc4cc9b665c52fc50b683",
+    "tree": "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d",
+    "ref": "refs/heads/main",
+    "merged_at": "2026-07-15T09:44:37Z"
+  },
+  "candidate": {
+    "docs_repository": "Project-Helianthus/helianthus-docs-eebus",
+    "docs_commit": "df231977989625fae8a92d94b3ca88ef9e52c6f2",
+    "docs_merged_at": "2026-07-15T09:43:13Z",
+    "source_commit": "ad79f0bbe589d95d56cc738203604fec78639d90",
+    "source_tree": "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d",
+    "source_ref": "refs/heads/issue/24-msp055-lifecycle-facade",
+    "record_path": "api/_candidate/msp-055/candidate-record.json",
+    "reference_path": "api/_candidate/runtime-reference.md",
+    "state": "retired",
+    "artifacts": {
+      "manifest": {
+        "path": "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
+        "sha256": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c"
+      },
+      "predicate": {
+        "path": "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
+        "sha256": "5960ac6dc00942ea7a19d2559934b382ac700ae445b492abb8d223a6f14b72e4"
+      },
+      "attestation": {
+        "path": "api/_candidate/msp-055/attestation.json",
+        "sha256": "2419bb9ab2187c19642f80f01d1e776b6b52df8cdf182e41ac9329e916ebdfc9"
+      },
+      "verification": {
+        "path": "api/_candidate/msp-055/verification.json",
+        "sha256": "a1de3f1ff4163871dcb416348723b104afab4edfe3f0d4e1fe0a3f0fef58cbf0"
+      }
+    }
+  },
+  "run": {
+    "id": 29405631374,
+    "attempt": 1,
+    "event": "push",
+    "conclusion": "success",
+    "ref": "refs/heads/main",
+    "artifact_id": 8338910226,
+    "artifact_name": "helianthus-eebusreg-api-surface-v1-29405631374-1"
+  },
+  "attestation": {
+    "predicate_type": "https://project-helianthus.github.io/attestations/eebus-api-surface/v1",
+    "signer_workflow": "Project-Helianthus/helianthus-eebusreg/.github/workflows/ci.yml",
+    "runner_environment": "github-hosted"
+  },
+  "artifacts": {
+    "manifest": {
+      "path": "api/eebusruntime-v1/manifest.json",
+      "sha256": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c"
+    },
+    "predicate": {
+      "path": "api/eebusruntime-v1/predicate.json",
+      "sha256": "e36da7bb216b85e3a6c97d195c5269f92e8cdb3437c459ec1a5fc0990c36fd3e"
+    },
+    "attestation": {
+      "path": "api/eebusruntime-v1/attestation.json",
+      "sha256": "e8506c1b7551d41d8a447fe83b8bc54b1c8d7f42068d3bbf54e99d4a604976c0"
+    },
+    "verification": {
+      "path": "api/eebusruntime-v1/verification.json",
+      "sha256": "cae8bbf7cd1318d9c878ee51d65b7c6504c59db9dcdc52cb09a01b10d58bb250"
+    }
+  },
+  "publication": {
+    "reference": "api/eebusruntime-v1/reference.md",
+    "landing": "api/README.md",
+    "stable_channels": [
+      "api/search-index.json",
+      "api/sitemap.xml",
+      "api/versioned-bundle.txt",
+      "api/release-bundle.txt"
+    ]
+  },
+  "verification_policy": {
+    "offline": [
+      "closed-record-schema",
+      "exact-artifact-byte-hashes",
+      "candidate-byte-preservation-and-retirement",
+      "candidate-before-source-merge",
+      "merged-source-commit-tree-ref-run-attempt",
+      "manifest-api-v1-and-candidate-byte-equivalence",
+      "manifest-regenerated-from-merged-source",
+      "predicate-statement-verification-consistency",
+      "stable-channel-membership-and-candidate-exclusion",
+      "marked-go-examples-compile-at-exact-source",
+      "workflow-and-local-ci-wiring",
+      "online-provenance-required-in-ci"
+    ],
+    "online": [
+      "source-commit-tree-and-merge",
+      "workflow-run-and-artifact",
+      "attestation-repository-bundle-predicate-source-digest-source-ref-signer-workflow-deny-self-hosted-runners"
+    ]
+  },
+  "invalidation_conditions": [
+    "source-commit-or-tree-differs",
+    "run-id-attempt-ref-or-conclusion-differs",
+    "artifact-byte-digest-differs",
+    "candidate-or-source-merge-order-differs",
+    "candidate-evidence-is-not-byte-preserved-or-retired",
+    "candidate-attestation-is-replayed-as-merged-provenance",
+    "active-reference-is-missing-from-any-stable-channel",
+    "candidate-path-leaks-into-stable-output",
+    "marked-example-does-not-compile-at-exact-source"
+  ]
+}

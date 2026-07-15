@@ -60,7 +60,13 @@ API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
     "api/_candidate/msp-055/verification.json",
+    "api/eebusruntime-v1/attestation.json",
+    "api/eebusruntime-v1/manifest.json",
+    "api/eebusruntime-v1/predicate.json",
+    "api/eebusruntime-v1/publication-record.json",
+    "api/eebusruntime-v1/verification.json",
     "api/schema/helianthus.eebus.api-surface.v1.schema.json",
+    "api/schema/helianthus.docs.eebus.msp-055-api-freeze.v1.schema.json",
     "api/fixtures/v1/positive/canonical-go-rendering.json",
     "api/fixtures/v1/positive/kinds-types-signatures.json",
     "api/fixtures/v1/positive/packages-and-symbols.json",
@@ -75,10 +81,90 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
 }
-MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS = {
-    "api/_candidate/msp-055/candidate-record.json",
-    "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
-    "api/_candidate/msp-055/verification.json",
+MSP055_MANIFEST_SHA256 = (
+    "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
+)
+MSP055_CANDIDATE_PREDICATE_SHA256 = (
+    "5960ac6dc00942ea7a19d2559934b382" "ac700ae445b492abb8d223a6f14b72e4"
+)
+MSP055_CANDIDATE_ATTESTATION_SHA256 = (
+    "2419bb9ab2187c19642f80f01d1e776b" "6b52df8cdf182e41ac9329e916ebdfc9"
+)
+MSP055_CANDIDATE_VERIFICATION_SHA256 = (
+    "a1de3f1ff4163871dcb416348723b104" "afab4edfe3f0d4e1fe0a3f0fef58cbf0"
+)
+MSP055_ACTIVE_PREDICATE_SHA256 = (
+    "e36da7bb216b85e3a6c97d195c5269f9" "2e8cdb3437c459ec1a5fc0990c36fd3e"
+)
+MSP055_ACTIVE_ATTESTATION_SHA256 = (
+    "e8506c1b7551d41d8a447fe83b8bc54b" "1c8d7f42068d3bbf54e99d4a604976c0"
+)
+MSP055_ACTIVE_VERIFICATION_SHA256 = (
+    "cae8bbf7cd1318d9c878ee51d65b7c65" "04c59db9dcdc52cb09a01b10d58bb250"
+)
+MSP055_SOURCE_COMMIT = "59cbea0593f27caf558b" "c4cc9b665c52fc50b683"
+MSP055_CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
+MSP055_SOURCE_TREE = "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d"
+MSP055_CANDIDATE_DOCS_MERGE = "df231977989625fae8a9" "2d94b3ca88ef9e52c6f2"
+MSP055_CANDIDATE_DIGESTS = {
+    MSP055_MANIFEST_SHA256,
+    MSP055_CANDIDATE_PREDICATE_SHA256,
+    MSP055_CANDIDATE_ATTESTATION_SHA256,
+    MSP055_CANDIDATE_VERIFICATION_SHA256,
+}
+MSP055_ACTIVE_DIGESTS = {
+    MSP055_MANIFEST_SHA256,
+    MSP055_ACTIVE_PREDICATE_SHA256,
+    MSP055_ACTIVE_ATTESTATION_SHA256,
+    MSP055_ACTIVE_VERIFICATION_SHA256,
+}
+MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
+    "api/_candidate/msp-055/candidate-record.json": {
+        MSP055_SOURCE_COMMIT,
+        MSP055_CANDIDATE_SOURCE,
+        *MSP055_CANDIDATE_DIGESTS,
+    },
+    "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json": {
+        MSP055_CANDIDATE_SOURCE,
+        MSP055_MANIFEST_SHA256,
+    },
+    "api/_candidate/msp-055/verification.json": {
+        MSP055_CANDIDATE_SOURCE,
+        MSP055_MANIFEST_SHA256,
+    },
+    "api/eebusruntime-v1/predicate.json": {
+        MSP055_SOURCE_COMMIT,
+        MSP055_MANIFEST_SHA256,
+    },
+    "api/eebusruntime-v1/publication-record.json": {
+        MSP055_SOURCE_TREE,
+        MSP055_SOURCE_COMMIT,
+        MSP055_CANDIDATE_SOURCE,
+        MSP055_CANDIDATE_DOCS_MERGE,
+        *MSP055_CANDIDATE_DIGESTS,
+        *MSP055_ACTIVE_DIGESTS,
+    },
+    "api/eebusruntime-v1/verification.json": {
+        MSP055_SOURCE_COMMIT,
+        MSP055_MANIFEST_SHA256,
+    },
+    "api/schema/helianthus.docs.eebus.msp-055-api-freeze.v1.schema.json": {
+        MSP055_SOURCE_TREE,
+        MSP055_SOURCE_COMMIT,
+        MSP055_CANDIDATE_SOURCE,
+        MSP055_CANDIDATE_DOCS_MERGE,
+    },
+}
+MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS = set(
+    MSP055_PROVENANCE_MACHINE_FINGERPRINTS
+)
+MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
+    ".github/workflows/docs-ci.yml": {
+        "59cbea0593f27caf558b" "c4cc9b665c52fc50b683",
+    },
+    "api/eebusruntime-v1/reference.md": {
+        "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d",
+    },
 }
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
@@ -108,7 +194,7 @@ SCAFFOLD_PAGES = {
 
 SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
-    "api/README.md": "36bb41e1a6b843a05cc6b5641bdfb010" "285607ad10016fa39ffe2424c123eb4a",
+    "api/README.md": "5e26fbec849b10143efb2e12001d9b01" "09bb9a119a2f723399322adf1917c454",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
@@ -135,7 +221,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "2d8a9214a09485a366c9d5aedfbd106b" "0082b4552faef4ddf99d6906560cfacf"
+CI_LOCAL_SHA256 = "b802f3ec2ea3dbf462cc7d1cf35e98a" "95ad1e08de5d6848b065f4cecadcffe02"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 LOCKED_REQUIREMENTS = (
     "PyYAML==6.0.3 \\\n"
@@ -277,6 +363,7 @@ NONPUBLISHABLE_PUBLICATION_STATUSES = {
     "planned",
     "planned-target",
     "removed",
+    "retired-candidate",
     "template",
     "withdrawn",
 }
@@ -348,6 +435,31 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
         "license": "AGPL-3.0-only",
         "publication_status": "api-contract",
         "claim_status": "no-protocol-claims",
+    },
+    "ed309f81859828dd42b65c4ae63794ab" "5de853502f5dec4b51bec312a8b80465": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:"
+            "api/eebusruntime-v1/reference.md"
+        ),
+        "owner_domain": "api",
+        "license": "AGPL-3.0-only",
+        "publication_status": "active",
+        "claim_status": "evidence-backed",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "Regenerating the normalized API surface from the exact source "
+            "commit produces different public declarations or evidence bytes."
+        ),
+        "api_version": "eebusruntime-v1",
+        "source_commit": "59cbea0593f27caf558b" "c4cc9b665c52fc50b683",
+        "source_tree": "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d",
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
     },
 }
 FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
@@ -477,6 +589,9 @@ MAC_ADDRESS_PATTERN = re.compile(
 )
 FULL_FINGERPRINT_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
+)
+PROVENANCE_IDENTIFIER_PATTERN = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{64}|[0-9A-Fa-f]{40})(?![0-9A-Fa-f])"
 )
 PRIVATE_ARTIFACT_FIELD_PATTERN = re.compile(
     r"^\s*(?:[-*]\s*)?[\"']?private[\s_-]+artifact[\s_-]+"
@@ -1037,7 +1152,7 @@ def _is_candidate_path(rel: str) -> bool:
 
 def _is_candidate_api(rel: str, metadata: dict[str, str]) -> bool:
     return _is_candidate_path(rel) or metadata.get("owner_domain") == "api" and (
-        metadata.get("publication_status") == "candidate"
+        metadata.get("publication_status") in {"candidate", "retired-candidate"}
         or metadata.get("candidate_output") == "true"
     )
 
@@ -1047,8 +1162,11 @@ def _candidate_api_errors(rel: str, metadata: dict[str, str]) -> list[str]:
         return []
 
     errors: list[str] = []
-    if _is_candidate_path(rel) and metadata.get("publication_status") != "candidate":
+    status = metadata.get("publication_status")
+    if _is_candidate_path(rel) and status not in {"candidate", "retired-candidate"}:
         errors.append(f"{rel}: candidate API path must declare publication_status candidate")
+    if status == "retired-candidate" and metadata.get("hypothesis_status") != "withdrawn":
+        errors.append(f"{rel}: retired candidate must declare hypothesis_status withdrawn")
     if metadata.get("candidate_output") != "true":
         errors.append(f"{rel}: candidate API must declare candidate_output true")
     for channel in CANDIDATE_API_CHANNELS:
@@ -1557,6 +1675,18 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
     return None
 
 
+def _provenance_fingerprint_exempt_spans(
+    text: str, rel: str
+) -> tuple[tuple[int, int], ...]:
+    spans = list(git_fingerprint_exempt_spans(text))
+    for fingerprint in MSP055_PROVENANCE_TEXT_FINGERPRINTS.get(rel, set()):
+        pattern = re.compile(
+            rf"(?<![0-9A-Fa-f]){re.escape(fingerprint)}(?![0-9A-Fa-f])"
+        )
+        spans.extend(match.span() for match in pattern.finditer(text))
+    return tuple(sorted(spans))
+
+
 def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
     errors: list[str] = []
     structured_fingerprint_variants = {text, _fully_decode_reference(text)}
@@ -1584,7 +1714,7 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
         if MAC_ADDRESS_PATTERN.search(variant):
             add("MAC address found in publishable content")
         if variant in structured_fingerprint_variants:
-            exemptions = git_fingerprint_exempt_spans(variant)
+            exemptions = _provenance_fingerprint_exempt_spans(variant, rel)
             exemption_index = 0
             for match in FULL_FINGERPRINT_PATTERN.finditer(variant):
                 while (
@@ -1706,8 +1836,28 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     )
     expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
     diagnostics = machine_publication_diagnostics(result)
-    if rel in MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS:
-        diagnostics.discard("private identifier")
+    allowed_fingerprints = MSP055_PROVENANCE_MACHINE_FINGERPRINTS.get(rel)
+    if allowed_fingerprints is not None:
+        actual_fingerprints = set()
+        for variant in {text, _fully_decode_reference(text)}:
+            actual_fingerprints.update(
+                match.group(0).lower()
+                for match in PROVENANCE_IDENTIFIER_PATTERN.finditer(variant)
+            )
+        sanitized = text
+        for fingerprint in allowed_fingerprints:
+            sanitized = re.sub(
+                rf"(?<![0-9A-Fa-f]){re.escape(fingerprint)}(?![0-9A-Fa-f])",
+                "x" * 40,
+                sanitized,
+            )
+        sanitized_result = decode_machine_json(sanitized.encode("utf-8"))
+        sanitized_diagnostics = machine_publication_diagnostics(sanitized_result)
+        if (
+            actual_fingerprints == allowed_fingerprints
+            and "private identifier" not in sanitized_diagnostics
+        ):
+            diagnostics.discard("private identifier")
     errors = [
         f"{rel}: {category}"
         for category in sorted(diagnostics)

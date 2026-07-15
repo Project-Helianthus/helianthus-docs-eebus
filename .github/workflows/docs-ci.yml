@@ -18,6 +18,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
+          path: docs
+          persist-credentials: false
+
+      - name: Checkout exact MSP-055 source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          repository: Project-Helianthus/helianthus-eebusreg
+          ref: 59cbea0593f27caf558bc4cc9b665c52fc50b683
+          path: source
           persist-credentials: false
 
       - name: Set up Python
@@ -25,14 +34,33 @@ jobs:
         with:
           python-version: "3.12.10"
 
+      - name: Set up exact MSP-055 Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: "1.24.13"
+          check-latest: false
+          cache: false
+
       - name: Install policy validator dependencies
+        working-directory: docs
         run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'
 
       - name: Run local docs CI
+        working-directory: docs
         run: ./scripts/ci_local.sh
+        env:
+          MSP055_SOURCE_CHECKOUT: ${{ github.workspace }}/source
+
+      - name: Verify MSP-055 online provenance
+        working-directory: docs
+        run: python3 scripts/validate_msp_055_api_freeze.py --source-checkout "$MSP055_SOURCE_CHECKOUT" --online
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MSP055_SOURCE_CHECKOUT: ${{ github.workspace }}/source
 
       - name: Produce post-merge publication evidence
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: docs
         run: |
           python scripts/render_publication.py render --repo . --output "$RUNNER_TEMP/publication" --evidence-core "$RUNNER_TEMP/publication-evidence.json" --source-commit "$GITHUB_SHA"
           python scripts/render_publication.py verify --repo . --output "$RUNNER_TEMP/publication" --source-commit "$GITHUB_SHA"
