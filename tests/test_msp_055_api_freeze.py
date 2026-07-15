@@ -87,6 +87,7 @@ CANDIDATE_HASHES = {
 }
 SCHEMA_ID = "helianthus.docs.eebus.msp-055-api-freeze.v1"
 SCHEMA_URN = "urn:helianthus:eebus:msp-055-api-freeze:v1"
+SCHEMA_SHA256 = "d570dd12d7bb706eeb8448a5537fcfba004c8bdb487a9205e9cf891d90e47961"
 STABLE_CHANNELS = {
     "search": Path("api/search-index.json"),
     "sitemap": Path("api/sitemap.xml"),
@@ -100,10 +101,12 @@ OFFLINE_POLICY = {
     "candidate-before-source-merge",
     "merged-source-commit-tree-ref-run-attempt",
     "manifest-api-v1-and-candidate-byte-equivalence",
+    "manifest-regenerated-from-merged-source",
     "predicate-statement-verification-consistency",
     "stable-channel-membership-and-candidate-exclusion",
     "marked-go-examples-compile-at-exact-source",
     "workflow-and-local-ci-wiring",
+    "online-provenance-required-in-ci",
 }
 ONLINE_POLICY = {
     "source-commit-tree-and-merge",
@@ -328,7 +331,16 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         )
 
     def test_publication_record_schema_closes_every_object(self) -> None:
-        schema = read_json(require_file(self, REPO, SCHEMA_REL))
+        schema_path = require_file(self, REPO, SCHEMA_REL)
+        self.assertEqual(sha256(schema_path), SCHEMA_SHA256)
+        schema = read_json(schema_path)
+        self.assertEqual(
+            set(schema),
+            {
+                "$schema", "$id", "schema_id", "schema_version", "type",
+                "additionalProperties", "required", "properties", "$defs",
+            },
+        )
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertEqual(schema["$id"], SCHEMA_URN)
         self.assertEqual(schema["schema_id"], SCHEMA_ID)
@@ -564,6 +576,18 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
 
     def test_workflow_checks_out_exact_merged_source(self) -> None:
         steps = self.workflow_steps()
+        docs_step = next(step for step in steps if step.get("name") == "Checkout")
+        self.assertEqual(
+            docs_step,
+            {
+                "name": "Checkout",
+                "uses": (
+                    "actions/checkout@34e114876b0b11c390a5"
+                    "6381ad16ebd13914f8d5"
+                ),
+                "with": {"path": "docs", "persist-credentials": False},
+            },
+        )
         source_steps = [
             step for step in steps if step.get("name") == "Checkout exact MSP-055 source"
         ]
@@ -582,7 +606,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             {
                 "repository": SOURCE_REPOSITORY,
                 "ref": SOURCE_COMMIT,
-                "path": ".msp-055-source",
+                "path": "source",
                 "persist-credentials": False,
             },
         )
@@ -600,12 +624,32 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             {"go-version": GO_VERSION, "check-latest": False, "cache": False},
         )
         ci_step = next(step for step in steps if step.get("name") == "Run local docs CI")
+        self.assertEqual(ci_step["working-directory"], "docs")
         self.assertEqual(ci_step["run"], "./scripts/ci_local.sh")
         self.assertEqual(
             ci_step["env"]["MSP055_SOURCE_CHECKOUT"],
-            "${{ github.workspace }}/.msp-055-source",
+            "${{ github.workspace }}/source",
         )
         self.assertLess(steps.index(go_steps[0]), steps.index(ci_step))
+
+        online_step = next(
+            step for step in steps
+            if step.get("name") == "Verify MSP-055 online provenance"
+        )
+        self.assertEqual(online_step["working-directory"], "docs")
+        self.assertEqual(
+            online_step["run"],
+            "python3 scripts/validate_msp_055_api_freeze.py "
+            '--source-checkout "$MSP055_SOURCE_CHECKOUT" --online',
+        )
+        self.assertEqual(
+            online_step["env"],
+            {
+                "GH_TOKEN": "${{ github.token }}",
+                "MSP055_SOURCE_CHECKOUT": "${{ github.workspace }}/source",
+            },
+        )
+        self.assertLess(steps.index(ci_step), steps.index(online_step))
 
     def test_local_ci_invokes_freeze_validator_with_exact_source_checkout(self) -> None:
         text = require_file(self, REPO, Path("scripts/ci_local.sh")).read_text(encoding="utf-8")
@@ -633,9 +677,20 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
 
 
 class FakeRunner:
-    def __init__(self, *, go_code: int = 0, attestation_code: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        go_code: int = 0,
+        attestation_code: int = 0,
+        generated_manifest: bytes | None = None,
+    ) -> None:
         self.go_code = go_code
         self.attestation_code = attestation_code
+        self.generated_manifest = (
+            (REPO / ACTIVE_PATHS["manifest"]).read_bytes()
+            if generated_manifest is None
+            else generated_manifest
+        )
         self.calls: list[tuple[tuple[str, ...], dict[str, Any]]] = []
 
     def completed(
@@ -664,6 +719,16 @@ class FakeRunner:
         if command[0] == "go":
             if command[1:] == ("env", "GOVERSION"):
                 return self.completed(command, stdout="go" + GO_VERSION + "\n")
+            if command[1:3] == ("run", "./internal/apisurface"):
+                if self.go_code:
+                    return self.completed(
+                        command,
+                        code=self.go_code,
+                        stderr="synthetic manifest generation failure",
+                    )
+                output = Path(command[command.index("-output") + 1])
+                output.write_bytes(self.generated_manifest)
+                return self.completed(command)
             return self.completed(
                 command,
                 code=self.go_code,
@@ -704,16 +769,13 @@ class FakeRunner:
                         "tree": {"sha": SOURCE_TREE},
                         "committer": {"date": SOURCE_MERGED_AT},
                     },
-                    "verification": {"verified": True, "verified_at": SOURCE_MERGED_AT},
+                    "verification": None,
                 }
             elif f"/commits/{CANDIDATE_DOCS_MERGE}" in endpoint:
                 payload = {
                     "sha": CANDIDATE_DOCS_MERGE,
                     "commit": {"committer": {"date": CANDIDATE_DOCS_MERGED_AT}},
-                    "verification": {
-                        "verified": True,
-                        "verified_at": CANDIDATE_DOCS_MERGED_AT,
-                    },
+                    "verification": None,
                 }
             elif f"actions/runs/{RUN_ID}/artifacts" in endpoint:
                 payload = {"artifacts": [self.artifact()]}
@@ -912,6 +974,15 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
             mutate,
             runner=FakeRunner(go_code=1),
         )
+
+    def test_regenerated_manifest_mismatch_is_rejected(self) -> None:
+        with contract_fixture() as (root, source):
+            errors = self.validate(
+                root,
+                source,
+                FakeRunner(generated_manifest=b"{}\n"),
+            )
+            self.assertIn("offline: generated-manifest", errors)
 
     def test_candidate_attestation_replay_cannot_be_renamed_as_merged_provenance(self) -> None:
         def mutate(root: Path) -> None:

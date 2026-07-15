@@ -1,0 +1,2664 @@
+{
+  "schema_id": "helianthus.eebus.api-surface.v1",
+  "schema_version": 1,
+  "packages": [
+    {
+      "path": "github.com/Project-Helianthus/helianthus-eebusreg",
+      "name": "eebusruntime",
+      "imports": [
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "context",
+          "path": "context"
+        },
+        {
+          "dependency_kind": "public_contract",
+          "qualifier": "eebusevidence",
+          "path": "github.com/Project-Helianthus/helianthus-eebusreg/eebusevidence"
+        },
+        {
+          "dependency_kind": "public_contract",
+          "qualifier": "eebusraw",
+          "path": "github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+        },
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "fmt",
+          "path": "fmt"
+        },
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "time",
+          "path": "time"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "DegradationReasonV1CertificateUnavailable",
+          "type": "DegradationReasonV1",
+          "signature": "const DegradationReasonV1CertificateUnavailable DegradationReasonV1 = \"certificate-unavailable\"",
+          "value_kind": "string",
+          "value": "\"certificate-unavailable\""
+        },
+        {
+          "kind": "const",
+          "name": "DegradationReasonV1DeniedTrust",
+          "type": "DegradationReasonV1",
+          "signature": "const DegradationReasonV1DeniedTrust DegradationReasonV1 = \"denied-trust\"",
+          "value_kind": "string",
+          "value": "\"denied-trust\""
+        },
+        {
+          "kind": "const",
+          "name": "DegradationReasonV1MissingDiscovery",
+          "type": "DegradationReasonV1",
+          "signature": "const DegradationReasonV1MissingDiscovery DegradationReasonV1 = \"missing-discovery\"",
+          "value_kind": "string",
+          "value": "\"missing-discovery\""
+        },
+        {
+          "kind": "const",
+          "name": "DegradationReasonV1NoData",
+          "type": "DegradationReasonV1",
+          "signature": "const DegradationReasonV1NoData DegradationReasonV1 = \"no-data\"",
+          "value_kind": "string",
+          "value": "\"no-data\""
+        },
+        {
+          "kind": "const",
+          "name": "DegradationReasonV1NoVisibleServices",
+          "type": "DegradationReasonV1",
+          "signature": "const DegradationReasonV1NoVisibleServices DegradationReasonV1 = \"no-visible-services\"",
+          "value_kind": "string",
+          "value": "\"no-visible-services\""
+        },
+        {
+          "kind": "const",
+          "name": "DegradationReasonV1RemoteDisconnect",
+          "type": "DegradationReasonV1",
+          "signature": "const DegradationReasonV1RemoteDisconnect DegradationReasonV1 = \"remote-disconnect\"",
+          "value_kind": "string",
+          "value": "\"remote-disconnect\""
+        },
+        {
+          "kind": "const",
+          "name": "FeatureRoleV1Client",
+          "type": "FeatureRoleV1",
+          "signature": "const FeatureRoleV1Client FeatureRoleV1 = \"client\"",
+          "value_kind": "string",
+          "value": "\"client\""
+        },
+        {
+          "kind": "const",
+          "name": "FeatureRoleV1Server",
+          "type": "FeatureRoleV1",
+          "signature": "const FeatureRoleV1Server FeatureRoleV1 = \"server\"",
+          "value_kind": "string",
+          "value": "\"server\""
+        },
+        {
+          "kind": "const",
+          "name": "FeatureRoleV1Unspecified",
+          "type": "FeatureRoleV1",
+          "signature": "const FeatureRoleV1Unspecified FeatureRoleV1 = \"\"",
+          "value_kind": "string",
+          "value": "\"\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedRuntimeStateV1Degraded",
+          "type": "ObservedRuntimeStateV1",
+          "signature": "const ObservedRuntimeStateV1Degraded ObservedRuntimeStateV1 = \"degraded\"",
+          "value_kind": "string",
+          "value": "\"degraded\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedRuntimeStateV1Ready",
+          "type": "ObservedRuntimeStateV1",
+          "signature": "const ObservedRuntimeStateV1Ready ObservedRuntimeStateV1 = \"ready\"",
+          "value_kind": "string",
+          "value": "\"ready\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedRuntimeStateV1Shutdown",
+          "type": "ObservedRuntimeStateV1",
+          "signature": "const ObservedRuntimeStateV1Shutdown ObservedRuntimeStateV1 = \"shutdown\"",
+          "value_kind": "string",
+          "value": "\"shutdown\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedRuntimeStateV1Starting",
+          "type": "ObservedRuntimeStateV1",
+          "signature": "const ObservedRuntimeStateV1Starting ObservedRuntimeStateV1 = \"starting\"",
+          "value_kind": "string",
+          "value": "\"starting\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedRuntimeStateV1Stopped",
+          "type": "ObservedRuntimeStateV1",
+          "signature": "const ObservedRuntimeStateV1Stopped ObservedRuntimeStateV1 = \"stopped\"",
+          "value_kind": "string",
+          "value": "\"stopped\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedRuntimeStateV1Unknown",
+          "type": "ObservedRuntimeStateV1",
+          "signature": "const ObservedRuntimeStateV1Unknown ObservedRuntimeStateV1 = \"unknown\"",
+          "value_kind": "string",
+          "value": "\"unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedSessionStateV1Connected",
+          "type": "ObservedSessionStateV1",
+          "signature": "const ObservedSessionStateV1Connected ObservedSessionStateV1 = \"connected\"",
+          "value_kind": "string",
+          "value": "\"connected\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedSessionStateV1Connecting",
+          "type": "ObservedSessionStateV1",
+          "signature": "const ObservedSessionStateV1Connecting ObservedSessionStateV1 = \"connecting\"",
+          "value_kind": "string",
+          "value": "\"connecting\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedSessionStateV1Degraded",
+          "type": "ObservedSessionStateV1",
+          "signature": "const ObservedSessionStateV1Degraded ObservedSessionStateV1 = \"degraded\"",
+          "value_kind": "string",
+          "value": "\"degraded\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedSessionStateV1Disconnected",
+          "type": "ObservedSessionStateV1",
+          "signature": "const ObservedSessionStateV1Disconnected ObservedSessionStateV1 = \"disconnected\"",
+          "value_kind": "string",
+          "value": "\"disconnected\""
+        },
+        {
+          "kind": "const",
+          "name": "ObservedSessionStateV1Unknown",
+          "type": "ObservedSessionStateV1",
+          "signature": "const ObservedSessionStateV1Unknown ObservedSessionStateV1 = \"unknown\"",
+          "value_kind": "string",
+          "value": "\"unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "ServiceKindV1Local",
+          "type": "ServiceKindV1",
+          "signature": "const ServiceKindV1Local ServiceKindV1 = \"local\"",
+          "value_kind": "string",
+          "value": "\"local\""
+        },
+        {
+          "kind": "const",
+          "name": "ServiceKindV1Remote",
+          "type": "ServiceKindV1",
+          "signature": "const ServiceKindV1Remote ServiceKindV1 = \"remote\"",
+          "value_kind": "string",
+          "value": "\"remote\""
+        },
+        {
+          "kind": "const",
+          "name": "SnapshotContractV1",
+          "type": "untyped string",
+          "signature": "const SnapshotContractV1 = \"helianthus.eebus.runtime.raw-snapshot.v1\"",
+          "value_kind": "string",
+          "value": "\"helianthus.eebus.runtime.raw-snapshot.v1\""
+        },
+        {
+          "kind": "func",
+          "name": "New",
+          "type": "func(Config) (Runtime, error)",
+          "signature": "func New(Config) (Runtime, error)",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewSnapshotV1",
+          "type": "func(SnapshotV1) (SnapshotV1, error)",
+          "signature": "func NewSnapshotV1(SnapshotV1) (SnapshotV1, error)",
+          "type_parameters": []
+        },
+        {
+          "kind": "method",
+          "name": "Clone",
+          "type": "func() SnapshotV1",
+          "signature": "func (SnapshotV1) Clone() SnapshotV1",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "ComputeDataHash",
+          "type": "func() (string, error)",
+          "signature": "func (SnapshotV1) ComputeDataHash() (string, error)",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (SnapshotV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (SnapshotV1) GoString() string",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (SnapshotV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (SnapshotV1) String() string",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (SnapshotV1) Validate() error",
+          "receiver": {
+            "base": "SnapshotV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "type",
+          "name": "Config",
+          "type": "struct{ Enabled bool; StateRoot string; Interface string; ListenPort int; Remotes []Remote }",
+          "signature": "type Config struct{ Enabled bool; StateRoot string; Interface string; ListenPort int; Remotes []Remote }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "DegradationReasonV1",
+          "type": "string",
+          "signature": "type DegradationReasonV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "DegradationV1",
+          "type": "struct{ Reason DegradationReasonV1 \"json:\\\"reason\\\"\"; Since time.Time \"json:\\\"since\\\"\" }",
+          "signature": "type DegradationV1 struct{ Reason DegradationReasonV1 \"json:\\\"reason\\\"\"; Since time.Time \"json:\\\"since\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "DeviceV1",
+          "type": "struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Entities []EntityV1 \"json:\\\"entities,omitempty\\\"\"; UseCaseClaims []UseCaseClaimV1 \"json:\\\"usecase_claims,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type DeviceV1 struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Entities []EntityV1 \"json:\\\"entities,omitempty\\\"\"; UseCaseClaims []UseCaseClaimV1 \"json:\\\"usecase_claims,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "EntityV1",
+          "type": "struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Features []FeatureV1 \"json:\\\"features,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type EntityV1 struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Features []FeatureV1 \"json:\\\"features,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "FeatureRoleV1",
+          "type": "string",
+          "signature": "type FeatureRoleV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "FeatureV1",
+          "type": "struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Role FeatureRoleV1 \"json:\\\"role\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type FeatureV1 struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Role FeatureRoleV1 \"json:\\\"role\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ObservedRuntimeStateV1",
+          "type": "string",
+          "signature": "type ObservedRuntimeStateV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ObservedSessionStateV1",
+          "type": "string",
+          "signature": "type ObservedSessionStateV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "PairingObservationV1",
+          "type": "struct{ Remote eebusraw.RedactedID \"json:\\\"remote\\\"\"; State eebusraw.PairingState \"json:\\\"state\\\"\"; Since time.Time \"json:\\\"since,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type PairingObservationV1 struct{ Remote eebusraw.RedactedID \"json:\\\"remote\\\"\"; State eebusraw.PairingState \"json:\\\"state\\\"\"; Since time.Time \"json:\\\"since,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Remote",
+          "type": "struct{ SKI string }",
+          "signature": "type Remote struct{ SKI string }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Runtime",
+          "type": "interface{ PairingState() ([]PairingObservationV1, error); Shutdown() error; Snapshot() (SnapshotV1, error); Start(context.Context) error }",
+          "signature": "type Runtime interface{ PairingState() ([]PairingObservationV1, error); Shutdown() error; Snapshot() (SnapshotV1, error); Start(context.Context) error }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "RuntimeObservationV1",
+          "type": "struct{ State ObservedRuntimeStateV1 \"json:\\\"state\\\"\"; Degradation *DegradationV1 \"json:\\\"degradation,omitempty\\\"\" }",
+          "signature": "type RuntimeObservationV1 struct{ State ObservedRuntimeStateV1 \"json:\\\"state\\\"\"; Degradation *DegradationV1 \"json:\\\"degradation,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ServiceKindV1",
+          "type": "string",
+          "signature": "type ServiceKindV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ServiceV1",
+          "type": "struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Kind ServiceKindV1 \"json:\\\"kind\\\"\"; Visible bool \"json:\\\"visible\\\"\"; Paired bool \"json:\\\"paired\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type ServiceV1 struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Kind ServiceKindV1 \"json:\\\"kind\\\"\"; Visible bool \"json:\\\"visible\\\"\"; Paired bool \"json:\\\"paired\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "SessionV1",
+          "type": "struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Remote eebusraw.RedactedID \"json:\\\"remote\\\"\"; State ObservedSessionStateV1 \"json:\\\"state\\\"\"; Since time.Time \"json:\\\"since,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type SessionV1 struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Remote eebusraw.RedactedID \"json:\\\"remote\\\"\"; State ObservedSessionStateV1 \"json:\\\"state\\\"\"; Since time.Time \"json:\\\"since,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "SnapshotMetaV1",
+          "type": "struct{ Contract string \"json:\\\"contract\\\"\"; Runtime eebusraw.RedactedID \"json:\\\"runtime\\\"\"; LocalSKI eebusraw.RedactedID \"json:\\\"local_ski\\\"\"; MaskTier eebusraw.MaskTier \"json:\\\"mask_tier\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; DataHash string \"json:\\\"data_hash,omitempty\\\"\" }",
+          "signature": "type SnapshotMetaV1 struct{ Contract string \"json:\\\"contract\\\"\"; Runtime eebusraw.RedactedID \"json:\\\"runtime\\\"\"; LocalSKI eebusraw.RedactedID \"json:\\\"local_ski\\\"\"; MaskTier eebusraw.MaskTier \"json:\\\"mask_tier\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; DataHash string \"json:\\\"data_hash,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "SnapshotV1",
+          "type": "struct{ Meta SnapshotMetaV1 \"json:\\\"meta\\\"\"; Status RuntimeObservationV1 \"json:\\\"status\\\"\"; Pairing []PairingObservationV1 \"json:\\\"pairing,omitempty\\\"\"; Services []ServiceV1 \"json:\\\"services,omitempty\\\"\"; Sessions []SessionV1 \"json:\\\"sessions,omitempty\\\"\"; Topology TopologyV1 \"json:\\\"topology\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\" }",
+          "signature": "type SnapshotV1 struct{ Meta SnapshotMetaV1 \"json:\\\"meta\\\"\"; Status RuntimeObservationV1 \"json:\\\"status\\\"\"; Pairing []PairingObservationV1 \"json:\\\"pairing,omitempty\\\"\"; Services []ServiceV1 \"json:\\\"services,omitempty\\\"\"; Sessions []SessionV1 \"json:\\\"sessions,omitempty\\\"\"; Topology TopologyV1 \"json:\\\"topology\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "TopologyV1",
+          "type": "struct{ Devices []DeviceV1 \"json:\\\"devices,omitempty\\\"\" }",
+          "signature": "type TopologyV1 struct{ Devices []DeviceV1 \"json:\\\"devices,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "UseCaseClaimV1",
+          "type": "struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type UseCaseClaimV1 struct{ ID eebusraw.RedactedID \"json:\\\"id\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "var",
+          "name": "ErrRuntimeDisabled",
+          "type": "error",
+          "signature": "var ErrRuntimeDisabled error"
+        },
+        {
+          "kind": "var",
+          "name": "ErrRuntimeShutdown",
+          "type": "error",
+          "signature": "var ErrRuntimeShutdown error"
+        }
+      ]
+    },
+    {
+      "path": "github.com/Project-Helianthus/helianthus-eebusreg/eebusevidence",
+      "name": "eebusevidence",
+      "imports": [
+        {
+          "dependency_kind": "public_contract",
+          "qualifier": "eebusraw",
+          "path": "github.com/Project-Helianthus/helianthus-eebusreg/eebusraw"
+        },
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "fmt",
+          "path": "fmt"
+        },
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "time",
+          "path": "time"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "AuthScopeReadRaw",
+          "type": "AuthScope",
+          "signature": "const AuthScopeReadRaw AuthScope = \"eebus.raw.read\"",
+          "value_kind": "string",
+          "value": "\"eebus.raw.read\""
+        },
+        {
+          "kind": "const",
+          "name": "CaptureProvenanceRuntimeObservation",
+          "type": "CaptureProvenanceV1",
+          "signature": "const CaptureProvenanceRuntimeObservation CaptureProvenanceV1 = \"runtime-observation\"",
+          "value_kind": "string",
+          "value": "\"runtime-observation\""
+        },
+        {
+          "kind": "const",
+          "name": "EnvelopeContractV1",
+          "type": "ContractVersion",
+          "signature": "const EnvelopeContractV1 ContractVersion = \"helianthus.eebus.raw.evidence-envelope.v1\"",
+          "value_kind": "string",
+          "value": "\"helianthus.eebus.raw.evidence-envelope.v1\""
+        },
+        {
+          "kind": "const",
+          "name": "EnvelopeContractV1Alpha1",
+          "type": "ContractVersion",
+          "signature": "const EnvelopeContractV1Alpha1 ContractVersion = \"helianthus.eebus.raw.evidence-envelope.v1alpha1\"",
+          "value_kind": "string",
+          "value": "\"helianthus.eebus.raw.evidence-envelope.v1alpha1\""
+        },
+        {
+          "kind": "const",
+          "name": "ObjectKindIdentity",
+          "type": "ObjectKind",
+          "signature": "const ObjectKindIdentity ObjectKind = \"identity\"",
+          "value_kind": "string",
+          "value": "\"identity\""
+        },
+        {
+          "kind": "const",
+          "name": "ObjectKindService",
+          "type": "ObjectKind",
+          "signature": "const ObjectKindService ObjectKind = \"service\"",
+          "value_kind": "string",
+          "value": "\"service\""
+        },
+        {
+          "kind": "const",
+          "name": "ObjectKindSession",
+          "type": "ObjectKind",
+          "signature": "const ObjectKindSession ObjectKind = \"session\"",
+          "value_kind": "string",
+          "value": "\"session\""
+        },
+        {
+          "kind": "const",
+          "name": "ObjectKindTopology",
+          "type": "ObjectKind",
+          "signature": "const ObjectKindTopology ObjectKind = \"topology\"",
+          "value_kind": "string",
+          "value": "\"topology\""
+        },
+        {
+          "kind": "const",
+          "name": "ObjectKindUnknown",
+          "type": "ObjectKind",
+          "signature": "const ObjectKindUnknown ObjectKind = \"unknown\"",
+          "value_kind": "string",
+          "value": "\"unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "RawSnapshotScopeIdentity",
+          "type": "RawSnapshotScopeV1",
+          "signature": "const RawSnapshotScopeIdentity RawSnapshotScopeV1 = \"raw-identity\"",
+          "value_kind": "string",
+          "value": "\"raw-identity\""
+        },
+        {
+          "kind": "const",
+          "name": "RawSnapshotScopeRoot",
+          "type": "RawSnapshotScopeV1",
+          "signature": "const RawSnapshotScopeRoot RawSnapshotScopeV1 = \"raw-root\"",
+          "value_kind": "string",
+          "value": "\"raw-root\""
+        },
+        {
+          "kind": "const",
+          "name": "RawSnapshotScopeServices",
+          "type": "RawSnapshotScopeV1",
+          "signature": "const RawSnapshotScopeServices RawSnapshotScopeV1 = \"raw-services\"",
+          "value_kind": "string",
+          "value": "\"raw-services\""
+        },
+        {
+          "kind": "const",
+          "name": "RawSnapshotScopeSessions",
+          "type": "RawSnapshotScopeV1",
+          "signature": "const RawSnapshotScopeSessions RawSnapshotScopeV1 = \"raw-sessions\"",
+          "value_kind": "string",
+          "value": "\"raw-sessions\""
+        },
+        {
+          "kind": "const",
+          "name": "RawSnapshotScopeTopology",
+          "type": "RawSnapshotScopeV1",
+          "signature": "const RawSnapshotScopeTopology RawSnapshotScopeV1 = \"raw-topology\"",
+          "value_kind": "string",
+          "value": "\"raw-topology\""
+        },
+        {
+          "kind": "const",
+          "name": "RawSnapshotScopeUnknown",
+          "type": "RawSnapshotScopeV1",
+          "signature": "const RawSnapshotScopeUnknown RawSnapshotScopeV1 = \"raw-unknown\"",
+          "value_kind": "string",
+          "value": "\"raw-unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopePairingStatus",
+          "type": "Scope",
+          "signature": "const ScopePairingStatus Scope = \"pairing-status\"",
+          "value_kind": "string",
+          "value": "\"pairing-status\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeRuntimeStatus",
+          "type": "Scope",
+          "signature": "const ScopeRuntimeStatus Scope = \"runtime-status\"",
+          "value_kind": "string",
+          "value": "\"runtime-status\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeService",
+          "type": "Scope",
+          "signature": "const ScopeService Scope = \"service\"",
+          "value_kind": "string",
+          "value": "\"service\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeServices",
+          "type": "Scope",
+          "signature": "const ScopeServices Scope = \"services\"",
+          "value_kind": "string",
+          "value": "\"services\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeSession",
+          "type": "Scope",
+          "signature": "const ScopeSession Scope = \"session\"",
+          "value_kind": "string",
+          "value": "\"session\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeSessions",
+          "type": "Scope",
+          "signature": "const ScopeSessions Scope = \"sessions\"",
+          "value_kind": "string",
+          "value": "\"sessions\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeTopology",
+          "type": "Scope",
+          "signature": "const ScopeTopology Scope = \"topology\"",
+          "value_kind": "string",
+          "value": "\"topology\""
+        },
+        {
+          "kind": "const",
+          "name": "ScopeWholeRoot",
+          "type": "Scope",
+          "signature": "const ScopeWholeRoot Scope = \"whole-root\"",
+          "value_kind": "string",
+          "value": "\"whole-root\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolCapture",
+          "type": "ToolID",
+          "signature": "const ToolCapture ToolID = \"eebus.v1.snapshot.capture\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.snapshot.capture\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolPairingStatus",
+          "type": "ToolID",
+          "signature": "const ToolPairingStatus ToolID = \"eebus.v1.pairing.status.get\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.pairing.status.get\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolRuntimeStatus",
+          "type": "ToolID",
+          "signature": "const ToolRuntimeStatus ToolID = \"eebus.v1.runtime.status.get\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.runtime.status.get\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolServicesGet",
+          "type": "ToolID",
+          "signature": "const ToolServicesGet ToolID = \"eebus.v1.services.get\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.services.get\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolServicesList",
+          "type": "ToolID",
+          "signature": "const ToolServicesList ToolID = \"eebus.v1.services.list\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.services.list\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolSessionsGet",
+          "type": "ToolID",
+          "signature": "const ToolSessionsGet ToolID = \"eebus.v1.sessions.get\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.sessions.get\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolSessionsList",
+          "type": "ToolID",
+          "signature": "const ToolSessionsList ToolID = \"eebus.v1.sessions.list\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.sessions.list\""
+        },
+        {
+          "kind": "const",
+          "name": "ToolTopologyGet",
+          "type": "ToolID",
+          "signature": "const ToolTopologyGet ToolID = \"eebus.v1.topology.get\"",
+          "value_kind": "string",
+          "value": "\"eebus.v1.topology.get\""
+        },
+        {
+          "kind": "func",
+          "name": "DigestBytes",
+          "type": "func([]uint8) string",
+          "signature": "func DigestBytes([]uint8) string",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewEnvelope",
+          "type": "func(Reference, time.Time, time.Time, []Object) Envelope",
+          "signature": "func NewEnvelope(Reference, time.Time, time.Time, []Object) Envelope",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewEnvelopeV1",
+          "type": "func(ReferenceV1, time.Time, time.Time, []ObjectV1) EnvelopeV1",
+          "signature": "func NewEnvelopeV1(ReferenceV1, time.Time, time.Time, []ObjectV1) EnvelopeV1",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewObject",
+          "type": "func(ObjectKind, string, int, time.Time) Object",
+          "signature": "func NewObject(ObjectKind, string, int, time.Time) Object",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewObjectV1",
+          "type": "func(ObjectKind, string, int, time.Time) ObjectV1",
+          "signature": "func NewObjectV1(ObjectKind, string, int, time.Time) ObjectV1",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewReference",
+          "type": "func(eebusraw.RedactedID, ToolID, Scope, AuthScope) Reference",
+          "signature": "func NewReference(eebusraw.RedactedID, ToolID, Scope, AuthScope) Reference",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewReferenceV1",
+          "type": "func(eebusraw.RedactedID, CaptureProvenanceV1, RawSnapshotScopeV1, AuthScope) ReferenceV1",
+          "signature": "func NewReferenceV1(eebusraw.RedactedID, CaptureProvenanceV1, RawSnapshotScopeV1, AuthScope) ReferenceV1",
+          "type_parameters": []
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (AuthScope) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "AuthScope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (AuthScope) GoString() string",
+          "receiver": {
+            "base": "AuthScope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (AuthScope) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "AuthScope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (AuthScope) String() string",
+          "receiver": {
+            "base": "AuthScope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (AuthScope) Validate() error",
+          "receiver": {
+            "base": "AuthScope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (CaptureProvenanceV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "CaptureProvenanceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (CaptureProvenanceV1) GoString() string",
+          "receiver": {
+            "base": "CaptureProvenanceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (CaptureProvenanceV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "CaptureProvenanceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (CaptureProvenanceV1) String() string",
+          "receiver": {
+            "base": "CaptureProvenanceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (CaptureProvenanceV1) Validate() error",
+          "receiver": {
+            "base": "CaptureProvenanceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (ContractVersion) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "ContractVersion",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (ContractVersion) GoString() string",
+          "receiver": {
+            "base": "ContractVersion",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (ContractVersion) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "ContractVersion",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (ContractVersion) String() string",
+          "receiver": {
+            "base": "ContractVersion",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (ContractVersion) Validate() error",
+          "receiver": {
+            "base": "ContractVersion",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "ComputeDataHash",
+          "type": "func() (string, error)",
+          "signature": "func (Envelope) ComputeDataHash() (string, error)",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (Envelope) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (Envelope) GoString() string",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (Envelope) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (Envelope) String() string",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (Envelope) Validate() error",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "WithDataHash",
+          "type": "func() (Envelope, error)",
+          "signature": "func (Envelope) WithDataHash() (Envelope, error)",
+          "receiver": {
+            "base": "Envelope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "ComputeDataHash",
+          "type": "func() (string, error)",
+          "signature": "func (EnvelopeV1) ComputeDataHash() (string, error)",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (EnvelopeV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (EnvelopeV1) GoString() string",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (EnvelopeV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (EnvelopeV1) String() string",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (EnvelopeV1) Validate() error",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "WithDataHash",
+          "type": "func() (EnvelopeV1, error)",
+          "signature": "func (EnvelopeV1) WithDataHash() (EnvelopeV1, error)",
+          "receiver": {
+            "base": "EnvelopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (Object) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "Object",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (Object) GoString() string",
+          "receiver": {
+            "base": "Object",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (Object) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "Object",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (Object) String() string",
+          "receiver": {
+            "base": "Object",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (Object) Validate() error",
+          "receiver": {
+            "base": "Object",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (ObjectKind) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "ObjectKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (ObjectKind) GoString() string",
+          "receiver": {
+            "base": "ObjectKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (ObjectKind) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "ObjectKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (ObjectKind) String() string",
+          "receiver": {
+            "base": "ObjectKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (ObjectKind) Validate() error",
+          "receiver": {
+            "base": "ObjectKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (ObjectV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "ObjectV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (ObjectV1) GoString() string",
+          "receiver": {
+            "base": "ObjectV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (ObjectV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "ObjectV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (ObjectV1) String() string",
+          "receiver": {
+            "base": "ObjectV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (ObjectV1) Validate() error",
+          "receiver": {
+            "base": "ObjectV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (RawSnapshotScopeV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "RawSnapshotScopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (RawSnapshotScopeV1) GoString() string",
+          "receiver": {
+            "base": "RawSnapshotScopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (RawSnapshotScopeV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "RawSnapshotScopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (RawSnapshotScopeV1) String() string",
+          "receiver": {
+            "base": "RawSnapshotScopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (RawSnapshotScopeV1) Validate() error",
+          "receiver": {
+            "base": "RawSnapshotScopeV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (Reference) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "Reference",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (Reference) GoString() string",
+          "receiver": {
+            "base": "Reference",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (Reference) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "Reference",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Matches",
+          "type": "func(Reference) bool",
+          "signature": "func (Reference) Matches(Reference) bool",
+          "receiver": {
+            "base": "Reference",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (Reference) String() string",
+          "receiver": {
+            "base": "Reference",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (Reference) Validate() error",
+          "receiver": {
+            "base": "Reference",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (ReferenceV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "ReferenceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (ReferenceV1) GoString() string",
+          "receiver": {
+            "base": "ReferenceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (ReferenceV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "ReferenceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Matches",
+          "type": "func(ReferenceV1) bool",
+          "signature": "func (ReferenceV1) Matches(ReferenceV1) bool",
+          "receiver": {
+            "base": "ReferenceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (ReferenceV1) String() string",
+          "receiver": {
+            "base": "ReferenceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (ReferenceV1) Validate() error",
+          "receiver": {
+            "base": "ReferenceV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (Scope) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "Scope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (Scope) GoString() string",
+          "receiver": {
+            "base": "Scope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (Scope) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "Scope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (Scope) String() string",
+          "receiver": {
+            "base": "Scope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (Scope) Validate() error",
+          "receiver": {
+            "base": "Scope",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (ToolID) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "ToolID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (ToolID) GoString() string",
+          "receiver": {
+            "base": "ToolID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (ToolID) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "ToolID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (ToolID) String() string",
+          "receiver": {
+            "base": "ToolID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (ToolID) Validate() error",
+          "receiver": {
+            "base": "ToolID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "type",
+          "name": "AuthScope",
+          "type": "string",
+          "signature": "type AuthScope string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "CaptureProvenanceV1",
+          "type": "string",
+          "signature": "type CaptureProvenanceV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ContractVersion",
+          "type": "string",
+          "signature": "type ContractVersion string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Envelope",
+          "type": "struct{ Reference Reference \"json:\\\"ref\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Objects []Object \"json:\\\"objects,omitempty\\\"\"; DataHash string \"json:\\\"data_hash,omitempty\\\"\" }",
+          "signature": "type Envelope struct{ Reference Reference \"json:\\\"ref\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Objects []Object \"json:\\\"objects,omitempty\\\"\"; DataHash string \"json:\\\"data_hash,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "EnvelopeV1",
+          "type": "struct{ Reference ReferenceV1 \"json:\\\"ref\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Objects []ObjectV1 \"json:\\\"objects,omitempty\\\"\"; DataHash string \"json:\\\"data_hash,omitempty\\\"\" }",
+          "signature": "type EnvelopeV1 struct{ Reference ReferenceV1 \"json:\\\"ref\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Objects []ObjectV1 \"json:\\\"objects,omitempty\\\"\"; DataHash string \"json:\\\"data_hash,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Object",
+          "type": "struct{ Kind ObjectKind \"json:\\\"kind\\\"\"; Digest string \"json:\\\"digest\\\"\"; Size int \"json:\\\"size\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type Object struct{ Kind ObjectKind \"json:\\\"kind\\\"\"; Digest string \"json:\\\"digest\\\"\"; Size int \"json:\\\"size\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ObjectKind",
+          "type": "string",
+          "signature": "type ObjectKind string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ObjectV1",
+          "type": "struct{ Kind ObjectKind \"json:\\\"kind\\\"\"; Digest string \"json:\\\"digest\\\"\"; Size int \"json:\\\"size\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type ObjectV1 struct{ Kind ObjectKind \"json:\\\"kind\\\"\"; Digest string \"json:\\\"digest\\\"\"; Size int \"json:\\\"size\\\"\"; DataTimestamp time.Time \"json:\\\"data_timestamp\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "RawSnapshotScopeV1",
+          "type": "string",
+          "signature": "type RawSnapshotScopeV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Reference",
+          "type": "struct{ Runtime eebusraw.RedactedID \"json:\\\"runtime\\\"\"; Contract ContractVersion \"json:\\\"contract\\\"\"; Tool ToolID \"json:\\\"tool\\\"\"; Scope Scope \"json:\\\"scope\\\"\"; MaskTier eebusraw.MaskTier \"json:\\\"mask_tier\\\"\"; AuthScope AuthScope \"json:\\\"auth_scope\\\"\" }",
+          "signature": "type Reference struct{ Runtime eebusraw.RedactedID \"json:\\\"runtime\\\"\"; Contract ContractVersion \"json:\\\"contract\\\"\"; Tool ToolID \"json:\\\"tool\\\"\"; Scope Scope \"json:\\\"scope\\\"\"; MaskTier eebusraw.MaskTier \"json:\\\"mask_tier\\\"\"; AuthScope AuthScope \"json:\\\"auth_scope\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ReferenceV1",
+          "type": "struct{ Runtime eebusraw.RedactedID \"json:\\\"runtime\\\"\"; Contract ContractVersion \"json:\\\"contract\\\"\"; CaptureProvenance CaptureProvenanceV1 \"json:\\\"capture_provenance\\\"\"; Scope RawSnapshotScopeV1 \"json:\\\"scope\\\"\"; MaskTier eebusraw.MaskTier \"json:\\\"mask_tier\\\"\"; AuthScope AuthScope \"json:\\\"auth_scope\\\"\" }",
+          "signature": "type ReferenceV1 struct{ Runtime eebusraw.RedactedID \"json:\\\"runtime\\\"\"; Contract ContractVersion \"json:\\\"contract\\\"\"; CaptureProvenance CaptureProvenanceV1 \"json:\\\"capture_provenance\\\"\"; Scope RawSnapshotScopeV1 \"json:\\\"scope\\\"\"; MaskTier eebusraw.MaskTier \"json:\\\"mask_tier\\\"\"; AuthScope AuthScope \"json:\\\"auth_scope\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "Scope",
+          "type": "string",
+          "signature": "type Scope string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "ToolID",
+          "type": "string",
+          "signature": "type ToolID string",
+          "type_form": "defined",
+          "type_parameters": []
+        }
+      ]
+    },
+    {
+      "path": "github.com/Project-Helianthus/helianthus-eebusreg/eebusraw",
+      "name": "eebusraw",
+      "imports": [
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "fmt",
+          "path": "fmt"
+        },
+        {
+          "dependency_kind": "standard_library",
+          "qualifier": "time",
+          "path": "time"
+        }
+      ],
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "EndpointRoleLocal",
+          "type": "EndpointRole",
+          "signature": "const EndpointRoleLocal EndpointRole = \"local\"",
+          "value_kind": "string",
+          "value": "\"local\""
+        },
+        {
+          "kind": "const",
+          "name": "EndpointRoleRemote",
+          "type": "EndpointRole",
+          "signature": "const EndpointRoleRemote EndpointRole = \"remote\"",
+          "value_kind": "string",
+          "value": "\"remote\""
+        },
+        {
+          "kind": "const",
+          "name": "EndpointRoleV1Local",
+          "type": "EndpointRoleV1",
+          "signature": "const EndpointRoleV1Local EndpointRoleV1 = \"local\"",
+          "value_kind": "string",
+          "value": "\"local\""
+        },
+        {
+          "kind": "const",
+          "name": "EndpointRoleV1Remote",
+          "type": "EndpointRoleV1",
+          "signature": "const EndpointRoleV1Remote EndpointRoleV1 = \"remote\"",
+          "value_kind": "string",
+          "value": "\"remote\""
+        },
+        {
+          "kind": "const",
+          "name": "IDKindCertificateFingerprint",
+          "type": "IDKind",
+          "signature": "const IDKindCertificateFingerprint IDKind = \"certificate-fingerprint\"",
+          "value_kind": "string",
+          "value": "\"certificate-fingerprint\""
+        },
+        {
+          "kind": "const",
+          "name": "IDKindLocalSKI",
+          "type": "IDKind",
+          "signature": "const IDKindLocalSKI IDKind = \"local-ski\"",
+          "value_kind": "string",
+          "value": "\"local-ski\""
+        },
+        {
+          "kind": "const",
+          "name": "IDKindPeer",
+          "type": "IDKind",
+          "signature": "const IDKindPeer IDKind = \"peer\"",
+          "value_kind": "string",
+          "value": "\"peer\""
+        },
+        {
+          "kind": "const",
+          "name": "IDKindRemoteSKI",
+          "type": "IDKind",
+          "signature": "const IDKindRemoteSKI IDKind = \"remote-ski\"",
+          "value_kind": "string",
+          "value": "\"remote-ski\""
+        },
+        {
+          "kind": "const",
+          "name": "IDKindSession",
+          "type": "IDKind",
+          "signature": "const IDKindSession IDKind = \"session\"",
+          "value_kind": "string",
+          "value": "\"session\""
+        },
+        {
+          "kind": "const",
+          "name": "IdentityContractV1",
+          "type": "ContractVersion",
+          "signature": "const IdentityContractV1 ContractVersion = \"helianthus.eebus.raw.identity.v1\"",
+          "value_kind": "string",
+          "value": "\"helianthus.eebus.raw.identity.v1\""
+        },
+        {
+          "kind": "const",
+          "name": "IdentityContractV1Alpha1",
+          "type": "ContractVersion",
+          "signature": "const IdentityContractV1Alpha1 ContractVersion = \"helianthus.eebus.raw.identity.v1alpha1\"",
+          "value_kind": "string",
+          "value": "\"helianthus.eebus.raw.identity.v1alpha1\""
+        },
+        {
+          "kind": "const",
+          "name": "MaskTierRedacted",
+          "type": "MaskTier",
+          "signature": "const MaskTierRedacted MaskTier = \"redacted\"",
+          "value_kind": "string",
+          "value": "\"redacted\""
+        },
+        {
+          "kind": "const",
+          "name": "PairingStateDenied",
+          "type": "PairingState",
+          "signature": "const PairingStateDenied PairingState = \"denied\"",
+          "value_kind": "string",
+          "value": "\"denied\""
+        },
+        {
+          "kind": "const",
+          "name": "PairingStatePaired",
+          "type": "PairingState",
+          "signature": "const PairingStatePaired PairingState = \"paired\"",
+          "value_kind": "string",
+          "value": "\"paired\""
+        },
+        {
+          "kind": "const",
+          "name": "PairingStateUnknown",
+          "type": "PairingState",
+          "signature": "const PairingStateUnknown PairingState = \"unknown\"",
+          "value_kind": "string",
+          "value": "\"unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "PairingStateUnpaired",
+          "type": "PairingState",
+          "signature": "const PairingStateUnpaired PairingState = \"unpaired\"",
+          "value_kind": "string",
+          "value": "\"unpaired\""
+        },
+        {
+          "kind": "const",
+          "name": "SessionStateDegraded",
+          "type": "SessionState",
+          "signature": "const SessionStateDegraded SessionState = \"degraded\"",
+          "value_kind": "string",
+          "value": "\"degraded\""
+        },
+        {
+          "kind": "const",
+          "name": "SessionStateDisconnected",
+          "type": "SessionState",
+          "signature": "const SessionStateDisconnected SessionState = \"disconnected\"",
+          "value_kind": "string",
+          "value": "\"disconnected\""
+        },
+        {
+          "kind": "const",
+          "name": "SessionStateObserved",
+          "type": "SessionState",
+          "signature": "const SessionStateObserved SessionState = \"observed\"",
+          "value_kind": "string",
+          "value": "\"observed\""
+        },
+        {
+          "kind": "const",
+          "name": "SessionStateUnknown",
+          "type": "SessionState",
+          "signature": "const SessionStateUnknown SessionState = \"unknown\"",
+          "value_kind": "string",
+          "value": "\"unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "UnknownPathDevice",
+          "type": "UnknownPath",
+          "signature": "const UnknownPathDevice UnknownPath = \"/device/unknown\"",
+          "value_kind": "string",
+          "value": "\"/device/unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "UnknownPathDocument",
+          "type": "UnknownPath",
+          "signature": "const UnknownPathDocument UnknownPath = \"/document/unknown\"",
+          "value_kind": "string",
+          "value": "\"/document/unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "UnknownPathLocal",
+          "type": "UnknownPath",
+          "signature": "const UnknownPathLocal UnknownPath = \"/local/unknown\"",
+          "value_kind": "string",
+          "value": "\"/local/unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "UnknownPathRemote",
+          "type": "UnknownPath",
+          "signature": "const UnknownPathRemote UnknownPath = \"/remote/unknown\"",
+          "value_kind": "string",
+          "value": "\"/remote/unknown\""
+        },
+        {
+          "kind": "const",
+          "name": "UnknownPathSession",
+          "type": "UnknownPath",
+          "signature": "const UnknownPathSession UnknownPath = \"/session/unknown\"",
+          "value_kind": "string",
+          "value": "\"/session/unknown\""
+        },
+        {
+          "kind": "func",
+          "name": "NewIdentityDocument",
+          "type": "func(time.Time, EndpointIdentity) IdentityDocument",
+          "signature": "func NewIdentityDocument(time.Time, EndpointIdentity) IdentityDocument",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "NewIdentityDocumentV1",
+          "type": "func(time.Time, EndpointIdentityV1) IdentityDocumentV1",
+          "signature": "func NewIdentityDocumentV1(time.Time, EndpointIdentityV1) IdentityDocumentV1",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "OpaqueBytes",
+          "type": "func([]uint8) OpaqueValue",
+          "signature": "func OpaqueBytes([]uint8) OpaqueValue",
+          "type_parameters": []
+        },
+        {
+          "kind": "func",
+          "name": "RedactID",
+          "type": "func(IDKind, string) (RedactedID, error)",
+          "signature": "func RedactID(IDKind, string) (RedactedID, error)",
+          "type_parameters": []
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (EndpointIdentity) Validate() error",
+          "receiver": {
+            "base": "EndpointIdentity",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (EndpointIdentityV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "EndpointIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (EndpointIdentityV1) GoString() string",
+          "receiver": {
+            "base": "EndpointIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (EndpointIdentityV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "EndpointIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (EndpointIdentityV1) String() string",
+          "receiver": {
+            "base": "EndpointIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (EndpointIdentityV1) Validate() error",
+          "receiver": {
+            "base": "EndpointIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (EndpointRoleV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "EndpointRoleV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (EndpointRoleV1) GoString() string",
+          "receiver": {
+            "base": "EndpointRoleV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (EndpointRoleV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "EndpointRoleV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (EndpointRoleV1) String() string",
+          "receiver": {
+            "base": "EndpointRoleV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (EndpointRoleV1) Validate() error",
+          "receiver": {
+            "base": "EndpointRoleV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (IDKind) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "IDKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (IDKind) GoString() string",
+          "receiver": {
+            "base": "IDKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (IDKind) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "IDKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (IDKind) String() string",
+          "receiver": {
+            "base": "IDKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (IDKind) Validate() error",
+          "receiver": {
+            "base": "IDKind",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (IdentityDocument) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "IdentityDocument",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (IdentityDocument) GoString() string",
+          "receiver": {
+            "base": "IdentityDocument",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (IdentityDocument) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "IdentityDocument",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (IdentityDocument) String() string",
+          "receiver": {
+            "base": "IdentityDocument",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (IdentityDocument) Validate() error",
+          "receiver": {
+            "base": "IdentityDocument",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (IdentityDocumentV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "IdentityDocumentV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (IdentityDocumentV1) GoString() string",
+          "receiver": {
+            "base": "IdentityDocumentV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (IdentityDocumentV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "IdentityDocumentV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (IdentityDocumentV1) String() string",
+          "receiver": {
+            "base": "IdentityDocumentV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (IdentityDocumentV1) Validate() error",
+          "receiver": {
+            "base": "IdentityDocumentV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (OpaqueValue) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "OpaqueValue",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (OpaqueValue) GoString() string",
+          "receiver": {
+            "base": "OpaqueValue",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (OpaqueValue) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "OpaqueValue",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (OpaqueValue) String() string",
+          "receiver": {
+            "base": "OpaqueValue",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (OpaqueValue) Validate() error",
+          "receiver": {
+            "base": "OpaqueValue",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (PairingObservation) Validate() error",
+          "receiver": {
+            "base": "PairingObservation",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (RedactedID) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "RedactedID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (RedactedID) GoString() string",
+          "receiver": {
+            "base": "RedactedID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (RedactedID) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "RedactedID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (RedactedID) String() string",
+          "receiver": {
+            "base": "RedactedID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (RedactedID) Validate() error",
+          "receiver": {
+            "base": "RedactedID",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (SessionIdentity) Validate() error",
+          "receiver": {
+            "base": "SessionIdentity",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (SessionIdentityV1) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "SessionIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (SessionIdentityV1) GoString() string",
+          "receiver": {
+            "base": "SessionIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (SessionIdentityV1) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "SessionIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (SessionIdentityV1) String() string",
+          "receiver": {
+            "base": "SessionIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (SessionIdentityV1) Validate() error",
+          "receiver": {
+            "base": "SessionIdentityV1",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (UnknownField) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "UnknownField",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (UnknownField) GoString() string",
+          "receiver": {
+            "base": "UnknownField",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (UnknownField) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "UnknownField",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (UnknownField) String() string",
+          "receiver": {
+            "base": "UnknownField",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (UnknownField) Validate() error",
+          "receiver": {
+            "base": "UnknownField",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Format",
+          "type": "func(fmt.State, int32)",
+          "signature": "func (UnknownPath) Format(fmt.State, int32)",
+          "receiver": {
+            "base": "UnknownPath",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "GoString",
+          "type": "func() string",
+          "signature": "func (UnknownPath) GoString() string",
+          "receiver": {
+            "base": "UnknownPath",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "MarshalJSON",
+          "type": "func() ([]uint8, error)",
+          "signature": "func (UnknownPath) MarshalJSON() ([]uint8, error)",
+          "receiver": {
+            "base": "UnknownPath",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "type": "func() string",
+          "signature": "func (UnknownPath) String() string",
+          "receiver": {
+            "base": "UnknownPath",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "method",
+          "name": "Validate",
+          "type": "func() error",
+          "signature": "func (UnknownPath) Validate() error",
+          "receiver": {
+            "base": "UnknownPath",
+            "pointer": false,
+            "type_parameters": []
+          }
+        },
+        {
+          "kind": "type",
+          "name": "ContractVersion",
+          "type": "string",
+          "signature": "type ContractVersion string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "EndpointIdentity",
+          "type": "struct{ Role EndpointRole \"json:\\\"role\\\"\"; ID RedactedID \"json:\\\"id\\\"\"; Pairing PairingObservation \"json:\\\"pairing,omitempty\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type EndpointIdentity struct{ Role EndpointRole \"json:\\\"role\\\"\"; ID RedactedID \"json:\\\"id\\\"\"; Pairing PairingObservation \"json:\\\"pairing,omitempty\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "EndpointIdentityV1",
+          "type": "struct{ Role EndpointRoleV1 \"json:\\\"role\\\"\"; ID RedactedID \"json:\\\"id\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type EndpointIdentityV1 struct{ Role EndpointRoleV1 \"json:\\\"role\\\"\"; ID RedactedID \"json:\\\"id\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "EndpointRole",
+          "type": "string",
+          "signature": "type EndpointRole string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "EndpointRoleV1",
+          "type": "string",
+          "signature": "type EndpointRoleV1 string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "IDKind",
+          "type": "string",
+          "signature": "type IDKind string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "IdentityDocument",
+          "type": "struct{ Contract ContractVersion \"json:\\\"contract\\\"\"; MaskTier MaskTier \"json:\\\"mask_tier\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; Local EndpointIdentity \"json:\\\"local\\\"\"; Remotes []EndpointIdentity \"json:\\\"remotes,omitempty\\\"\"; Sessions []SessionIdentity \"json:\\\"sessions,omitempty\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type IdentityDocument struct{ Contract ContractVersion \"json:\\\"contract\\\"\"; MaskTier MaskTier \"json:\\\"mask_tier\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; Local EndpointIdentity \"json:\\\"local\\\"\"; Remotes []EndpointIdentity \"json:\\\"remotes,omitempty\\\"\"; Sessions []SessionIdentity \"json:\\\"sessions,omitempty\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "IdentityDocumentV1",
+          "type": "struct{ Contract ContractVersion \"json:\\\"contract\\\"\"; MaskTier MaskTier \"json:\\\"mask_tier\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; Local EndpointIdentityV1 \"json:\\\"local\\\"\"; Remotes []EndpointIdentityV1 \"json:\\\"remotes,omitempty\\\"\"; Sessions []SessionIdentityV1 \"json:\\\"sessions,omitempty\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type IdentityDocumentV1 struct{ Contract ContractVersion \"json:\\\"contract\\\"\"; MaskTier MaskTier \"json:\\\"mask_tier\\\"\"; CapturedAt time.Time \"json:\\\"captured_at\\\"\"; Local EndpointIdentityV1 \"json:\\\"local\\\"\"; Remotes []EndpointIdentityV1 \"json:\\\"remotes,omitempty\\\"\"; Sessions []SessionIdentityV1 \"json:\\\"sessions,omitempty\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "MaskTier",
+          "type": "string",
+          "signature": "type MaskTier string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "OpaqueValue",
+          "type": "struct{ Masked string \"json:\\\"masked\\\"\"; Digest string \"json:\\\"digest,omitempty\\\"\"; Size int \"json:\\\"size,omitempty\\\"\" }",
+          "signature": "type OpaqueValue struct{ Masked string \"json:\\\"masked\\\"\"; Digest string \"json:\\\"digest,omitempty\\\"\"; Size int \"json:\\\"size,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "PairingObservation",
+          "type": "struct{ State PairingState \"json:\\\"state,omitempty\\\"\" }",
+          "signature": "type PairingObservation struct{ State PairingState \"json:\\\"state,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "PairingState",
+          "type": "string",
+          "signature": "type PairingState string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "RedactedID",
+          "type": "struct{ Kind IDKind \"json:\\\"kind\\\"\"; Masked string \"json:\\\"masked\\\"\"; Digest string \"json:\\\"digest,omitempty\\\"\" }",
+          "signature": "type RedactedID struct{ Kind IDKind \"json:\\\"kind\\\"\"; Masked string \"json:\\\"masked\\\"\"; Digest string \"json:\\\"digest,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "SessionIdentity",
+          "type": "struct{ ID RedactedID \"json:\\\"id\\\"\"; RemoteID RedactedID \"json:\\\"remote_id\\\"\"; State SessionState \"json:\\\"state\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type SessionIdentity struct{ ID RedactedID \"json:\\\"id\\\"\"; RemoteID RedactedID \"json:\\\"remote_id\\\"\"; State SessionState \"json:\\\"state\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "SessionIdentityV1",
+          "type": "struct{ ID RedactedID \"json:\\\"id\\\"\"; RemoteID RedactedID \"json:\\\"remote_id\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "signature": "type SessionIdentityV1 struct{ ID RedactedID \"json:\\\"id\\\"\"; RemoteID RedactedID \"json:\\\"remote_id\\\"\"; Unknown []UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "SessionState",
+          "type": "string",
+          "signature": "type SessionState string",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "UnknownField",
+          "type": "struct{ Path UnknownPath \"json:\\\"path\\\"\"; Value OpaqueValue \"json:\\\"value\\\"\" }",
+          "signature": "type UnknownField struct{ Path UnknownPath \"json:\\\"path\\\"\"; Value OpaqueValue \"json:\\\"value\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "UnknownPath",
+          "type": "string",
+          "signature": "type UnknownPath string",
+          "type_form": "defined",
+          "type_parameters": []
+        }
+      ]
+    }
+  ]
+}

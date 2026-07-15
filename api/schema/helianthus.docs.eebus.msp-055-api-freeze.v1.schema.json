@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:helianthus:eebus:msp-055-api-freeze:v1",
+  "schema_id": "helianthus.docs.eebus.msp-055-api-freeze.v1",
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "state",
+    "version",
+    "source",
+    "candidate",
+    "run",
+    "attestation",
+    "artifacts",
+    "publication",
+    "verification_policy",
+    "invalidation_conditions"
+  ],
+  "properties": {
+    "schema_id": {"const": "helianthus.docs.eebus.msp-055-api-freeze.v1"},
+    "schema_version": {"type": "integer", "const": 1},
+    "state": {"const": "active"},
+    "version": {"const": "eebusruntime-v1"},
+    "source": {"$ref": "#/$defs/source"},
+    "candidate": {"$ref": "#/$defs/candidate"},
+    "run": {"$ref": "#/$defs/run"},
+    "attestation": {"$ref": "#/$defs/attestation"},
+    "artifacts": {"$ref": "#/$defs/artifacts"},
+    "publication": {"$ref": "#/$defs/publication"},
+    "verification_policy": {"$ref": "#/$defs/verification_policy"},
+    "invalidation_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest", "predicate", "attestation", "verification"],
+      "properties": {
+        "manifest": {"$ref": "#/$defs/artifact"},
+        "predicate": {"$ref": "#/$defs/artifact"},
+        "attestation": {"$ref": "#/$defs/artifact"},
+        "verification": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "pull_request", "commit", "tree", "ref", "merged_at"],
+      "properties": {
+        "repository": {"const": "Project-Helianthus/helianthus-eebusreg"},
+        "pull_request": {"type": "integer", "const": 25},
+        "commit": {"const": "59cbea0593f27caf558bc4cc9b665c52fc50b683"},
+        "tree": {"const": "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"},
+        "ref": {"const": "refs/heads/main"},
+        "merged_at": {"const": "2026-07-15T09:44:37Z"}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "docs_repository",
+        "docs_commit",
+        "docs_merged_at",
+        "source_commit",
+        "source_tree",
+        "source_ref",
+        "record_path",
+        "reference_path",
+        "state",
+        "artifacts"
+      ],
+      "properties": {
+        "docs_repository": {"const": "Project-Helianthus/helianthus-docs-eebus"},
+        "docs_commit": {"const": "df231977989625fae8a92d94b3ca88ef9e52c6f2"},
+        "docs_merged_at": {"const": "2026-07-15T09:43:13Z"},
+        "source_commit": {"const": "ad79f0bbe589d95d56cc738203604fec78639d90"},
+        "source_tree": {"const": "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"},
+        "source_ref": {"const": "refs/heads/issue/24-msp055-lifecycle-facade"},
+        "record_path": {"const": "api/_candidate/msp-055/candidate-record.json"},
+        "reference_path": {"const": "api/_candidate/runtime-reference.md"},
+        "state": {"const": "retired"},
+        "artifacts": {"$ref": "#/$defs/artifacts"}
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "attempt", "event", "conclusion", "ref", "artifact_id", "artifact_name"],
+      "properties": {
+        "id": {"type": "integer", "const": 29405631374},
+        "attempt": {"type": "integer", "const": 1},
+        "event": {"const": "push"},
+        "conclusion": {"const": "success"},
+        "ref": {"const": "refs/heads/main"},
+        "artifact_id": {"type": "integer", "const": 8338910226},
+        "artifact_name": {"const": "helianthus-eebusreg-api-surface-v1-29405631374-1"}
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate_type", "signer_workflow", "runner_environment"],
+      "properties": {
+        "predicate_type": {"const": "https://project-helianthus.github.io/attestations/eebus-api-surface/v1"},
+        "signer_workflow": {"const": "Project-Helianthus/helianthus-eebusreg/.github/workflows/ci.yml"},
+        "runner_environment": {"const": "github-hosted"}
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "landing", "stable_channels"],
+      "properties": {
+        "reference": {"const": "api/eebusruntime-v1/reference.md"},
+        "landing": {"const": "api/README.md"},
+        "stable_channels": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "api/search-index.json"},
+            {"const": "api/sitemap.xml"},
+            {"const": "api/versioned-bundle.txt"},
+            {"const": "api/release-bundle.txt"}
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "verification_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offline", "online"],
+      "properties": {
+        "offline": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "online": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

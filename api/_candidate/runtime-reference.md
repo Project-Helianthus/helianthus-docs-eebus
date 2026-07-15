@@ -2,12 +2,12 @@
 canonical_source: "Project-Helianthus/helianthus-docs-eebus:api/_candidate/runtime-reference.md"
 owner_domain: "api"
 license: "AGPL-3.0-only"
-publication_status: "candidate"
+publication_status: "retired-candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
-hypothesis_status: "draft"
-falsifier: "A regenerated API surface from merged runtime code supplies supported declarations."
+hypothesis_status: "withdrawn"
+falsifier: "The active publication record no longer preserves this candidate evidence or its retirement binding."
 candidate_output: "true"
 stable_navigation: "false"
 search: "false"
@@ -17,22 +17,23 @@ release_bundle: "false"
 candidate_output_path: "api/_candidate/runtime-reference.md"
 ---
 
-# Candidate eeBUS Runtime API Reference
+# Retired Candidate eeBUS Runtime API Reference
 
-This is a hidden, exact-head candidate for source issue 24 and source pull
-request 25. It is not a supported API reference and makes no deployed-runtime
-claim. The source evidence is an exact-head workflow-dispatch result; its
-closed machine record and byte-preserved artifacts are under
-`api/_candidate/msp-055/`.
+This hidden exact-head candidate is retired. It preceded source pull request
+25 and remains only as historical evidence for the active
+`api/eebusruntime-v1/` publication. It is not a supported API reference and
+makes no deployed-runtime claim. Its original workflow-dispatch record and
+byte-preserved evidence remain under `api/_candidate/msp-055/`.
 
 ## Candidate boundary
 
-The candidate is limited to the public lifecycle facade in the manifest. In a
+The retired candidate was limited to the public lifecycle facade in the
+manifest. In a
 production-enabled configuration, `Start` is fail-closed: protected material
 and the scoped transport listener (SHIP) are downstream M4B responsibilities. A ship-go
 v0.6 wildcard listener is rejected.
 
-This candidate does not expose GraphQL, Portal, Home Assistant, MCP,
+This retired candidate does not expose GraphQL, Portal, Home Assistant, MCP,
 semantics, or writes. It neither establishes a supported release nor proves a
 deployed service.
 
@@ -73,12 +74,10 @@ degradation reasons, service kinds, session states, feature roles, and
 ## Explicit exclusions
 
 No additional lifecycle owner, listener policy, transport dispatch, trust or
-pairing mutation, semantic projection, consumer binding, or write route is
-part of this candidate. In particular, it does not add GraphQL fields, Portal
+pairing mutation, semantic projection, consumer binding, or write route was
+part of this candidate. In particular, it did not add GraphQL fields, Portal
 views, Home Assistant entities, MCP tools, or a semantic device model.
 
-The candidate is invalidated if the source pull request is no longer
-organization-owned, open, and unmerged; if its exact head or source ref
-changes; if the workflow-dispatch result, attempt, artifact, attestation, or
-manifest digest changes or expires; or if the verifier can no longer establish
-the required signer and GitHub-hosted runner constraints.
+The historical evidence is invalidated if its exact source head, source ref,
+workflow-dispatch result, attempt, artifact, attestation, or manifest bytes
+change, or if its retired state and active-publication binding are removed.

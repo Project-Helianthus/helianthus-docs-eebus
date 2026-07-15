@@ -63,23 +63,27 @@ channels:
     artifact: api/search-index.json
     members:
       - api/api-surface-v1.md
+      - api/eebusruntime-v1/reference.md
       - architecture/README.md
       - protocols/ship-spine-overview.md
   sitemap:
     artifact: api/sitemap.xml
     members:
       - api/api-surface-v1.md
+      - api/eebusruntime-v1/reference.md
       - architecture/README.md
       - protocols/ship-spine-overview.md
   versioned_bundle:
     artifact: api/versioned-bundle.txt
     members:
       - api/api-surface-v1.md
+      - api/eebusruntime-v1/reference.md
       - architecture/README.md
       - protocols/ship-spine-overview.md
   release_bundle:
     artifact: api/release-bundle.txt
     members:
       - api/api-surface-v1.md
+      - api/eebusruntime-v1/reference.md
       - architecture/README.md
       - protocols/ship-spine-overview.md

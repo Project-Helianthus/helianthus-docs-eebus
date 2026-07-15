@@ -1,6 +1,12 @@
 {
   "schema": "helianthus.docs.eebus.msp-055-api-candidate.v1",
-  "state": "candidate",
+    "state": "retired",
+    "retirement": {
+        "reason": "promoted-to-active",
+        "active_version": "api/eebusruntime-v1",
+        "publication_record": "api/eebusruntime-v1/publication-record.json",
+        "source_commit": "59cbea0593f27caf558bc4cc9b665c52fc50b683"
+    },
   "source": {
     "repository": "Project-Helianthus/helianthus-eebusreg",
     "issue": 24,

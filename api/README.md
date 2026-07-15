@@ -13,5 +13,7 @@ schema, reference, and examples.
 
 The versioned [API surface v1 contract](api-surface-v1.md) defines the closed
 machine-readable shape, deterministic normalization rules, and synthetic
-golden fixtures. Later milestones may populate supported reference material.
-This page and the v1 fixtures do not declare runtime symbols or behavior.
+golden fixtures. The supported [eeBUS Runtime API v1
+reference](eebusruntime-v1/reference.md) binds the exact merged Go API to its
+source tree and provenance evidence. This landing page and the schema fixtures
+do not add runtime, protocol, consumer, or deployment claims.

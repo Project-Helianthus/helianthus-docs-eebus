@@ -969,6 +969,7 @@ class PolicyValidatorTests(unittest.TestCase):
             ),
             "missing dependency install": lambda text: text.replace(
                 "      - name: Install policy validator dependencies\n"
+                "        working-directory: docs\n"
                 "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n\n",
                 "",
                 1,
