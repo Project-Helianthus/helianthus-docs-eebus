@@ -14,6 +14,9 @@ STORE_CANDIDATE = ROOT / "architecture/_candidate/msp-04a-persistent-store.md"
 MSP04A_IMPLEMENTATION_COMMIT = (
     "034c4cc5f7a58bdab08c" + "95d5b59fa8af13c5dd1d"
 )
+MSP04B_IMPLEMENTATION_COMMIT = (
+    "18049eef059813c23d0a" + "3385115bfa61fcec635c"
+)
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -75,10 +78,13 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
             "https://github.com/Project-Helianthus/helianthus-eebusreg/issues/26",
             body,
         )
-        self.assertIn(
-            "does not claim that MSP-04B is implemented or supported",
-            " ".join(body.split()),
-        )
+        normalized = " ".join(body.split())
+        self.assertIn("implementation merged in `helianthus-eebusreg`", normalized)
+        self.assertIn(MSP04B_IMPLEMENTATION_COMMIT, normalized)
+        self.assertIn("remains candidate and non-stable", normalized)
+        self.assertIn("does not itself promote support", normalized)
+        self.assertNotIn("pre-implementation architecture contract", normalized)
+        self.assertNotIn("A merged MSP-04B implementation", metadata["falsifier"])
 
     def test_ownership_is_separated_and_public_surface_is_frozen(self) -> None:
         _, body = read_markdown(CANDIDATE)

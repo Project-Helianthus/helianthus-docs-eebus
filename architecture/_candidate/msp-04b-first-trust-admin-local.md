@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
 hypothesis_status: "draft"
-falsifier: "A merged MSP-04B implementation or accepted architecture review demonstrates that this candidate cannot preserve exact-candidate confirmation, local-admin confinement, store ownership, or public privacy boundaries."
+falsifier: "An accepted architecture review or conformance result demonstrates that the merged MSP-04B implementation cannot preserve exact-candidate confirmation, local-admin confinement, store ownership, or public privacy boundaries."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -19,10 +19,12 @@ release_bundle: "false"
 
 ## Status And Authority
 
-This document is the pre-implementation architecture contract for MSP-04B. Its
-normative terms constrain the companion code issue, but it does not claim that
-MSP-04B is implemented or supported. It records project ownership and security
-decisions, not protocol observations or deployed behavior.
+This document remains candidate and non-stable architecture documentation for
+MSP-04B. The implementation merged in `helianthus-eebusreg` at the
+[implementation commit][implementation-commit]. Recording that merge is status
+context only: this page remains excluded from stable publication and does not
+itself promote support. It records project ownership and security decisions,
+not protocol observations or deployed behavior.
 
 The design provenance is the [MSP-04B documentation issue][docs-issue], the
 [companion code issue][code-issue], the candidate
@@ -477,4 +479,5 @@ MSP-04B adds none of the following:
 
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/22
 [code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/26
+[implementation-commit]: https://github.com/Project-Helianthus/helianthus-eebusreg/tree/18049eef059813c23d0a3385115bfa61fcec635c/
 [store-contract]: msp-04a-persistent-store.md
