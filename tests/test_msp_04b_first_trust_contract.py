@@ -14,6 +14,9 @@ STORE_CANDIDATE = ROOT / "architecture/_candidate/msp-04a-persistent-store.md"
 MSP04A_IMPLEMENTATION_COMMIT = (
     "034c4cc5f7a58bdab08c" + "95d5b59fa8af13c5dd1d"
 )
+MSP04B_IMPLEMENTATION_COMMIT = (
+    "18049eef059813c23d0a" + "3385115bfa61fcec635c"
+)
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -36,6 +39,45 @@ def table_first_column(body: str, heading: str) -> set[str]:
             continue
         values.add(line.strip("|").split("|", 1)[0].strip().strip("`"))
     return values
+
+
+def table_rows(body: str, heading: str) -> list[dict[str, str]]:
+    lines = body.split(heading, 1)[1].splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith("|"))
+
+    def cells(line: str) -> list[str]:
+        return [cell.strip() for cell in line.strip("|").split("|")]
+
+    headers = cells(lines[start])
+    separator = cells(lines[start + 1])
+    if len(headers) != len(separator) or not all(
+        re.fullmatch(r":?-{3,}:?", cell) for cell in separator
+    ):
+        raise AssertionError(f"{heading} does not start with a valid Markdown table")
+
+    rows: list[dict[str, str]] = []
+    for line in lines[start + 2 :]:
+        if not line.startswith("|"):
+            break
+        values = cells(line)
+        if len(values) != len(headers):
+            raise AssertionError(f"{heading} contains a malformed table row: {line}")
+        rows.append(dict(zip(headers, values, strict=True)))
+    return rows
+
+
+def code_value(value: str) -> str:
+    if not (value.startswith("`") and value.endswith("`")):
+        raise AssertionError(f"expected one code value, got: {value}")
+    return value[1:-1]
+
+
+def state_values(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"`([^`]+)`", value)
+        if re.fullmatch(r"[A-Z_]+", token)
+    }
 
 
 class MSP04BFirstTrustContractTest(unittest.TestCase):
@@ -75,10 +117,13 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
             "https://github.com/Project-Helianthus/helianthus-eebusreg/issues/26",
             body,
         )
-        self.assertIn(
-            "does not claim that MSP-04B is implemented or supported",
-            " ".join(body.split()),
-        )
+        normalized = " ".join(body.split())
+        self.assertIn("implementation merged in `helianthus-eebusreg`", normalized)
+        self.assertIn(MSP04B_IMPLEMENTATION_COMMIT, normalized)
+        self.assertIn("remains candidate and non-stable", normalized)
+        self.assertIn("does not itself promote support", normalized)
+        self.assertNotIn("pre-implementation architecture contract", normalized)
+        self.assertNotIn("A merged MSP-04B implementation", metadata["falsifier"])
 
     def test_ownership_is_separated_and_public_surface_is_frozen(self) -> None:
         _, body = read_markdown(CANDIDATE)
@@ -117,14 +162,23 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
     def test_confirmation_binding_and_state_machine_are_closed(self) -> None:
         _, body = read_markdown(CANDIDATE)
         normalized = " ".join(body.split())
+        state_rows = table_rows(body, "## Coordinator State Machine")
+        state_graph = {
+            code_value(row["State"]): state_values(row["Allowed next state"])
+            for row in state_rows
+        }
         self.assertEqual(
-            table_first_column(body, "## Coordinator State Machine"),
+            state_graph,
             {
-                "DISABLED",
-                "PAIRING_CLOSED",
-                "OPEN_EMPTY",
-                "CANDIDATE_PENDING",
-                "COMMITTING",
+                "DISABLED": {"PAIRING_CLOSED"},
+                "PAIRING_CLOSED": {"OPEN_EMPTY"},
+                "OPEN_EMPTY": {"CANDIDATE_PENDING", "PAIRING_CLOSED"},
+                "CANDIDATE_PENDING": {
+                    "COMMITTING",
+                    "OPEN_EMPTY",
+                    "PAIRING_CLOSED",
+                },
+                "COMMITTING": {"PAIRING_CLOSED", "DISABLED"},
             },
         )
         required = (
