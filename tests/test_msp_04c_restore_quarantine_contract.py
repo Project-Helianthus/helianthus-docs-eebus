@@ -162,6 +162,14 @@ def mutate_normalized_once(body: str, old: str, new: str) -> str:
     return body[: match.start()] + new + body[match.end() :]
 
 
+def bounded_permission_pattern(*terms: str) -> re.Pattern[str]:
+    permission = r"\b(?:MAY|CAN|PERMITTED|ALLOWED)\b"
+    lookaheads = "".join(
+        f"(?=.{{0,240}}{term})" for term in (permission, *terms)
+    )
+    return re.compile(f"{lookaheads}.{{0,240}}", re.IGNORECASE)
+
+
 RUNTIME_EFFECTS = [
     (
         "startup_restore",
@@ -527,6 +535,11 @@ R2_DEPENDENCY_CLOSURE_RULES = [
         "closure_manifest.dependency_control_inputs[]+"
         "recursive_tracked_local_references",
     ),
+    (
+        "declared_release_input_policy",
+        "recursive_expansion+must_be_tracked+must_stay_in_repo+"
+        "zero_unclassified_inputs",
+    ),
     ("scan_order", "tracked_surface_closure_before_any_GOWORK_off_command"),
     (
         "upstream_identity_policy",
@@ -550,7 +563,7 @@ R2_DEPENDENCY_CLOSURE_RULES = [
     ),
     (
         "fork_selection_denials",
-        "upstream_identity+pseudo_version+branch_query+local_override+"
+        "upstream_identity+fork_pseudo_version+branch_query+local_override+"
         "non_reviewed_fork_tag",
     ),
     ("third_party_pseudo_versions", "unrelated_module_identities_out_of_scope"),
@@ -569,44 +582,42 @@ R2_DEPENDENCY_CLOSURE_RULES = [
 R2_DEPENDENCY_CONTRADICTION_PATTERNS = (
     (
         "committed_workspace_local_replace",
-        re.compile(
-            r"\b(?:committed\s+)?(?:go\.work|workspace)\b.{0,120}"
-            r"\b(?:MAY|CAN|PERMITTED)\b.{0,120}"
-            r"\b(?:local\s+)?(?:replace|override)\b",
-            re.IGNORECASE,
+        bounded_permission_pattern(
+            r"\b(?:go\.work|workspace)\b",
+            r"\b(?:local|filesystem)\b",
+            r"\b(?:replace|override)\w*\b",
         ),
     ),
     (
         "alternative_spine_prerelease",
-        re.compile(
-            r"\bspine-go\b.{0,120}\b(?:MAY|CAN|PERMITTED)\b.{0,120}"
-            r"\bv0\.7\.(?!1-helianthus\.)",
-            re.IGNORECASE,
+        bounded_permission_pattern(
+            r"\bspine-go\b",
+            r"(?<![A-Za-z0-9])v"
+            r"(?!0\.7\.1-helianthus\."
+            r"(?:[1-9][0-9]*|<positive_integer>)(?![A-Za-z0-9.-]))"
+            r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?",
         ),
     ),
     (
         "spine_behavior_change",
-        re.compile(
-            r"\bSPINE\b.{0,120}\b(?:runtime|logging|wire|semantic)\b.{0,120}"
-            r"\b(?:MAY|CAN|PERMITTED)\b.{0,120}\bchange\b",
-            re.IGNORECASE,
+        bounded_permission_pattern(
+            r"\bSPINE\b",
+            r"\b(?:runtime|logging|wire|semantic)\b",
+            r"\b(?:change|differ|diverge|modify|alter)\w*\b",
         ),
     ),
     (
         "canonical_module_replace",
-        re.compile(
-            r"\breplace(?:ment)?\b.{0,160}\bcanonical\b.{0,160}"
-            r"\b(?:MAY|CAN|PERMITTED|ALLOWED)\b",
-            re.IGNORECASE,
+        bounded_permission_pattern(
+            r"\bcanonical\b",
+            r"\breplac\w*\b",
         ),
     ),
     (
         "upstream_identity_in_control_surface",
-        re.compile(
-            r"\b(?:vendor|CI|release)\b.{0,180}"
-            r"\b(?:MAY|CAN|PERMITTED)\b.{0,180}"
-            r"\b(?:retain|hide|contain)\b.{0,120}\bupstream\b",
-            re.IGNORECASE,
+        bounded_permission_pattern(
+            r"\b(?:vendor|CI|release)\b",
+            r"github\.com/enbility/(?:ship-go|spine-go|eebus-go)",
         ),
     ),
 )
@@ -1264,7 +1275,7 @@ R2_MACHINE_CONTRACT = {
         "forbidden_versions": [
             "replace",
             "local_override",
-            "pseudo_version",
+            "fork_pseudo_version",
             "branch",
             "upstream_module_return",
         ],
@@ -1617,12 +1628,15 @@ def validate_r2_fork_contract(body: str) -> None:
     section = body.split("## Dependency Fork Provenance And Release Policy", 1)[
         1
     ].split("\n## ", 1)[0]
-    normalized = " ".join(section.split())
-    contradictions = [
-        label
-        for label, pattern in R2_DEPENDENCY_CONTRADICTION_PATTERNS
-        if pattern.search(normalized)
-    ]
+    blocks = [" ".join(block.split()) for block in section.split("\n\n")]
+    contradictions = sorted(
+        {
+            label
+            for block in blocks
+            for label, pattern in R2_DEPENDENCY_CONTRADICTION_PATTERNS
+            if pattern.search(block)
+        }
+    )
     if contradictions:
         raise AssertionError(
             f"R2 dependency contradiction inserted: {contradictions!r}"
@@ -2768,7 +2782,7 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
             (
                 "upstream_identity_in_control_surface",
                 "Vendor metadata, CI workflows, and release controls MAY retain "
-                "an upstream ship-go identity when resolved Go graphs are clean.",
+                "`github.com/enbility/ship-go` when resolved Go graphs are clean.",
             ),
         )
         anchor = "\n### Immutable Baseline And Closure Commands"
@@ -2780,7 +2794,17 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                     f"\n{contradiction}\n{anchor}",
                 )
                 with self.assertRaises(AssertionError):
-                    validate_r2_fork_contract(mutated)
+                    validate_r2_complete(mutated)
+
+        unrelated_third_party = mutate_once(
+            body,
+            anchor,
+            "\nAn unrelated third-party module MAY use "
+            "`example.com/dependency@v0.0.0-20260716000000-0123456789ab`; "
+            "that selection is outside the fork-identity rule.\n"
+            f"{anchor}",
+        )
+        validate_r2_complete(unrelated_third_party)
 
     def test_r2_rejects_cross_section_contradiction_insertions(self) -> None:
         _, body = read_markdown(CANDIDATE)
@@ -2836,9 +2860,9 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 "    context: unrelated_context\n",
             ),
             (
-                "pseudo_version",
-                "    - pseudo_version\n",
-                "    - pseudo_version_allowed\n",
+                "fork_pseudo_version",
+                "    - fork_pseudo_version\n",
+                "    - fork_pseudo_version_allowed\n",
             ),
             (
                 "residual_dial",

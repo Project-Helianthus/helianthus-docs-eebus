@@ -214,8 +214,10 @@ commands consume the canonical fork module paths and reviewed tags directly.
 Any direct or transitive return to the upstream
 `github.com/enbility/ship-go`, `github.com/enbility/spine-go`, or
 `github.com/enbility/eebus-go` module identity fails the R2 gate. A `replace`
-directive, local override including a filesystem override, untagged
-pseudo-version, or branch dependency also fails the gate. The eebus-go stage
+directive or local override, including a filesystem override, also fails the
+gate. For any of the three canonical fork identities, an untagged
+pseudo-version, branch-derived selection, or non-reviewed fork tag fails the
+gate; an unrelated third-party pseudo-version does not. The eebus-go stage
 cannot merge or tag before both reviewed ship-go and spine-go prerelease tags
 exist; eebusreg adoption cannot merge before all three reviewed dependency
 tags exist.
@@ -245,12 +247,13 @@ unclassified tracked dependency or release-control input is a failure.
 | `build_release_scripts` | `all_tracked_Makefile+**/Makefile+**/*.mk+scripts/**+build/**+release/**` |
 | `build_release_configs` | `all_tracked_.goreleaser.*+Dockerfile*+**/Dockerfile*+Containerfile*+**/Containerfile*+Taskfile*.yml+**/Taskfile*.yml+**/*build*.yml+**/*build*.yaml+**/*build*.json+**/*build*.toml+**/*release*.yml+**/*release*.yaml+**/*release*.json+**/*release*.toml` |
 | `declared_release_surfaces` | `closure_manifest.dependency_control_inputs[]+recursive_tracked_local_references` |
+| `declared_release_input_policy` | `recursive_expansion+must_be_tracked+must_stay_in_repo+zero_unclassified_inputs` |
 | `scan_order` | `tracked_surface_closure_before_any_GOWORK_off_command` |
 | `upstream_identity_policy` | `zero_enbility_ship_go+zero_enbility_spine_go+zero_enbility_eebus_go_in_tracked_and_resolved_graphs` |
 | `replace_policy` | `zero_replace_in_go.mod+go.work+dependency_controls_including_canonical_module_replace` |
 | `workspace_local_policy` | `zero_committed_go.work_use+zero_local_filesystem_override` |
 | `fork_selection_policy` | `manifest_reviewed_immutable_tags+exact_peeled_commits+ship_v0.6.1_helianthus_positive_integer+spine_eebus_v0.7.1_helianthus_positive_integer` |
-| `fork_selection_denials` | `upstream_identity+pseudo_version+branch_query+local_override+non_reviewed_fork_tag` |
+| `fork_selection_denials` | `upstream_identity+fork_pseudo_version+branch_query+local_override+non_reviewed_fork_tag` |
 | `third_party_pseudo_versions` | `unrelated_module_identities_out_of_scope` |
 | `spine_divergence` | `module_path_and_ship_import_rewrite_only+zero_SPINE_model_feature_semantic_wire_runtime_logging_change` |
 | `duplicate_identity` | `private_adapter_insufficient+single_SHIP_logger_singleton+single_nominal_type_universe` |
@@ -272,6 +275,9 @@ identity-specific selection rule and does not fail solely for being a
 pseudo-version. Vendor metadata, GitHub workflows and local actions, Makefiles,
 build/release scripts and configuration, and recursively declared release
 inputs receive the same identity and override checks as module files.
+Every locally referenced release input is expanded recursively, must be tracked,
+must remain inside the repository, and must belong to an inventoried class;
+missing, untracked, out-of-repository, or unclassified inputs fail closure.
 
 ### Immutable Baseline And Closure Commands
 
@@ -416,7 +422,7 @@ dependency_policy:
   forbidden_versions:
     - replace
     - local_override
-    - pseudo_version
+    - fork_pseudo_version
     - branch
     - upstream_module_return
   closure_bindings:
