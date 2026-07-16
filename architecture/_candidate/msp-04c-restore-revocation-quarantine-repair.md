@@ -36,8 +36,11 @@ satisfies this corrected contract.
 MSP-04C-R2 is tracked by [docs issue 28][r2-docs-issue]. R2 adds the
 dependency-level pre-dial authority required to make the coordinator's permit
 the immediate predecessor of every concrete websocket dial. It does not claim
-that either dependency fork or the eebusreg adoption stage exists, is tagged,
-is merged, or is supported.
+that any of the three dependency forks or the eebusreg adoption stage exists,
+is tagged, is merged, or is supported.
+
+The four-stage dependency-closure amendment is tracked by
+[docs issue 30][r2-closure-docs-issue].
 
 These are project security and ownership decisions, not protocol claims.
 Stable API, navigation, search, sitemap, versioned-bundle, and release-bundle
@@ -71,10 +74,10 @@ the deterministic integration gates.
 ## R2 Dependency Evidence Status
 
 Immutable upstream and published-API baseline rows are fixed below. Every
-closure output remains pending until the three repository stages merge in
-order: ship-go fork, eebus-go bridge, then eebusreg adoption. No branch name,
-local checkout, callback transcript, mutable default-branch name, or unmerged
-head may fill a pending field.
+closure output remains pending until the four repository stages merge in
+order: ship-go fork, spine-go fork, eebus-go fork, then eebusreg adoption. No
+branch name, local checkout, callback transcript, mutable default-branch name,
+or unmerged head may fill a pending field.
 
 | Evidence field | Candidate value | Required closure evidence |
 | --- | --- | --- |
@@ -82,6 +85,10 @@ head may fill a pending field.
 | `ship_go_upstream_peeled_commit_sha` | `machine.baselines.ship_go.peeled_commit.commit` | Exact commit peeled from annotated `v0.6.0`; never the tag object. |
 | `ship_go_upstream_tree_sha` | `machine.baselines.ship_go.tree.oid` | Exact tree of the peeled upstream commit. |
 | `ship_go_upstream_license_sha256` | `machine.baselines.ship_go.license.sha256` | SHA-256 of the exact `LICENSE` blob byte stream at the peeled commit. |
+| `spine_go_upstream_tag_object_sha` | `machine.baselines.spine_go.tag_object.oid` | Exact annotated `v0.7.0` tag object. |
+| `spine_go_upstream_peeled_commit_sha` | `machine.baselines.spine_go.peeled_commit.commit` | Exact commit peeled from annotated `v0.7.0`; never the tag object. |
+| `spine_go_upstream_tree_sha` | `machine.baselines.spine_go.tree.oid` | Exact tree of the peeled upstream commit. |
+| `spine_go_upstream_license_sha256` | `machine.baselines.spine_go.license.sha256` | SHA-256 of the exact `LICENSE` blob byte stream at the peeled commit. |
 | `eebus_go_upstream_tag_object_sha` | `machine.baselines.eebus_go.tag_object.oid` | Exact annotated `v0.7.0` tag object. |
 | `eebus_go_upstream_peeled_commit_sha` | `machine.baselines.eebus_go.peeled_commit.commit` | Exact commit peeled from annotated `v0.7.0`; never the tag object. |
 | `eebus_go_upstream_tree_sha` | `machine.baselines.eebus_go.tree.oid` | Exact tree of the peeled upstream commit. |
@@ -97,6 +104,15 @@ head may fill a pending field.
 | `ship_go_module_graph_sha256` | `pending` | Digest of the canonical readonly module graph at the peeled prerelease commit. |
 | `ship_go_exact_head_ci_run` | `pending` | Successful exact-head fork CI run identifier. |
 | `ship_go_post_merge_ci_run` | `pending` | Successful post-merge fork CI run identifier. |
+| `spine_go_fork_head_sha` | `pending` | Full reviewed 40-character fork head. |
+| `spine_go_fork_merge_sha` | `pending` | Full 40-character merge on the fork default branch. |
+| `spine_go_prerelease_tag` | `pending` | Reviewed immutable semver prerelease naming the merged mechanical rewrite. |
+| `spine_go_prerelease_tag_object_sha` | `pending` | Full 40-character annotated prerelease tag object id. |
+| `spine_go_prerelease_peeled_commit_sha` | `pending` | Full 40-character commit peeled from that prerelease tag. |
+| `spine_go_license_provenance_manifest_sha256` | `pending` | Digest of the canonical license, notice, header, remote, and baseline manifest. |
+| `spine_go_module_graph_sha256` | `pending` | Digest of the canonical readonly module graph at the peeled prerelease commit. |
+| `spine_go_exact_head_ci_run` | `pending` | Successful exact-head fork CI run identifier. |
+| `spine_go_post_merge_ci_run` | `pending` | Successful post-merge fork CI run identifier. |
 | `eebus_go_fork_head_sha` | `pending` | Full reviewed 40-character bridge head. |
 | `eebus_go_fork_merge_sha` | `pending` | Full 40-character merge on the fork default branch. |
 | `eebus_go_prerelease_tag` | `pending` | Reviewed immutable semver prerelease naming the merged bridge revision. |
@@ -129,10 +145,10 @@ head may fill a pending field.
 
 For each fork, the annotated prerelease tag object, peeled commit, merge SHA,
 module graph, provenance digest, and CI head MUST agree. The eebusreg adoption
-head MUST resolve both reviewed prerelease peeled commits without a `replace`
-directive and MUST generate an API manifest byte-identical to the fixed
-published manifest. SSH-only provider observations remain non-normative and
-may carry only `r2_platform_provider_attestation`; they cannot fill a fork,
+head MUST resolve all three reviewed prerelease peeled commits without a
+`replace` directive and MUST generate an API manifest byte-identical to the
+fixed published manifest. SSH-only provider observations remain non-normative
+and may carry only `r2_platform_provider_attestation`; they cannot fill a fork,
 adoption, pre-dial artifact, or closure field.
 
 The `pending_nonblocking_post_M4` lifecycle rows are explicitly excluded from
@@ -162,15 +178,16 @@ writer across store, anchor, facade effects, and AF_UNIX commands.
 
 ## Dependency Fork Provenance And Release Policy
 
-R2 uses three serialized repository stages. The forks are source dependencies,
+R2 uses four serialized repository stages. The forks are source dependencies,
 not protocol-documentation owners, and do not move coordinator policy out of
 eebusreg.
 
 | Stage | Upstream baseline | Canonical module | Required provenance | Release rule |
 | --- | --- | --- | --- | --- |
 | `ship_go_fork` | `github.com/enbility/ship-go@v0.6.0^{commit}` | `github.com/Project-Helianthus/helianthus-ship-go` | `tag_object+peeled_commit+tree+license_provenance_digest` | `reviewed_semver_prerelease` |
+| `spine_go_fork` | `github.com/enbility/spine-go@v0.7.0^{commit}` | `github.com/Project-Helianthus/helianthus-spine-go` | `tag_object+peeled_commit+tree+license_provenance_digest` | `reviewed_semver_prerelease` |
 | `eebus_go_fork` | `github.com/enbility/eebus-go@v0.7.0^{commit}` | `github.com/Project-Helianthus/helianthus-eebus-go` | `tag_object+peeled_commit+tree+license_provenance_digest` | `reviewed_semver_prerelease` |
-| `eebusreg_adoption` | `Project-Helianthus/helianthus-eebusreg@machine.baselines.eebusreg_public_api.source_sha` | `internal_bridge_only` | `exact_peeled_fork_commits+module_graph+api_manifest_comparison` | `merge_after_both_fork_tags` |
+| `eebusreg_adoption` | `Project-Helianthus/helianthus-eebusreg@machine.baselines.eebusreg_public_api.source_sha` | `internal_bridge_only` | `exact_peeled_fork_commits+module_graph+api_manifest_comparison` | `merge_after_all_three_dependency_tags` |
 
 Each fork preserves every upstream license file, notice, and applicable source
 header. `origin` names the Project-Helianthus fork and a read-only `upstream`
@@ -179,19 +196,88 @@ commit, and tree from which it started. Upstream synchronization uses a reviewed
 merge or cherry-pick with retained provenance; published fork tags are never
 retargeted, and default-branch history is never rewritten to hide divergence.
 
+The spine-go fork divergence is mechanical only. Its module declaration uses
+the canonical `github.com/Project-Helianthus/helianthus-spine-go` path and
+every ship-go import points to the reviewed Project ship-go prerelease. It
+changes no SPINE model, feature, semantic, wire, runtime, or logging behavior.
+
 The ship-go fork uses reviewed prereleases in the
-`v0.6.1-helianthus.<positive_integer>` line. The eebus-go fork uses reviewed
-prereleases in the `v0.7.1-helianthus.<positive_integer>` line. A tag is created
-only after exact-head CI and review, resolves to the reviewed merge content,
-and is immutable. A later upstream sync receives a later prerelease and a new
+`v0.6.1-helianthus.<positive_integer>` line. The spine-go and eebus-go forks
+each use reviewed prereleases in the
+`v0.7.1-helianthus.<positive_integer>` line. A tag is created only after
+exact-head CI and review, resolves to the reviewed merge content, and is
+immutable. A later upstream sync receives a later prerelease and a new
 provenance record.
 
-All committed module files, workspace files, vendor metadata, release builds,
-and CI commands consume the canonical fork module paths and reviewed tags
-directly. A `replace` directive, local filesystem module override, untagged
-pseudo-version, branch dependency, or transitive return to either upstream
-module path fails the R2 gate. The eebus-go stage cannot merge before the
-ship-go tag exists; eebusreg adoption cannot merge before both fork tags exist.
+All committed module, workspace, vendor, and release dependency graphs plus CI
+commands consume the canonical fork module paths and reviewed tags directly.
+Any direct or transitive return to the upstream
+`github.com/enbility/ship-go`, `github.com/enbility/spine-go`, or
+`github.com/enbility/eebus-go` module identity fails the R2 gate. A `replace`
+directive or local override, including a filesystem override, also fails the
+gate. For any of the three canonical fork identities, an untagged
+pseudo-version, branch-derived selection, or non-reviewed fork tag fails the
+gate; an unrelated third-party pseudo-version does not. The eebus-go stage
+cannot merge or tag before both reviewed ship-go and spine-go prerelease tags
+exist; eebusreg adoption cannot merge before all three reviewed dependency
+tags exist.
+
+A private eebus-go adapter is insufficient because retaining an upstream
+module identity beside a canonical fork creates duplicate module identities.
+That split produces distinct SHIP logger singletons and distinct nominal type
+universes even if structural interfaces compile, so it cannot establish one
+closed runtime dependency graph.
+
+### Committed Dependency And Control Surface Closure
+
+The tracked-surface inventory is closed and precedes every resolved Go graph
+command. The required `scripts/verify_dependency_closure.py` verifier uses
+`git ls-files -z`, not the filesystem view, so ignored or generated files
+cannot fill an inventory row. It emits the NUL-delimited path inventory and one
+canonical JSON verdict. An empty optional path class is recorded as empty; an
+unclassified tracked dependency or release-control input is a failure.
+
+| Closure rule | Exact requirement |
+| --- | --- |
+| `tracked_inventory_source` | `git_ls_files_NUL_only` |
+| `module_surfaces` | `all_tracked_**/go.mod+all_tracked_**/go.sum` |
+| `workspace_surfaces` | `all_tracked_**/go.work+all_tracked_**/go.work.sum` |
+| `vendor_surfaces` | `all_tracked_**/vendor/modules.txt` |
+| `ci_surfaces` | `all_tracked_.github/workflows/**/*.yml+all_tracked_.github/workflows/**/*.yaml+all_tracked_.github/actions/**` |
+| `build_release_scripts` | `all_tracked_Makefile+**/Makefile+**/*.mk+scripts/**+build/**+release/**` |
+| `build_release_configs` | `all_tracked_.goreleaser.*+Dockerfile*+**/Dockerfile*+Containerfile*+**/Containerfile*+Taskfile*.yml+**/Taskfile*.yml+**/*build*.yml+**/*build*.yaml+**/*build*.json+**/*build*.toml+**/*release*.yml+**/*release*.yaml+**/*release*.json+**/*release*.toml` |
+| `declared_release_surfaces` | `closure_manifest.dependency_control_inputs[]+recursive_tracked_local_references` |
+| `declared_release_input_policy` | `recursive_expansion+must_be_tracked+must_stay_in_repo+zero_unclassified_inputs` |
+| `scan_order` | `tracked_surface_closure_before_any_GOWORK_off_command` |
+| `upstream_identity_policy` | `zero_enbility_ship_go+zero_enbility_spine_go+zero_enbility_eebus_go_in_tracked_and_resolved_graphs` |
+| `replace_policy` | `zero_replace_in_go.mod+go.work+dependency_controls_including_canonical_module_replace` |
+| `workspace_local_policy` | `zero_committed_go.work_use+zero_local_filesystem_override` |
+| `fork_selection_policy` | `manifest_reviewed_immutable_tags+exact_peeled_commits+ship_v0.6.1_helianthus_positive_integer+spine_eebus_v0.7.1_helianthus_positive_integer` |
+| `fork_selection_denials` | `upstream_identity+fork_pseudo_version+branch_query+local_override+non_reviewed_fork_tag` |
+| `third_party_pseudo_versions` | `unrelated_module_identities_out_of_scope` |
+| `spine_divergence` | `module_path_and_ship_import_rewrite_only+zero_SPINE_model_feature_semantic_wire_runtime_logging_change` |
+| `duplicate_identity` | `private_adapter_insufficient+single_SHIP_logger_singleton+single_nominal_type_universe` |
+
+The verifier parses every tracked `go.mod` and `go.work` rather than accepting
+a textual allowlist. Any `replace` directive fails, including a replace whose
+left and right module identities are both canonical. A committed `go.work`
+`use` directive and any module, workspace, CI, build, release, or declared
+input that selects a local path fail as local overrides. `GOWORK=off` is set
+only after this tracked workspace scan passes and cannot hide a committed
+`go.work` or `go.work.sum`.
+
+Every canonical fork selection in the tracked surfaces must equal the reviewed
+immutable tag recorded by the closure manifest, match its required prerelease
+line, and peel to the recorded reviewed commit. A branch query, branch-derived
+pseudo-version, untagged pseudo-version, or any other fork tag fails. A
+legitimate pseudo-version for an unrelated third-party module is outside this
+identity-specific selection rule and does not fail solely for being a
+pseudo-version. Vendor metadata, GitHub workflows and local actions, Makefiles,
+build/release scripts and configuration, and recursively declared release
+inputs receive the same identity and override checks as module files.
+Every locally referenced release input is expanded recursively, must be tracked,
+must remain inside the repository, and must belong to an inventoried class;
+missing, untracked, out-of-repository, or unclassified inputs fail closure.
 
 ### Immutable Baseline And Closure Commands
 
@@ -200,7 +286,8 @@ source SHA. `TAG` is the reviewed tag name, `SOURCE_SHA` is first set from the
 corresponding peeled commit command, and `SCRATCH` is an empty runner-owned
 ephemeral directory that is deleted after the evidence bundle is sealed.
 Commands never resolve `main`, a branch, a pseudo-version, or a moving module
-query.
+query. Table order is normative and fail-fast: tracked dependency/control
+closure completes before any command that sets `GOWORK=off`.
 
 | Closure field | Exact canonical command or comparison |
 | --- | --- |
@@ -211,10 +298,19 @@ query.
 | `license_provenance_manifest_sha256` | `git cat-file blob "$SOURCE_SHA:provenance/closure-manifest.json" > "$SCRATCH/provenance.json" && sha256sum "$SCRATCH/provenance.json"` |
 | `prerelease_tag_object_sha` | `git rev-parse "refs/tags/$TAG^{tag}"` |
 | `prerelease_peeled_commit_sha` | `git rev-parse "refs/tags/$TAG^{commit}"` |
+| `tracked_dependency_control_closure` | `GOTOOLCHAIN=local python3 scripts/verify_dependency_closure.py --repo . --manifest provenance/closure-manifest.json --inventory-output "$SCRATCH/dependency-control-paths.nul" --evidence-output "$SCRATCH/dependency-control-closure.json"` |
 | `module_graph_sha256` | `GOWORK=off GOTOOLCHAIN=local go list -mod=readonly -m -json all > "$SCRATCH/modules.json" && jq -S -c . "$SCRATCH/modules.json" > "$SCRATCH/modules.canonical.json" && sha256sum "$SCRATCH/modules.canonical.json"` |
+| `module_identity_closure` | `GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go list -m all > "$SCRATCH/go-list-m-all.txt" && ! grep -q 'github.com/enbility/ship-go' "$SCRATCH/go-list-m-all.txt" && ! grep -q 'github.com/enbility/spine-go' "$SCRATCH/go-list-m-all.txt" && ! grep -q 'github.com/enbility/eebus-go' "$SCRATCH/go-list-m-all.txt"` |
+| `module_edge_closure` | `GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go mod graph > "$SCRATCH/go-mod-graph.txt" && ! grep -q 'github.com/enbility/ship-go' "$SCRATCH/go-mod-graph.txt" && ! grep -q 'github.com/enbility/spine-go' "$SCRATCH/go-mod-graph.txt" && ! grep -q 'github.com/enbility/eebus-go' "$SCRATCH/go-mod-graph.txt"` |
+| `eebus_go_service_dependency_closure` | `GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go list -deps ./service > "$SCRATCH/go-list-deps-service.txt" && ! grep -q 'github.com/enbility/ship-go' "$SCRATCH/go-list-deps-service.txt" && ! grep -q 'github.com/enbility/spine-go' "$SCRATCH/go-list-deps-service.txt" && ! grep -q 'github.com/enbility/eebus-go' "$SCRATCH/go-list-deps-service.txt"` |
 | `eebusreg_adoption_source_sha` | `git rev-parse HEAD` in the clean detached adoption checkout. |
 | `eebusreg_adoption_api_manifest_sha256` | `GOWORK=off GOTOOLCHAIN=local go run ./internal/apisurface -output "$SCRATCH/api.json" && sha256sum "$SCRATCH/api.json"` |
 | `eebusreg_public_api_comparison` | Generated digest equals `machine.baselines.eebusreg_public_api.manifest.sha256`, whose publication predicate binds `machine.baselines.eebusreg_public_api.source_sha`; byte comparison reports identical. |
+
+After eebus-go pins the canonical forks, `go list -m all`, `go mod graph`, and
+`go list -deps ./service` MUST each reject the upstream ship-go identity. The
+same checks reject upstream spine-go and eebus-go identities so no transitive
+edge can reintroduce a split dependency graph.
 
 The canonical provenance manifest is closed and records the upstream remote,
 upstream annotated tag object, peeled commit, tree, exact license digest,
@@ -245,7 +341,7 @@ lease and a fresh single-use permit; none reuses the failed call's handle.
 
 ### Temporary Fork Upstreaming And Retirement
 
-Both Project-Helianthus forks are temporary downstream patch carriers, not
+All three Project-Helianthus forks are temporary downstream patch carriers, not
 permanent product forks. Current M4 execution, review, merge, VR940f proof, and
 closure do not depend on an upstream maintainer response, Discussion outcome,
 PR schedule, or release schedule. Until repatriation, each fork maintains the
@@ -268,13 +364,13 @@ CONTRIBUTING prerequisite:
 | `9_repatriation` | `migrate_to_github.com/enbility_modules+rerun_exit_gates+archive_forks_read_only` | `both_tagged_upstream_releases` | `no_post_M4` |
 
 The repatriation exit gate binds both upstream annotated release tags, peeled
-commits, trees, license digests, and module-graph digest. It removes both
+commits, trees, license digests, and module-graph digest. It removes all three
 Project-Helianthus module paths and every `replace`, reruns G10, G11, G16,
 public-API anti-leak comparison, and coexistence checks against the exact
 repatriation source SHA, and requires equivalent fallback, lease, permit,
-revocation, and recovery behavior. Only then are both forks archived read-only.
-They are never deleted, because their tags, review history, and provenance are
-immutable evidence.
+revocation, and recovery behavior. Only then are all three forks archived
+read-only. They are never deleted, because their tags, review history, and
+provenance are immutable evidence.
 
 ## R2 Normative Machine Contract
 
@@ -294,6 +390,16 @@ baselines:
       commit: 760c312bf723d726d8882af3bb06650ddcd11ca9
     tree:
       oid: 958ddf185fc09dd4d3b382fc108641513412d927
+    license:
+      sha256: c853996135802c50b3048937e48022bc00b41ff5f56a31cebe7d686bf91f87db
+  spine_go:
+    tag: v0.7.0
+    tag_object:
+      oid: 30aeb9ac51c3212d280acd93a9afaf58bc63bd92
+    peeled_commit:
+      commit: 0eef075cb6e8f697355a2850344333452f5590cf
+    tree:
+      oid: e070b8272e357643ec855c4eab22be4dd03cb89b
     license:
       sha256: c853996135802c50b3048937e48022bc00b41ff5f56a31cebe7d686bf91f87db
   eebus_go:
@@ -316,7 +422,7 @@ dependency_policy:
   forbidden_versions:
     - replace
     - local_override
-    - pseudo_version
+    - fork_pseudo_version
     - branch
     - upstream_module_return
   closure_bindings:
@@ -868,6 +974,7 @@ evidence.
 | Layer | Required additive change | Forbidden change |
 | --- | --- | --- |
 | `helianthus_ship_go` | `optional_Prepare+AuthorizeLaunch+AbortPrepared+one_gatedDialContext_helper` | `protocol_or_handshake_semantic_change` |
+| `helianthus_spine_go` | `canonical_module_path+reviewed_ship_go_imports_only` | `SPINE_model_feature_semantic_wire_runtime_or_logging_change` |
 | `helianthus_eebus_go` | `configuration_bridge_carries_attempt_handle_and_id` | `SPINE_or_semantic_model_change` |
 | `helianthus_eebusreg_internal` | `coordinator_adapter+attempt_journal+callback_validation` | `fork_type_in_public_package` |
 | `helianthus_eebusreg_public` | `unchanged` | `fork_import_or_new_public_surface` |
@@ -882,8 +989,8 @@ canonical module path and tag without `replace`.
 Only an eebusreg internal adapter may translate between coordinator-owned
 request/decision records and dependency hook types. No exported declaration,
 public package field, method, alias, generic argument, error, or callback may
-name a type from either fork. The frozen public Go API and all protocol/API docs
-remain unchanged.
+name a type from any dependency fork. The frozen public Go API and all
+protocol/API docs remain unchanged.
 
 ## Revocation And Dial Race Linearization
 
@@ -1380,10 +1487,10 @@ order, locale, wall clock, and failure wording.
 
 The locked [MSP-045 row][freeze-plan-row] is an interface freeze after the M4
 R2 correction, not permission to start downstream platform or consumer work.
-MSP-045 must not start until the ship-go fork, eebus-go bridge, and eebusreg
-adoption stages have all merged in that order; every applicable R2 evidence
-field is populated; executed G10, G11, and G16 artifacts pass; and a bounded
-architecture closure review returns `PASS` or
+MSP-045 must not start until the ship-go fork, spine-go fork, eebus-go fork,
+and eebusreg adoption stages have all merged in that order; every applicable
+R2 evidence field is populated; executed G10, G11, and G16 artifacts pass; and
+a bounded architecture closure review returns `PASS` or
 `PASS_WITH_CARRIED_EVIDENCE`. Carried evidence is limited to the explicit
 SSH-only provider-attestation limitation. A dependency fork, module graph,
 pre-dial runtime composition, reservation, revocation race, or gate failure
@@ -1391,8 +1498,8 @@ cannot be carried.
 
 | Boundary | MSP-045 decision |
 | --- | --- |
-| `entry_precondition` | `three_repo_stages_merged+predial_evidence_bound+closure_pass` |
-| `required_repo_stages` | `ship_go_fork+eebus_go_bridge+eebusreg_adoption` |
+| `entry_precondition` | `four_repo_stages_merged+predial_evidence_bound+closure_pass` |
+| `required_repo_stages` | `ship_go_fork+spine_go_fork+eebus_go_fork+eebusreg_adoption` |
 | `closure_verdict` | `PASS_or_SSH_ONLY_CARRIED` |
 | `carried_evidence` | `ssh_only_provider_attestation` |
 | `freeze_scope` | `coordinator_ownership+combined_fsm+read_only_trust_admin_projection` |
@@ -1404,7 +1511,7 @@ MSP-045 may then freeze only coordinator ownership, the combined
 MSP-04B/MSP-04C state machines, and the read-only trust/admin projection that
 later consumers can use without ad hoc security decisions. A later change to
 those frozen semantics requires explicit contract migration. MSP-045 does not
-implement or freeze either dependency fork or a platform provider. It does not
+implement or freeze any dependency fork or a platform provider. It does not
 implement a gateway, MCP, Portal, Home Assistant, or other consumer. Fork
 maintenance, provider backends, and platform attestations remain separate
 conformance work; consumer implementation remains in its downstream milestone
@@ -1450,6 +1557,7 @@ SSH-only and its redacted result is supporting evidence only.
 [corrective-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/26
 [corrective-source-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/30
 [r2-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/28
+[r2-closure-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/30
 [gate-contract]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/93-eebus-transport-gate-v0.md#case-matrix
 [meta-issue]: https://github.com/Project-Helianthus/helianthus-execution-plans/issues/58
 [freeze-plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L571-L589
