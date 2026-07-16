@@ -89,6 +89,251 @@ def state_values(value: str) -> set[str]:
     return {token for token in code_values(value) if re.fullmatch(r"[A-Z_]+", token)}
 
 
+def section_blocks(body: str, heading: str) -> list[str]:
+    section = body.split(heading, 1)[1].split("\n## ", 1)[0].strip()
+    return [" ".join(block.split()) for block in section.split("\n\n")]
+
+
+def require_equal(actual: object, expected: object, label: str) -> None:
+    if actual != expected:
+        raise AssertionError(f"{label} differs: {actual!r}")
+
+
+def require_markers(value: str, markers: tuple[str, ...], label: str) -> None:
+    missing = [marker for marker in markers if marker not in value]
+    if missing:
+        raise AssertionError(f"{label} missing markers: {missing!r}")
+
+
+def mutate_once(body: str, old: str, new: str) -> str:
+    if body.count(old) != 1:
+        raise AssertionError(f"mutation source is not unique: {old!r}")
+    return body.replace(old, new, 1)
+
+
+def mutate_normalized_once(body: str, old: str, new: str) -> str:
+    pattern = re.compile(r"\s+".join(re.escape(part) for part in old.split()))
+    matches = list(pattern.finditer(body))
+    if len(matches) != 1:
+        raise AssertionError(f"normalized mutation source is not unique: {old!r}")
+    match = matches[0]
+    return body[: match.start()] + new + body[match.end() :]
+
+
+RUNTIME_EFFECTS = [
+    (
+        "startup_restore",
+        "classify_startup_and_restore_retry",
+        "none_before_durable_classification",
+    ),
+    (
+        "listener_start",
+        "authorize_listener_start(classified_state)",
+        "start_listener",
+    ),
+    (
+        "pairing_handshake",
+        "authorize_handshake(exact_scope)",
+        "real_pairing_transport_callback",
+    ),
+    (
+        "remote_registration",
+        "authorize_register_remote_ski(exact_association)",
+        "RegisterRemoteSKI",
+    ),
+    (
+        "reconnect_attempt",
+        "authorize_reconnect(exact_association,exact_scope)",
+        "reconnect",
+    ),
+    (
+        "handshake_failure",
+        "record_failure_and_checkpoint(exact_scope)",
+        "no_next_attempt_before_durable_result",
+    ),
+]
+
+RUNTIME_PROSE = [
+    (
+        "Startup keeps listener creation, remote registration, reconnect "
+        "scheduling, and pairing callbacks inert. Store/anchor selection, "
+        "tombstone precedence, trust classification and retry restoration "
+        "complete before any listener is started or any remote effect is "
+        "considered. A classification or restore failure therefore disables "
+        "those effects rather than allowing the production runtime to start "
+        "and attempting to withdraw them later."
+    ),
+    (
+        "Every call to `RegisterRemoteSKI` and every reconnect decision is "
+        "coordinator-authorized against the exact selected generation, control "
+        "epoch, association lineage, tombstone set, trust state, and retry "
+        "scope. No runtime adapter, restored configuration, library callback, "
+        "or caller may infer that authorization. Authorization and the "
+        "corresponding effect are serialized with revocation and repair; an "
+        "asynchronous completion is revalidated before it can make trust "
+        "usable, and a stale completion is actively disconnected and "
+        "unregistered."
+    ),
+    (
+        "The real pairing callback on the SHIP path obtains admission before "
+        "continuing a handshake. Its terminal failure path records the failure "
+        "into durable retry state and completes a durable remaining-delay "
+        "checkpoint before the callback releases the scope for another "
+        "attempt. The production checkpoint path persists only a same-boot "
+        "monotonic reduction, and startup restores the persisted state and "
+        "rearms it on the new monotonic clock before any effect. The same "
+        "listener, registration, handshake, and reconnect authorization path "
+        "observes that restored state after restart."
+    ),
+    (
+        "A helper-only backoff API, direct coordinator unit call, caller-provided "
+        "success/failure assertion, or transcript that does not execute this "
+        "production composition is not G11 proof. The real callback must drive "
+        "the coordinator record, checkpoint, restart restore, bounded backoff, "
+        "and terminal quarantine."
+    ),
+]
+
+GATE_FIELD_MARKERS = {
+    ("EEBUS-G10", "Deterministic PASS"): (
+        "Executed startup/runtime integration behavior",
+        "through the production composition",
+        "observed effects show zero trust registrations",
+    ),
+    ("EEBUS-G10", "Deterministic FAIL"): (
+        "invokes `RegisterRemoteSKI`",
+        "relies only on a helper-returned decision",
+    ),
+    ("EEBUS-G11", "Deterministic PASS"): (
+        "Executed integration behavior drives the real pairing callback",
+        "specified durable checkpoint and monotonic restart arm",
+        "terminal `ADMIN_HOLD`",
+    ),
+    ("EEBUS-G11", "Deterministic FAIL"): (
+        "The real callback bypasses failure recording or checkpointing",
+        "the ceiling admits another handshake/reconnect",
+    ),
+    ("EEBUS-G16", "Deterministic PASS"): (
+        "Executed integration artifacts",
+        "Scans over the actual callbacks, effects",
+    ),
+    ("EEBUS-G16", "Deterministic FAIL"): (
+        "frozen API diff changes",
+        "scan input omits executed production-composition output",
+    ),
+}
+
+GATE_PROSE = [
+    (
+        "Only executed integration behavior from the production-composed "
+        "lifecycle supplies G10, G11, or G16 evidence. A result is rejected "
+        "because caller assertions and helper transcripts are not evidence. "
+        "The collector derives registration, reconnect, callback, disconnect, "
+        "unregister, checkpoint, restart, and terminal-state fields from "
+        "observed effects and coordinator state; a test caller cannot submit "
+        "those fields as claimed booleans. Helper-only transcripts may diagnose "
+        "a failure but cannot produce a PASS row."
+    ),
+    (
+        "The compact public artifact identifies `MSP-04C`, exact commit and "
+        "commands, marks topology and credentials `not_applicable_synthetic`, "
+        "marks temporary paths `redacted`, and includes one PASS/FAIL row per "
+        "required case. Raw store, anchor, admin frames, transcripts, and fixture "
+        "internals are never published. Case ordering and output bytes are "
+        "independent of scheduler, map/directory order, locale, wall clock, and "
+        "failure wording."
+    ),
+]
+
+MSP045_ENTRY_CONTRACT = {
+    "entry_precondition": "corrective_source_merged+evidence_bound+architecture_pass",
+    "freeze_scope": (
+        "coordinator_ownership+combined_fsm+read_only_trust_admin_projection"
+    ),
+    "platform_providers": "deferred",
+    "consumers": "deferred",
+    "post_freeze_change": "explicit_contract_migration",
+}
+
+MSP045_PROSE = [
+    (
+        "The locked [MSP-045 row][freeze-plan-row] is an interface freeze after "
+        "the M4 correction, not permission to start downstream platform or "
+        "consumer work. MSP-045 must not start until the corrective source merge "
+        "populates every applicable source-evidence field above, executed G10, "
+        "G11, and G16 artifacts pass, and a bounded architecture closure review "
+        "returns `PASS` or `PASS_WITH_CARRIED_EVIDENCE`. Carried evidence is "
+        "limited to the explicit SSH-only platform-attestation limitation; it "
+        "cannot carry a runtime-composition or gate failure."
+    ),
+    (
+        "MSP-045 may then freeze only coordinator ownership, the combined "
+        "MSP-04B/MSP-04C state machines, and the read-only trust/admin projection "
+        "that later consumers can use without ad hoc security decisions. A later "
+        "change to those frozen semantics requires explicit contract migration. "
+        "MSP-045 does not implement or freeze a platform provider. It does not "
+        "implement a gateway, MCP, Portal, Home Assistant, or other consumer. "
+        "Provider backends and their platform attestations remain separate "
+        "conformance work; consumer implementation remains in its downstream "
+        "milestone and repository."
+    ),
+]
+
+
+def validate_runtime_authorization_contract(body: str) -> None:
+    rows = table_rows(body, "## Production Runtime Composition And Authorization")
+    effects = [
+        (
+            code_value(row["Runtime event"]),
+            code_value(row["Required coordinator decision"]),
+            code_value(row["Permitted effect"]),
+        )
+        for row in rows
+    ]
+    require_equal(effects, RUNTIME_EFFECTS, "runtime authorization table")
+
+    blocks = section_blocks(body, "## Production Runtime Composition And Authorization")
+    require_equal(len(blocks), 5, "runtime authorization block count")
+    require_equal(
+        [blocks[0], blocks[2], blocks[3], blocks[4]],
+        RUNTIME_PROSE,
+        "runtime authorization normative prose",
+    )
+
+
+def validate_gate_evidence_contract(body: str) -> None:
+    rows = table_rows(body, "## G10, G11, And G16 Evidence Contract")
+    gates = {code_value(row["Gate"]): row for row in rows}
+    require_equal(
+        set(gates),
+        {"EEBUS-G10", "EEBUS-G11", "EEBUS-G16"},
+        "gate evidence rows",
+    )
+    for (gate, field), markers in GATE_FIELD_MARKERS.items():
+        require_markers(gates[gate][field], markers, f"{gate} {field}")
+
+    blocks = section_blocks(body, "## G10, G11, And G16 Evidence Contract")
+    require_equal(len(blocks), 3, "gate evidence block count")
+    require_equal(blocks[1:], GATE_PROSE, "gate evidence normative prose")
+
+
+def validate_msp045_entry_contract(body: str) -> None:
+    rows = table_rows(body, "## MSP-045 Entry Contract")
+    entry_contract = {
+        code_value(row["Boundary"]): code_value(row["MSP-045 decision"])
+        for row in rows
+    }
+    require_equal(entry_contract, MSP045_ENTRY_CONTRACT, "MSP-045 entry table")
+
+    blocks = section_blocks(body, "## MSP-045 Entry Contract")
+    require_equal(len(blocks), 3, "MSP-045 block count")
+    require_equal(
+        [blocks[0], blocks[2]],
+        MSP045_PROSE,
+        "MSP-045 normative prose",
+    )
+
+
 class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
     def test_candidate_metadata_confinement_and_provenance(self) -> None:
         metadata, body = read_markdown(CANDIDATE)
@@ -121,6 +366,8 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
         normalized = " ".join(body.split())
         required_links = (
             "https://github.com/Project-Helianthus/helianthus-eebusreg/issues/28",
+            "https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/26",
+            "https://github.com/Project-Helianthus/helianthus-eebusreg/issues/30",
             "https://github.com/Project-Helianthus/helianthus-execution-plans/issues/58",
             PLAN_COMMIT,
         )
@@ -455,6 +702,95 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
             r"reload.*Restart does not clear it",
         )
 
+        withdrawal_rows = table_rows(body, "### Authoritative Runtime Withdrawal")
+        withdrawal = [
+            (
+                code_value(row["Revocation phase"]),
+                code_value(row["Required effect"]),
+                code_value(row["Success condition"]),
+            )
+            for row in withdrawal_rows
+        ]
+        self.assertEqual(
+            withdrawal,
+            [
+                (
+                    "deny_in_memory",
+                    "coordinator_deny_exact_association",
+                    "registration_and_reconnect_denied",
+                ),
+                (
+                    "commit_tombstone",
+                    "durable_coordinated_publication",
+                    "tombstone_and_anchor_finalized",
+                ),
+                (
+                    "disconnect_active_session",
+                    "DisconnectSKI(exact_remote_ski)",
+                    "disconnected_or_authoritatively_absent",
+                ),
+                (
+                    "unregister_remote",
+                    "UnregisterRemoteSKI(exact_remote_ski)",
+                    "unregistered_or_authoritatively_absent",
+                ),
+                (
+                    "return_success",
+                    "record_terminal_revoked",
+                    "all_prior_phases_complete",
+                ),
+            ],
+        )
+        self.assertRegex(
+            normalized,
+            r"does not report `revoked`.*`DisconnectSKI`.*`UnregisterRemoteSKI`.*"
+            r"withdrawal fails or is ambiguous.*tombstone remains effective.*"
+            r"startup.*must not call `RegisterRemoteSKI`.*tombstoned",
+        )
+
+    def test_live_runtime_effects_require_coordinator_authorization(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        validate_runtime_authorization_contract(body)
+
+    def test_runtime_authorization_validator_rejects_weakened_prose(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        mutations = (
+            (
+                "classification_after_effects",
+                "trust classification and retry restoration complete before any "
+                "listener is started or any remote effect is considered",
+                "trust classification and retry restoration may complete after a "
+                "listener is started or a remote effect is considered",
+            ),
+            (
+                "non_universal_authorization",
+                "Every call to `RegisterRemoteSKI` and every reconnect decision is "
+                "coordinator-authorized",
+                "Some calls to `RegisterRemoteSKI` and some reconnect decisions are "
+                "coordinator-authorized",
+            ),
+            (
+                "negated_startup_inertness",
+                "Startup keeps listener creation, remote registration, reconnect "
+                "scheduling, and pairing callbacks inert.",
+                "Startup does not keep listener creation, remote registration, "
+                "reconnect scheduling, and pairing callbacks inert.",
+            ),
+            (
+                "caller_authorized_registration",
+                "| `remote_registration` | "
+                "`authorize_register_remote_ski(exact_association)` | "
+                "`RegisterRemoteSKI` |",
+                "| `remote_registration` | `caller_authorized` | "
+                "`RegisterRemoteSKI` |",
+            ),
+        )
+        for label, old, new in mutations:
+            with self.subTest(label=label):
+                mutated = mutate_normalized_once(body, old, new)
+                with self.assertRaises(AssertionError):
+                    validate_runtime_authorization_contract(mutated)
+
     def test_g11_backoff_formula_saturation_and_restart_vector_are_exact(self) -> None:
         _, body = read_markdown(CANDIDATE)
         section = body.split("## Persistent Quarantine And Backoff", 1)[1].split(
@@ -470,15 +806,19 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
             formula.group("formula").splitlines(),
             [
                 "next_attempt_count = min(attempt_count + 1, attempt_count_max)",
-                "exponent = min(next_attempt_count - 1, exponent_cap)",
-                "delay = min(checked(base_backoff * 2^exponent), max_backoff)",
-                "next = (BACKOFF_ACTIVE, next_attempt_count, delay)",
+                "if next_attempt_count == attempt_count_max:",
+                "    next = (ADMIN_HOLD, next_attempt_count, 0, HANDSHAKE_ATTEMPT_LIMIT)",
+                "else:",
+                "    exponent = min(next_attempt_count - 1, exponent_cap)",
+                "    delay = min(checked(base_backoff * 2^exponent), max_backoff)",
+                "    next = (BACKOFF_ACTIVE, next_attempt_count, delay)",
             ],
         )
         self.assertRegex(
             normalized,
             r"count increments exactly at failure linearization, never on admission, denial, "
             r"restart, deadline expiry, or wall-clock change.*At `attempt_count_max`.*"
+            r"terminal `ADMIN_HOLD`.*no later handshake or reconnect.*"
             r"Checked multiplication that would overflow saturates to `max_backoff`.*"
             r"invalid configured or decoded bound.*enters `ADMIN_HOLD` and admits no retry",
         )
@@ -497,8 +837,14 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 ("1", "first_admitted_failure", "0", "1", "3s", "BACKOFF_ACTIVE"),
                 ("2", "second_admitted_failure", "1", "2", "6s", "BACKOFF_ACTIVE"),
                 ("3", "third_admitted_failure", "2", "3", "10s", "BACKOFF_ACTIVE"),
-                ("4", "fourth_admitted_failure", "3", "4", "10s", "BACKOFF_ACTIVE"),
-                ("5", "failure_at_saturated_count", "4", "4", "10s", "BACKOFF_ACTIVE"),
+                (
+                    "4",
+                    "fourth_admitted_failure",
+                    "3",
+                    "4",
+                    "0s",
+                    "ADMIN_HOLD",
+                ),
             ],
         )
 
@@ -656,38 +1002,129 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
 
     def test_gate_rows_define_exact_redacted_pass_and_fail_evidence(self) -> None:
         _, body = read_markdown(CANDIDATE)
-        gate_rows = table_rows(body, "## G10, G11, And G16 Evidence Contract")
-        gates = {code_value(row["Gate"]): row for row in gate_rows}
-        self.assertEqual(set(gates), {"EEBUS-G10", "EEBUS-G11", "EEBUS-G16"})
-        self.assertIn(
-            "fresh lineage with every inherited trusted association inactive and tombstoned",
-            gates["EEBUS-G10"]["Deterministic PASS"],
+        validate_gate_evidence_contract(body)
+
+    def test_gate_evidence_validator_rejects_each_cell_mutation(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        mutations = (
+            (
+                "g10_pass",
+                "Executed startup/runtime integration behavior",
+                "Helper-simulated startup behavior",
+            ),
+            (
+                "g10_fail",
+                "relies only on a helper-returned decision",
+                "relies on a returned decision",
+            ),
+            (
+                "g11_pass",
+                "Executed integration behavior drives the real pairing callback",
+                "A helper drives a pairing callback",
+            ),
+            (
+                "g11_fail",
+                "The real callback bypasses failure recording or checkpointing",
+                "A helper bypasses failure recording",
+            ),
+            (
+                "g16_pass",
+                "Executed integration artifacts",
+                "Caller-asserted artifacts",
+            ),
+            (
+                "g16_fail",
+                "scan input omits executed production-composition output",
+                "scan input omits helper output",
+            ),
         )
-        self.assertIn(
-            "same-number/different-digest branch",
-            gates["EEBUS-G10"]["Deterministic FAIL"],
+        for label, old, new in mutations:
+            with self.subTest(label=label):
+                mutated = mutate_once(body, old, new)
+                with self.assertRaises(AssertionError):
+                    validate_gate_evidence_contract(mutated)
+
+    def test_corrective_source_evidence_stays_pending_until_merge(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        rows = table_rows(body, "## Corrective Source Evidence Status")
+        evidence = [
+            (
+                code_value(row["Evidence field"]),
+                code_value(row["Candidate value"]),
+            )
+            for row in rows
+        ]
+        self.assertEqual(
+            evidence,
+            [
+                ("corrective_source_head_sha", "pending"),
+                ("corrective_source_merge_sha", "pending"),
+                ("corrective_source_exact_head_ci_run", "pending"),
+                ("corrective_source_post_merge_ci_run", "pending"),
+                ("eebus_g10_integration_artifact", "pending"),
+                ("eebus_g11_integration_artifact", "pending"),
+                ("eebus_g16_integration_artifact", "pending"),
+                ("m4_architecture_closure_verdict", "pending"),
+                (
+                    "platform_provider_attestation",
+                    "pending_ssh_only_non_normative",
+                ),
+            ],
         )
-        self.assertIn(
-            "counts `0,1,2,3,4,4`",
-            gates["EEBUS-G11"]["Deterministic PASS"],
-        )
-        self.assertIn(
-            "increment occurs anywhere except failed-attempt linearization",
-            gates["EEBUS-G11"]["Deterministic FAIL"],
-        )
-        section = body.split("## G10, G11, And G16 Evidence Contract", 1)[1].split(
+        section = body.split("## Corrective Source Evidence Status", 1)[1].split(
             "\n## ", 1
         )[0]
         normalized = " ".join(section.split())
-        required = (
-            "zero trust registrations",
-            "cannot reach `PAIRED_TRUSTED` before or after restart",
-            "topology and credentials `not_applicable_synthetic`",
-            "temporary paths `redacted`",
-            "one PASS/FAIL row per required case",
+        self.assertIn(
+            "https://github.com/Project-Helianthus/helianthus-eebusreg/issues/30",
+            section,
         )
-        for phrase in required:
-            self.assertIn(phrase, normalized)
+        self.assertRegex(
+            normalized,
+            r"remain pending until the corrective source merges.*"
+            r"does not satisfy or replace any executed integration field.*"
+            r"SSH-only.*supporting, non-normative.*cannot clear.*"
+            r"platform_provider_attestation",
+        )
+
+    def test_msp045_entry_freezes_only_corrected_architecture_contract(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        validate_msp045_entry_contract(body)
+
+    def test_msp045_validator_rejects_broadened_carried_evidence(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        boundary = (
+            "Carried evidence is limited to the explicit SSH-only "
+            "platform-attestation limitation; it cannot carry a "
+            "runtime-composition or gate failure."
+        )
+        mutations = (
+            (
+                "additional_provider_evidence",
+                boundary,
+                "Carried evidence may include the SSH-only platform-attestation "
+                "limitation and other provider limitations; it cannot carry a "
+                "runtime-composition or gate failure.",
+            ),
+            (
+                "runtime_composition_carried",
+                boundary,
+                "Carried evidence is limited to the explicit SSH-only "
+                "platform-attestation limitation; it may also carry a "
+                "runtime-composition failure.",
+            ),
+            (
+                "gate_failure_carried",
+                boundary,
+                "Carried evidence is limited to the explicit SSH-only "
+                "platform-attestation limitation; it may also carry a gate failure.",
+            ),
+        )
+        for label, old, new in mutations:
+            with self.subTest(label=label):
+                mutated = mutate_normalized_once(body, old, new)
+                with self.assertRaises(AssertionError):
+                    validate_msp045_entry_contract(mutated)
 
     def test_public_api_fixtures_and_hardware_are_confined(self) -> None:
         _, body = read_markdown(CANDIDATE)
