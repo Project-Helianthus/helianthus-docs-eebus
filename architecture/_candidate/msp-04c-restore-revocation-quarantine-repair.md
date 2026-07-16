@@ -226,6 +226,53 @@ That split produces distinct SHIP logger singletons and distinct nominal type
 universes even if structural interfaces compile, so it cannot establish one
 closed runtime dependency graph.
 
+### Committed Dependency And Control Surface Closure
+
+The tracked-surface inventory is closed and precedes every resolved Go graph
+command. The required `scripts/verify_dependency_closure.py` verifier uses
+`git ls-files -z`, not the filesystem view, so ignored or generated files
+cannot fill an inventory row. It emits the NUL-delimited path inventory and one
+canonical JSON verdict. An empty optional path class is recorded as empty; an
+unclassified tracked dependency or release-control input is a failure.
+
+| Closure rule | Exact requirement |
+| --- | --- |
+| `tracked_inventory_source` | `git_ls_files_NUL_only` |
+| `module_surfaces` | `all_tracked_**/go.mod+all_tracked_**/go.sum` |
+| `workspace_surfaces` | `all_tracked_**/go.work+all_tracked_**/go.work.sum` |
+| `vendor_surfaces` | `all_tracked_**/vendor/modules.txt` |
+| `ci_surfaces` | `all_tracked_.github/workflows/**/*.yml+all_tracked_.github/workflows/**/*.yaml+all_tracked_.github/actions/**` |
+| `build_release_scripts` | `all_tracked_Makefile+**/Makefile+**/*.mk+scripts/**+build/**+release/**` |
+| `build_release_configs` | `all_tracked_.goreleaser.*+Dockerfile*+**/Dockerfile*+Containerfile*+**/Containerfile*+Taskfile*.yml+**/Taskfile*.yml+**/*build*.yml+**/*build*.yaml+**/*build*.json+**/*build*.toml+**/*release*.yml+**/*release*.yaml+**/*release*.json+**/*release*.toml` |
+| `declared_release_surfaces` | `closure_manifest.dependency_control_inputs[]+recursive_tracked_local_references` |
+| `scan_order` | `tracked_surface_closure_before_any_GOWORK_off_command` |
+| `upstream_identity_policy` | `zero_enbility_ship_go+zero_enbility_spine_go+zero_enbility_eebus_go_in_tracked_and_resolved_graphs` |
+| `replace_policy` | `zero_replace_in_go.mod+go.work+dependency_controls_including_canonical_module_replace` |
+| `workspace_local_policy` | `zero_committed_go.work_use+zero_local_filesystem_override` |
+| `fork_selection_policy` | `manifest_reviewed_immutable_tags+exact_peeled_commits+ship_v0.6.1_helianthus_positive_integer+spine_eebus_v0.7.1_helianthus_positive_integer` |
+| `fork_selection_denials` | `upstream_identity+pseudo_version+branch_query+local_override+non_reviewed_fork_tag` |
+| `third_party_pseudo_versions` | `unrelated_module_identities_out_of_scope` |
+| `spine_divergence` | `module_path_and_ship_import_rewrite_only+zero_SPINE_model_feature_semantic_wire_runtime_logging_change` |
+| `duplicate_identity` | `private_adapter_insufficient+single_SHIP_logger_singleton+single_nominal_type_universe` |
+
+The verifier parses every tracked `go.mod` and `go.work` rather than accepting
+a textual allowlist. Any `replace` directive fails, including a replace whose
+left and right module identities are both canonical. A committed `go.work`
+`use` directive and any module, workspace, CI, build, release, or declared
+input that selects a local path fail as local overrides. `GOWORK=off` is set
+only after this tracked workspace scan passes and cannot hide a committed
+`go.work` or `go.work.sum`.
+
+Every canonical fork selection in the tracked surfaces must equal the reviewed
+immutable tag recorded by the closure manifest, match its required prerelease
+line, and peel to the recorded reviewed commit. A branch query, branch-derived
+pseudo-version, untagged pseudo-version, or any other fork tag fails. A
+legitimate pseudo-version for an unrelated third-party module is outside this
+identity-specific selection rule and does not fail solely for being a
+pseudo-version. Vendor metadata, GitHub workflows and local actions, Makefiles,
+build/release scripts and configuration, and recursively declared release
+inputs receive the same identity and override checks as module files.
+
 ### Immutable Baseline And Closure Commands
 
 The closure runner executes these commands in a detached checkout of the named
@@ -233,7 +280,8 @@ source SHA. `TAG` is the reviewed tag name, `SOURCE_SHA` is first set from the
 corresponding peeled commit command, and `SCRATCH` is an empty runner-owned
 ephemeral directory that is deleted after the evidence bundle is sealed.
 Commands never resolve `main`, a branch, a pseudo-version, or a moving module
-query.
+query. Table order is normative and fail-fast: tracked dependency/control
+closure completes before any command that sets `GOWORK=off`.
 
 | Closure field | Exact canonical command or comparison |
 | --- | --- |
@@ -244,6 +292,7 @@ query.
 | `license_provenance_manifest_sha256` | `git cat-file blob "$SOURCE_SHA:provenance/closure-manifest.json" > "$SCRATCH/provenance.json" && sha256sum "$SCRATCH/provenance.json"` |
 | `prerelease_tag_object_sha` | `git rev-parse "refs/tags/$TAG^{tag}"` |
 | `prerelease_peeled_commit_sha` | `git rev-parse "refs/tags/$TAG^{commit}"` |
+| `tracked_dependency_control_closure` | `GOTOOLCHAIN=local python3 scripts/verify_dependency_closure.py --repo . --manifest provenance/closure-manifest.json --inventory-output "$SCRATCH/dependency-control-paths.nul" --evidence-output "$SCRATCH/dependency-control-closure.json"` |
 | `module_graph_sha256` | `GOWORK=off GOTOOLCHAIN=local go list -mod=readonly -m -json all > "$SCRATCH/modules.json" && jq -S -c . "$SCRATCH/modules.json" > "$SCRATCH/modules.canonical.json" && sha256sum "$SCRATCH/modules.canonical.json"` |
 | `module_identity_closure` | `GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go list -m all > "$SCRATCH/go-list-m-all.txt" && ! grep -q 'github.com/enbility/ship-go' "$SCRATCH/go-list-m-all.txt" && ! grep -q 'github.com/enbility/spine-go' "$SCRATCH/go-list-m-all.txt" && ! grep -q 'github.com/enbility/eebus-go' "$SCRATCH/go-list-m-all.txt"` |
 | `module_edge_closure` | `GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go mod graph > "$SCRATCH/go-mod-graph.txt" && ! grep -q 'github.com/enbility/ship-go' "$SCRATCH/go-mod-graph.txt" && ! grep -q 'github.com/enbility/spine-go' "$SCRATCH/go-mod-graph.txt" && ! grep -q 'github.com/enbility/eebus-go' "$SCRATCH/go-mod-graph.txt"` |

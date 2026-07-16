@@ -494,27 +494,121 @@ R2_FORK_STAGES = [
     ),
 ]
 
-R2_DEPENDENCY_PROSE_MARKERS = (
-    "R2 uses four serialized repository stages",
-    "canonical `github.com/Project-Helianthus/helianthus-spine-go` path",
-    "every ship-go import points to the reviewed Project ship-go prerelease",
-    "no SPINE model, feature, semantic, wire, runtime, or logging behavior",
-    "`v0.7.1-helianthus.<positive_integer>` line",
-    "both reviewed ship-go and spine-go prerelease tags exist",
-    "all three reviewed dependency tags exist",
-    "committed module, workspace, vendor, and release dependency graphs",
-    "Any direct or transitive return to the upstream",
-    "`github.com/enbility/ship-go`",
-    "`github.com/enbility/spine-go`",
-    "`github.com/enbility/eebus-go`",
-    "A private eebus-go adapter is insufficient",
-    "distinct SHIP logger singletons",
-    "distinct nominal type universes even if structural interfaces compile",
+R2_DEPENDENCY_CLOSURE_RULES = [
     (
-        "`go list -m all`, `go mod graph`, and `go list -deps ./service` MUST "
-        "each reject the upstream ship-go identity"
+        "tracked_inventory_source",
+        "git_ls_files_NUL_only",
     ),
-    "no transitive edge can reintroduce a split dependency graph",
+    ("module_surfaces", "all_tracked_**/go.mod+all_tracked_**/go.sum"),
+    (
+        "workspace_surfaces",
+        "all_tracked_**/go.work+all_tracked_**/go.work.sum",
+    ),
+    ("vendor_surfaces", "all_tracked_**/vendor/modules.txt"),
+    (
+        "ci_surfaces",
+        "all_tracked_.github/workflows/**/*.yml+"
+        "all_tracked_.github/workflows/**/*.yaml+"
+        "all_tracked_.github/actions/**",
+    ),
+    (
+        "build_release_scripts",
+        "all_tracked_Makefile+**/Makefile+**/*.mk+scripts/**+build/**+release/**",
+    ),
+    (
+        "build_release_configs",
+        "all_tracked_.goreleaser.*+Dockerfile*+**/Dockerfile*+Containerfile*+"
+        "**/Containerfile*+Taskfile*.yml+**/Taskfile*.yml+**/*build*.yml+"
+        "**/*build*.yaml+**/*build*.json+**/*build*.toml+**/*release*.yml+"
+        "**/*release*.yaml+**/*release*.json+**/*release*.toml",
+    ),
+    (
+        "declared_release_surfaces",
+        "closure_manifest.dependency_control_inputs[]+"
+        "recursive_tracked_local_references",
+    ),
+    ("scan_order", "tracked_surface_closure_before_any_GOWORK_off_command"),
+    (
+        "upstream_identity_policy",
+        "zero_enbility_ship_go+zero_enbility_spine_go+zero_enbility_eebus_go_"
+        "in_tracked_and_resolved_graphs",
+    ),
+    (
+        "replace_policy",
+        "zero_replace_in_go.mod+go.work+dependency_controls_including_"
+        "canonical_module_replace",
+    ),
+    (
+        "workspace_local_policy",
+        "zero_committed_go.work_use+zero_local_filesystem_override",
+    ),
+    (
+        "fork_selection_policy",
+        "manifest_reviewed_immutable_tags+exact_peeled_commits+"
+        "ship_v0.6.1_helianthus_positive_integer+"
+        "spine_eebus_v0.7.1_helianthus_positive_integer",
+    ),
+    (
+        "fork_selection_denials",
+        "upstream_identity+pseudo_version+branch_query+local_override+"
+        "non_reviewed_fork_tag",
+    ),
+    ("third_party_pseudo_versions", "unrelated_module_identities_out_of_scope"),
+    (
+        "spine_divergence",
+        "module_path_and_ship_import_rewrite_only+zero_SPINE_model_feature_"
+        "semantic_wire_runtime_logging_change",
+    ),
+    (
+        "duplicate_identity",
+        "private_adapter_insufficient+single_SHIP_logger_singleton+"
+        "single_nominal_type_universe",
+    ),
+]
+
+R2_DEPENDENCY_CONTRADICTION_PATTERNS = (
+    (
+        "committed_workspace_local_replace",
+        re.compile(
+            r"\b(?:committed\s+)?(?:go\.work|workspace)\b.{0,120}"
+            r"\b(?:MAY|CAN|PERMITTED)\b.{0,120}"
+            r"\b(?:local\s+)?(?:replace|override)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "alternative_spine_prerelease",
+        re.compile(
+            r"\bspine-go\b.{0,120}\b(?:MAY|CAN|PERMITTED)\b.{0,120}"
+            r"\bv0\.7\.(?!1-helianthus\.)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "spine_behavior_change",
+        re.compile(
+            r"\bSPINE\b.{0,120}\b(?:runtime|logging|wire|semantic)\b.{0,120}"
+            r"\b(?:MAY|CAN|PERMITTED)\b.{0,120}\bchange\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "canonical_module_replace",
+        re.compile(
+            r"\breplace(?:ment)?\b.{0,160}\bcanonical\b.{0,160}"
+            r"\b(?:MAY|CAN|PERMITTED|ALLOWED)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "upstream_identity_in_control_surface",
+        re.compile(
+            r"\b(?:vendor|CI|release)\b.{0,180}"
+            r"\b(?:MAY|CAN|PERMITTED)\b.{0,180}"
+            r"\b(?:retain|hide|contain)\b.{0,120}\bupstream\b",
+            re.IGNORECASE,
+        ),
+    ),
 )
 
 R2_GATE_SCHEMA = [
@@ -1446,6 +1540,16 @@ def validate_r2_fork_contract(body: str) -> None:
         ),
     )
     require_equal(rows, R2_FORK_STAGES, "R2 fork stages")
+    closure_rules = coded_rows(
+        body,
+        "### Committed Dependency And Control Surface Closure",
+        ("Closure rule", "Exact requirement"),
+    )
+    require_equal(
+        closure_rules,
+        R2_DEPENDENCY_CLOSURE_RULES,
+        "R2 dependency closure rules",
+    )
     commands = [
         (code_value(row["Closure field"]), row["Exact canonical command or comparison"])
         for row in table_rows(body, "### Immutable Baseline And Closure Commands")
@@ -1474,6 +1578,10 @@ def validate_r2_fork_contract(body: str) -> None:
             (
                 "prerelease_peeled_commit_sha",
                 '`git rev-parse "refs/tags/$TAG^{commit}"`',
+            ),
+            (
+                "tracked_dependency_control_closure",
+                '`GOTOOLCHAIN=local python3 scripts/verify_dependency_closure.py --repo . --manifest provenance/closure-manifest.json --inventory-output "$SCRATCH/dependency-control-paths.nul" --evidence-output "$SCRATCH/dependency-control-closure.json"`',
             ),
             (
                 "module_graph_sha256",
@@ -1509,11 +1617,16 @@ def validate_r2_fork_contract(body: str) -> None:
     section = body.split("## Dependency Fork Provenance And Release Policy", 1)[
         1
     ].split("\n## ", 1)[0]
-    require_markers(
-        " ".join(section.split()),
-        R2_DEPENDENCY_PROSE_MARKERS,
-        "R2 dependency closure prose",
-    )
+    normalized = " ".join(section.split())
+    contradictions = [
+        label
+        for label, pattern in R2_DEPENDENCY_CONTRADICTION_PATTERNS
+        if pattern.search(normalized)
+    ]
+    if contradictions:
+        raise AssertionError(
+            f"R2 dependency contradiction inserted: {contradictions!r}"
+        )
     inventory = coded_rows(
         body,
         "### ship-go Baseline Dial Inventory",
@@ -2431,14 +2544,31 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
             (
                 "spine_go_prerelease_line_changed",
                 validate_r2_fork_contract,
-                "`v0.7.1-helianthus.<positive_integer>` line",
-                "`v0.7.2-helianthus.<positive_integer>` line",
+                "| `fork_selection_policy` | "
+                "`manifest_reviewed_immutable_tags+exact_peeled_commits+"
+                "ship_v0.6.1_helianthus_positive_integer+"
+                "spine_eebus_v0.7.1_helianthus_positive_integer` |",
+                "| `fork_selection_policy` | "
+                "`manifest_reviewed_immutable_tags+exact_peeled_commits+"
+                "ship_v0.6.1_helianthus_positive_integer+"
+                "spine_eebus_v0.7.2_helianthus_positive_integer` |",
             ),
             (
                 "transitive_upstream_return_allowed",
                 validate_r2_fork_contract,
-                "Any direct or transitive return to the upstream",
-                "Any direct return to the upstream",
+                "| `upstream_identity_policy` | "
+                "`zero_enbility_ship_go+zero_enbility_spine_go+"
+                "zero_enbility_eebus_go_in_tracked_and_resolved_graphs` |",
+                "| `upstream_identity_policy` | "
+                "`zero_direct_enbility_identities_only` |",
+            ),
+            (
+                "tracked_surface_closure_skipped",
+                validate_r2_fork_contract,
+                "| `tracked_dependency_control_closure` | "
+                "`GOTOOLCHAIN=local python3 "
+                "scripts/verify_dependency_closure.py --repo .",
+                "| `tracked_dependency_control_closure` | `true`",
             ),
             (
                 "module_identity_closure_not_executable",
@@ -2609,6 +2739,48 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 mutated = mutate_normalized_once(body, old, new)
                 with self.assertRaises(AssertionError):
                     validator(mutated)
+
+    def test_r2_dependency_validator_rejects_normative_permission_additions(
+        self,
+    ) -> None:
+        _, body = read_markdown(CANDIDATE)
+        contradictions = (
+            (
+                "committed_workspace_local_replace",
+                "A committed `go.work` workspace MAY use a local replace for "
+                "release builds.",
+            ),
+            (
+                "alternative_spine_prerelease",
+                "The spine-go fork MAY use `v0.7.2-helianthus.1` as an "
+                "alternative prerelease line.",
+            ),
+            (
+                "spine_behavior_change",
+                "SPINE runtime, logging, wire, and semantic behavior MAY change "
+                "in the mechanical fork.",
+            ),
+            (
+                "canonical_module_replace",
+                "A replace from the canonical spine-go module to itself MAY be "
+                "used.",
+            ),
+            (
+                "upstream_identity_in_control_surface",
+                "Vendor metadata, CI workflows, and release controls MAY retain "
+                "an upstream ship-go identity when resolved Go graphs are clean.",
+            ),
+        )
+        anchor = "\n### Immutable Baseline And Closure Commands"
+        for label, contradiction in contradictions:
+            with self.subTest(label=label):
+                mutated = mutate_once(
+                    body,
+                    anchor,
+                    f"\n{contradiction}\n{anchor}",
+                )
+                with self.assertRaises(AssertionError):
+                    validate_r2_fork_contract(mutated)
 
     def test_r2_rejects_cross_section_contradiction_insertions(self) -> None:
         _, body = read_markdown(CANDIDATE)
