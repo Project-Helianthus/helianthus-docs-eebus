@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
 hypothesis_status: "draft"
-falsifier: "An accepted architecture review or conformance result demonstrates that MSP-04C can silently restore trust, lose a revocation, bypass persistent quarantine, or expose a public mutation or identity surface under this contract."
+falsifier: "An accepted architecture review or conformance result demonstrates that MSP-04C can silently restore trust, start a remote effect before coordinator authorization, bypass production-composed persistent quarantine, report revocation before authoritative runtime withdrawal, lose a tombstone, or expose a public mutation or identity surface under this contract."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -15,7 +15,7 @@ versioned_bundle: "false"
 release_bundle: "false"
 ---
 
-# Candidate MSP-04C Restore, Revocation, Quarantine, And Repair Contract
+# Candidate MSP-04C-R Restore, Revocation, Quarantine, Repair, And Runtime Composition Contract
 
 ## Status And Authority
 
@@ -27,9 +27,40 @@ the locked [MSP-04C execution-plan row][plan-row], and exact
 [EEBUS-G10/G11/G16 gate definitions][gate-contract]. The active cruise run is
 tracked by [meta issue 58][meta-issue].
 
+The MSP-04C-R correction is tracked by [docs issue 26][corrective-docs-issue]
+and [corrective source issue 30][corrective-source-issue]. The earlier MSP-04C
+source merge is a predecessor, not evidence that the production callback on
+the SHIP path, registration, reconnect, and revocation withdrawal lifecycle
+satisfies this corrected contract.
+
 These are project security and ownership decisions, not protocol claims.
 Stable API, navigation, search, sitemap, versioned-bundle, and release-bundle
 outputs intentionally omit this candidate.
+
+## Corrective Source Evidence Status
+
+All source-controlled fields below remain pending until the corrective source
+merges from [source issue 30](https://github.com/Project-Helianthus/helianthus-eebusreg/issues/30).
+This candidate does not predict a source head, CI run, artifact identity, or
+closure verdict.
+
+| Evidence field | Candidate value | Required closure evidence |
+| --- | --- | --- |
+| `corrective_source_head_sha` | `pending` | Full reviewed 40-character source head that implements this correction. |
+| `corrective_source_merge_sha` | `pending` | Full 40-character squash merge on source `main`. |
+| `corrective_source_exact_head_ci_run` | `pending` | Successful exact-head source CI run identifier. |
+| `corrective_source_post_merge_ci_run` | `pending` | Successful post-merge source `main` CI run identifier. |
+| `eebus_g10_integration_artifact` | `pending` | Immutable redacted artifact from executed production-composed G10 cases. |
+| `eebus_g11_integration_artifact` | `pending` | Immutable redacted artifact from executed production callback, restart, retry, and terminal-quarantine cases. |
+| `eebus_g16_integration_artifact` | `pending` | Immutable redacted scan artifact over the executed integration behavior and its outputs. |
+| `m4_architecture_closure_verdict` | `pending` | Bounded post-merge architecture review result, `PASS` or `PASS_WITH_CARRIED_EVIDENCE`. |
+| `platform_provider_attestation` | `pending_ssh_only_non_normative` | Provider-specific no-export, host-binding, and backup-exclusion attestation from an eligible platform lane. |
+
+An existing MSP-04C merge, unit helper, or synthetic helper result does not
+satisfy or replace any executed integration field. SSH-only platform
+observations remain supporting, non-normative evidence. They cannot clear
+`platform_provider_attestation`, claim a portable provider, or substitute for
+the deterministic integration gates.
 
 ## Normative Language And Boundary
 
@@ -185,6 +216,47 @@ generation. Logical rollback, manifest rollback, and durability uncertainty
 therefore remain separate terminal reasons. Errors and evidence report only
 these stable reason labels and bounded counters.
 
+## Production Runtime Composition And Authorization
+
+Startup keeps listener creation, remote registration, reconnect scheduling,
+and pairing callbacks inert. Store/anchor selection, tombstone precedence,
+trust classification and retry restoration complete before any listener is
+started or any remote effect is considered. A classification or restore
+failure therefore disables those effects rather than allowing the production
+runtime to start and attempting to withdraw them later.
+
+| Runtime event | Required coordinator decision | Permitted effect |
+| --- | --- | --- |
+| `startup_restore` | `classify_startup_and_restore_retry` | `none_before_durable_classification` |
+| `listener_start` | `authorize_listener_start(classified_state)` | `start_listener` |
+| `pairing_handshake` | `authorize_handshake(exact_scope)` | `real_pairing_transport_callback` |
+| `remote_registration` | `authorize_register_remote_ski(exact_association)` | `RegisterRemoteSKI` |
+| `reconnect_attempt` | `authorize_reconnect(exact_association,exact_scope)` | `reconnect` |
+| `handshake_failure` | `record_failure_and_checkpoint(exact_scope)` | `no_next_attempt_before_durable_result` |
+
+Every call to `RegisterRemoteSKI` and every reconnect decision is
+coordinator-authorized against the exact selected generation, control epoch,
+association lineage, tombstone set, trust state, and retry scope. No runtime
+adapter, restored configuration, library callback, or caller may infer that
+authorization. Authorization and the corresponding effect are serialized
+with revocation and repair; an asynchronous completion is revalidated before
+it can make trust usable, and a stale completion is actively disconnected and
+unregistered.
+
+The real pairing callback on the SHIP path obtains admission before continuing
+a handshake. Its terminal failure path records the failure into durable retry
+state and completes a durable remaining-delay checkpoint before the callback
+releases the scope for another attempt. The production checkpoint path
+persists only a same-boot monotonic reduction, and startup restores the
+persisted state and rearms it on the new monotonic clock before any effect. The
+same listener, registration, handshake, and reconnect authorization path
+observes that restored state after restart.
+
+A helper-only backoff API, direct coordinator unit call, caller-provided
+success/failure assertion, or transcript that does not execute this production
+composition is not G11 proof. The real callback must drive the coordinator
+record, checkpoint, restart restore, bounded backoff, and terminal quarantine.
+
 ## Orthogonal Coordinator And Recovery State Machines
 
 MSP-04B's coordinator FSM and MSP-04C's recovery/trust FSM are orthogonal axes,
@@ -308,13 +380,34 @@ Revocation first closes pairing and denies the target in memory, then proposes
 one generation that both deactivates the association and appends an effective
 tombstone. A tombstone binds the opaque association reference, revocation
 epoch, operation id, and effective generation. Only after store and anchor
-finalization are durable may the command report `revoked`. The coordinated
-publication outcome map governs every failure; in particular,
-`commit_not_published` is unchanged only after exact durable anchor clear.
+finalization are durable may runtime withdrawal begin. Durable publication is
+necessary but not sufficient: the coordinator does not report `revoked` until
+the exact runtime withdrawal below also completes.
+
+### Authoritative Runtime Withdrawal
+
+| Revocation phase | Required effect | Success condition |
+| --- | --- | --- |
+| `deny_in_memory` | `coordinator_deny_exact_association` | `registration_and_reconnect_denied` |
+| `commit_tombstone` | `durable_coordinated_publication` | `tombstone_and_anchor_finalized` |
+| `disconnect_active_session` | `DisconnectSKI(exact_remote_ski)` | `disconnected_or_authoritatively_absent` |
+| `unregister_remote` | `UnregisterRemoteSKI(exact_remote_ski)` | `unregistered_or_authoritatively_absent` |
+| `return_success` | `record_terminal_revoked` | `all_prior_phases_complete` |
+
+The coordinator invokes both `DisconnectSKI` and `UnregisterRemoteSKI`; it does
+not skip either call based only on cached liveness or registration state. An
+authoritative already-absent result is idempotent success for that effect. If
+either withdrawal fails or is ambiguous, the tombstone remains effective,
+the association stays denied, the command reports
+`revocation_withdrawal_incomplete`, and the receipt cannot record terminal
+`revoked`. Exact replay may finish the missing withdrawal but cannot repeat or
+undo the tombstone publication.
 
 On startup, a tombstone takes precedence over a durable association and blocks
-automatic reload, `RegisterRemoteSKI`, allowlist reuse, reconnect trust, and
-candidate admission for that exact association. Restart does not clear it.
+automatic reload. Startup must not call `RegisterRemoteSKI`, schedule
+reconnect, restore allowlist trust, or admit a candidate for any tombstoned
+association. Restart does not clear it or convert an incomplete withdrawal
+into success.
 `commit_not_published` plus exact durable anchor clear retains in-process denial
 but reports unchanged durable state. Clear failure, crash before durable clear,
 `commit_applied_maintenance_failed`, `commit_durability_unknown`, or other
@@ -342,18 +435,26 @@ releases the one-writer lock:
 
 ```text
 next_attempt_count = min(attempt_count + 1, attempt_count_max)
-exponent = min(next_attempt_count - 1, exponent_cap)
-delay = min(checked(base_backoff * 2^exponent), max_backoff)
-next = (BACKOFF_ACTIVE, next_attempt_count, delay)
+if next_attempt_count == attempt_count_max:
+    next = (ADMIN_HOLD, next_attempt_count, 0, HANDSHAKE_ATTEMPT_LIMIT)
+else:
+    exponent = min(next_attempt_count - 1, exponent_cap)
+    delay = min(checked(base_backoff * 2^exponent), max_backoff)
+    next = (BACKOFF_ACTIVE, next_attempt_count, delay)
 ```
 
-Thus the first admitted failure uses `base_backoff`. The count increments
-exactly at failure linearization, never on admission, denial, restart, deadline
-expiry, or wall-clock change. At `attempt_count_max`, that failure and every
-later admitted failure retain the saturated count. Exponent saturation begins
-when `next_attempt_count - 1 >= exponent_cap`; duration saturation occurs when
-the checked product reaches `max_backoff`. A retry is admitted only after a
-durable `BACKOFF_ACTIVE -> RETRY_READY` transition with unchanged attempt count.
+When `attempt_count_max > 1`, the first nonterminal admitted failure uses
+`base_backoff`. The count increments exactly at failure linearization, never on
+admission, denial, restart, deadline expiry, or wall-clock change. At
+`attempt_count_max`, that failure atomically enters terminal `ADMIN_HOLD` with
+reason `HANDSHAKE_ATTEMPT_LIMIT` and zero remaining delay; no later handshake
+or reconnect is automatically admitted. There is no admitted failure at an
+already saturated count. Exponent saturation begins when
+`next_attempt_count - 1 >= exponent_cap`; duration saturation occurs when the
+checked product reaches `max_backoff`. A nonterminal retry is admitted only
+after a durable `BACKOFF_ACTIVE -> RETRY_READY` transition with unchanged
+attempt count. Leaving terminal hold requires the exact authenticated repair
+contract and never follows elapsed time or restart.
 
 `base_backoff`, `max_backoff`, `attempt_count_max`, and `exponent_cap` are
 source implementation constants, not portable API values. They MUST satisfy
@@ -396,8 +497,7 @@ policy constants.
 | `1` | `first_admitted_failure` | `0` | `1` | `3s` | `BACKOFF_ACTIVE` |
 | `2` | `second_admitted_failure` | `1` | `2` | `6s` | `BACKOFF_ACTIVE` |
 | `3` | `third_admitted_failure` | `2` | `3` | `10s` | `BACKOFF_ACTIVE` |
-| `4` | `fourth_admitted_failure` | `3` | `4` | `10s` | `BACKOFF_ACTIVE` |
-| `5` | `failure_at_saturated_count` | `4` | `4` | `10s` | `BACKOFF_ACTIVE` |
+| `4` | `fourth_admitted_failure` | `3` | `4` | `0s` | `ADMIN_HOLD` |
 
 The restart arm in the same vector is exact:
 
@@ -532,9 +632,17 @@ deterministic synthetic gate cases.
 
 | Gate | Deterministic PASS | Deterministic FAIL |
 | --- | --- | --- |
-| `EEBUS-G10` | Clone-instance conflict, wrong-host binding, missing host key/anchor, older manifest generation, older control epoch, and durability-unknown fixtures each select their exact reason, perform zero trust registrations, and cannot reach `PAIRED_TRUSTED` before or after restart; copied-current and inactive-parent repair publish a fresh lineage with every inherited trusted association inactive and tombstoned. | Any copied/restored/rolled-back case reaches or reloads `PAIRED_TRUSTED`, invokes `RegisterRemoteSKI`, selects a lower manifest, conflates the required reasons, accepts a same-number/different-digest branch, or repairs without complete durable deactivation and tombstones. |
-| `EEBUS-G11` | The exact fixture constants and steps in the EEBUS-G11 deterministic vector produce counts `0,1,2,3,4,4`, delays `0s,3s,6s,10s,10s,10s`, the specified monotonic restart arm, and no early retry; source-constant boundary cases stay within count, retention, exponent, and duration bounds. | Restart clears or reduces state, a wall-clock change shortens delay, a retry occurs before durable `RETRY_READY`, an increment occurs anywhere except failed-attempt linearization, arithmetic exceeds a bound, an active record is evicted, or quarantine restores trust. |
-| `EEBUS-G16` | Shareable case output contains only repository/branch/commit/issue metadata, tool versions, redacted command names, random per-run/case labels, stable outcome/reason/state enums, bounded counts/durations, and PASS/FAIL. Scans find none of the forbidden categories below in values, names, paths, diffs, logs, errors, panic text, or fixture bytes. | Any PEM, key, token, full fingerprint, raw/encoded/hashed/truncated SKI or SHIP ID, IP/MAC/serial, local identity, stable peer id/digest, pairing history, private path, or reusable cross-run label appears, or the frozen API diff changes. |
+| `EEBUS-G10` | Executed startup/runtime integration behavior restores each clone-instance conflict, wrong-host binding, missing host key/anchor, older manifest generation, older control epoch, and durability-unknown fixture through the production composition; observed effects show zero trust registrations and cannot reach `PAIRED_TRUSTED` before or after restart; copied-current and inactive-parent repair publish a fresh lineage with every inherited trusted association inactive and tombstoned. | Any copied/restored/rolled-back case reaches or reloads `PAIRED_TRUSTED`, invokes `RegisterRemoteSKI`, selects a lower manifest, conflates the required reasons, accepts a same-number/different-digest branch, repairs without complete durable deactivation and tombstones, or relies only on a helper-returned decision. |
+| `EEBUS-G11` | Executed integration behavior drives the real pairing callback on the SHIP path through the exact vector: counts `0,1,2,3,4`, delays `0s,3s,6s,10s,0s`, the specified durable checkpoint and monotonic restart arm, no early retry, and terminal `ADMIN_HOLD` at the fourth failure; source-constant boundary cases stay within count, retention, exponent, and duration bounds. | The real callback bypasses failure recording or checkpointing, restart clears or reduces state, a wall-clock change shortens delay, a retry occurs before durable `RETRY_READY`, an increment occurs anywhere except failed-attempt linearization, the ceiling admits another handshake/reconnect, arithmetic exceeds a bound, an active record is evicted, or quarantine restores trust. |
+| `EEBUS-G16` | Executed integration artifacts contain only repository/branch/commit/issue metadata, tool versions, redacted command names, random per-run/case labels, stable outcome/reason/state enums, bounded counts/durations, and PASS/FAIL. Scans over the actual callbacks, effects, logs, errors, panic text, fixture bytes, and diffs find none of the forbidden categories below. | Any PEM, key, token, full fingerprint, raw/encoded/hashed/truncated SKI or SHIP ID, IP/MAC/serial, local identity, stable peer id/digest, pairing history, private path, or reusable cross-run label appears, the frozen API diff changes, or scan input omits executed production-composition output. |
+
+Only executed integration behavior from the production-composed lifecycle
+supplies G10, G11, or G16 evidence. A result is rejected because caller
+assertions and helper transcripts are not evidence. The collector derives
+registration, reconnect, callback, disconnect, unregister, checkpoint,
+restart, and terminal-state fields from observed effects and coordinator state;
+a test caller cannot submit those fields as claimed booleans. Helper-only
+transcripts may diagnose a failure but cannot produce a PASS row.
 
 The compact public artifact identifies `MSP-04C`, exact commit and commands,
 marks topology and credentials `not_applicable_synthetic`, marks temporary
@@ -543,6 +651,34 @@ anchor, admin frames, transcripts, and fixture internals are never published.
 Case ordering and output bytes are independent of scheduler, map/directory
 order, locale, wall clock, and failure wording.
 
+## MSP-045 Entry Contract
+
+The locked [MSP-045 row][freeze-plan-row] is an interface freeze after the M4
+correction, not permission to start downstream platform or consumer work.
+MSP-045 must not start until the corrective source merge populates every
+applicable source-evidence field above, executed G10, G11, and G16 artifacts
+pass, and a bounded architecture closure review returns `PASS` or
+`PASS_WITH_CARRIED_EVIDENCE`. Carried evidence is limited to the explicit
+SSH-only platform-attestation limitation; it cannot carry a runtime-composition
+or gate failure.
+
+| Boundary | MSP-045 decision |
+| --- | --- |
+| `entry_precondition` | `corrective_source_merged+evidence_bound+architecture_pass` |
+| `freeze_scope` | `coordinator_ownership+combined_fsm+read_only_trust_admin_projection` |
+| `platform_providers` | `deferred` |
+| `consumers` | `deferred` |
+| `post_freeze_change` | `explicit_contract_migration` |
+
+MSP-045 may then freeze only coordinator ownership, the combined
+MSP-04B/MSP-04C state machines, and the read-only trust/admin projection that
+later consumers can use without ad hoc security decisions. A later change to
+those frozen semantics requires explicit contract migration. MSP-045 does not
+implement or freeze a platform provider. It does not implement a gateway, MCP,
+Portal, Home Assistant, or other consumer. Provider backends and their
+platform attestations remain separate conformance work; consumer implementation
+remains in its downstream milestone and repository.
+
 ## Required Tests And Exclusions
 
 Focused code acceptance MUST cover every valid cross-product, precedence row,
@@ -550,10 +686,15 @@ and allowed transition; clone versus host mismatch; manifest versus control
 rollback; exact pending-descriptor fields and same-number branch conflicts;
 `commit_not_published` clear failure and crash; restart; complete inherited-trust
 deactivation/tombstones; revocation authentication, exact binding, replay,
-conflict, and one-writer races; exact backoff vectors, saturation, and monotonic
-rearm; and every store/anchor outcome. Public API and G16 scanners run over
-successes, failures, fuzz output, golden diffs, and test names. Full
-race-enabled source CI and docs CI must pass at exact heads.
+conflict, one-writer races, active `DisconnectSKI`, and
+`UnregisterRemoteSKI`; startup-before-listener classification; coordinator
+authorization of every registration and reconnect; the real pairing callback
+on the SHIP path; exact backoff vectors, terminal attempt-limit quarantine,
+checkpoint, restart rearm; and every store/anchor outcome. G10/G11 integration
+tests exercise production composition rather than helper-only decisions.
+Public API and G16 scanners run over successes, failures, callbacks, effects,
+fuzz output, golden diffs, and test names. Full race-enabled source CI and docs
+CI must pass at exact heads.
 
 MSP-04C does not define a portable key, remote administration, automatic
 re-trust, tombstone deletion, trust-preserving backup restore, protocol fact,
@@ -562,8 +703,11 @@ for G10/G11/G16; if an additional smoke run is performed, access remains
 SSH-only and its redacted result is supporting evidence only.
 
 [code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/28
+[corrective-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/26
+[corrective-source-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/30
 [gate-contract]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/93-eebus-transport-gate-v0.md#case-matrix
 [meta-issue]: https://github.com/Project-Helianthus/helianthus-execution-plans/issues/58
+[freeze-plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L571-L589
 [plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L551-L570
 [store-contract]: msp-04a-persistent-store.md
 [trust-contract]: msp-04b-first-trust-admin-local.md
