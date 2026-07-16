@@ -85,6 +85,13 @@ def code_values(value: str) -> set[str]:
     return set(re.findall(r"`([^`]+)`", value))
 
 
+def coded_rows(body: str, heading: str, columns: tuple[str, ...]) -> list[tuple[str, ...]]:
+    return [
+        tuple(code_value(row[column]) for column in columns)
+        for row in table_rows(body, heading)
+    ]
+
+
 def state_values(value: str) -> set[str]:
     return {token for token in code_values(value) if re.fullmatch(r"[A-Z_]+", token)}
 
@@ -199,27 +206,40 @@ GATE_FIELD_MARKERS = {
         "Executed startup/runtime integration behavior",
         "through the production composition",
         "observed effects show zero trust registrations",
+        "durable reservation timestamp/order and attempt id",
+        "actual `DialContext` and fake-peer accept observations",
+        "zero dials for denial, publication failure, backoff, quarantine, "
+        "and terminal hold",
     ),
     ("EEBUS-G10", "Deterministic FAIL"): (
         "invokes `RegisterRemoteSKI`",
         "relies only on a helper-returned decision",
+        "reaches a dial before durable reservation/permit",
+        "treats callback injection as pre-dial evidence",
     ),
     ("EEBUS-G11", "Deterministic PASS"): (
         "Executed integration behavior drives the real pairing callback",
         "specified durable checkpoint and monotonic restart arm",
         "terminal `ADMIN_HOLD`",
+        "durable reservation timestamp/order and attempt id",
+        "path fallback, hostname/IPv4/IPv6 retry",
     ),
     ("EEBUS-G11", "Deterministic FAIL"): (
         "The real callback bypasses failure recording or checkpointing",
         "the ceiling admits another handshake/reconnect",
+        "permit count differs from `DialContext` count",
+        "injected callbacks pass without dial/accept observations",
     ),
     ("EEBUS-G16", "Deterministic PASS"): (
         "Executed integration artifacts",
         "Scans over the actual callbacks, effects",
+        "redacted durable reservation timestamp/order and synthetic attempt id",
+        "actual `DialContext` and fake-peer accept observations",
     ),
     ("EEBUS-G16", "Deterministic FAIL"): (
         "frozen API diff changes",
         "scan input omits executed production-composition output",
+        "callback-only evidence is accepted without the reservation/dial/accept binding",
     ),
 }
 
@@ -235,6 +255,13 @@ GATE_PROSE = [
         "a failure but cannot produce a PASS row."
     ),
     (
+        "Each G10, G11, and G16 PASS row independently requires the same "
+        "attempt-bound chain: durable reservation timestamp/order, durable "
+        "attempt id, gate permit, actual `DialContext` observation, and "
+        "fake-peer accept observation when the peer accepts. Callback injection "
+        "is not pre-dial evidence and cannot satisfy any one of the three rows."
+    ),
+    (
         "The compact public artifact identifies `MSP-04C`, exact commit and "
         "commands, marks topology and credentials `not_applicable_synthetic`, "
         "marks temporary paths `redacted`, and includes one PASS/FAIL row per "
@@ -246,7 +273,12 @@ GATE_PROSE = [
 ]
 
 MSP045_ENTRY_CONTRACT = {
-    "entry_precondition": "corrective_source_merged+evidence_bound+architecture_pass",
+    "entry_precondition": (
+        "three_repo_stages_merged+predial_evidence_bound+closure_pass"
+    ),
+    "required_repo_stages": "ship_go_fork+eebus_go_bridge+eebusreg_adoption",
+    "closure_verdict": "PASS_or_SSH_ONLY_CARRIED",
+    "carried_evidence": "ssh_only_provider_attestation",
     "freeze_scope": (
         "coordinator_ownership+combined_fsm+read_only_trust_admin_projection"
     ),
@@ -258,24 +290,368 @@ MSP045_ENTRY_CONTRACT = {
 MSP045_PROSE = [
     (
         "The locked [MSP-045 row][freeze-plan-row] is an interface freeze after "
-        "the M4 correction, not permission to start downstream platform or "
-        "consumer work. MSP-045 must not start until the corrective source merge "
-        "populates every applicable source-evidence field above, executed G10, "
-        "G11, and G16 artifacts pass, and a bounded architecture closure review "
+        "the M4 R2 correction, not permission to start downstream platform or "
+        "consumer work. MSP-045 must not start until the ship-go fork, eebus-go "
+        "bridge, and eebusreg adoption stages have all merged in that order; "
+        "every applicable R2 evidence field is populated; executed G10, G11, "
+        "and G16 artifacts pass; and a bounded architecture closure review "
         "returns `PASS` or `PASS_WITH_CARRIED_EVIDENCE`. Carried evidence is "
-        "limited to the explicit SSH-only platform-attestation limitation; it "
-        "cannot carry a runtime-composition or gate failure."
+        "limited to the explicit SSH-only provider-attestation limitation. A "
+        "dependency fork, module graph, pre-dial runtime composition, "
+        "reservation, revocation race, or gate failure cannot be carried."
     ),
     (
         "MSP-045 may then freeze only coordinator ownership, the combined "
         "MSP-04B/MSP-04C state machines, and the read-only trust/admin projection "
         "that later consumers can use without ad hoc security decisions. A later "
         "change to those frozen semantics requires explicit contract migration. "
-        "MSP-045 does not implement or freeze a platform provider. It does not "
-        "implement a gateway, MCP, Portal, Home Assistant, or other consumer. "
-        "Provider backends and their platform attestations remain separate "
-        "conformance work; consumer implementation remains in its downstream "
-        "milestone and repository."
+        "MSP-045 does not implement or freeze either dependency fork or a "
+        "platform provider. It does not implement a gateway, MCP, Portal, Home "
+        "Assistant, or other consumer. Fork maintenance, provider backends, and "
+        "platform attestations remain separate conformance work; consumer "
+        "implementation remains in its downstream milestone and repository."
+    ),
+]
+
+R2_PENDING_EVIDENCE = [
+    ("ship_go_fork_head_sha", "pending"),
+    ("ship_go_fork_merge_sha", "pending"),
+    ("ship_go_prerelease_tag", "pending"),
+    ("ship_go_tag_target_sha", "pending"),
+    ("ship_go_exact_head_ci_run", "pending"),
+    ("ship_go_post_merge_ci_run", "pending"),
+    ("eebus_go_fork_head_sha", "pending"),
+    ("eebus_go_fork_merge_sha", "pending"),
+    ("eebus_go_prerelease_tag", "pending"),
+    ("eebus_go_tag_target_sha", "pending"),
+    ("eebus_go_exact_head_ci_run", "pending"),
+    ("eebus_go_post_merge_ci_run", "pending"),
+    ("eebusreg_adoption_head_sha", "pending"),
+    ("eebusreg_adoption_merge_sha", "pending"),
+    ("eebusreg_adoption_exact_head_ci_run", "pending"),
+    ("eebusreg_adoption_post_merge_ci_run", "pending"),
+    ("eebus_g10_predial_artifact", "pending"),
+    ("eebus_g11_predial_artifact", "pending"),
+    ("eebus_g16_predial_artifact", "pending"),
+    ("m4_r2_architecture_closure_verdict", "pending"),
+    ("r2_platform_provider_attestation", "pending_ssh_only_non_normative"),
+]
+
+R2_FORK_STAGES = [
+    (
+        "ship_go_fork",
+        "github.com/enbility/ship-go@v0.6.0",
+        "github.com/Project-Helianthus/helianthus-ship-go",
+        "license+notices+headers+upstream_remote+baseline_commit",
+        "reviewed_semver_prerelease",
+    ),
+    (
+        "eebus_go_fork",
+        "github.com/enbility/eebus-go@v0.7.0",
+        "github.com/Project-Helianthus/helianthus-eebus-go",
+        "license+notices+headers+upstream_remote+baseline_commit",
+        "reviewed_semver_prerelease",
+    ),
+    (
+        "eebusreg_adoption",
+        "helianthus-eebusreg_current_main",
+        "internal_bridge_only",
+        "exact_fork_tags+module_graph+public_api_diff",
+        "merge_after_both_fork_tags",
+    ),
+]
+
+R2_GATE_SCHEMA = [
+    (
+        "remote_ski",
+        "input",
+        "Exact opaque remote key for the selected association; never logged or published.",
+    ),
+    (
+        "scope",
+        "input",
+        "Exact coordinator retry/quarantine scope for this concrete attempt.",
+    ),
+    (
+        "control_epoch",
+        "input",
+        "Exact current coordinator epoch used for authorization and stale-callback rejection.",
+    ),
+    (
+        "endpoint",
+        "input",
+        "Exact selected hostname, IPv4, or IPv6 endpoint plus port in private typed form.",
+    ),
+    (
+        "path",
+        "input",
+        "Exact selected websocket path, including the `/ship` path fallback when chosen.",
+    ),
+    (
+        "attempt_id",
+        "input",
+        "Fresh bounded coordinator id, unique within the current store instance and control epoch.",
+    ),
+    (
+        "attempt_context",
+        "input",
+        "Exact per-attempt cancellable context retained by the coordinator until terminal resolution.",
+    ),
+    (
+        "decision",
+        "output",
+        "Exactly `PERMIT` or `DENY`; absence, error, panic, or ambiguity is `DENY`.",
+    ),
+    (
+        "reason",
+        "output",
+        "One stable closed permit/deny reason with no endpoint, key, path, or private error text.",
+    ),
+]
+
+R2_DIAL_COVERAGE = [
+    (
+        "primary_endpoint_primary_path",
+        "immediately_before_DialContext",
+        "one_PERMIT_per_network_call",
+    ),
+    (
+        "same_endpoint_ship_path_fallback",
+        "immediately_before_DialContext",
+        "one_fresh_gate_decision_per_network_call",
+    ),
+    (
+        "hostname_retry",
+        "immediately_before_DialContext",
+        "one_fresh_gate_decision_per_network_call",
+    ),
+    (
+        "ipv4_retry",
+        "immediately_before_DialContext",
+        "one_fresh_gate_decision_per_network_call",
+    ),
+    (
+        "ipv6_retry",
+        "immediately_before_DialContext",
+        "one_fresh_gate_decision_per_network_call",
+    ),
+]
+
+R2_RESERVATION_FIELDS = [
+    (
+        "state",
+        "durable",
+        "Exactly `ATTEMPT_RESERVED` until one matching terminal outcome is committed.",
+    ),
+    (
+        "attempt_id",
+        "durable",
+        "Same fresh id supplied to the gate, `ShipConnection`, and terminal callbacks.",
+    ),
+    (
+        "remote_ski_scope",
+        "durable",
+        "Exact opaque key and coordinator scope; never a public evidence value.",
+    ),
+    (
+        "control_epoch",
+        "durable",
+        "Exact epoch at reservation linearization.",
+    ),
+    (
+        "endpoint_path",
+        "durable",
+        "Private typed endpoint and path selected for the concrete dial.",
+    ),
+    (
+        "reservation_order",
+        "durable",
+        "Monotonic coordinator sequence used as authoritative cross-event order.",
+    ),
+    (
+        "reservation_timestamp",
+        "durable_diagnostic",
+        "Bounded injected-clock value used only to correlate test evidence, never for trust or deadlines.",
+    ),
+    (
+        "attempt_count_before",
+        "durable",
+        "Exact unchanged count before this reservation.",
+    ),
+    (
+        "attempt_context",
+        "volatile",
+        "Exact cancellable context keyed by attempt id; no context object or pointer is persisted.",
+    ),
+]
+
+R2_RESERVATION_TRANSITIONS = [
+    ("eligible_gate_entry", "RETRY_READY -> ATTEMPT_RESERVED", "zero_dials_before_commit"),
+    (
+        "reservation_commit_durable",
+        "ATTEMPT_RESERVED -> ATTEMPT_RESERVED",
+        "PERMIT_may_return",
+    ),
+    (
+        "reservation_not_published",
+        "RETRY_READY -> RETRY_READY",
+        "DENY+zero_dials",
+    ),
+    (
+        "reservation_durability_unknown",
+        "ATTEMPT_RESERVED -> QUARANTINED",
+        "DENY+zero_dials",
+    ),
+    (
+        "matching_terminal_success",
+        "ATTEMPT_RESERVED -> clear_reservation_without_failure_charge",
+        "accept_only_if_epoch_and_tombstone_still_valid",
+    ),
+    (
+        "matching_terminal_failure",
+        "ATTEMPT_RESERVED -> BACKOFF_ACTIVE_or_ADMIN_HOLD",
+        "charge_attempt_count_exactly_once",
+    ),
+    (
+        "restart_with_unresolved_reservation",
+        "ATTEMPT_RESERVED -> BACKOFF_ACTIVE_or_ADMIN_HOLD",
+        "charge_once_before_any_new_dial",
+    ),
+    ("stale_terminal_callback", "no_state_change", "discard_without_charge_or_trust"),
+]
+
+R2_BRIDGE_ROWS = [
+    (
+        "helianthus_ship_go",
+        "optional_OutgoingAttemptGate_at_every_concrete_dial",
+        "protocol_or_handshake_semantic_change",
+    ),
+    (
+        "helianthus_eebus_go",
+        "configuration_bridge_exposes_gate_and_attempt_id",
+        "SPINE_or_semantic_model_change",
+    ),
+    (
+        "helianthus_eebusreg_internal",
+        "coordinator_adapter+reservation+callback_validation",
+        "fork_type_in_public_package",
+    ),
+    ("helianthus_eebusreg_public", "unchanged", "fork_import_or_new_public_surface"),
+]
+
+R2_RACE_ROWS = [
+    (
+        "revocation_before_reservation",
+        "revocation_wins",
+        "tombstone+DENY+zero_dials+unregister",
+    ),
+    (
+        "revocation_after_reservation_before_dial",
+        "revocation_wins",
+        "cancel_exact_context+DENY+zero_dials+disconnect_observed+unregister",
+    ),
+    (
+        "dial_launched_before_revocation",
+        "attempt_launch_wins_then_revocation",
+        "tombstone+cancel_exact_context+disconnect_observed+unregister+no_trust_accept",
+    ),
+    (
+        "callback_after_tombstone",
+        "revocation_already_won",
+        "discard_stale_callback+no_state_change",
+    ),
+    (
+        "withdrawal_failure_or_ambiguity",
+        "revocation_nonterminal",
+        "tombstone_effective+ADMIN_HOLD+no_success",
+    ),
+]
+
+R2_MATRIX_ROWS = [
+    (
+        "denied_permit",
+        "gate_returns_DENY",
+        "zero_DialContext_calls+zero_accepts+zero_reannounce",
+        "any_network_call_or_reannounce",
+    ),
+    (
+        "reservation_publication_failure",
+        "commit_not_published_or_unknown",
+        "zero_DialContext_calls+DENY_or_quarantine",
+        "permit_or_network_call",
+    ),
+    (
+        "backoff_active",
+        "persisted_BACKOFF_ACTIVE",
+        "zero_DialContext_calls_before_durable_RETRY_READY",
+        "early_network_call",
+    ),
+    (
+        "quarantine_active",
+        "persisted_QUARANTINED",
+        "zero_DialContext_calls",
+        "any_network_call",
+    ),
+    ("admin_hold", "persisted_ADMIN_HOLD", "zero_DialContext_calls", "any_network_call"),
+    (
+        "path_fallback",
+        "primary_path_then_/ship_path",
+        "PERMIT_count_equals_DialContext_count+distinct_attempt_ids",
+        "ungated_fallback_or_count_mismatch",
+    ),
+    (
+        "endpoint_fallback",
+        "hostname_then_ipv4_then_ipv6",
+        "PERMIT_count_equals_DialContext_count+exact_endpoint_binding",
+        "ungated_retry_or_count_mismatch",
+    ),
+    (
+        "mdns_storm",
+        "concurrent_repeated_discovery_events",
+        "per_SKI_serialization+denied_events_zero_dials+no_auto_reannounce",
+        "parallel_unauthorized_dial_or_reannounce",
+    ),
+    (
+        "crash_after_reservation",
+        "crash_after_durable_ATTEMPT_RESERVED_before_dial",
+        "restart_charges_once_before_zero_or_next_authorized_dial",
+        "reservation_cleared_or_uncharged",
+    ),
+    (
+        "delayed_callback",
+        "old_attempt_callback_after_new_reservation",
+        "stale_callback_discarded+active_reservation_unchanged",
+        "old_callback_charges_clears_or_trusts",
+    ),
+    (
+        "revocation_race",
+        "revocation_at_each_launch_boundary",
+        "one_linearized_order+exact_context_cancel+disconnect_observed+unregister",
+        "post_tombstone_trust_or_success_before_withdrawal",
+    ),
+    (
+        "fourth_failure_admin_hold",
+        "four_matching_terminal_failures",
+        "counts_1_2_3_4+fourth_enters_ADMIN_HOLD+zero_fifth_dial",
+        "fifth_permit_or_dial",
+    ),
+    (
+        "dial_accept_order",
+        "one_permitted_fake_peer_connection",
+        "reservation_commit_before_permit_before_DialContext_before_accept",
+        "missing_or_reordered_observation",
+    ),
+    (
+        "callback_injection_negative_control",
+        "terminal_callback_without_dialer_or_accept_event",
+        "not_pre_dial_evidence+case_FAIL",
+        "case_PASS",
+    ),
+    (
+        "race_detector",
+        "all_cases_under_go_test_race",
+        "zero_race_reports+deterministic_counts",
+        "race_report_or_nondeterministic_result",
     ),
 ]
 
@@ -313,7 +689,7 @@ def validate_gate_evidence_contract(body: str) -> None:
         require_markers(gates[gate][field], markers, f"{gate} {field}")
 
     blocks = section_blocks(body, "## G10, G11, And G16 Evidence Contract")
-    require_equal(len(blocks), 3, "gate evidence block count")
+    require_equal(len(blocks), 4, "gate evidence block count")
     require_equal(blocks[1:], GATE_PROSE, "gate evidence normative prose")
 
 
@@ -331,6 +707,187 @@ def validate_msp045_entry_contract(body: str) -> None:
         [blocks[0], blocks[2]],
         MSP045_PROSE,
         "MSP-045 normative prose",
+    )
+
+
+def validate_r2_pending_evidence(body: str) -> None:
+    rows = table_rows(body, "## R2 Dependency Evidence Status")
+    evidence = [
+        (code_value(row["Evidence field"]), code_value(row["Candidate value"]))
+        for row in rows
+    ]
+    require_equal(evidence, R2_PENDING_EVIDENCE, "R2 pending evidence fields")
+    blocks = section_blocks(body, "## R2 Dependency Evidence Status")
+    require_equal(len(blocks), 3, "R2 pending evidence block count")
+    require_markers(
+        blocks[2],
+        (
+            "tag target, merge SHA, module graph, and CI head MUST agree",
+            "without a `replace` directive",
+            "may carry only `r2_platform_provider_attestation`",
+            "cannot fill a fork, adoption, pre-dial artifact, or closure field",
+        ),
+        "R2 pending evidence closure policy",
+    )
+
+
+def validate_r2_fork_contract(body: str) -> None:
+    rows = coded_rows(
+        body,
+        "## Dependency Fork Provenance And Release Policy",
+        (
+            "Stage",
+            "Upstream baseline",
+            "Canonical module",
+            "Required provenance",
+            "Release rule",
+        ),
+    )
+    require_equal(rows, R2_FORK_STAGES, "R2 fork stages")
+    blocks = section_blocks(body, "## Dependency Fork Provenance And Release Policy")
+    require_equal(len(blocks), 5, "R2 fork policy block count")
+    require_markers(
+        " ".join(blocks[2:]),
+        (
+            "preserves every upstream license file, notice, and applicable source header",
+            "a read-only `upstream` remote names the source project",
+            "published fork tags are never retargeted",
+            "`v0.6.1-helianthus.<positive_integer>`",
+            "`v0.7.1-helianthus.<positive_integer>`",
+            "A `replace` directive",
+            "eebusreg adoption cannot merge before both fork tags exist",
+        ),
+        "R2 fork policy prose",
+    )
+
+
+def validate_r2_outgoing_gate_contract(body: str) -> None:
+    schema = [
+        (
+            code_value(row["Gate field"]),
+            code_value(row["Direction"]),
+            row["Exact binding"],
+        )
+        for row in table_rows(body, "| Gate field | Direction | Exact binding |")
+    ]
+    require_equal(schema, R2_GATE_SCHEMA, "R2 outgoing gate schema")
+    coverage = coded_rows(
+        body,
+        "### Dial Site Coverage",
+        ("Dial variant", "Required gate placement", "Required cardinality"),
+    )
+    require_equal(coverage, R2_DIAL_COVERAGE, "R2 dial site coverage")
+    blocks = section_blocks(body, "## Outgoing Attempt Gate And Dial Sites")
+    require_equal(len(blocks), 6, "R2 outgoing gate block count")
+    require_markers(
+        " ".join((blocks[0], blocks[1], blocks[5])),
+        (
+            "optional, additive `OutgoingAttemptGate`",
+            "install a non-nil gate before enabling listener, registration, discovery, or reconnect activity",
+            "immediately before every concrete websocket `DialContext` call",
+            "A `DENY` returns without invoking the concrete dialer",
+            "zero network calls and no automatic reannounce for that attempt",
+            "`PERMIT` decisions MUST equal the count of concrete `DialContext` calls",
+        ),
+        "R2 outgoing gate normative prose",
+    )
+
+
+def validate_r2_reservation_contract(body: str) -> None:
+    fields = [
+        (
+            code_value(row["Reservation field"]),
+            code_value(row["Storage"]),
+            row["Exact rule"],
+        )
+        for row in table_rows(body, "| Reservation field | Storage | Exact rule |")
+    ]
+    require_equal(fields, R2_RESERVATION_FIELDS, "R2 reservation fields")
+    transitions = coded_rows(
+        body,
+        "| Reservation event | Required durable transition | Dial/callback consequence |",
+        ("Reservation event", "Required durable transition", "Dial/callback consequence"),
+    )
+    require_equal(transitions, R2_RESERVATION_TRANSITIONS, "R2 reservation transitions")
+    blocks = section_blocks(body, "## Durable Outgoing Attempt Reservation")
+    require_equal(len(blocks), 6, "R2 reservation block count")
+    require_markers(
+        " ".join((blocks[0], blocks[3], blocks[4], blocks[5])),
+        (
+            "`ATTEMPT_RESERVED` is a coordinator-owned durable state separate from `attempt_count`",
+            "durable before `OutgoingAttemptGate` may return `PERMIT`",
+            "attempt id is carried through `ShipConnection`",
+            "unresolved `ATTEMPT_RESERVED` record is conservatively resolved as one failed attempt before listener setup",
+            "fourth charged failure in the deterministic vector enters terminal `ADMIN_HOLD`",
+            "Callback injection without those observations is not pre-dial evidence",
+        ),
+        "R2 reservation normative prose",
+    )
+
+
+def validate_r2_bridge_contract(body: str) -> None:
+    rows = coded_rows(
+        body,
+        "## eebus-go Bridge And Type Boundary",
+        ("Layer", "Required additive change", "Forbidden change"),
+    )
+    require_equal(rows, R2_BRIDGE_ROWS, "R2 bridge rows")
+    blocks = section_blocks(body, "## eebus-go Bridge And Type Boundary")
+    require_equal(len(blocks), 3, "R2 bridge block count")
+    require_markers(
+        " ".join(blocks[1:]),
+        (
+            "does not change SPINE models, feature discovery, semantic projection",
+            "canonical module path and tag without `replace`",
+            "Only an eebusreg internal adapter",
+            "No exported declaration, public package field, method, alias, generic argument, error, or callback",
+            "frozen public Go API and all protocol/API docs remain unchanged",
+        ),
+        "R2 bridge normative prose",
+    )
+
+
+def validate_r2_revocation_race_contract(body: str) -> None:
+    rows = coded_rows(
+        body,
+        "## Revocation And Dial Race Linearization",
+        ("Race order", "Linearization", "Required result"),
+    )
+    require_equal(rows, R2_RACE_ROWS, "R2 revocation race rows")
+    blocks = section_blocks(body, "## Revocation And Dial Race Linearization")
+    require_equal(len(blocks), 3, "R2 revocation race block count")
+    require_markers(
+        " ".join((blocks[0], blocks[2])),
+        (
+            "same per-SKI gate owned by the coordinator",
+            "holds the per-SKI gate through reservation commit, permit, and the concrete dial-launch linearization point",
+            "durably tombstones first, cancels the exact reserved context, observes transport disconnect",
+            "`UnregisterRemoteSKI` before success",
+            "No accept or terminal callback after the tombstone can make the association trusted",
+        ),
+        "R2 revocation race normative prose",
+    )
+
+
+def validate_r2_falsification_matrix(body: str) -> None:
+    rows = coded_rows(
+        body,
+        "## R2 Pre-Dial Falsification Matrix",
+        ("Case", "Fixture/action", "Required observation", "Falsifier"),
+    )
+    require_equal(rows, R2_MATRIX_ROWS, "R2 falsification matrix")
+    blocks = section_blocks(body, "## R2 Pre-Dial Falsification Matrix")
+    require_equal(len(blocks), 3, "R2 falsification matrix block count")
+    require_markers(
+        " ".join((blocks[0], blocks[2])),
+        (
+            "fake TLS endpoint",
+            "fake peer on the SHIP path",
+            "injectable websocket dialer",
+            "direct callback invocation is used only as a negative control",
+            "Equality of permit and `DialContext` counts is checked separately for path fallback, hostname retry, IPv4 retry, and IPv6 retry",
+        ),
+        "R2 falsification matrix prose",
     )
 
 
@@ -1000,6 +1557,148 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
 
+    def test_r2_dependency_stages_and_pending_evidence_are_closed(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        validate_r2_pending_evidence(body)
+        validate_r2_fork_contract(body)
+
+    def test_r2_outgoing_gate_and_reservation_are_closed(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        validate_r2_outgoing_gate_contract(body)
+        validate_r2_reservation_contract(body)
+
+    def test_r2_bridge_revocation_race_and_matrix_are_closed(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        validate_r2_bridge_contract(body)
+        validate_r2_revocation_race_contract(body)
+        validate_r2_falsification_matrix(body)
+
+    def test_r2_validators_reject_required_contract_mutations(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        mutations = (
+            (
+                "pending_fork_tag_filled_early",
+                validate_r2_pending_evidence,
+                "| `ship_go_prerelease_tag` | `pending` |",
+                "| `ship_go_prerelease_tag` | `v0.6.1-helianthus.1` |",
+            ),
+            (
+                "replace_directive_allowed",
+                validate_r2_fork_contract,
+                "A `replace` directive, local filesystem module override",
+                "A reviewed `replace` directive or local filesystem module override",
+            ),
+            (
+                "ship_go_upstream_baseline_changed",
+                validate_r2_fork_contract,
+                "| `ship_go_fork` | `github.com/enbility/ship-go@v0.6.0` |",
+                "| `ship_go_fork` | `github.com/enbility/ship-go@v0.6.1` |",
+            ),
+            (
+                "gate_moved_above_dial_site",
+                validate_r2_outgoing_gate_contract,
+                "| `ipv6_retry` | `immediately_before_DialContext` |",
+                "| `ipv6_retry` | `once_per_remote` |",
+            ),
+            (
+                "gate_ambiguity_permitted",
+                validate_r2_outgoing_gate_contract,
+                "absence, error, panic, or ambiguity is `DENY`",
+                "absence, error, panic, or ambiguity may be `PERMIT`",
+            ),
+            (
+                "attempt_context_not_cancellable",
+                validate_r2_outgoing_gate_contract,
+                "Exact per-attempt cancellable context retained by the coordinator",
+                "Per-remote context retained by the coordinator",
+            ),
+            (
+                "denial_may_dial",
+                validate_r2_outgoing_gate_contract,
+                "A `DENY` returns without invoking the concrete dialer.",
+                "A `DENY` may invoke the concrete dialer.",
+            ),
+            (
+                "reservation_charges_on_entry",
+                validate_r2_reservation_contract,
+                "| `eligible_gate_entry` | `RETRY_READY -> ATTEMPT_RESERVED` | "
+                "`zero_dials_before_commit` |",
+                "| `eligible_gate_entry` | `RETRY_READY -> BACKOFF_ACTIVE` | "
+                "`dial_may_start` |",
+            ),
+            (
+                "restart_drops_reservation",
+                validate_r2_reservation_contract,
+                "| `restart_with_unresolved_reservation` | "
+                "`ATTEMPT_RESERVED -> BACKOFF_ACTIVE_or_ADMIN_HOLD` | "
+                "`charge_once_before_any_new_dial` |",
+                "| `restart_with_unresolved_reservation` | `no_state_change` | "
+                "`clear_without_charge` |",
+            ),
+            (
+                "stale_callback_clears_active",
+                validate_r2_reservation_contract,
+                "| `stale_terminal_callback` | `no_state_change` | "
+                "`discard_without_charge_or_trust` |",
+                "| `stale_terminal_callback` | `clear_reservation` | `accept_trust` |",
+            ),
+            (
+                "reservation_count_not_separate",
+                validate_r2_reservation_contract,
+                "Exact unchanged count before this reservation.",
+                "Count incremented when this reservation is entered.",
+            ),
+            (
+                "bridge_changes_spine",
+                validate_r2_bridge_contract,
+                "| `helianthus_eebus_go` | "
+                "`configuration_bridge_exposes_gate_and_attempt_id` | "
+                "`SPINE_or_semantic_model_change` |",
+                "| `helianthus_eebus_go` | `bridge_and_SPINE_change` | `none` |",
+            ),
+            (
+                "fork_type_leaks_publicly",
+                validate_r2_bridge_contract,
+                "| `helianthus_eebusreg_public` | `unchanged` | "
+                "`fork_import_or_new_public_surface` |",
+                "| `helianthus_eebusreg_public` | `exports_fork_gate` | `none` |",
+            ),
+            (
+                "revocation_skips_context_cancel",
+                validate_r2_revocation_race_contract,
+                "`cancel_exact_context+DENY+zero_dials+disconnect_observed+unregister`",
+                "`DENY+zero_dials+unregister`",
+            ),
+            (
+                "callback_injection_passes",
+                validate_r2_falsification_matrix,
+                "| `callback_injection_negative_control` | "
+                "`terminal_callback_without_dialer_or_accept_event` | "
+                "`not_pre_dial_evidence+case_FAIL` | `case_PASS` |",
+                "| `callback_injection_negative_control` | `terminal_callback_only` | "
+                "`case_PASS` | `none` |",
+            ),
+            (
+                "quarantine_may_dial",
+                validate_r2_falsification_matrix,
+                "| `quarantine_active` | `persisted_QUARANTINED` | "
+                "`zero_DialContext_calls` | `any_network_call` |",
+                "| `quarantine_active` | `persisted_QUARANTINED` | "
+                "`one_DialContext_call` | `none` |",
+            ),
+            (
+                "race_detector_removed",
+                validate_r2_falsification_matrix,
+                "| `race_detector` | `all_cases_under_go_test_race` |",
+                "| `race_detector` | `all_cases_without_race_detector` |",
+            ),
+        )
+        for label, validator, old, new in mutations:
+            with self.subTest(label=label):
+                mutated = mutate_normalized_once(body, old, new)
+                with self.assertRaises(AssertionError):
+                    validator(mutated)
+
     def test_gate_rows_define_exact_redacted_pass_and_fail_evidence(self) -> None:
         _, body = read_markdown(CANDIDATE)
         validate_gate_evidence_contract(body)
@@ -1036,6 +1735,40 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 "g16_fail",
                 "scan input omits executed production-composition output",
                 "scan input omits helper output",
+            ),
+            (
+                "g10_r2_pass",
+                "with zero dials for denial, publication failure, backoff, "
+                "quarantine, and terminal hold",
+                "with caller-asserted zero dials",
+            ),
+            (
+                "g10_r2_fail",
+                "treats callback injection as pre-dial evidence",
+                "accepts callback injection as pre-dial evidence",
+            ),
+            (
+                "g11_r2_pass",
+                "across path fallback, hostname/IPv4/IPv6 retry, crash recovery, "
+                "delayed callback, discovery storm, and revocation race",
+                "across one helper callback",
+            ),
+            (
+                "g11_r2_fail",
+                "injected callbacks pass without dial/accept observations",
+                "injected callbacks pass with no observations",
+            ),
+            (
+                "g16_r2_pass",
+                "R2 binds a redacted durable reservation timestamp/order and "
+                "synthetic attempt id",
+                "R2 records a caller-asserted attempt",
+            ),
+            (
+                "g16_r2_fail",
+                "callback-only evidence is accepted without the "
+                "reservation/dial/accept binding",
+                "callback-only evidence is accepted as sufficient",
             ),
         )
         for label, old, new in mutations:
@@ -1091,33 +1824,48 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
         _, body = read_markdown(CANDIDATE)
         validate_msp045_entry_contract(body)
 
-    def test_msp045_validator_rejects_broadened_carried_evidence(self) -> None:
+    def test_msp045_validator_rejects_weakened_r2_entry_boundary(self) -> None:
         _, body = read_markdown(CANDIDATE)
         boundary = (
             "Carried evidence is limited to the explicit SSH-only "
-            "platform-attestation limitation; it cannot carry a "
-            "runtime-composition or gate failure."
+            "provider-attestation limitation. A dependency fork, module graph, "
+            "pre-dial runtime composition, reservation, revocation race, or gate "
+            "failure cannot be carried."
         )
         mutations = (
             (
                 "additional_provider_evidence",
                 boundary,
-                "Carried evidence may include the SSH-only platform-attestation "
-                "limitation and other provider limitations; it cannot carry a "
-                "runtime-composition or gate failure.",
+                "Carried evidence may include the SSH-only provider-attestation "
+                "limitation and other provider limitations. A dependency fork, "
+                "module graph, pre-dial runtime composition, reservation, "
+                "revocation race, or gate failure cannot be carried.",
             ),
             (
                 "runtime_composition_carried",
                 boundary,
                 "Carried evidence is limited to the explicit SSH-only "
-                "platform-attestation limitation; it may also carry a "
-                "runtime-composition failure.",
+                "provider-attestation limitation, but pre-dial runtime composition "
+                "and reservation failures may also be carried.",
             ),
             (
                 "gate_failure_carried",
                 boundary,
                 "Carried evidence is limited to the explicit SSH-only "
-                "platform-attestation limitation; it may also carry a gate failure.",
+                "provider-attestation limitation, but revocation races and gate "
+                "failures may also be carried.",
+            ),
+            (
+                "adoption_stage_not_required",
+                "| `required_repo_stages` | "
+                "`ship_go_fork+eebus_go_bridge+eebusreg_adoption` |",
+                "| `required_repo_stages` | "
+                "`ship_go_fork+eebus_go_bridge` |",
+            ),
+            (
+                "closure_accepts_any_carried_failure",
+                "| `closure_verdict` | `PASS_or_SSH_ONLY_CARRIED` |",
+                "| `closure_verdict` | `PASS_or_ANY_CARRIED` |",
             ),
         )
         for label, old, new in mutations:

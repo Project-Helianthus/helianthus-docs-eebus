@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
 hypothesis_status: "draft"
-falsifier: "An accepted architecture review or conformance result demonstrates that MSP-04C can silently restore trust, start a remote effect before coordinator authorization, bypass production-composed persistent quarantine, report revocation before authoritative runtime withdrawal, lose a tombstone, or expose a public mutation or identity surface under this contract."
+falsifier: "An accepted architecture review or conformance result demonstrates that MSP-04C can silently restore trust, reach a concrete network dial before durable attempt reservation and coordinator permit, bypass production-composed persistent quarantine, accept a stale attempt callback, report revocation before authoritative runtime withdrawal, lose a tombstone, rely on an unreviewed dependency fork, or expose a public mutation or identity surface under this contract."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -15,7 +15,7 @@ versioned_bundle: "false"
 release_bundle: "false"
 ---
 
-# Candidate MSP-04C-R Restore, Revocation, Quarantine, Repair, And Runtime Composition Contract
+# Candidate MSP-04C-R2 Restore, Revocation, Quarantine, Repair, And Pre-Dial Composition Contract
 
 ## Status And Authority
 
@@ -32,6 +32,12 @@ and [corrective source issue 30][corrective-source-issue]. The earlier MSP-04C
 source merge is a predecessor, not evidence that the production callback on
 the SHIP path, registration, reconnect, and revocation withdrawal lifecycle
 satisfies this corrected contract.
+
+MSP-04C-R2 is tracked by [docs issue 28][r2-docs-issue]. R2 adds the
+dependency-level pre-dial authority required to make the coordinator's permit
+the immediate predecessor of every concrete websocket dial. It does not claim
+that either dependency fork or the eebusreg adoption stage exists, is tagged,
+is merged, or is supported.
 
 These are project security and ownership decisions, not protocol claims.
 Stable API, navigation, search, sitemap, versioned-bundle, and release-bundle
@@ -62,6 +68,43 @@ observations remain supporting, non-normative evidence. They cannot clear
 `platform_provider_attestation`, claim a portable provider, or substitute for
 the deterministic integration gates.
 
+## R2 Dependency Evidence Status
+
+Every value in this table is intentionally pending until the three repository
+stages merge in order: ship-go fork, eebus-go bridge, then eebusreg adoption.
+No branch name, local checkout, callback transcript, or unmerged head may fill
+one of these fields.
+
+| Evidence field | Candidate value | Required closure evidence |
+| --- | --- | --- |
+| `ship_go_fork_head_sha` | `pending` | Full reviewed 40-character fork head. |
+| `ship_go_fork_merge_sha` | `pending` | Full 40-character merge on the fork default branch. |
+| `ship_go_prerelease_tag` | `pending` | Reviewed immutable semver prerelease naming the merged gate revision. |
+| `ship_go_tag_target_sha` | `pending` | Full 40-character object id resolved from that tag. |
+| `ship_go_exact_head_ci_run` | `pending` | Successful exact-head fork CI run identifier. |
+| `ship_go_post_merge_ci_run` | `pending` | Successful post-merge fork CI run identifier. |
+| `eebus_go_fork_head_sha` | `pending` | Full reviewed 40-character bridge head. |
+| `eebus_go_fork_merge_sha` | `pending` | Full 40-character merge on the fork default branch. |
+| `eebus_go_prerelease_tag` | `pending` | Reviewed immutable semver prerelease naming the merged bridge revision. |
+| `eebus_go_tag_target_sha` | `pending` | Full 40-character object id resolved from that tag. |
+| `eebus_go_exact_head_ci_run` | `pending` | Successful exact-head bridge CI run identifier. |
+| `eebus_go_post_merge_ci_run` | `pending` | Successful post-merge bridge CI run identifier. |
+| `eebusreg_adoption_head_sha` | `pending` | Full reviewed 40-character eebusreg adoption head. |
+| `eebusreg_adoption_merge_sha` | `pending` | Full 40-character eebusreg squash merge. |
+| `eebusreg_adoption_exact_head_ci_run` | `pending` | Successful exact-head eebusreg CI run identifier. |
+| `eebusreg_adoption_post_merge_ci_run` | `pending` | Successful post-merge eebusreg CI run identifier. |
+| `eebus_g10_predial_artifact` | `pending` | Immutable redacted G10 artifact binding durable reservation to actual dial/accept observations. |
+| `eebus_g11_predial_artifact` | `pending` | Immutable redacted G11 artifact binding retry state and reservation to actual dial/accept observations. |
+| `eebus_g16_predial_artifact` | `pending` | Immutable redacted G16 scan artifact over the same executed observations. |
+| `m4_r2_architecture_closure_verdict` | `pending` | Post-adoption closure result, `PASS` or `PASS_WITH_CARRIED_EVIDENCE`. |
+| `r2_platform_provider_attestation` | `pending_ssh_only_non_normative` | The only evidence class that may remain carried at R2 closure. |
+
+The tag target, merge SHA, module graph, and CI head MUST agree for each fork.
+The eebusreg adoption head MUST resolve both reviewed prerelease tags without a
+`replace` directive. SSH-only provider observations remain non-normative and
+may carry only `r2_platform_provider_attestation`; they cannot fill a fork,
+adoption, pre-dial artifact, or closure field.
+
 ## Normative Language And Boundary
 
 `MUST`, `MUST NOT`, `SHOULD`, and `MAY` define MSP-04C acceptance. Names in
@@ -82,6 +125,39 @@ A separate internal host-anchor provider owns only sealed, non-restorable
 anchor bytes and deterministic durability outcomes. It has no remote identity,
 pairing, trust, quarantine, or repair policy. The coordinator is the sole
 writer across store, anchor, facade effects, and AF_UNIX commands.
+
+## Dependency Fork Provenance And Release Policy
+
+R2 uses three serialized repository stages. The forks are source dependencies,
+not protocol-documentation owners, and do not move coordinator policy out of
+eebusreg.
+
+| Stage | Upstream baseline | Canonical module | Required provenance | Release rule |
+| --- | --- | --- | --- | --- |
+| `ship_go_fork` | `github.com/enbility/ship-go@v0.6.0` | `github.com/Project-Helianthus/helianthus-ship-go` | `license+notices+headers+upstream_remote+baseline_commit` | `reviewed_semver_prerelease` |
+| `eebus_go_fork` | `github.com/enbility/eebus-go@v0.7.0` | `github.com/Project-Helianthus/helianthus-eebus-go` | `license+notices+headers+upstream_remote+baseline_commit` | `reviewed_semver_prerelease` |
+| `eebusreg_adoption` | `helianthus-eebusreg_current_main` | `internal_bridge_only` | `exact_fork_tags+module_graph+public_api_diff` | `merge_after_both_fork_tags` |
+
+Each fork preserves every upstream license file, notice, and applicable source
+header. `origin` names the Project-Helianthus fork and a read-only `upstream`
+remote names the source project. The fork records the exact upstream tag,
+commit, and tree from which it started. Upstream synchronization uses a reviewed
+merge or cherry-pick with retained provenance; published fork tags are never
+retargeted, and default-branch history is never rewritten to hide divergence.
+
+The ship-go fork uses reviewed prereleases in the
+`v0.6.1-helianthus.<positive_integer>` line. The eebus-go fork uses reviewed
+prereleases in the `v0.7.1-helianthus.<positive_integer>` line. A tag is created
+only after exact-head CI and review, resolves to the reviewed merge content,
+and is immutable. A later upstream sync receives a later prerelease and a new
+provenance record.
+
+All committed module files, workspace files, vendor metadata, release builds,
+and CI commands consume the canonical fork module paths and reviewed tags
+directly. A `replace` directive, local filesystem module override, untagged
+pseudo-version, branch dependency, or transitive return to either upstream
+module path fails the R2 gate. The eebus-go stage cannot merge before the
+ship-go tag exists; eebusreg adoption cannot merge before both fork tags exist.
 
 ## Durable Control And Host Anchor
 
@@ -256,6 +332,146 @@ A helper-only backoff API, direct coordinator unit call, caller-provided
 success/failure assertion, or transcript that does not execute this production
 composition is not G11 proof. The real callback must drive the coordinator
 record, checkpoint, restart restore, bounded backoff, and terminal quarantine.
+
+## Outgoing Attempt Gate And Dial Sites
+
+The ship-go fork adds one optional, additive `OutgoingAttemptGate`. Optionality
+preserves standalone upstream-compatible use: absence retains the fork's normal
+behavior. Helianthus composition is stricter. The eebusreg internal bridge MUST
+install a non-nil gate before enabling listener, registration, discovery, or
+reconnect activity; missing installation fails startup closed.
+
+The hook runs immediately before every concrete websocket `DialContext` call,
+after endpoint and path selection but before the dialer observes the request.
+No wrapper-level admission, callback injection, or once-per-peer check can
+replace the call-site hook.
+
+| Gate field | Direction | Exact binding |
+| --- | --- | --- |
+| `remote_ski` | `input` | Exact opaque remote key for the selected association; never logged or published. |
+| `scope` | `input` | Exact coordinator retry/quarantine scope for this concrete attempt. |
+| `control_epoch` | `input` | Exact current coordinator epoch used for authorization and stale-callback rejection. |
+| `endpoint` | `input` | Exact selected hostname, IPv4, or IPv6 endpoint plus port in private typed form. |
+| `path` | `input` | Exact selected websocket path, including the `/ship` path fallback when chosen. |
+| `attempt_id` | `input` | Fresh bounded coordinator id, unique within the current store instance and control epoch. |
+| `attempt_context` | `input` | Exact per-attempt cancellable context retained by the coordinator until terminal resolution. |
+| `decision` | `output` | Exactly `PERMIT` or `DENY`; absence, error, panic, or ambiguity is `DENY`. |
+| `reason` | `output` | One stable closed permit/deny reason with no endpoint, key, path, or private error text. |
+
+### Dial Site Coverage
+
+| Dial variant | Required gate placement | Required cardinality |
+| --- | --- | --- |
+| `primary_endpoint_primary_path` | `immediately_before_DialContext` | `one_PERMIT_per_network_call` |
+| `same_endpoint_ship_path_fallback` | `immediately_before_DialContext` | `one_fresh_gate_decision_per_network_call` |
+| `hostname_retry` | `immediately_before_DialContext` | `one_fresh_gate_decision_per_network_call` |
+| `ipv4_retry` | `immediately_before_DialContext` | `one_fresh_gate_decision_per_network_call` |
+| `ipv6_retry` | `immediately_before_DialContext` | `one_fresh_gate_decision_per_network_call` |
+
+A `DENY` returns without invoking the concrete dialer. It produces zero network
+calls and no automatic reannounce for that attempt. A fallback or retry is a
+new concrete attempt with a fresh id and must independently reserve and obtain
+`PERMIT`; denial cannot be converted into another path, address-family retry,
+or discovery announcement by ship-go. Across one execution, the count of
+`PERMIT` decisions MUST equal the count of concrete `DialContext` calls, and
+each call MUST have exactly one immediately preceding permit for the same
+attempt id, endpoint, and path.
+
+## Durable Outgoing Attempt Reservation
+
+`ATTEMPT_RESERVED` is a coordinator-owned durable state separate from
+`attempt_count`. Entering it reserves one concrete network attempt but does not
+charge a failed attempt. The complete reservation generation and anchor
+finalization MUST be durable before `OutgoingAttemptGate` may return `PERMIT`.
+
+| Reservation field | Storage | Exact rule |
+| --- | --- | --- |
+| `state` | `durable` | Exactly `ATTEMPT_RESERVED` until one matching terminal outcome is committed. |
+| `attempt_id` | `durable` | Same fresh id supplied to the gate, `ShipConnection`, and terminal callbacks. |
+| `remote_ski_scope` | `durable` | Exact opaque key and coordinator scope; never a public evidence value. |
+| `control_epoch` | `durable` | Exact epoch at reservation linearization. |
+| `endpoint_path` | `durable` | Private typed endpoint and path selected for the concrete dial. |
+| `reservation_order` | `durable` | Monotonic coordinator sequence used as authoritative cross-event order. |
+| `reservation_timestamp` | `durable_diagnostic` | Bounded injected-clock value used only to correlate test evidence, never for trust or deadlines. |
+| `attempt_count_before` | `durable` | Exact unchanged count before this reservation. |
+| `attempt_context` | `volatile` | Exact cancellable context keyed by attempt id; no context object or pointer is persisted. |
+
+| Reservation event | Required durable transition | Dial/callback consequence |
+| --- | --- | --- |
+| `eligible_gate_entry` | `RETRY_READY -> ATTEMPT_RESERVED` | `zero_dials_before_commit` |
+| `reservation_commit_durable` | `ATTEMPT_RESERVED -> ATTEMPT_RESERVED` | `PERMIT_may_return` |
+| `reservation_not_published` | `RETRY_READY -> RETRY_READY` | `DENY+zero_dials` |
+| `reservation_durability_unknown` | `ATTEMPT_RESERVED -> QUARANTINED` | `DENY+zero_dials` |
+| `matching_terminal_success` | `ATTEMPT_RESERVED -> clear_reservation_without_failure_charge` | `accept_only_if_epoch_and_tombstone_still_valid` |
+| `matching_terminal_failure` | `ATTEMPT_RESERVED -> BACKOFF_ACTIVE_or_ADMIN_HOLD` | `charge_attempt_count_exactly_once` |
+| `restart_with_unresolved_reservation` | `ATTEMPT_RESERVED -> BACKOFF_ACTIVE_or_ADMIN_HOLD` | `charge_once_before_any_new_dial` |
+| `stale_terminal_callback` | `no_state_change` | `discard_without_charge_or_trust` |
+
+The attempt id is carried through `ShipConnection`, dial completion, transport
+accept, handshake completion, cancellation, and terminal failure callbacks.
+Every callback is checked against the active reservation's attempt id, control
+epoch, scope, endpoint, and path. A delayed callback from an older attempt,
+earlier epoch, restart, or revoked association is discarded and cannot clear or
+charge the active reservation.
+
+On restart, an unresolved `ATTEMPT_RESERVED` record is conservatively resolved
+as one failed attempt before listener setup, discovery, registration,
+reannounce, reconnect, or another gate decision. The count is charged exactly
+once using the existing bounded backoff formula; the fourth charged failure in
+the deterministic vector enters terminal `ADMIN_HOLD`. Reservation publication
+failure, backoff, quarantine, and terminal hold all produce zero dials.
+
+The durable reservation timestamp and order are evidence correlation fields,
+not caller assertions. G10/G11/G16 evidence binds their committed values and
+attempt id to injectable-dialer call start and fake-peer accept observations.
+The authoritative ordering is reservation commit, then gate permit, then
+`DialContext` call, then optional accept. Callback injection without those
+observations is not pre-dial evidence.
+
+## eebus-go Bridge And Type Boundary
+
+| Layer | Required additive change | Forbidden change |
+| --- | --- | --- |
+| `helianthus_ship_go` | `optional_OutgoingAttemptGate_at_every_concrete_dial` | `protocol_or_handshake_semantic_change` |
+| `helianthus_eebus_go` | `configuration_bridge_exposes_gate_and_attempt_id` | `SPINE_or_semantic_model_change` |
+| `helianthus_eebusreg_internal` | `coordinator_adapter+reservation+callback_validation` | `fork_type_in_public_package` |
+| `helianthus_eebusreg_public` | `unchanged` | `fork_import_or_new_public_surface` |
+
+The eebus-go fork exposes enough configuration to install the ship-go hook and
+carry the attempt id through connection callbacks. It does not change SPINE
+models, feature discovery, semantic projection, subscription behavior, or
+message interpretation. Its bridge imports the reviewed ship-go prerelease by
+canonical module path and tag without `replace`.
+
+Only an eebusreg internal adapter may translate between coordinator-owned
+request/decision records and dependency hook types. No exported declaration,
+public package field, method, alias, generic argument, error, or callback may
+name a type from either fork. The frozen public Go API and all protocol/API docs
+remain unchanged.
+
+## Revocation And Dial Race Linearization
+
+Revocation and outgoing attempts acquire the same per-SKI gate owned by the
+coordinator.
+Reservation, permit, concrete dial launch, tombstone publication, context
+cancellation, disconnect observation, and unregistration therefore have one
+closed race order.
+
+| Race order | Linearization | Required result |
+| --- | --- | --- |
+| `revocation_before_reservation` | `revocation_wins` | `tombstone+DENY+zero_dials+unregister` |
+| `revocation_after_reservation_before_dial` | `revocation_wins` | `cancel_exact_context+DENY+zero_dials+disconnect_observed+unregister` |
+| `dial_launched_before_revocation` | `attempt_launch_wins_then_revocation` | `tombstone+cancel_exact_context+disconnect_observed+unregister+no_trust_accept` |
+| `callback_after_tombstone` | `revocation_already_won` | `discard_stale_callback+no_state_change` |
+| `withdrawal_failure_or_ambiguity` | `revocation_nonterminal` | `tombstone_effective+ADMIN_HOLD+no_success` |
+
+The attempt side holds the per-SKI gate through reservation commit, permit, and
+the concrete dial-launch linearization point. Revocation that wins before that
+point prevents the call. If launch wins, revocation durably tombstones first,
+cancels the exact reserved context, observes transport disconnect, and invokes
+`UnregisterRemoteSKI` before success. No accept or terminal callback after the
+tombstone can make the association trusted. All withdrawal ambiguity remains
+fail-closed under the existing revocation contract.
 
 ## Orthogonal Coordinator And Recovery State Machines
 
@@ -628,13 +844,44 @@ fingerprints, SHIP IDs, stable peer identity, host identifiers, private paths,
 or network addresses. Hardware checks remain SSH-only and cannot replace the
 deterministic synthetic gate cases.
 
+## R2 Pre-Dial Falsification Matrix
+
+The executable harness uses a fake TLS endpoint, a fake peer on the SHIP path,
+an injectable websocket dialer, an injected clock, and a crashable deterministic
+store/anchor pair. It observes the real dependency call sites and callbacks;
+direct callback invocation is used only as a negative control.
+
+| Case | Fixture/action | Required observation | Falsifier |
+| --- | --- | --- | --- |
+| `denied_permit` | `gate_returns_DENY` | `zero_DialContext_calls+zero_accepts+zero_reannounce` | `any_network_call_or_reannounce` |
+| `reservation_publication_failure` | `commit_not_published_or_unknown` | `zero_DialContext_calls+DENY_or_quarantine` | `permit_or_network_call` |
+| `backoff_active` | `persisted_BACKOFF_ACTIVE` | `zero_DialContext_calls_before_durable_RETRY_READY` | `early_network_call` |
+| `quarantine_active` | `persisted_QUARANTINED` | `zero_DialContext_calls` | `any_network_call` |
+| `admin_hold` | `persisted_ADMIN_HOLD` | `zero_DialContext_calls` | `any_network_call` |
+| `path_fallback` | `primary_path_then_/ship_path` | `PERMIT_count_equals_DialContext_count+distinct_attempt_ids` | `ungated_fallback_or_count_mismatch` |
+| `endpoint_fallback` | `hostname_then_ipv4_then_ipv6` | `PERMIT_count_equals_DialContext_count+exact_endpoint_binding` | `ungated_retry_or_count_mismatch` |
+| `mdns_storm` | `concurrent_repeated_discovery_events` | `per_SKI_serialization+denied_events_zero_dials+no_auto_reannounce` | `parallel_unauthorized_dial_or_reannounce` |
+| `crash_after_reservation` | `crash_after_durable_ATTEMPT_RESERVED_before_dial` | `restart_charges_once_before_zero_or_next_authorized_dial` | `reservation_cleared_or_uncharged` |
+| `delayed_callback` | `old_attempt_callback_after_new_reservation` | `stale_callback_discarded+active_reservation_unchanged` | `old_callback_charges_clears_or_trusts` |
+| `revocation_race` | `revocation_at_each_launch_boundary` | `one_linearized_order+exact_context_cancel+disconnect_observed+unregister` | `post_tombstone_trust_or_success_before_withdrawal` |
+| `fourth_failure_admin_hold` | `four_matching_terminal_failures` | `counts_1_2_3_4+fourth_enters_ADMIN_HOLD+zero_fifth_dial` | `fifth_permit_or_dial` |
+| `dial_accept_order` | `one_permitted_fake_peer_connection` | `reservation_commit_before_permit_before_DialContext_before_accept` | `missing_or_reordered_observation` |
+| `callback_injection_negative_control` | `terminal_callback_without_dialer_or_accept_event` | `not_pre_dial_evidence+case_FAIL` | `case_PASS` |
+| `race_detector` | `all_cases_under_go_test_race` | `zero_race_reports+deterministic_counts` | `race_report_or_nondeterministic_result` |
+
+For every PASS case the harness emits the reservation order, bounded injected
+timestamp, attempt id, permit observation, dialer-call observation, and accept
+observation when acceptance occurs. Values are synthetic and redacted under
+G16. Equality of permit and `DialContext` counts is checked separately for path
+fallback, hostname retry, IPv4 retry, and IPv6 retry.
+
 ## G10, G11, And G16 Evidence Contract
 
 | Gate | Deterministic PASS | Deterministic FAIL |
 | --- | --- | --- |
-| `EEBUS-G10` | Executed startup/runtime integration behavior restores each clone-instance conflict, wrong-host binding, missing host key/anchor, older manifest generation, older control epoch, and durability-unknown fixture through the production composition; observed effects show zero trust registrations and cannot reach `PAIRED_TRUSTED` before or after restart; copied-current and inactive-parent repair publish a fresh lineage with every inherited trusted association inactive and tombstoned. | Any copied/restored/rolled-back case reaches or reloads `PAIRED_TRUSTED`, invokes `RegisterRemoteSKI`, selects a lower manifest, conflates the required reasons, accepts a same-number/different-digest branch, repairs without complete durable deactivation and tombstones, or relies only on a helper-returned decision. |
-| `EEBUS-G11` | Executed integration behavior drives the real pairing callback on the SHIP path through the exact vector: counts `0,1,2,3,4`, delays `0s,3s,6s,10s,0s`, the specified durable checkpoint and monotonic restart arm, no early retry, and terminal `ADMIN_HOLD` at the fourth failure; source-constant boundary cases stay within count, retention, exponent, and duration bounds. | The real callback bypasses failure recording or checkpointing, restart clears or reduces state, a wall-clock change shortens delay, a retry occurs before durable `RETRY_READY`, an increment occurs anywhere except failed-attempt linearization, the ceiling admits another handshake/reconnect, arithmetic exceeds a bound, an active record is evicted, or quarantine restores trust. |
-| `EEBUS-G16` | Executed integration artifacts contain only repository/branch/commit/issue metadata, tool versions, redacted command names, random per-run/case labels, stable outcome/reason/state enums, bounded counts/durations, and PASS/FAIL. Scans over the actual callbacks, effects, logs, errors, panic text, fixture bytes, and diffs find none of the forbidden categories below. | Any PEM, key, token, full fingerprint, raw/encoded/hashed/truncated SKI or SHIP ID, IP/MAC/serial, local identity, stable peer id/digest, pairing history, private path, or reusable cross-run label appears, the frozen API diff changes, or scan input omits executed production-composition output. |
+| `EEBUS-G10` | Executed startup/runtime integration behavior restores each clone-instance conflict, wrong-host binding, missing host key/anchor, older manifest generation, older control epoch, and durability-unknown fixture through the production composition; observed effects show zero trust registrations and cannot reach `PAIRED_TRUSTED` before or after restart; copied-current and inactive-parent repair publish a fresh lineage with every inherited trusted association inactive and tombstoned. R2 binds the durable reservation timestamp/order and attempt id to actual `DialContext` and fake-peer accept observations, with zero dials for denial, publication failure, backoff, quarantine, and terminal hold. | Any copied/restored/rolled-back case reaches or reloads `PAIRED_TRUSTED`, invokes `RegisterRemoteSKI`, selects a lower manifest, conflates the required reasons, accepts a same-number/different-digest branch, repairs without complete durable deactivation and tombstones, relies only on a helper-returned decision, reaches a dial before durable reservation/permit, or treats callback injection as pre-dial evidence. |
+| `EEBUS-G11` | Executed integration behavior drives the real pairing callback on the SHIP path through the exact vector: counts `0,1,2,3,4`, delays `0s,3s,6s,10s,0s`, the specified durable checkpoint and monotonic restart arm, no early retry, and terminal `ADMIN_HOLD` at the fourth failure; source-constant boundary cases stay within count, retention, exponent, and duration bounds. R2 binds the durable reservation timestamp/order and attempt id to actual `DialContext` and fake-peer accept observations across path fallback, hostname/IPv4/IPv6 retry, crash recovery, delayed callback, discovery storm, and revocation race. | The real callback bypasses failure recording or checkpointing, restart clears or reduces state, a wall-clock change shortens delay, a retry occurs before durable `RETRY_READY`, an increment occurs anywhere except failed-attempt linearization, the ceiling admits another handshake/reconnect, arithmetic exceeds a bound, an active record is evicted, quarantine restores trust, permit count differs from `DialContext` count, an unresolved reservation is not charged before a new dial, or injected callbacks pass without dial/accept observations. |
+| `EEBUS-G16` | Executed integration artifacts contain only repository/branch/commit/issue metadata, tool versions, redacted command names, random per-run/case labels, stable outcome/reason/state enums, bounded counts/durations, and PASS/FAIL. Scans over the actual callbacks, effects, logs, errors, panic text, fixture bytes, and diffs find none of the forbidden categories below. R2 binds a redacted durable reservation timestamp/order and synthetic attempt id to actual `DialContext` and fake-peer accept observations without publishing endpoint, path, key, context, or fork-internal values. | Any PEM, key, token, full fingerprint, raw/encoded/hashed/truncated SKI or SHIP ID, IP/MAC/serial, local identity, stable peer id/digest, pairing history, private path, reusable cross-run label, endpoint/path/context value, or fork-internal type appears; the frozen API diff changes; scan input omits executed production-composition output; or callback-only evidence is accepted without the reservation/dial/accept binding. |
 
 Only executed integration behavior from the production-composed lifecycle
 supplies G10, G11, or G16 evidence. A result is rejected because caller
@@ -643,6 +890,12 @@ registration, reconnect, callback, disconnect, unregister, checkpoint,
 restart, and terminal-state fields from observed effects and coordinator state;
 a test caller cannot submit those fields as claimed booleans. Helper-only
 transcripts may diagnose a failure but cannot produce a PASS row.
+
+Each G10, G11, and G16 PASS row independently requires the same attempt-bound
+chain: durable reservation timestamp/order, durable attempt id, gate permit,
+actual `DialContext` observation, and fake-peer accept observation when the
+peer accepts. Callback injection is not pre-dial evidence and cannot satisfy
+any one of the three rows.
 
 The compact public artifact identifies `MSP-04C`, exact commit and commands,
 marks topology and credentials `not_applicable_synthetic`, marks temporary
@@ -654,17 +907,22 @@ order, locale, wall clock, and failure wording.
 ## MSP-045 Entry Contract
 
 The locked [MSP-045 row][freeze-plan-row] is an interface freeze after the M4
-correction, not permission to start downstream platform or consumer work.
-MSP-045 must not start until the corrective source merge populates every
-applicable source-evidence field above, executed G10, G11, and G16 artifacts
-pass, and a bounded architecture closure review returns `PASS` or
+R2 correction, not permission to start downstream platform or consumer work.
+MSP-045 must not start until the ship-go fork, eebus-go bridge, and eebusreg
+adoption stages have all merged in that order; every applicable R2 evidence
+field is populated; executed G10, G11, and G16 artifacts pass; and a bounded
+architecture closure review returns `PASS` or
 `PASS_WITH_CARRIED_EVIDENCE`. Carried evidence is limited to the explicit
-SSH-only platform-attestation limitation; it cannot carry a runtime-composition
-or gate failure.
+SSH-only provider-attestation limitation. A dependency fork, module graph,
+pre-dial runtime composition, reservation, revocation race, or gate failure
+cannot be carried.
 
 | Boundary | MSP-045 decision |
 | --- | --- |
-| `entry_precondition` | `corrective_source_merged+evidence_bound+architecture_pass` |
+| `entry_precondition` | `three_repo_stages_merged+predial_evidence_bound+closure_pass` |
+| `required_repo_stages` | `ship_go_fork+eebus_go_bridge+eebusreg_adoption` |
+| `closure_verdict` | `PASS_or_SSH_ONLY_CARRIED` |
+| `carried_evidence` | `ssh_only_provider_attestation` |
 | `freeze_scope` | `coordinator_ownership+combined_fsm+read_only_trust_admin_projection` |
 | `platform_providers` | `deferred` |
 | `consumers` | `deferred` |
@@ -674,10 +932,11 @@ MSP-045 may then freeze only coordinator ownership, the combined
 MSP-04B/MSP-04C state machines, and the read-only trust/admin projection that
 later consumers can use without ad hoc security decisions. A later change to
 those frozen semantics requires explicit contract migration. MSP-045 does not
-implement or freeze a platform provider. It does not implement a gateway, MCP,
-Portal, Home Assistant, or other consumer. Provider backends and their
-platform attestations remain separate conformance work; consumer implementation
-remains in its downstream milestone and repository.
+implement or freeze either dependency fork or a platform provider. It does not
+implement a gateway, MCP, Portal, Home Assistant, or other consumer. Fork
+maintenance, provider backends, and platform attestations remain separate
+conformance work; consumer implementation remains in its downstream milestone
+and repository.
 
 ## Required Tests And Exclusions
 
@@ -692,6 +951,12 @@ authorization of every registration and reconnect; the real pairing callback
 on the SHIP path; exact backoff vectors, terminal attempt-limit quarantine,
 checkpoint, restart rearm; and every store/anchor outcome. G10/G11 integration
 tests exercise production composition rather than helper-only decisions.
+R2 acceptance also runs the complete pre-dial falsification matrix through the
+actual fork call sites with the fake TLS endpoint, fake peer on the SHIP path,
+injectable dialer, crashable reservation store, delayed callbacks, revocation
+races, and `go test -race`. It proves zero dials for every denied state and
+publication failure, exact permit/dial cardinality for every path and endpoint
+fallback, conservative restart charging, and stale-callback rejection.
 Public API and G16 scanners run over successes, failures, callbacks, effects,
 fuzz output, golden diffs, and test names. Full race-enabled source CI and docs
 CI must pass at exact heads.
@@ -705,6 +970,7 @@ SSH-only and its redacted result is supporting evidence only.
 [code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/28
 [corrective-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/26
 [corrective-source-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/30
+[r2-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/28
 [gate-contract]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/93-eebus-transport-gate-v0.md#case-matrix
 [meta-issue]: https://github.com/Project-Helianthus/helianthus-execution-plans/issues/58
 [freeze-plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L571-L589
