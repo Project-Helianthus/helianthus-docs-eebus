@@ -396,6 +396,12 @@ attempt_contract:
     durable_transition: ATTEMPT_RESERVED_to_ATTEMPT_LAUNCH_AUTHORIZED
     linearization: launch
     stale_handle: DENY_without_mutation
+  abort_prepared:
+    handle_use: single_unconsumed
+    gate: same_per_SKI
+    durable_transition: ATTEMPT_RESERVED_to_BACKOFF_ACTIVE_or_ADMIN_HOLD
+    charge: synthetic_failure_exactly_once_unless_terminal_already_won
+    stale_handle: no_state_change
   dial:
     immediate_successor: DialContext
     invocations_per_permit: 1
@@ -695,8 +701,8 @@ record, checkpoint, restart restore, bounded backoff, and terminal quarantine.
 
 ## Outgoing Attempt Gate And Dial Sites
 
-The ship-go fork adds one optional, additive `OutgoingAttemptGate` with two
-methods: `Prepare` and `AuthorizeLaunch`. Optionality preserves standalone
+The ship-go fork adds one optional, additive `OutgoingAttemptGate` with three
+methods: `Prepare`, `AuthorizeLaunch`, and `AbortPrepared`. Optionality preserves standalone
 upstream-compatible use: absence retains the fork's normal behavior. Helianthus
 composition is stricter. The eebusreg internal bridge MUST install a non-nil
 gate before enabling listener, registration, discovery, or reconnect activity;
@@ -724,6 +730,8 @@ durability result, or missing gate returns no handle and cannot dial.
 | `attempt_handle` | `AuthorizeLaunch` | `input` | Exact unconsumed handle returned by `Prepare`; copying does not create another use. |
 | `permit` | `AuthorizeLaunch` | `output` | Exactly `PERMIT` or `DENY`; absence, error, panic, stale handle, or ambiguity is `DENY`. |
 | `reason` | `AuthorizeLaunch` | `output` | One stable closed permit/deny reason with no endpoint, key, path, context, or private error text. |
+| `attempt_handle` | `AbortPrepared` | `input` | Exact unconsumed handle returned by `Prepare`; only the bridge that owns it may abort. |
+| `abort_result` | `AbortPrepared` | `output` | One durable synthetic-failure terminal result, or a stable stale-handle no-op; it never dials. |
 
 `AuthorizeLaunch(handle)` reacquires the same per-SKI gate and atomically
 consumes the handle. It rechecks the exact active reservation, scope, control
@@ -734,6 +742,12 @@ logging, fallback selection, or user code between them, `gatedDialContext`
 invokes exactly one concrete websocket `DialContext` with the exact context
 from that permit. No wrapper-level admission, callback injection, or
 once-per-peer check can replace these call-site phases.
+
+`AbortPrepared(handle)` reacquires the same per-SKI gate and consumes only an
+unlaunched `ATTEMPT_RESERVED` handle. It durably publishes the matching
+synthetic failure exactly once unless another terminal transition already won.
+A stale, copied, consumed, or already-authorized handle is a no-op and cannot
+clear, charge, authorize, or dial another attempt.
 
 ### Dial Site Coverage
 
@@ -853,7 +867,7 @@ evidence.
 
 | Layer | Required additive change | Forbidden change |
 | --- | --- | --- |
-| `helianthus_ship_go` | `optional_Prepare+AuthorizeLaunch+one_gatedDialContext_helper` | `protocol_or_handshake_semantic_change` |
+| `helianthus_ship_go` | `optional_Prepare+AuthorizeLaunch+AbortPrepared+one_gatedDialContext_helper` | `protocol_or_handshake_semantic_change` |
 | `helianthus_eebus_go` | `configuration_bridge_carries_attempt_handle_and_id` | `SPINE_or_semantic_model_change` |
 | `helianthus_eebusreg_internal` | `coordinator_adapter+attempt_journal+callback_validation` | `fork_type_in_public_package` |
 | `helianthus_eebusreg_public` | `unchanged` | `fork_import_or_new_public_surface` |

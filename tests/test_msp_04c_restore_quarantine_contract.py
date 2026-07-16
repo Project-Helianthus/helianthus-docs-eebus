@@ -524,6 +524,18 @@ R2_GATE_SCHEMA = [
         "output",
         "One stable closed permit/deny reason with no endpoint, key, path, context, or private error text.",
     ),
+    (
+        "attempt_handle",
+        "AbortPrepared",
+        "input",
+        "Exact unconsumed handle returned by `Prepare`; only the bridge that owns it may abort.",
+    ),
+    (
+        "abort_result",
+        "AbortPrepared",
+        "output",
+        "One durable synthetic-failure terminal result, or a stable stale-handle no-op; it never dials.",
+    ),
 ]
 
 R2_DIAL_COVERAGE = [
@@ -684,7 +696,7 @@ R2_RESERVATION_TRANSITIONS = [
 R2_BRIDGE_ROWS = [
     (
         "helianthus_ship_go",
-        "optional_Prepare+AuthorizeLaunch+one_gatedDialContext_helper",
+        "optional_Prepare+AuthorizeLaunch+AbortPrepared+one_gatedDialContext_helper",
         "protocol_or_handshake_semantic_change",
     ),
     (
@@ -1175,6 +1187,17 @@ R2_MACHINE_CONTRACT = {
             ),
             "linearization": "launch",
             "stale_handle": "DENY_without_mutation",
+        },
+        "abort_prepared": {
+            "handle_use": "single_unconsumed",
+            "gate": "same_per_SKI",
+            "durable_transition": (
+                "ATTEMPT_RESERVED_to_BACKOFF_ACTIVE_or_ADMIN_HOLD"
+            ),
+            "charge": (
+                "synthetic_failure_exactly_once_unless_terminal_already_won"
+            ),
+            "stale_handle": "no_state_change",
         },
         "dial": {
             "immediate_successor": "DialContext",
@@ -2455,6 +2478,11 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 "after_launch_revocation_leaves_reservation_live",
                 "    after_launch: atomic_tombstone_deactivate_clear_then_cancel_exact_context_without_charge\n",
                 "    after_launch: tombstone_then_cancel_exact_context\n",
+            ),
+            (
+                "prepared_handle_has_no_abort_operation",
+                "  abort_prepared:\n",
+                "  abort_prepared_missing:\n",
             ),
         )
         for label, old, new in mutations:
