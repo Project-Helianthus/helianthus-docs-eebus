@@ -23,6 +23,12 @@ SHIP_TREE = "958ddf185fc09dd4d3b3" + "82fc108641513412d927"
 SHIP_LICENSE_SHA256 = (
     "c853996135802c50b3048937e48022bc" + "00b41ff5f56a31cebe7d686bf91f87db"
 )
+SPINE_TAG_OBJECT = "30aeb9ac51c3212d280a" + "cd93a9afaf58bc63bd92"
+SPINE_COMMIT = "0eef075cb6e8f697355a" + "2850344333452f5590cf"
+SPINE_TREE = "e070b8272e357643ec85" + "5c4eab22be4dd03cb89b"
+SPINE_LICENSE_SHA256 = (
+    "c853996135802c50b3048937e48022bc" + "00b41ff5f56a31cebe7d686bf91f87db"
+)
 EEBUS_TAG_OBJECT = "e4677eb9c46f1cc46c25" + "59027c35fbf39766bcfb"
 EEBUS_COMMIT = "99f07ff79819b728dd2f" + "e37472c4a26865d8076c"
 EEBUS_TREE = "fee9de0ecb34dcb7c416" + "5922fd49fedd42d8df23"
@@ -310,9 +316,11 @@ GATE_PROSE = [
 
 MSP045_ENTRY_CONTRACT = {
     "entry_precondition": (
-        "three_repo_stages_merged+predial_evidence_bound+closure_pass"
+        "four_repo_stages_merged+predial_evidence_bound+closure_pass"
     ),
-    "required_repo_stages": "ship_go_fork+eebus_go_bridge+eebusreg_adoption",
+    "required_repo_stages": (
+        "ship_go_fork+spine_go_fork+eebus_go_fork+eebusreg_adoption"
+    ),
     "closure_verdict": "PASS_or_SSH_ONLY_CARRIED",
     "carried_evidence": "ssh_only_provider_attestation",
     "freeze_scope": (
@@ -327,10 +335,10 @@ MSP045_PROSE = [
     (
         "The locked [MSP-045 row][freeze-plan-row] is an interface freeze after "
         "the M4 R2 correction, not permission to start downstream platform or "
-        "consumer work. MSP-045 must not start until the ship-go fork, eebus-go "
-        "bridge, and eebusreg adoption stages have all merged in that order; "
-        "every applicable R2 evidence field is populated; executed G10, G11, "
-        "and G16 artifacts pass; and a bounded architecture closure review "
+        "consumer work. MSP-045 must not start until the ship-go fork, spine-go "
+        "fork, eebus-go fork, and eebusreg adoption stages have all merged in "
+        "that order; every applicable R2 evidence field is populated; executed "
+        "G10, G11, and G16 artifacts pass; and a bounded architecture closure review "
         "returns `PASS` or `PASS_WITH_CARRIED_EVIDENCE`. Carried evidence is "
         "limited to the explicit SSH-only provider-attestation limitation. A "
         "dependency fork, module graph, pre-dial runtime composition, "
@@ -341,7 +349,7 @@ MSP045_PROSE = [
         "MSP-04B/MSP-04C state machines, and the read-only trust/admin projection "
         "that later consumers can use without ad hoc security decisions. A later "
         "change to those frozen semantics requires explicit contract migration. "
-        "MSP-045 does not implement or freeze either dependency fork or a "
+        "MSP-045 does not implement or freeze any dependency fork or a "
         "platform provider. It does not implement a gateway, MCP, Portal, Home "
         "Assistant, or other consumer. Fork maintenance, provider backends, and "
         "platform attestations remain separate conformance work; consumer "
@@ -362,6 +370,19 @@ R2_PENDING_EVIDENCE = [
     (
         "ship_go_upstream_license_sha256",
         "machine.baselines.ship_go.license.sha256",
+    ),
+    (
+        "spine_go_upstream_tag_object_sha",
+        "machine.baselines.spine_go.tag_object.oid",
+    ),
+    (
+        "spine_go_upstream_peeled_commit_sha",
+        "machine.baselines.spine_go.peeled_commit.commit",
+    ),
+    ("spine_go_upstream_tree_sha", "machine.baselines.spine_go.tree.oid"),
+    (
+        "spine_go_upstream_license_sha256",
+        "machine.baselines.spine_go.license.sha256",
     ),
     (
         "eebus_go_upstream_tag_object_sha",
@@ -393,6 +414,15 @@ R2_PENDING_EVIDENCE = [
     ("ship_go_module_graph_sha256", "pending"),
     ("ship_go_exact_head_ci_run", "pending"),
     ("ship_go_post_merge_ci_run", "pending"),
+    ("spine_go_fork_head_sha", "pending"),
+    ("spine_go_fork_merge_sha", "pending"),
+    ("spine_go_prerelease_tag", "pending"),
+    ("spine_go_prerelease_tag_object_sha", "pending"),
+    ("spine_go_prerelease_peeled_commit_sha", "pending"),
+    ("spine_go_license_provenance_manifest_sha256", "pending"),
+    ("spine_go_module_graph_sha256", "pending"),
+    ("spine_go_exact_head_ci_run", "pending"),
+    ("spine_go_post_merge_ci_run", "pending"),
     ("eebus_go_fork_head_sha", "pending"),
     ("eebus_go_fork_merge_sha", "pending"),
     ("eebus_go_prerelease_tag", "pending"),
@@ -439,6 +469,13 @@ R2_FORK_STAGES = [
         "reviewed_semver_prerelease",
     ),
     (
+        "spine_go_fork",
+        "github.com/enbility/spine-go@v0.7.0^{commit}",
+        "github.com/Project-Helianthus/helianthus-spine-go",
+        "tag_object+peeled_commit+tree+license_provenance_digest",
+        "reviewed_semver_prerelease",
+    ),
+    (
         "eebus_go_fork",
         "github.com/enbility/eebus-go@v0.7.0^{commit}",
         "github.com/Project-Helianthus/helianthus-eebus-go",
@@ -453,9 +490,32 @@ R2_FORK_STAGES = [
         ),
         "internal_bridge_only",
         "exact_peeled_fork_commits+module_graph+api_manifest_comparison",
-        "merge_after_both_fork_tags",
+        "merge_after_all_three_dependency_tags",
     ),
 ]
+
+R2_DEPENDENCY_PROSE_MARKERS = (
+    "R2 uses four serialized repository stages",
+    "canonical `github.com/Project-Helianthus/helianthus-spine-go` path",
+    "every ship-go import points to the reviewed Project ship-go prerelease",
+    "no SPINE model, feature, semantic, wire, runtime, or logging behavior",
+    "`v0.7.1-helianthus.<positive_integer>` line",
+    "both reviewed ship-go and spine-go prerelease tags exist",
+    "all three reviewed dependency tags exist",
+    "committed module, workspace, vendor, and release dependency graphs",
+    "Any direct or transitive return to the upstream",
+    "`github.com/enbility/ship-go`",
+    "`github.com/enbility/spine-go`",
+    "`github.com/enbility/eebus-go`",
+    "A private eebus-go adapter is insufficient",
+    "distinct SHIP logger singletons",
+    "distinct nominal type universes even if structural interfaces compile",
+    (
+        "`go list -m all`, `go mod graph`, and `go list -deps ./service` MUST "
+        "each reject the upstream ship-go identity"
+    ),
+    "no transitive edge can reintroduce a split dependency graph",
+)
 
 R2_GATE_SCHEMA = [
     (
@@ -698,6 +758,11 @@ R2_BRIDGE_ROWS = [
         "helianthus_ship_go",
         "optional_Prepare+AuthorizeLaunch+AbortPrepared+one_gatedDialContext_helper",
         "protocol_or_handshake_semantic_change",
+    ),
+    (
+        "helianthus_spine_go",
+        "canonical_module_path+reviewed_ship_go_imports_only",
+        "SPINE_model_feature_semantic_wire_runtime_or_logging_change",
     ),
     (
         "helianthus_eebus_go",
@@ -1078,6 +1143,13 @@ R2_MACHINE_CONTRACT = {
             "tree": {"oid": SHIP_TREE},
             "license": {"sha256": SHIP_LICENSE_SHA256},
         },
+        "spine_go": {
+            "tag": "v0.7.0",
+            "tag_object": {"oid": SPINE_TAG_OBJECT},
+            "peeled_commit": {"commit": SPINE_COMMIT},
+            "tree": {"oid": SPINE_TREE},
+            "license": {"sha256": SPINE_LICENSE_SHA256},
+        },
         "eebus_go": {
             "tag": "v0.7.0",
             "tag_object": {"oid": EEBUS_TAG_OBJECT},
@@ -1408,6 +1480,18 @@ def validate_r2_fork_contract(body: str) -> None:
                 '`GOWORK=off GOTOOLCHAIN=local go list -mod=readonly -m -json all > "$SCRATCH/modules.json" && jq -S -c . "$SCRATCH/modules.json" > "$SCRATCH/modules.canonical.json" && sha256sum "$SCRATCH/modules.canonical.json"`',
             ),
             (
+                "module_identity_closure",
+                '`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go list -m all > "$SCRATCH/go-list-m-all.txt" && ! grep -q \'github.com/enbility/ship-go\' "$SCRATCH/go-list-m-all.txt" && ! grep -q \'github.com/enbility/spine-go\' "$SCRATCH/go-list-m-all.txt" && ! grep -q \'github.com/enbility/eebus-go\' "$SCRATCH/go-list-m-all.txt"`',
+            ),
+            (
+                "module_edge_closure",
+                '`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go mod graph > "$SCRATCH/go-mod-graph.txt" && ! grep -q \'github.com/enbility/ship-go\' "$SCRATCH/go-mod-graph.txt" && ! grep -q \'github.com/enbility/spine-go\' "$SCRATCH/go-mod-graph.txt" && ! grep -q \'github.com/enbility/eebus-go\' "$SCRATCH/go-mod-graph.txt"`',
+            ),
+            (
+                "eebus_go_service_dependency_closure",
+                '`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly go list -deps ./service > "$SCRATCH/go-list-deps-service.txt" && ! grep -q \'github.com/enbility/ship-go\' "$SCRATCH/go-list-deps-service.txt" && ! grep -q \'github.com/enbility/spine-go\' "$SCRATCH/go-list-deps-service.txt" && ! grep -q \'github.com/enbility/eebus-go\' "$SCRATCH/go-list-deps-service.txt"`',
+            ),
+            (
                 "eebusreg_adoption_source_sha",
                 "`git rev-parse HEAD` in the clean detached adoption checkout.",
             ),
@@ -1421,6 +1505,14 @@ def validate_r2_fork_contract(body: str) -> None:
             ),
         ],
         "R2 immutable closure commands",
+    )
+    section = body.split("## Dependency Fork Provenance And Release Policy", 1)[
+        1
+    ].split("\n## ", 1)[0]
+    require_markers(
+        " ".join(section.split()),
+        R2_DEPENDENCY_PROSE_MARKERS,
+        "R2 dependency closure prose",
     )
     inventory = coded_rows(
         body,
@@ -2293,6 +2385,92 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 "| `ship_go_fork` | `github.com/enbility/ship-go@v0.6.1` |",
             ),
             (
+                "spine_go_stage_removed",
+                validate_r2_fork_contract,
+                "| `spine_go_fork` | "
+                "`github.com/enbility/spine-go@v0.7.0^{commit}` | "
+                "`github.com/Project-Helianthus/helianthus-spine-go` | "
+                "`tag_object+peeled_commit+tree+license_provenance_digest` | "
+                "`reviewed_semver_prerelease` |",
+                "",
+            ),
+            (
+                "spine_and_eebus_stage_order_swapped",
+                validate_r2_fork_contract,
+                "| `spine_go_fork` | "
+                "`github.com/enbility/spine-go@v0.7.0^{commit}` | "
+                "`github.com/Project-Helianthus/helianthus-spine-go` | "
+                "`tag_object+peeled_commit+tree+license_provenance_digest` | "
+                "`reviewed_semver_prerelease` |\n"
+                "| `eebus_go_fork` | "
+                "`github.com/enbility/eebus-go@v0.7.0^{commit}` | "
+                "`github.com/Project-Helianthus/helianthus-eebus-go` | "
+                "`tag_object+peeled_commit+tree+license_provenance_digest` | "
+                "`reviewed_semver_prerelease` |",
+                "| `eebus_go_fork` | "
+                "`github.com/enbility/eebus-go@v0.7.0^{commit}` | "
+                "`github.com/Project-Helianthus/helianthus-eebus-go` | "
+                "`tag_object+peeled_commit+tree+license_provenance_digest` | "
+                "`reviewed_semver_prerelease` |\n"
+                "| `spine_go_fork` | "
+                "`github.com/enbility/spine-go@v0.7.0^{commit}` | "
+                "`github.com/Project-Helianthus/helianthus-spine-go` | "
+                "`tag_object+peeled_commit+tree+license_provenance_digest` | "
+                "`reviewed_semver_prerelease` |",
+            ),
+            (
+                "spine_go_canonical_module_changed",
+                validate_r2_fork_contract,
+                "| `spine_go_fork` | "
+                "`github.com/enbility/spine-go@v0.7.0^{commit}` | "
+                "`github.com/Project-Helianthus/helianthus-spine-go` |",
+                "| `spine_go_fork` | "
+                "`github.com/enbility/spine-go@v0.7.0^{commit}` | "
+                "`github.com/enbility/spine-go` |",
+            ),
+            (
+                "spine_go_prerelease_line_changed",
+                validate_r2_fork_contract,
+                "`v0.7.1-helianthus.<positive_integer>` line",
+                "`v0.7.2-helianthus.<positive_integer>` line",
+            ),
+            (
+                "transitive_upstream_return_allowed",
+                validate_r2_fork_contract,
+                "Any direct or transitive return to the upstream",
+                "Any direct return to the upstream",
+            ),
+            (
+                "module_identity_closure_not_executable",
+                validate_r2_fork_contract,
+                "| `module_identity_closure` | "
+                "`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly "
+                "go list -m all >",
+                "| `module_identity_closure` | "
+                "`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly "
+                "go list -m >",
+            ),
+            (
+                "module_edge_closure_not_executable",
+                validate_r2_fork_contract,
+                "| `module_edge_closure` | "
+                "`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly "
+                "go mod graph >",
+                "| `module_edge_closure` | "
+                "`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly "
+                "go mod edit >",
+            ),
+            (
+                "service_dependency_closure_not_executable",
+                validate_r2_fork_contract,
+                "| `eebus_go_service_dependency_closure` | "
+                "`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly "
+                "go list -deps ./service >",
+                "| `eebus_go_service_dependency_closure` | "
+                "`GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly "
+                "go list ./service >",
+            ),
+            (
                 "root_fallback_changed",
                 validate_r2_fork_contract,
                 "| `fallback_semantics` | "
@@ -2448,6 +2626,32 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
     def test_r2_machine_contract_rejects_machine_only_weakening(self) -> None:
         _, body = read_markdown(CANDIDATE)
         mutations = (
+            (
+                "spine_tag_object",
+                f"      oid: {SPINE_TAG_OBJECT}\n",
+                f"      oid: 4{SPINE_TAG_OBJECT[1:]}\n",
+            ),
+            (
+                "spine_peeled_commit",
+                f"      commit: {SPINE_COMMIT}\n",
+                f"      commit: 1{SPINE_COMMIT[1:]}\n",
+            ),
+            (
+                "spine_tree",
+                f"      oid: {SPINE_TREE}\n",
+                f"      oid: f{SPINE_TREE[1:]}\n",
+            ),
+            (
+                "spine_license_digest",
+                "    tree:\n"
+                f"      oid: {SPINE_TREE}\n"
+                "    license:\n"
+                f"      sha256: {SPINE_LICENSE_SHA256}\n",
+                "    tree:\n"
+                f"      oid: {SPINE_TREE}\n"
+                "    license:\n"
+                f"      sha256: d{SPINE_LICENSE_SHA256[1:]}\n",
+            ),
             ("ipv6", "    - ipv6\n", "    - ipv6_bypass\n"),
             (
                 "restart_charge",
@@ -2649,11 +2853,18 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
                 "failures may also be carried.",
             ),
             (
-                "adoption_stage_not_required",
+                "spine_stage_not_required",
                 "| `required_repo_stages` | "
-                "`ship_go_fork+eebus_go_bridge+eebusreg_adoption` |",
+                "`ship_go_fork+spine_go_fork+eebus_go_fork+eebusreg_adoption` |",
                 "| `required_repo_stages` | "
-                "`ship_go_fork+eebus_go_bridge` |",
+                "`ship_go_fork+eebus_go_fork+eebusreg_adoption` |",
+            ),
+            (
+                "three_stage_precondition_restored",
+                "| `entry_precondition` | "
+                "`four_repo_stages_merged+predial_evidence_bound+closure_pass` |",
+                "| `entry_precondition` | "
+                "`three_repo_stages_merged+predial_evidence_bound+closure_pass` |",
             ),
             (
                 "closure_accepts_any_carried_failure",
