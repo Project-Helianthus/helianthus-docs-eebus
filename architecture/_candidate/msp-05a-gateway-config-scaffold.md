@@ -77,7 +77,8 @@ Paths are references, not secret-bearing inputs. M5A trims surrounding
 whitespace and rejects NUL. It does not open, create, canonicalize, follow, or
 validate a path. Absolute-path, root ownership, nofollow, permissions,
 host-binding, and atomic durability checks belong to MSP-05B before runtime
-construction. Certificate and private-key contents are never CLI values.
+construction. Certificate and private-key contents are never CLI values,
+never environment values, never logged, and never included in snapshots.
 
 Empty lists never mean all interfaces or all subnets. M5B must reject enabled
 activation unless the explicit interface and subnet selections resolve to a

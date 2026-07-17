@@ -145,6 +145,23 @@ class MSP05AGatewayConfigContractTest(unittest.TestCase):
         self.assertIn("`closed` is the only M5A pairing-window value", body)
         self.assertIn("Empty lists never mean all interfaces or all subnets", body)
 
+    def test_fail_closed_activation_handoff_is_frozen(self) -> None:
+        _, body = self.contract()
+        normalized = " ".join(body.split())
+        required = (
+            "`ListenPort=0` means unconfigured and inert",
+            "It never requests an ephemeral port",
+            "No parser fallback may expand an invalid or empty selection to every host interface",
+            "fail closed before the first filesystem or network side effect",
+            "enabled activation must require a port from 1 through 65535",
+            "explicit interface and subnet selections",
+            "valid protected identity and trust-store paths",
+            "the M4 coordinator state",
+            "a permitted listener policy",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
     def test_phase_ownership_prevents_side_effects(self) -> None:
         _, body = self.contract()
         rows = table_rows(body, "## Phase Ownership")
@@ -182,6 +199,9 @@ class MSP05AGatewayConfigContractTest(unittest.TestCase):
             "does not modify `router.BusEventRouter`",
             "does not modify existing eBUS registry or semantic output",
             "Certificate and private-key contents are never CLI values",
+            "never environment values",
+            "never logged",
+            "never included in snapshots",
             "M5A cannot assert trust or durable pairing",
         )
         for phrase in required:
