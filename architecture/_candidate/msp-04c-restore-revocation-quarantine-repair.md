@@ -1515,7 +1515,8 @@ implement or freeze any dependency fork or a platform provider. It does not
 implement a gateway, MCP, Portal, Home Assistant, or other consumer. Fork
 maintenance, provider backends, and platform attestations remain separate
 conformance work; consumer implementation remains in its downstream milestone
-and repository.
+and repository. The resulting closed mapping is specified by the
+[candidate MSP-045 trust/admin projection contract][projection-contract].
 
 ## Required Tests And Exclusions
 
@@ -1562,5 +1563,6 @@ SSH-only and its redacted result is supporting evidence only.
 [meta-issue]: https://github.com/Project-Helianthus/helianthus-execution-plans/issues/58
 [freeze-plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L571-L589
 [plan-row]: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/f5c095935f8a8a67a7873ff349ddaff86eb41994/multi-runtime-semantic-platform.locked/92-m0-issue-matrix.yaml#L551-L570
+[projection-contract]: msp-045-trust-admin-projection.md
 [store-contract]: msp-04a-persistent-store.md
 [trust-contract]: msp-04b-first-trust-admin-local.md

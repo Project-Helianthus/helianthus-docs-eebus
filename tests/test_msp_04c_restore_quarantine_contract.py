@@ -361,7 +361,9 @@ MSP045_PROSE = [
         "platform provider. It does not implement a gateway, MCP, Portal, Home "
         "Assistant, or other consumer. Fork maintenance, provider backends, and "
         "platform attestations remain separate conformance work; consumer "
-        "implementation remains in its downstream milestone and repository."
+        "implementation remains in its downstream milestone and repository. "
+        "The resulting closed mapping is specified by the [candidate MSP-045 "
+        "trust/admin projection contract][projection-contract]."
     ),
 ]
 

@@ -394,7 +394,7 @@ UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
 )
 UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
 PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
-    "aabc70602faa89a7220cf1dac98bda52" "79adad19b313fe468e6872518456882d": {
+    "a326142069d3f27dec944a1a746b48b9" "bd7b12e57666a577c3c0e0a82fca016b": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -574,6 +574,18 @@ FIXTURE_REVIEWED_CROSS_SEED = {
     **FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE,
 }
 MARKDOWN = MarkdownIt("commonmark", {"html": True})
+MSP045_CONTRACT_PATH = "architecture/_candidate/msp-045-trust-admin-projection.md"
+MSP045_NORMATIVE_TABLE_KEYS = {
+    "Contract Identity And Ownership": "Boundary",
+    "Combined State Product": "Product class",
+    "Closed Projection Precedence": "Priority",
+    "Existing Public Field Mapping": "Public field",
+    "Runtime Degradation Precedence": "Priority",
+    "Candidate Absence Rule": "Candidate condition",
+    "Publication Linearization": "Linearized outcome",
+    "Startup And Restart Publication": "Classified product",
+    "Rollback Ledger": "Case",
+}
 FORBIDDEN_CROSS_SEED_HEADINGS = {
     "requirements",
     "acceptance criteria",
@@ -1498,6 +1510,96 @@ def _visible_headings(text: str) -> set[str]:
             in_heading = False
     _close_html(html_parser)
     return headings
+
+
+def _markdown_table_cells(line: str) -> list[str]:
+    return [
+        cell.replace(r"\|", "|").strip()
+        for cell in re.split(r"(?<!\\)\|", line.strip("|"))
+    ]
+
+
+def _msp045_structure_errors(rel: str, text: str) -> list[str]:
+    if rel != MSP045_CONTRACT_PATH:
+        return []
+
+    body = _markdown_body(text)
+    lines = body.splitlines()
+    headings: list[tuple[str, int]] = []
+    tokens = MARKDOWN.parse(body)
+    for index, token in enumerate(tokens[:-1]):
+        if token.type != "heading_open" or token.map is None:
+            continue
+        inline = tokens[index + 1]
+        if inline.type == "inline":
+            headings.append((inline.content, token.map[0]))
+
+    errors: list[str] = []
+    for heading, key_column in MSP045_NORMATIVE_TABLE_KEYS.items():
+        matches = [line for title, line in headings if title == heading]
+        if len(matches) != 1:
+            errors.append(
+                f"{rel}: normative heading {heading!r} must appear exactly once"
+            )
+            continue
+
+        start = matches[0] + 1
+        end = min(
+            (line for _, line in headings if line > matches[0]),
+            default=len(lines),
+        )
+        table_blocks: list[list[str]] = []
+        line_index = start
+        while line_index < end:
+            if not lines[line_index].startswith("|"):
+                line_index += 1
+                continue
+            block: list[str] = []
+            while line_index < end and lines[line_index].startswith("|"):
+                block.append(lines[line_index])
+                line_index += 1
+            table_blocks.append(block)
+
+        if len(table_blocks) != 1:
+            errors.append(
+                f"{rel}: {heading}: normative heading must contain exactly one table"
+            )
+            continue
+        table = table_blocks[0]
+        if len(table) < 3:
+            errors.append(f"{rel}: {heading}: normative table is incomplete")
+            continue
+
+        headers = _markdown_table_cells(table[0])
+        separator = _markdown_table_cells(table[1])
+        if (
+            len(headers) != len(separator)
+            or not all(re.fullmatch(r":?-{3,}:?", cell) for cell in separator)
+            or key_column not in headers
+        ):
+            errors.append(f"{rel}: {heading}: normative table header is invalid")
+            continue
+
+        key_index = headers.index(key_column)
+        seen_keys: set[str] = set()
+        for row in table[2:]:
+            values = _markdown_table_cells(row)
+            if len(values) != len(headers):
+                errors.append(f"{rel}: {heading}: normative table row is malformed")
+                continue
+            raw_key = values[key_index]
+            key = (
+                raw_key[1:-1]
+                if raw_key.startswith("`") and raw_key.endswith("`")
+                else raw_key
+            )
+            if key in seen_keys:
+                errors.append(
+                    f"{rel}: {heading}: duplicate normative table key {key!r}"
+                )
+            seen_keys.add(key)
+
+    return errors
 
 
 def _contains_summary_normative_requirements(text: str) -> bool:
@@ -2735,6 +2837,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             errors.append(f"{rel}: owner_domain must be {expected_domain!r}")
         if metadata.get("license") != expected_license:
             errors.append(f"{rel}: license must be {expected_license!r}")
+        errors.extend(_msp045_structure_errors(rel, page_text))
         errors.extend(
             _provenance_errors(
                 root,
