@@ -34,6 +34,11 @@ surface.
 
 ## Gateway To Runtime Mapping
 
+This is the required `MSP-05A-R1` mapping, not a claim about the already merged
+inert M5A shape. `StateRoot` and `DiscoveryEnabled` are explicit gateway
+additions in M5A-R1. The existing three material-path fields stay present for
+source compatibility but enabled activation accepts them only when empty.
+
 | Gateway input | Runtime v2 input | Rule |
 | --- | --- | --- |
 | `Enabled` | `Enabled` | `direct` |
@@ -64,8 +69,8 @@ deterministically sorted SKIs without widening or truncation.
 
 | Stage | Required result |
 | --- | --- |
-| `disabled_gate` | return-disabled-without-effects |
 | `configuration_validation` | complete-lossless-product-valid |
+| `disabled_gate` | return-disabled-without-effects |
 | `state_root_validation` | protected-root-valid |
 | `protected_material_load` | identity-valid-for-host |
 | `trust_state_load` | durable-state-consistent |
@@ -84,8 +89,8 @@ shutdown.
 
 | Error class | Terminal meaning |
 | --- | --- |
-| `disabled` | feature-not-requested |
 | `invalid_configuration` | mapping-or-cross-field-invalid |
+| `disabled` | feature-not-requested |
 | `unsafe_state_root` | root-or-file-policy-invalid |
 | `protected_material_unavailable` | identity-cannot-load |
 | `trust_state_unavailable` | durable-trust-cannot-load |
@@ -97,6 +102,11 @@ attempt. A later networking condition cannot mask an earlier configuration,
 filesystem, identity, or trust failure. Runtime status may retain a redacted
 structured reason, but it cannot include protected material or raw peer
 identity.
+
+Configuration validation is pure and runs before the disabled return. Thus
+`Enabled=false` with `DiscoveryEnabled=true`, a non-empty material path, or any
+other active-only input is `invalid_configuration`; only the all-inert disabled
+product returns `disabled`, with no filesystem or network effect.
 
 ## Protected Identity And Trust
 

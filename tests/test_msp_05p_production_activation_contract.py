@@ -11,9 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 ARCH_REL = "architecture/_candidate/msp-05p-production-activation.md"
 PROTOCOL_REL = "protocols/_candidate/msp-05p-scoped-ship-listener.md"
 API_REL = "api/_candidate/msp-05p-eebusruntime-v2.md"
+M5A_REL = "architecture/_candidate/msp-05a-gateway-config-scaffold.md"
 ARCH = ROOT / ARCH_REL
 PROTOCOL = ROOT / PROTOCOL_REL
 API = ROOT / API_REL
+M5A = ROOT / M5A_REL
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -150,6 +152,22 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, normalized)
 
+        _, m5a_body = read_markdown(M5A)
+        m5a_fields = {
+            code(row["Go field"])
+            for row in table_rows(m5a_body, "## Frozen Configuration Shape")
+        }
+        self.assertNotIn("StateRoot", m5a_fields)
+        self.assertNotIn("DiscoveryEnabled", m5a_fields)
+        m5a_normalized = " ".join(m5a_body.split())
+        for phrase in (
+            "MSP-05P production contract supersedes the earlier M5B activation handoff",
+            "`StateRoot` and `DiscoveryEnabled` are deliberate `MSP-05A-R1` additions",
+            "legacy certificate, private-key, and trust-store path fields remain source-compatible but must be empty",
+            "They are not aliases for `StateRoot`",
+        ):
+            self.assertIn(phrase, m5a_normalized)
+
     def test_activation_order_and_error_precedence_prevent_partial_effects(self) -> None:
         self.require_contracts()
         _, body = read_markdown(ARCH)
@@ -157,8 +175,8 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         self.assertEqual(
             [code(row["Stage"]) for row in stages],
             [
-                "disabled_gate",
                 "configuration_validation",
+                "disabled_gate",
                 "state_root_validation",
                 "protected_material_load",
                 "trust_state_load",
@@ -172,8 +190,8 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         self.assertEqual(
             [code(row["Error class"]) for row in precedence],
             [
-                "disabled",
                 "invalid_configuration",
+                "disabled",
                 "unsafe_state_root",
                 "protected_material_unavailable",
                 "trust_state_unavailable",
@@ -219,6 +237,9 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
             "initial publication failure rolls back the listener",
             "post-ready discovery loss is explicit `missing-discovery` degradation",
             "does not imply an open pairing window",
+            "post-ready discovery loss retains the exact listener and established sessions",
+            "cannot report ready or empty success, widen the listener, open pairing, accept new trust, or terminate an established session",
+            "candidate safety constraints, not observed requirements",
         ):
             self.assertIn(phrase, normalized)
 
@@ -226,7 +247,7 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         self.require_contracts()
         _, body = read_markdown(API)
         rows = table_rows(body, "## Candidate Public Additions")
-        got = {code(row["Declaration"]): code(row["Shape"]) for row in rows}
+        got = {code(row["Public name"]): code(row["Shape"]) for row in rows}
         self.assertEqual(
             got,
             {
@@ -234,6 +255,7 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
                 "ListenAddress": "netip.AddrPort",
                 "DiscoveryEnabled": "bool",
                 "PairingPolicy": "PairingPolicyV2",
+                "PairingPolicyV2": "string",
                 "PairingPolicyV2Closed": "constant",
                 "NewV2": "func(ConfigV2)(Runtime,error)",
             },
@@ -248,6 +270,29 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
             "No public trust or pairing mutation is added",
         ):
             self.assertIn(phrase, normalized)
+
+        go_blocks = re.findall(r"```go\n(.*?)\n```", body, flags=re.DOTALL)
+        self.assertEqual(len(go_blocks), 1)
+        self.assertEqual(
+            " ".join(go_blocks[0].split()),
+            " ".join(
+                """type PairingPolicyV2 string
+
+const PairingPolicyV2Closed PairingPolicyV2 = "closed"
+
+type ConfigV2 struct {
+    Enabled bool
+    StateRoot string
+    Interface string
+    ListenAddress netip.AddrPort
+    DiscoveryEnabled bool
+    Remotes []Remote
+    PairingPolicy PairingPolicyV2
+}
+
+func NewV2(config ConfigV2) (Runtime, error)""".split()
+            ),
+        )
 
     def test_identity_trust_and_secret_boundaries_remain_closed(self) -> None:
         self.require_contracts()

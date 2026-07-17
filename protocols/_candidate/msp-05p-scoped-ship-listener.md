@@ -21,9 +21,24 @@ release_bundle: "false"
 
 This candidate is tracked by
 [issue 36](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/36).
-It derives a production listener policy from publishable G17/G19 evidence. It
-does not reproduce restricted specifications, publish private endpoint data,
-or claim generic eeBUS interoperability.
+It uses publishable G17/G19 transport evidence as an input to a normative
+production design. It does not reproduce restricted specifications, publish
+private endpoint data, or claim generic eeBUS interoperability.
+
+## Claim Classification
+
+| Claim | Authority |
+| --- | --- |
+| local-announcement-visible-to-VR940 | observed-G17 |
+| inbound-VR940-client-direction | observed-G19 |
+| exact-address-bind | normative-design-hypothesis |
+| bind-before-publish | normative-design-hypothesis |
+| initial-failure-rollback | normative-design-hypothesis |
+| post-ready-degradation | normative-design-hypothesis |
+
+G17/G19 supports direction and bounded announcement behavior only. Exact bind
+scope, ordering, rollback, and degradation are candidate safety constraints,
+not observed requirements attributed to the device or protocol specification.
 
 The listener accepts inbound SHIP only on the one address selected by the
 gateway-to-runtime mapping. It never binds an unspecified or wildcard address.
@@ -46,9 +61,11 @@ with `TTL=0` before listener close when a publication was active.
 
 An initial publication failure rolls back the listener and returns
 `discovery_unavailable`; no ready state is emitted. After ready, post-ready
-discovery loss is explicit `missing-discovery` degradation. The runtime keeps
-the exact listener only when policy permits degraded operation, retries with
-bounded backoff, and never reports an empty success.
+discovery loss is explicit `missing-discovery` degradation. The post-ready
+discovery loss retains the exact listener and established sessions and retries
+publication with bounded backoff. It cannot report ready or empty success,
+widen the listener, open pairing, accept new trust, or terminate an established
+session solely because discovery is unavailable.
 
 Discovery advertises reachability only. It does not imply an open pairing
 window, trust, authorization, a connected session, or SPINE readiness. Pairing

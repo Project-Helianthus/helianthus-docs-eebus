@@ -121,11 +121,17 @@ M5A cannot assert trust or durable pairing.
 
 ## Activation Handoff
 
-MSP-05B consumes the frozen shape and owns all activation validation. At a
-minimum, enabled activation must require a port from 1 through 65535, explicit
-interface and subnet selections, valid protected identity and trust-store
-paths, the M4 coordinator state, and a permitted listener policy. Any missing,
-ambiguous, unsupported, or future value fails before runtime construction.
+The MSP-05P production contract supersedes the earlier M5B activation handoff
+without changing this inert M5A source shape. `StateRoot` and
+`DiscoveryEnabled` are deliberate `MSP-05A-R1` additions; neither is inferred
+from an M5A field. The legacy certificate, private-key, and trust-store path
+fields remain source-compatible but must be empty under the revised production
+contract. They are not aliases for `StateRoot`.
+
+M5A-R1 follows the runtime v2 and scoped-listener prerequisites. It must add the
+two inputs explicitly and preserve every existing field until the gateway can
+map the complete configuration product without loss. Any missing, ambiguous,
+unsupported, or future value fails before runtime construction.
 
 mDNS remains separately policy-gated. Pairing closed is not permission to
 advertise. Runtime construction is not permission to bind. A valid bind is not

@@ -34,14 +34,40 @@ only after the M5A configuration mapping and all production prerequisites pass.
 
 ## Candidate Public Additions
 
-| Declaration | Shape | Purpose |
+| Public name | Shape | Location |
 | --- | --- | --- |
-| `ConfigV2` | `struct` | additive-production-input |
-| `ListenAddress` | `netip.AddrPort` | exact-listener-endpoint |
-| `DiscoveryEnabled` | `bool` | independent-publication-policy |
-| `PairingPolicy` | `PairingPolicyV2` | closed-policy-input |
-| `PairingPolicyV2Closed` | `constant` | only-accepted-production-value |
-| `NewV2` | `func(ConfigV2)(Runtime,error)` | fail-closed-constructor |
+| `ConfigV2` | `struct` | package-type |
+| `ListenAddress` | `netip.AddrPort` | ConfigV2-field |
+| `DiscoveryEnabled` | `bool` | ConfigV2-field |
+| `PairingPolicy` | `PairingPolicyV2` | ConfigV2-field |
+| `PairingPolicyV2` | `string` | package-type |
+| `PairingPolicyV2Closed` | `constant` | package-constant |
+| `NewV2` | `func(ConfigV2)(Runtime,error)` | package-function |
+
+## Exact Go Shape
+
+```go
+type PairingPolicyV2 string
+
+const PairingPolicyV2Closed PairingPolicyV2 = "closed"
+
+type ConfigV2 struct {
+    Enabled          bool
+    StateRoot        string
+    Interface        string
+    ListenAddress    netip.AddrPort
+    DiscoveryEnabled bool
+    Remotes          []Remote
+    PairingPolicy    PairingPolicyV2
+}
+
+func NewV2(config ConfigV2) (Runtime, error)
+```
+
+The package imports `net/netip` for the one standard-library endpoint type.
+`NewV2` rejects every `PairingPolicyV2` value except
+`PairingPolicyV2Closed`. No field is optional once enabled, except
+`DiscoveryEnabled=false` and an empty `Remotes` allowlist.
 
 `ConfigV2` also carries the existing enabled flag, protected state root, and
 normalized remote allowlist without changing their value meaning. The endpoint
