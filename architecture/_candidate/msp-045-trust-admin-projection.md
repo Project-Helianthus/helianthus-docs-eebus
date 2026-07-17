@@ -59,14 +59,17 @@ reduces that product through the closed precedence below.
 
 | Product class | Coordinator-owned facts | Allowed projection class |
 | --- | --- | --- |
-| `indeterminate` | Any incomplete, ambiguous, recovery, or unknown-enum fact. | `unknown+paired_false` |
-| `identity_unavailable` | Protected identity is unavailable after the indeterminate check. | `unknown+certificate_unavailable` |
-| `terminal_denial` | Revoked, tombstoned, quarantined, corrupt, or admin-held. | `denied+denied-trust` |
-| `durably_trusted` | Paired-trusted with one valid, active, trusted, allowlisted, reconnectable, non-tombstoned association in the same lineage. | `paired_or_liveness_degraded` |
-| `not_yet_trusted` | Unpaired, open, candidate, or committing before durable commit. | `unpaired+candidate_private` |
+| `structural_indeterminate` | Exactly `CORRUPT_STORE`, `DURABILITY_UNKNOWN`, `HOST_BINDING_MISMATCH`, `CLONE_DETECTED`, `MANIFEST_GENERATION_ROLLBACK`, `CONTROL_EPOCH_ROLLBACK`, `REOPEN_IN_PROGRESS`, `RECONCILIATION_IN_PROGRESS`, `REPAIR_IN_PROGRESS`, or `UNKNOWN_ENUM`. | `unknown+paired_false+denied-trust` |
+| `terminal_denial` | Revoked, tombstoned, admin-held, backoff-held, or otherwise quarantined after no structural-indeterminate reason matched. | `denied+denied-trust` |
+| `identity_unavailable` | Protected identity is unavailable after the structural and terminal-denial checks. | `unknown+certificate_unavailable` |
+| `durably_trusted` | Paired-trusted only after the store commit and exact protected-anchor finalization are both durable, with one valid, active, trusted, allowlisted, reconnectable, non-tombstoned association in the same lineage. | `paired_or_liveness_degraded` |
+| `not_yet_trusted` | Unpaired or open durable state, or candidate flow after the ephemeral candidate has been excluded from public enumeration. | `unpaired_existing_only+candidate_absent` |
 
 There are no additional product classes. Missing or future enum values enter
-`indeterminate`; they do not fall through to a permissive state.
+`structural_indeterminate`; they do not fall through to a permissive state.
+The structural facts above are an explicit closed structural-state set.
+`association_incomplete` is not a structural unknown; it is the normal volatile
+candidate flow governed only by the candidate-absence and unpaired rule below.
 
 ## Closed Projection Precedence
 
@@ -75,22 +78,27 @@ row.
 
 | Priority | Coordinator-owned condition | PairingObservationV1.State | ServiceV1.Paired | Trust degradation |
 | --- | --- | --- | --- | --- |
-| `1` | `incomplete\|ambiguous\|reopen\|reconcile\|repair\|unknown-enum` | `unknown` | `false` | `denied-trust` |
-| `2` | `missing-protected-identity` | `unknown` | `false` | `certificate-unavailable` |
-| `3` | `revoked\|tombstoned\|quarantined\|corrupt\|admin-held` | `denied` | `false` | `denied-trust` |
-| `4` | `PAIRED_TRUSTED+same-lineage+active+trusted+allowlisted+reconnectable+non-tombstoned` | `paired` | `true` | `evaluate-liveness` |
-| `5` | `UNPAIRED_LOCKED\|PAIRING_CLOSED\|OPEN_EMPTY\|CANDIDATE_PENDING\|COMMITTING-before-durable-commit` | `unpaired` | `false` | `evaluate-liveness` |
+| `1` | `CORRUPT_STORE\|DURABILITY_UNKNOWN\|HOST_BINDING_MISMATCH\|CLONE_DETECTED\|MANIFEST_GENERATION_ROLLBACK\|CONTROL_EPOCH_ROLLBACK\|REOPEN_IN_PROGRESS\|RECONCILIATION_IN_PROGRESS\|REPAIR_IN_PROGRESS\|UNKNOWN_ENUM` | `unknown` | `false` | `denied-trust` |
+| `2` | `REVOKED\|TOMBSTONED\|QUARANTINED\|ADMIN_HOLD\|BACKOFF_ACTIVE` | `denied` | `false` | `denied-trust` |
+| `3` | `missing-protected-identity` | `unknown` | `false` | `certificate-unavailable` |
+| `4` | `PAIRED_TRUSTED+store-and-protected-anchor-finalized+same-lineage+active+trusted+allowlisted+reconnectable+non-tombstoned` | `paired` | `true` | `evaluate-liveness` |
+| `5` | `UNPAIRED_LOCKED\|PAIRING_CLOSED\|OPEN_EMPTY\|association_incomplete\|CANDIDATE_PENDING\|COMMITTING-before-store-and-anchor-durable` | `unpaired` | `false` | `evaluate-liveness` |
 | `6` | `SHIP-callback` | `no-override-of-rows-1-through-5` | `no-override-of-rows-1-through-5` | `liveness-only` |
 
-An incomplete, ambiguous, recovery, or unknown condition is never `paired`.
-Committing remains unpaired before durable commit. The candidate identity and
-candidate details remain private in every state. A stale callback after
-revocation or restart cannot resurrect `paired`.
+Every condition that produces `denied-trust` precedes
+`missing-protected-identity`; therefore denial outranks
+`certificate-unavailable` everywhere in this contract. Structural and terminal
+denial is never `paired`. Rows 4 and 5 operate per durable remote record only
+after candidate exclusion. In row 5, candidate conditions classify coordinator
+status but create no candidate row; only separately existing durable records
+can remain `unpaired`. A stale callback after revocation or restart cannot
+resurrect `paired`.
 
 ## Existing Public Field Mapping
 
-All fields below are emitted from the same atomic capture. Their existing
-types and allowed values remain unchanged.
+For public rows that remain after candidate exclusion, all fields below are
+emitted from the same atomic capture. Their existing types and allowed values
+remain unchanged.
 
 | Public field | Projection source | Constraint |
 | --- | --- | --- |
@@ -101,15 +109,35 @@ types and allowed values remain unchanged.
 
 ### Runtime Degradation Precedence
 
-Trust and certificate degradation outrank disconnect and absence of visible
-services. The reducer uses the first applicable existing reason.
+The exact first-match order is `denied-trust` first, then
+`certificate-unavailable`, then disconnect, then absence of visible services.
+Every prose statement and projection row uses this same order.
 
 | Priority | Reason |
 | --- | --- |
-| `1` | `certificate-unavailable` |
-| `2` | `denied-trust` |
+| `1` | `denied-trust` |
+| `2` | `certificate-unavailable` |
 | `3` | `remote-disconnect` |
 | `4` | `no-visible-services` |
+
+## Candidate Absence Rule
+
+The ephemeral candidate is removed before public collection enumeration. It
+does not create any `PairingObservationV1`, `ServiceV1`, `SessionV1`, or topology row.
+No redacted candidate identity or placeholder row is emitted. Candidate
+arrival, `association_incomplete`, confirmation, expiry, cancellation, and
+pre-durable committing form one flow that does not change public cardinality,
+ordering, or timing.
+
+| Candidate condition | Candidate public effect | Existing durable remote rows |
+| --- | --- | --- |
+| `CANDIDATE_PENDING\|association_incomplete` | `absent-from-all-public-collections` | `unchanged-or-unpaired-from-durable-record-only` |
+| `COMMITTING-before-store-and-anchor-durable` | `absent-from-all-public-collections` | `unchanged-or-unpaired-from-durable-record-only` |
+
+Existing configured durable remote rows may remain `unpaired`, but only from
+their durable record and coordinator classification. They cannot acquire a
+candidate-derived identity, service, session, topology relationship, count,
+ordering position, or timestamp.
 
 ## Admission, Admin, And Privacy Boundary
 
@@ -127,24 +155,44 @@ contract.
 
 State transitions publish after durable or terminal linearization even without
 a network callback. Publication observes the coordinator result; callback
-arrival is not the trust linearization point.
+arrival is not the trust linearization point. A store `commit_durable` result
+alone never publishes `paired`; the exact protected-anchor finalization must
+also be durably complete.
 
 | Linearized outcome | Required publication | Network callback required |
 | --- | --- | --- |
-| `commit_durable` | `paired` | `no` |
-| `commit_not_published` | `unpaired` | `no` |
-| `durability_unknown\|reopen\|reconcile\|repair` | `unknown` | `no` |
-| `revoked\|tombstoned\|quarantined\|corrupt\|admin-held` | `denied` | `no` |
+| `store-commit-durable+protected-anchor-finalization-durable` | `paired` | `no` |
+| `commit_not_published+protected-anchor-clear-durable` | `unpaired-with-candidate-absent` | `no` |
+| `commit_applied_maintenance_failed\|commit_durability_unknown\|interruption_or_descriptor_mismatch\|protected-anchor-finalization-unknown` | `unknown+paired-false+denied-trust` | `no` |
+| `REVOKED\|TOMBSTONED\|QUARANTINED\|ADMIN_HOLD\|BACKOFF_ACTIVE` | `denied` | `no` |
 | `disconnect\|reconnect-callback` | `liveness-only` | `callback-is-event` |
+
+Maintenance failure, interruption, descriptor mismatch, and every
+durability-unknown store or protected-anchor outcome fail closed, keep
+`ServiceV1.Paired=false`, and never publish `paired`.
+
+## Startup And Restart Publication
+
+On successful startup or restart, the coordinator publishes each durable
+classification after reload, structural classification, and protected-anchor
+checks complete, without waiting for a callback from the SHIP path. These are
+classification publications, not liveness promotions.
+
+| Classified product | Required publication | Network callback required |
+| --- | --- | --- |
+| `durably_trusted+store-and-protected-anchor-finalized` | `paired` | `no` |
+| `terminal_denial` | `denied` | `no` |
+| `identity_unavailable` | `unknown+certificate-unavailable` | `no` |
+| `not_yet_trusted` | `unpaired-with-candidate-absent` | `no` |
 
 ## Rollback Ledger
 
 | Case | Projection | Rollback rule |
 | --- | --- | --- |
-| `pre-durable-cancel\|expiry\|failure` | `unpaired` | `no-candidate-publication` |
-| `commit_durable` | `paired` | `callback-cannot-roll-back` |
-| `commit_not_published` | `unpaired` | `no-trust-and-no-candidate-publication` |
-| `durability_unknown\|repair-in-progress` | `unknown+denied-trust` | `fail-closed-until-terminal` |
+| `pre-durable-cancel\|expiry\|failure\|association_incomplete` | `candidate-absent` | `no-candidate-publication` |
+| `store-commit-durable+protected-anchor-finalization-durable` | `paired` | `callback-cannot-roll-back` |
+| `commit_not_published+protected-anchor-clear-durable` | `unpaired-with-candidate-absent` | `no-trust-and-no-candidate-publication` |
+| `commit_applied_maintenance_failed\|commit_durability_unknown\|interruption_or_descriptor_mismatch\|protected-anchor-finalization-unknown` | `unknown+denied-trust` | `fail-closed-until-terminal` |
 | `revocation\|tombstone-terminal` | `denied+denied-trust` | `callback-cannot-resurrect` |
 
 ## Migration Boundary

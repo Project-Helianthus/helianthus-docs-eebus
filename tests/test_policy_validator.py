@@ -1032,6 +1032,56 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("invalid YAML", result.stderr)
 
+    def test_msp045_duplicate_projection_priority_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture" / "_candidate" / (
+                "msp-045-trust-admin-projection.md"
+            )
+            text = page.read_text(encoding="utf-8")
+            row_start = text.index("| `5` | ")
+            row_end = text.index("\n", row_start)
+            duplicate = (
+                "\n| `5` | `conflicting-condition` | `paired` | `true` |"
+                " `evaluate-liveness` |"
+            )
+            page.write_text(
+                text[:row_end] + duplicate + text[row_end:],
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "Closed Projection Precedence: duplicate normative table key '5'",
+                result.stderr,
+            )
+
+    def test_msp045_duplicate_normative_heading_and_table_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "architecture" / "_candidate" / (
+                "msp-045-trust-admin-projection.md"
+            )
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "\n## Closed Projection Precedence\n\n"
+                + "| Priority | Coordinator-owned condition | PairingObservationV1.State |"
+                + " ServiceV1.Paired | Trust degradation |\n"
+                + "| --- | --- | --- | --- | --- |\n"
+                + "| `1` | `conflicting-condition` | `paired` | `true` | `evaluate-liveness` |\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "normative heading 'Closed Projection Precedence' must appear exactly once",
+                result.stderr,
+            )
+
     def test_issue_config_is_strict_and_disables_blank_issues(self) -> None:
         mutations = {
             "missing": None,

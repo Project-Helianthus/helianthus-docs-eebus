@@ -24,6 +24,17 @@ PUBLIC_API_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" + "6d34a197e0653e6b169d103418bfcc8c"
 )
 PAIRING_TRANSPORT = "SH" + "IP"
+NORMATIVE_TABLES = (
+    "## Contract Identity And Ownership",
+    "## Combined State Product",
+    "## Closed Projection Precedence",
+    "## Existing Public Field Mapping",
+    "### Runtime Degradation Precedence",
+    "## Candidate Absence Rule",
+    "## Publication Linearization",
+    "## Startup And Restart Publication",
+    "## Rollback Ledger",
+)
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -33,7 +44,12 @@ def read_markdown(path: Path) -> tuple[dict[str, str], str]:
 
 
 def table_rows(body: str, heading: str) -> list[dict[str, str]]:
-    lines = body.split(heading, 1)[1].splitlines()
+    matches = list(re.finditer(rf"(?m)^{re.escape(heading)}$", body))
+    if len(matches) != 1:
+        raise AssertionError(f"{heading} must appear exactly once, got {len(matches)}")
+    section = body[matches[0].end() :]
+    next_heading = re.search(r"(?m)^#{1,6} .+$", section)
+    lines = section[: next_heading.start() if next_heading else None].splitlines()
     start = next(index for index, line in enumerate(lines) if line.startswith("|"))
 
     def cells(line: str) -> list[str]:
@@ -72,12 +88,15 @@ def coded_table(
     key_column: str,
     value_columns: tuple[str, ...],
 ) -> dict[str, tuple[str, ...]]:
-    return {
-        code_value(row[key_column]): tuple(
+    result: dict[str, tuple[str, ...]] = {}
+    for row in table_rows(body, heading):
+        key = code_value(row[key_column])
+        if key in result:
+            raise AssertionError(f"{heading} contains duplicate key: {key}")
+        result[key] = tuple(
             code_value(row[column]) for column in value_columns
         )
-        for row in table_rows(body, heading)
-    }
+    return result
 
 
 class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
@@ -168,31 +187,31 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             rows,
             {
                 "1": (
-                    "incomplete|ambiguous|reopen|reconcile|repair|unknown-enum",
+                    "CORRUPT_STORE|DURABILITY_UNKNOWN|HOST_BINDING_MISMATCH|CLONE_DETECTED|MANIFEST_GENERATION_ROLLBACK|CONTROL_EPOCH_ROLLBACK|REOPEN_IN_PROGRESS|RECONCILIATION_IN_PROGRESS|REPAIR_IN_PROGRESS|UNKNOWN_ENUM",
                     "unknown",
                     "false",
                     "denied-trust",
                 ),
                 "2": (
+                    "REVOKED|TOMBSTONED|QUARANTINED|ADMIN_HOLD|BACKOFF_ACTIVE",
+                    "denied",
+                    "false",
+                    "denied-trust",
+                ),
+                "3": (
                     "missing-protected-identity",
                     "unknown",
                     "false",
                     "certificate-unavailable",
                 ),
-                "3": (
-                    "revoked|tombstoned|quarantined|corrupt|admin-held",
-                    "denied",
-                    "false",
-                    "denied-trust",
-                ),
                 "4": (
-                    "PAIRED_TRUSTED+same-lineage+active+trusted+allowlisted+reconnectable+non-tombstoned",
+                    "PAIRED_TRUSTED+store-and-protected-anchor-finalized+same-lineage+active+trusted+allowlisted+reconnectable+non-tombstoned",
                     "paired",
                     "true",
                     "evaluate-liveness",
                 ),
                 "5": (
-                    "UNPAIRED_LOCKED|PAIRING_CLOSED|OPEN_EMPTY|CANDIDATE_PENDING|COMMITTING-before-durable-commit",
+                    "UNPAIRED_LOCKED|PAIRING_CLOSED|OPEN_EMPTY|association_incomplete|CANDIDATE_PENDING|COMMITTING-before-store-and-anchor-durable",
                     "unpaired",
                     "false",
                     "evaluate-liveness",
@@ -210,9 +229,41 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
         required = (
             "First matching row wins",
             "never `paired`",
-            "before durable commit",
-            "candidate identity and candidate details remain private",
+            "explicit closed structural-state set",
+            "`association_incomplete` is not a structural unknown",
             "A stale callback after revocation or restart cannot resurrect `paired`",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+        self.assertNotIn("Any incomplete", body)
+
+    def test_candidate_state_is_absent_from_every_public_collection(self) -> None:
+        _, body = self.contract()
+        rows = coded_table(
+            body,
+            "## Candidate Absence Rule",
+            "Candidate condition",
+            ("Candidate public effect", "Existing durable remote rows"),
+        )
+        self.assertEqual(
+            rows,
+            {
+                "CANDIDATE_PENDING|association_incomplete": (
+                    "absent-from-all-public-collections",
+                    "unchanged-or-unpaired-from-durable-record-only",
+                ),
+                "COMMITTING-before-store-and-anchor-durable": (
+                    "absent-from-all-public-collections",
+                    "unchanged-or-unpaired-from-durable-record-only",
+                ),
+            },
+        )
+        normalized = " ".join(body.split())
+        required = (
+            "does not create any `PairingObservationV1`, `ServiceV1`, `SessionV1`, or topology row",
+            "No redacted candidate identity or placeholder row is emitted",
+            "does not change public cardinality, ordering, or timing",
+            "Existing configured durable remote rows may remain `unpaired`",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -252,13 +303,17 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             for row in table_rows(body, "### Runtime Degradation Precedence")
         ]
         self.assertEqual(
-            degradation[:4],
+            degradation,
             [
-                "certificate-unavailable",
                 "denied-trust",
+                "certificate-unavailable",
                 "remote-disconnect",
                 "no-visible-services",
             ],
+        )
+        self.assertIn(
+            "`denied-trust` first, then `certificate-unavailable`",
+            " ".join(body.split()),
         )
 
     def test_admission_admin_and_private_data_cannot_promote_or_leak(self) -> None:
@@ -286,10 +341,19 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
         self.assertEqual(
             publication,
             {
-                "commit_durable": ("paired", "no"),
-                "commit_not_published": ("unpaired", "no"),
-                "durability_unknown|reopen|reconcile|repair": ("unknown", "no"),
-                "revoked|tombstoned|quarantined|corrupt|admin-held": (
+                "store-commit-durable+protected-anchor-finalization-durable": (
+                    "paired",
+                    "no",
+                ),
+                "commit_not_published+protected-anchor-clear-durable": (
+                    "unpaired-with-candidate-absent",
+                    "no",
+                ),
+                "commit_applied_maintenance_failed|commit_durability_unknown|interruption_or_descriptor_mismatch|protected-anchor-finalization-unknown": (
+                    "unknown+paired-false+denied-trust",
+                    "no",
+                ),
+                "REVOKED|TOMBSTONED|QUARANTINED|ADMIN_HOLD|BACKOFF_ACTIVE": (
                     "denied",
                     "no",
                 ),
@@ -306,16 +370,19 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
         self.assertEqual(
             rollback,
             {
-                "pre-durable-cancel|expiry|failure": (
-                    "unpaired",
+                "pre-durable-cancel|expiry|failure|association_incomplete": (
+                    "candidate-absent",
                     "no-candidate-publication",
                 ),
-                "commit_durable": ("paired", "callback-cannot-roll-back"),
-                "commit_not_published": (
-                    "unpaired",
+                "store-commit-durable+protected-anchor-finalization-durable": (
+                    "paired",
+                    "callback-cannot-roll-back",
+                ),
+                "commit_not_published+protected-anchor-clear-durable": (
+                    "unpaired-with-candidate-absent",
                     "no-trust-and-no-candidate-publication",
                 ),
-                "durability_unknown|repair-in-progress": (
+                "commit_applied_maintenance_failed|commit_durability_unknown|interruption_or_descriptor_mismatch|protected-anchor-finalization-unknown": (
                     "unknown+denied-trust",
                     "fail-closed-until-terminal",
                 ),
@@ -330,6 +397,50 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "State transitions publish after durable or terminal linearization even without a network callback",
             " ".join(body.split()),
         )
+        self.assertIn(
+            "A store `commit_durable` result alone never publishes `paired`",
+            " ".join(body.split()),
+        )
+
+    def test_startup_and_restart_publish_classification_without_callbacks(self) -> None:
+        _, body = self.contract()
+        startup = coded_table(
+            body,
+            "## Startup And Restart Publication",
+            "Classified product",
+            ("Required publication", "Network callback required"),
+        )
+        self.assertEqual(
+            startup,
+            {
+                "durably_trusted+store-and-protected-anchor-finalized": (
+                    "paired",
+                    "no",
+                ),
+                "terminal_denial": ("denied", "no"),
+                "identity_unavailable": (
+                    "unknown+certificate-unavailable",
+                    "no",
+                ),
+                "not_yet_trusted": ("unpaired-with-candidate-absent", "no"),
+            },
+        )
+        normalized = " ".join(body.split())
+        self.assertIn(
+            "after reload, structural classification, and protected-anchor checks complete",
+            normalized,
+        )
+        self.assertIn("without waiting for a", normalized)
+
+    def test_normative_tables_and_headings_are_unique(self) -> None:
+        _, body = self.contract()
+        for heading in NORMATIVE_TABLES:
+            with self.subTest(heading=heading):
+                self.assertEqual(
+                    len(re.findall(rf"(?m)^{re.escape(heading)}$", body)),
+                    1,
+                )
+                table_rows(body, heading)
 
     def test_public_api_artifact_remains_byte_identical(self) -> None:
         self.contract()
