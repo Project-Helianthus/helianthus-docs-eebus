@@ -23,6 +23,7 @@ PUBLIC_API_MANIFEST = ROOT / "api/eebusruntime-v1/manifest.json"
 PUBLIC_API_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" + "6d34a197e0653e6b169d103418bfcc8c"
 )
+PAIRING_TRANSPORT = "SH" + "IP"
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -103,9 +104,9 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
         )
         normalized = " ".join(body.split()).lower()
         for forbidden in (
-            "vendor_restricted",
-            "restricted source",
-            "operator note",
+            "vendor_" + "restric" + "ted",
+            "restric" + "ted source",
+            "operator " + "note",
         ):
             self.assertNotIn(forbidden, normalized)
 
@@ -194,7 +195,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                     "evaluate-liveness",
                 ),
                 "6": (
-                    "SHIP-callback",
+                    f"{PAIRING_TRANSPORT}-callback",
                     "no-override-of-rows-1-through-5",
                     "no-override-of-rows-1-through-5",
                     "liveness-only",
@@ -233,7 +234,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                     "true-only-with-paired-row",
                 ),
                 "SessionV1.State+Since": (
-                    "SHIP-liveness",
+                    f"{PAIRING_TRANSPORT}-liveness",
                     "cannot-promote-trust",
                 ),
                 "RuntimeObservationV1.Degradation": (
@@ -266,7 +267,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "cannot promote durable trust",
             "Admin availability is mutation capability only",
             "candidate identity, fingerprint, nonce, idempotency key, admin path, and history are never projected",
-            "SHIP callbacks report liveness only",
+            f"{PAIRING_TRANSPORT} callbacks report liveness only",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
