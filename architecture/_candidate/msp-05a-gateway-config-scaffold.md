@@ -133,6 +133,12 @@ two inputs explicitly and preserve every existing field until the gateway can
 map the complete configuration product without loss. Any missing, ambiguous,
 unsupported, or future value fails before runtime construction.
 
+The fail-closed invariant remains: enabled activation must require a port from
+1 through 65535, explicit interface and subnet selections, valid protected
+identity and trust-store paths derived within `StateRoot`, the M4 coordinator
+state, and a permitted listener policy. The legacy path inputs do not satisfy
+that invariant and remain required-empty compatibility fields.
+
 mDNS remains separately policy-gated. Pairing closed is not permission to
 advertise. Runtime construction is not permission to bind. A valid bind is not
 proof of trust. Those transitions remain explicit and independently testable.
