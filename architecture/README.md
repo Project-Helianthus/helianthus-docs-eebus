@@ -86,3 +86,10 @@ The [candidate MSP-045 trust/admin projection contract](_candidate/msp-045-trust
 freezes the coordinator-owned read-only mapping for downstream conformance. It
 is not a support claim, implementation claim, or public API change, and remains
 excluded from every stable publication channel.
+
+## M5 Roadmap
+
+The [candidate MSP-05A gateway configuration scaffold](_candidate/msp-05a-gateway-config-scaffold.md)
+freezes the disabled-default input shape before runtime integration. It creates
+no listener, discovery advertisement, trust state, API, or consumer surface and
+remains excluded from every stable publication channel.
