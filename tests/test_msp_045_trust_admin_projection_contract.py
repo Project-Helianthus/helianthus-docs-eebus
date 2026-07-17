@@ -37,7 +37,10 @@ def table_rows(body: str, heading: str) -> list[dict[str, str]]:
     start = next(index for index, line in enumerate(lines) if line.startswith("|"))
 
     def cells(line: str) -> list[str]:
-        return [cell.strip() for cell in line.strip("|").split("|")]
+        return [
+            cell.replace(r"\|", "|").strip()
+            for cell in re.split(r"(?<!\\)\|", line.strip("|"))
+        ]
 
     headers = cells(lines[start])
     separator = cells(lines[start + 1])
@@ -267,7 +270,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "cannot promote durable trust",
             "Admin availability is mutation capability only",
             "candidate identity, fingerprint, nonce, idempotency key, admin path, and history are never projected",
-            f"{PAIRING_TRANSPORT} callbacks report liveness only",
+            f"Callbacks from the {PAIRING_TRANSPORT} path report liveness only",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)

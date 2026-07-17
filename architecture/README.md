@@ -79,3 +79,10 @@ a landed runtime or public API shape.
 The v1 schema contract and synthetic fixtures remain active and unchanged.
 Unimplemented reference material is candidate-only; stable navigation, search,
 sitemap, versioned bundles, and release bundles omit it.
+
+## M4.5 Roadmap
+
+The [candidate MSP-045 trust/admin projection contract](_candidate/msp-045-trust-admin-projection.md)
+freezes the coordinator-owned read-only mapping for downstream conformance. It
+is not a support claim, implementation claim, or public API change, and remains
+excluded from every stable publication channel.

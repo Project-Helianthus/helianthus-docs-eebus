@@ -371,6 +371,9 @@ not add an MCP tool/resource, GraphQL mutation, Portal action, Home Assistant
 service, command-line mutation, HTTP handler, or network administration
 surface.
 
+MSP-045's combined read-only mapping is defined by the
+[candidate trust/admin projection contract][projection-contract].
+
 ## Restart And Recovery
 
 Restart discards the volatile window, candidate, nonce, active idempotency
@@ -480,4 +483,5 @@ MSP-04B adds none of the following:
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/22
 [code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/26
 [implementation-commit]: https://github.com/Project-Helianthus/helianthus-eebusreg/tree/18049eef059813c23d0a3385115bfa61fcec635c/
+[projection-contract]: msp-045-trust-admin-projection.md
 [store-contract]: msp-04a-persistent-store.md
