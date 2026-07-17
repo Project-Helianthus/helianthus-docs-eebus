@@ -394,7 +394,7 @@ UNICODE_SURROGATE_PAIR_PATTERN = re.compile(
 )
 UNICODE_ESCAPE_PATTERN = re.compile(r"\\u([0-9A-Fa-f]{4})")
 PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
-    "a326142069d3f27dec944a1a746b48b9" "bd7b12e57666a577c3c0e0a82fca016b": {
+    "3811303d2c1dc848dc12d3f36aef61eb" "f9a40eb6ef7c7a7c9d7f23fcef2d133d": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
