@@ -97,16 +97,17 @@ MSP055_CANDIDATE_VERIFICATION_SHA256 = (
     "a1de3f1ff4163871dcb416348723b104" "afab4edfe3f0d4e1fe0a3f0fef58cbf0"
 )
 MSP055_ACTIVE_PREDICATE_SHA256 = (
-    "02c12af763414630b1c4cc4ec52c6244" "9a0947d0e165ba9dec2be85201c2790a"
+    "e84acd2d7ccc63c3a150e9f53d61480d" "967bf03f5ac827f7a692f14e9ebe534e"
 )
 MSP055_ACTIVE_ATTESTATION_SHA256 = (
-    "5dc1c3ce63f8b58cb37507a3ac707d5b" "2f41098e20e5cae9e5b2b83598446de3"
+    "9b67ab54ef0b9637abdb9450e2a4b94e" "e56c040883b0d1ee98899d4a02d9142f"
 )
 MSP055_ACTIVE_VERIFICATION_SHA256 = (
-    "898e14f9f0b9f85d6414facdb4be4efb" "a891161df78a89951e6ed0410994058c"
+    "485c7976f7de52a35c55ad590bc3fdfac" "97420f72bb7a6d7fc80afd418798c87"
 )
-MSP055_SOURCE_COMMIT = "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb"
-MSP055_WORKFLOW_COMMIT = "fe6bd97c812605ce812c" "649f3ac3bd0eeaa0f399"
+MSP055_SOURCE_COMMIT = "7a5852e009bbdcba47f0" "a34ba866070a4ab35ef8"
+MSP055_SOURCE_PR_HEAD = "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb"
+MSP055_WORKFLOW_COMMIT = MSP055_SOURCE_COMMIT
 MSP055_RETIRED_SOURCE_COMMIT = "59cbea0593f27caf558b" "c4cc9b665c52fc50b683"
 MSP055_CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
 MSP055_SOURCE_TREE = "b090651c99d5b6817a40" "997b14c1b6a2a37c124e"
@@ -187,6 +188,7 @@ MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
         MSP055_RETIRED_SOURCE_COMMIT,
         MSP055_SOURCE_TREE,
         MSP055_SOURCE_COMMIT,
+        MSP055_SOURCE_PR_HEAD,
         MSP055_WORKFLOW_COMMIT,
         MSP055_RETIRED_MANIFEST_SHA256,
         MSP055_MANIFEST_SHA256,
@@ -196,13 +198,14 @@ MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
         MSP055_ACTIVE_PREDICATE_SHA256,
         MSP055_ACTIVE_ATTESTATION_SHA256,
         MSP055_ACTIVE_VERIFICATION_SHA256,
-        "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35",
+        "dc6085b0c3ab3f2182d3609db042663d7f73439c85c2f4f9dc51c33b02c57762",
     },
     "tests/test_msp_055_api_freeze.py": {
         MSP055_RETIRED_SOURCE_TREE,
         MSP055_RETIRED_SOURCE_COMMIT,
         MSP055_WORKFLOW_COMMIT,
-        "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35",
+        MSP055_SOURCE_PR_HEAD,
+        "dc6085b0c3ab3f2182d3609db042663d7f73439c85c2f4f9dc51c33b02c57762",
     },
 }
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
@@ -475,7 +478,7 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
         "publication_status": "api-contract",
         "claim_status": "no-protocol-claims",
     },
-    "0a7ecba0ba7449fa26d12c152d5e48fd" "1ff150c9816b8a83cc3cd16c32c64517": {
+    "337bf7ffd7ec7bdd36ecd9b6ad9c5ad0" "31ec0aeef596cfae53d2a7d0371fa6a3": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:"
             "api/eebusruntime-v1/reference.md"
@@ -492,7 +495,7 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
             "commit produces different public declarations or evidence bytes."
         ),
         "api_version": "eebusruntime-v1",
-        "source_commit": "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb",
+        "source_commit": "7a5852e009bbdcba47f0" "a34ba866070a4ab35ef8",
         "source_tree": "b090651c99d5b6817a40" "997b14c1b6a2a37c124e",
         "stable_navigation": "true",
         "search": "true",

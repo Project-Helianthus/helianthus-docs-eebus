@@ -24,21 +24,24 @@ from validate_api_surface_v1 import validate_document
 SOURCE_REPOSITORY = "Project-Helianthus/helianthus-eebusreg"
 DOCS_REPOSITORY = "Project-Helianthus/helianthus-docs-eebus"
 SOURCE_PULL_REQUEST = 45
-SOURCE_COMMIT = "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+SOURCE_COMMIT = "7a5852e009bbdcba47f0a34ba866070a4ab35ef8"
 SOURCE_TREE = "b090651c99d5b6817a40" "997b14c1b6a2a37c124e"
-SOURCE_REF = "refs/heads/issue/44-pre-release-api-v1"
-WORKFLOW_COMMIT = "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399"
-WORKFLOW_REF = "refs/pull/45/merge"
+SOURCE_REF = "refs/heads/main"
+SOURCE_MERGED_AT = "2026-07-18T11:06:48Z"
+SOURCE_PR_HEAD = "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+SOURCE_PR_REF = "issue/44-pre-release-api-v1"
+WORKFLOW_COMMIT = SOURCE_COMMIT
+WORKFLOW_REF = SOURCE_REF
 RETIRED_SOURCE_COMMIT = "59cbea0593f27caf558bc4cc9b665c52fc50b683"
 RETIRED_SOURCE_TREE = "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"
 CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
 CANDIDATE_REF = "refs/heads/issue/24-msp055-lifecycle-facade"
 CANDIDATE_DOCS_MERGE = "df231977989625fae8a9" "2d94b3ca88ef9e52c6f2"
 CANDIDATE_DOCS_MERGED_AT = "2026-07-15T09:43:13Z"
-RUN_ID = 29638678140
+RUN_ID = 29642000784
 RUN_ATTEMPT = 1
-ARTIFACT_ID = 8427914108
-ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29638678140-1"
+ARTIFACT_ID = 8428896581
+ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29642000784-1"
 PREDICATE_TYPE = (
     "https://project-helianthus.github.io/attestations/eebus-api-surface/v1"
 )
@@ -48,7 +51,7 @@ SIGNER_WORKFLOW = (
 GO_VERSION = "1.24.13"
 SCHEMA_ID = "helianthus.docs.eebus.msp-055-api-freeze.v1"
 SCHEMA_URN = "urn:helianthus:eebus:msp-055-api-freeze:v1"
-SCHEMA_SHA256 = "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35"
+SCHEMA_SHA256 = "dc6085b0c3ab3f2182d3609db042663d7f73439c85c2f4f9dc51c33b02c57762"
 
 ACTIVE_ROOT_REL = Path("api/eebusruntime-v1")
 REFERENCE_REL = ACTIVE_ROOT_REL / "reference.md"
@@ -74,9 +77,9 @@ CANDIDATE_PATHS = {
 }
 ACTIVE_HASHES = {
     "manifest": "bbabab51cc0a0e833c645f51767e67a34c0361ba61c45b0065ecfda55ed6c32f",
-    "predicate": "02c12af763414630b1c4cc4ec52c62449a0947d0e165ba9dec2be85201c2790a",
-    "attestation": "5dc1c3ce63f8b58cb37507a3ac707d5b2f41098e20e5cae9e5b2b83598446de3",
-    "verification": "898e14f9f0b9f85d6414facdb4be4efba891161df78a89951e6ed0410994058c",
+    "predicate": "e84acd2d7ccc63c3a150e9f53d61480d967bf03f5ac827f7a692f14e9ebe534e",
+    "attestation": "9b67ab54ef0b9637abdb9450e2a4b94ee56c040883b0d1ee98899d4a02d9142f",
+    "verification": "485c7976f7de52a35c55ad590bc3fdfac97420f72bb7a6d7fc80afd418798c87",
 }
 CANDIDATE_HASHES = {
     "manifest": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c",
@@ -94,7 +97,7 @@ EXPECTED_OFFLINE_POLICY = {
     "closed-record-schema",
     "exact-artifact-byte-hashes",
     "candidate-byte-preservation-and-retirement",
-    "green-source-pr-head-tree-ref-run-attempt",
+    "green-source-merge-tree-ref-run-attempt",
     "manifest-regenerated-from-exact-source-head",
     "predicate-statement-verification-consistency",
     "stable-channel-membership-and-candidate-exclusion",
@@ -103,7 +106,7 @@ EXPECTED_OFFLINE_POLICY = {
     "online-provenance-required-in-ci",
 }
 EXPECTED_ONLINE_POLICY = {
-    "source-commit-tree-and-pr-head",
+    "source-merge-commit-tree-and-pr",
     "workflow-run-and-artifact",
     (
         "attestation-repository-bundle-predicate-head-digest-head-ref-"
@@ -112,7 +115,7 @@ EXPECTED_ONLINE_POLICY = {
 }
 EXPECTED_INVALIDATIONS = {
     "source-commit-or-tree-differs",
-    "source-pr-head-differs",
+    "source-pr-merge-state-differs",
     "run-id-attempt-ref-or-conclusion-differs",
     "artifact-byte-digest-differs",
     "candidate-evidence-is-not-byte-preserved-or-retired",
@@ -243,14 +246,14 @@ def _record_errors(root: Path, record: Any) -> set[str]:
         errors.add("offline: source-tree")
     if source.get("ref") != SOURCE_REF:
         errors.add("offline: source-ref")
-    if source.get("merged_at") is not None:
+    if source.get("merged_at") != SOURCE_MERGED_AT:
         errors.add("offline: source-state")
 
     run = record.get("run")
     expected_run = {
         "id": RUN_ID,
         "attempt": RUN_ATTEMPT,
-        "event": "pull_request",
+        "event": "push",
         "conclusion": "success",
         "ref": SOURCE_REF,
         "artifact_id": ARTIFACT_ID,
@@ -430,8 +433,8 @@ def _provenance_errors(root: Path) -> set[str]:
         "schema_version": 1,
         "source": {
             "commit": SOURCE_COMMIT,
-            "event_name": "pull_request",
-            "pull_request_number": str(SOURCE_PULL_REQUEST),
+            "event_name": "push",
+            "pull_request_number": "",
             "ref": SOURCE_REF,
             "repository": SOURCE_REPOSITORY,
         },
@@ -454,7 +457,7 @@ def _provenance_errors(root: Path) -> set[str]:
         and statement == verified_statement
     )
     certificate_expected = {
-        "githubWorkflowTrigger": "pull_request",
+        "githubWorkflowTrigger": "push",
         "githubWorkflowSHA": WORKFLOW_COMMIT,
         "githubWorkflowRepository": SOURCE_REPOSITORY,
         "githubWorkflowRef": WORKFLOW_REF,
@@ -746,7 +749,7 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
         runner,
         (
             "gh", "pr", "view", str(SOURCE_PULL_REQUEST), "--repo", SOURCE_REPOSITORY,
-            "--json", "state,mergedAt,headRefName,headRefOid,headRepositoryOwner",
+            "--json", "state,mergedAt,mergeCommit,headRefName,headRefOid,headRepositoryOwner",
         ),
     )
     if (
@@ -757,12 +760,14 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
     ):
         errors.add("online: candidate-merge")
     if (
-        _value(source_pr, "state") not in {"OPEN", "MERGED"}
-        or _value(source_pr, "headRefName") != SOURCE_REF.removeprefix("refs/heads/")
-        or _value(source_pr, "headRefOid") != SOURCE_COMMIT
+        _value(source_pr, "state") != "MERGED"
+        or _value(source_pr, "mergedAt") != SOURCE_MERGED_AT
+        or _value(source_pr, "mergeCommit", "oid") != SOURCE_COMMIT
+        or _value(source_pr, "headRefName") != SOURCE_PR_REF
+        or _value(source_pr, "headRefOid") != SOURCE_PR_HEAD
         or _value(source_pr, "headRepositoryOwner", "login") != "Project-Helianthus"
     ):
-        errors.add("online: source-pr-head")
+        errors.add("online: source-pr-merge")
 
     source_commit = _json_result(
         runner, ("gh", "api", f"repos/{SOURCE_REPOSITORY}/commits/{SOURCE_COMMIT}")
@@ -783,7 +788,7 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
     )
     expected_run = {
         "id": RUN_ID,
-        "event": "pull_request",
+        "event": "push",
         "conclusion": "success",
         "head_sha": SOURCE_COMMIT,
         "head_branch": SOURCE_REF.removeprefix("refs/heads/"),

@@ -10,9 +10,9 @@ hypothesis_status: "draft"
 falsifier: "The exact green source head exposes a different public shape, requires wildcard listener scope, or cannot preserve the frozen Runtime lifecycle."
 source_repository: "Project-Helianthus/helianthus-eebusreg"
 source_pull_request: "45"
-source_commit: "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+source_commit: "7a5852e009bbdcba47f0a34ba866070a4ab35ef8"
 source_tree: "b090651c99d5b6817a40997b14c1b6a2a37c124e"
-source_run: "29638678140"
+source_run: "29642000784"
 source_manifest_sha256: "bbabab51cc0a0e833c645f51767e67a34c0361ba61c45b0065ecfda55ed6c32f"
 stable_navigation: "false"
 search: "false"
@@ -29,14 +29,14 @@ candidate_output_path: "api/_candidate/msp-05p-eebusruntime-v1-correction.md"
 
 This candidate is tracked by
 [issue 40](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/40).
-It records the exact pre-release API generated and attested by source pull
-request 45. The module has no tag, GitHub release, or known downstream
+It records the exact pre-release API generated and attested after source pull
+request 45 merged to `main`. The module has no tag, GitHub release, or known downstream
 consumer, so the first release has one constructor and one configuration
 shape rather than carrying an unpublished compatibility layer.
 
-The candidate does not activate the gateway and does not claim source `main`.
-Its source commit, tree, workflow run, and manifest digest are declared in the
-front matter and repeated by the active publication record.
+The candidate does not activate the gateway. Its final source merge, tree,
+push workflow run, and manifest digest are declared in the front matter and
+repeated by the active publication record.
 
 ## Exact Public Shape
 

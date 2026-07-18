@@ -9,7 +9,7 @@ evidence_ids: "EV-20260711-001"
 hypothesis_status: "publishable"
 falsifier: "Regenerating the normalized API surface from the exact source commit produces different public declarations or evidence bytes."
 api_version: "eebusruntime-v1"
-source_commit: "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+source_commit: "7a5852e009bbdcba47f0a34ba866070a4ab35ef8"
 source_tree: "b090651c99d5b6817a40997b14c1b6a2a37c124e"
 stable_navigation: "true"
 search: "true"
@@ -27,12 +27,11 @@ package and the `eebusevidence` and `eebusraw` subpackages. The publication
 record binds that manifest to its predicate, attestation, verification result,
 source tree, workflow run, and stable publication channels.
 
-This is a pre-release publication bound to the green head of source pull
-request 45, not a claim that the source is already on `main`. The source
-checkout and predicate bind the exact head above. GitHub's OIDC certificate
-separately binds the workflow to its synthetic `refs/pull/45/merge` commit;
-both identities are recorded and verified. Promotion to the eventual squash
-merge requires a provenance-only refresh proving the same source tree.
+This pre-release publication is bound to the squash merge of source pull
+request 45 on `main`. The source checkout, tree, push workflow, artifact, and
+GitHub OIDC certificate all bind commit `7a5852e009bbdcba47f0a34ba866070a4ab35ef8`
+and `refs/heads/main`. The reviewed PR head and final merge have the same source
+tree, so this provenance refresh changes no API declaration.
 
 ## Pre-release correction
 

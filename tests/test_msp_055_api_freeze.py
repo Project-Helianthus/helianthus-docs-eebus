@@ -24,21 +24,24 @@ REPO = Path(__file__).resolve().parents[1]
 SOURCE_REPOSITORY = "Project-Helianthus/helianthus-eebusreg"
 DOCS_REPOSITORY = "Project-Helianthus/helianthus-docs-eebus"
 SOURCE_PULL_REQUEST = 45
-SOURCE_COMMIT = "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb"
+SOURCE_COMMIT = "7a5852e009bbdcba47f0" "a34ba866070a4ab35ef8"
 SOURCE_TREE = "b090651c99d5b6817a40" "997b14c1b6a2a37c124e"
-WORKFLOW_COMMIT = "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399"
-WORKFLOW_REF = "refs/pull/45/merge"
+WORKFLOW_COMMIT = SOURCE_COMMIT
+WORKFLOW_REF = "refs/heads/main"
 RETIRED_SOURCE_COMMIT = "59cbea0593f27caf558bc4cc9b665c52fc50b683"
 RETIRED_SOURCE_TREE = "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"
 CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
 CANDIDATE_DOCS_MERGE = "df231977989625fae8a9" "2d94b3ca88ef9e52c6f2"
 CANDIDATE_DOCS_MERGED_AT = "2026-07-15T09:43:13Z"
-SOURCE_REF = "refs/heads/issue/44-pre-release-api-v1"
+SOURCE_REF = "refs/heads/main"
+SOURCE_MERGED_AT = "2026-07-18T11:06:48Z"
+SOURCE_PR_HEAD = "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+SOURCE_PR_REF = "issue/44-pre-release-api-v1"
 CANDIDATE_REF = "refs/heads/issue/24-msp055-lifecycle-facade"
-RUN_ID = 29638678140
+RUN_ID = 29642000784
 RUN_ATTEMPT = 1
-ARTIFACT_ID = 8427914108
-ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29638678140-1"
+ARTIFACT_ID = 8428896581
+ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29642000784-1"
 PREDICATE_TYPE = (
     "https://project-helianthus.github.io/attestations/"
     "eebus-api-surface/v1"
@@ -79,9 +82,9 @@ CANDIDATE_PATHS = {
 }
 ACTIVE_HASHES = {
     "manifest": "bbabab51cc0a0e833c645f51767e67a3" "4c0361ba61c45b0065ecfda55ed6c32f",
-    "predicate": "02c12af763414630b1c4cc4ec52c6244" "9a0947d0e165ba9dec2be85201c2790a",
-    "attestation": "5dc1c3ce63f8b58cb37507a3ac707d5b" "2f41098e20e5cae9e5b2b83598446de3",
-    "verification": "898e14f9f0b9f85d6414facdb4be4efb" "a891161df78a89951e6ed0410994058c",
+    "predicate": "e84acd2d7ccc63c3a150e9f53d61480d" "967bf03f5ac827f7a692f14e9ebe534e",
+    "attestation": "9b67ab54ef0b9637abdb9450e2a4b94e" "e56c040883b0d1ee98899d4a02d9142f",
+    "verification": "485c7976f7de52a35c55ad590bc3fdfac" "97420f72bb7a6d7fc80afd418798c87",
 }
 CANDIDATE_HASHES = {
     "manifest": "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c",
@@ -91,7 +94,7 @@ CANDIDATE_HASHES = {
 }
 SCHEMA_ID = "helianthus.docs.eebus.msp-055-api-freeze.v1"
 SCHEMA_URN = "urn:helianthus:eebus:msp-055-api-freeze:v1"
-SCHEMA_SHA256 = "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35"
+SCHEMA_SHA256 = "dc6085b0c3ab3f2182d3609db042663d7f73439c85c2f4f9dc51c33b02c57762"
 STABLE_CHANNELS = {
     "search": Path("api/search-index.json"),
     "sitemap": Path("api/sitemap.xml"),
@@ -102,7 +105,7 @@ OFFLINE_POLICY = {
     "closed-record-schema",
     "exact-artifact-byte-hashes",
     "candidate-byte-preservation-and-retirement",
-    "green-source-pr-head-tree-ref-run-attempt",
+    "green-source-merge-tree-ref-run-attempt",
     "manifest-regenerated-from-exact-source-head",
     "predicate-statement-verification-consistency",
     "stable-channel-membership-and-candidate-exclusion",
@@ -111,7 +114,7 @@ OFFLINE_POLICY = {
     "online-provenance-required-in-ci",
 }
 ONLINE_POLICY = {
-    "source-commit-tree-and-pr-head",
+    "source-merge-commit-tree-and-pr",
     "workflow-run-and-artifact",
     (
         "attestation-repository-bundle-predicate-head-digest-head-ref-"
@@ -120,7 +123,7 @@ ONLINE_POLICY = {
 }
 INVALIDATION_CONDITIONS = {
     "source-commit-or-tree-differs",
-    "source-pr-head-differs",
+    "source-pr-merge-state-differs",
     "run-id-attempt-ref-or-conclusion-differs",
     "artifact-byte-digest-differs",
     "candidate-evidence-is-not-byte-preserved-or-retired",
@@ -249,7 +252,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 "commit": SOURCE_COMMIT,
                 "tree": SOURCE_TREE,
                 "ref": SOURCE_REF,
-                "merged_at": None,
+                "merged_at": SOURCE_MERGED_AT,
             },
         )
         self.assertEqual(
@@ -283,7 +286,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             {
                 "id": RUN_ID,
                 "attempt": RUN_ATTEMPT,
-                "event": "pull_request",
+                "event": "push",
                 "conclusion": "success",
                 "ref": SOURCE_REF,
                 "artifact_id": ARTIFACT_ID,
@@ -401,8 +404,8 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 "repository": SOURCE_REPOSITORY,
                 "commit": SOURCE_COMMIT,
                 "ref": SOURCE_REF,
-                "event_name": "pull_request",
-                "pull_request_number": str(SOURCE_PULL_REQUEST),
+                "event_name": "push",
+                "pull_request_number": "",
             },
         )
         self.assertEqual(predicate["workflow"]["run_id"], str(RUN_ID))
@@ -414,7 +417,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         result = verification[0]["verificationResult"]
         self.assertEqual(result["statement"], statement)
         certificate = result["signature"]["certificate"]
-        self.assertEqual(certificate["githubWorkflowTrigger"], "pull_request")
+        self.assertEqual(certificate["githubWorkflowTrigger"], "push")
         self.assertEqual(certificate["githubWorkflowSHA"], WORKFLOW_COMMIT)
         self.assertEqual(certificate["githubWorkflowRepository"], SOURCE_REPOSITORY)
         self.assertEqual(certificate["githubWorkflowRef"], WORKFLOW_REF)
@@ -753,10 +756,11 @@ class FakeRunner:
                 }
                 if number == "19"
                 else {
-                    "state": "OPEN",
-                    "mergedAt": None,
-                    "headRefName": SOURCE_REF.removeprefix("refs/heads/"),
-                    "headRefOid": SOURCE_COMMIT,
+                    "state": "MERGED",
+                    "mergedAt": SOURCE_MERGED_AT,
+                    "mergeCommit": {"oid": SOURCE_COMMIT},
+                    "headRefName": SOURCE_PR_REF,
+                    "headRefOid": SOURCE_PR_HEAD,
                     "headRepositoryOwner": {"login": "Project-Helianthus"},
                 }
             )
@@ -783,7 +787,7 @@ class FakeRunner:
             elif f"actions/runs/{RUN_ID}" in endpoint:
                 payload = {
                     "id": RUN_ID,
-                    "event": "pull_request",
+                    "event": "push",
                     "conclusion": "success",
                     "head_sha": SOURCE_COMMIT,
                     "head_branch": SOURCE_REF.removeprefix("refs/heads/"),
@@ -926,13 +930,13 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
 
         self.assert_mutation("offline: artifact-digest", mutate)
 
-    def test_pre_release_source_state_mutation_is_rejected(self) -> None:
+    def test_merged_source_state_mutation_is_rejected(self) -> None:
         self.assert_mutation(
             "offline: source-state",
             lambda root: self.mutate_record(
                 root,
                 lambda record: record["source"].__setitem__(
-                    "merged_at", "2026-07-18T09:30:00Z"
+                    "merged_at", "2026-07-18T11:06:49Z"
                 ),
             ),
         )
