@@ -76,7 +76,7 @@ an advertisement into persistent trust.
 
 This policy is internal transport plumbing. It adds no raw or semantic API and
 does not change the eBUS transport path. To roll back, remove
-listener/discovery policy additions and retain the legacy constructor. A
+exact-address configuration and retain the single initial constructor. A
 rollback withdraws any active candidate publication before closing the exact
 listener, then leaves no multicast record, listener, goroutine, or durable
 trust mutation.

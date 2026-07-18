@@ -2455,20 +2455,25 @@ class MSP04CRestoreQuarantineContractTest(unittest.TestCase):
         validate_r2_machine_contract(body)
 
     def test_r2_published_api_baseline_is_bound_to_exact_source_and_bytes(self) -> None:
-        manifest = ROOT / "api/eebusruntime-v1/manifest.json"
-        predicate = json.loads(
-            (ROOT / "api/eebusruntime-v1/predicate.json").read_text(encoding="utf-8")
+        manifest = (
+            ROOT
+            / "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json"
+        )
+        record = json.loads(
+            (ROOT / "api/_candidate/msp-055/candidate-record.json").read_text(
+                encoding="utf-8"
+            )
         )
         self.assertEqual(
             hashlib.sha256(manifest.read_bytes()).hexdigest(),
             PUBLIC_API_SHA256,
         )
         self.assertEqual(
-            predicate["source"]["commit"],
+            record["retirement"]["source_commit"],
             PUBLIC_API_SOURCE,
         )
         self.assertEqual(
-            predicate["subject"]["sha256"],
+            record["artifacts"]["manifest"]["sha256"],
             PUBLIC_API_SHA256,
         )
 

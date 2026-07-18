@@ -9,8 +9,8 @@ evidence_ids: "EV-20260711-001"
 hypothesis_status: "publishable"
 falsifier: "Regenerating the normalized API surface from the exact source commit produces different public declarations or evidence bytes."
 api_version: "eebusruntime-v1"
-source_commit: "59cbea0593f27caf558bc4cc9b665c52fc50b683"
-source_tree: "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"
+source_commit: "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+source_tree: "b090651c99d5b6817a40997b14c1b6a2a37c124e"
 stable_navigation: "true"
 search: "true"
 sitemap: "true"
@@ -22,19 +22,35 @@ release_bundle: "true"
 
 This reference freezes the public Go API produced from the source commit and
 tree declared above. The complete canonical public inventory is the adjacent
-[manifest](manifest.json): 276 declarations across the root `eebusruntime`
+[manifest](manifest.json): 278 declarations across the root `eebusruntime`
 package and the `eebusevidence` and `eebusraw` subpackages. The publication
 record binds that manifest to its predicate, attestation, verification result,
 source tree, workflow run, and stable publication channels.
+
+This is a pre-release publication bound to the green head of source pull
+request 45, not a claim that the source is already on `main`. The source
+checkout and predicate bind the exact head above. GitHub's OIDC certificate
+separately binds the workflow to its synthetic `refs/pull/45/merge` commit;
+both identities are recorded and verified. Promotion to the eventual squash
+merge requires a provenance-only refresh proving the same source tree.
+
+## Pre-release correction
+
+No module tag, GitHub release, or known downstream consumer existed when this
+contract was corrected. The unpublished port-only `Config` and temporary
+dual-configuration split were therefore replaced by one exact-address
+`Config`/`New` API before the first release. Git history and the retired
+candidate evidence preserve the sequence; active API channels expose only the
+single initial v1 contract.
 
 ## Fail-closed boundary
 
 This publication establishes only a compile-time Go API at the exact source
 commit. It does not prove that an enabled runtime is deployed or operational.
 Enabled startup requires protected runtime material, an explicit interface,
-an admitted remote, and a scoped listener. The merged source deliberately
-returns an error while the protected material provider is unavailable and
-rejects ship-go v0.6.0 because its listener binds on all interfaces.
+a specified unicast listener address, and closed pairing policy. A remote
+allowlist may be empty. The source remains fail closed while required protected
+material is unavailable and rejects wildcard listener scope.
 
 The API does not expose or promise GraphQL, Portal, Home Assistant, MCP,
 semantic projection, or write behavior. Those are explicit non-claims. A
@@ -46,13 +62,15 @@ example invalidates this publication.
 
 The root import path is
 `github.com/Project-Helianthus/helianthus-eebusreg`, with package name
-`eebusruntime`. Its 54 declarations are frozen exactly as follows.
+`eebusruntime`. Its 56 declarations are frozen exactly as follows.
 
 ### Lifecycle facade
 
 | Declaration | Exact public shape |
 | --- | --- |
-| `Config` | `struct{ Enabled bool; StateRoot string; Interface string; ListenPort int; Remotes []Remote }` |
+| `Config` | `struct{ Enabled bool; StateRoot string; Interface string; ListenAddress netip.AddrPort; DiscoveryEnabled bool; Remotes []Remote; PairingPolicy PairingPolicy }` |
+| `PairingPolicy` | `string` |
+| `PairingPolicyClosed` | `const PairingPolicyClosed PairingPolicy = "closed"` |
 | `Remote` | `struct{ SKI string }` |
 | `Runtime` | `interface{ PairingState() ([]PairingObservationV1, error); Shutdown() error; Snapshot() (SnapshotV1, error); Start(context.Context) error }` |
 | `New` | `func New(Config) (Runtime, error)` |

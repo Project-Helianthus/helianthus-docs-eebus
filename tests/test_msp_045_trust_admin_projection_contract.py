@@ -19,7 +19,9 @@ MSP04C = ROOT / (
     "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md"
 )
 ROADMAP = ROOT / "architecture/README.md"
-PUBLIC_API_MANIFEST = ROOT / "api/eebusruntime-v1/manifest.json"
+PUBLIC_API_MANIFEST = (
+    ROOT / "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json"
+)
 PUBLIC_API_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" + "6d34a197e0653e6b169d103418bfcc8c"
 )
@@ -442,7 +444,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                 )
                 table_rows(body, heading)
 
-    def test_public_api_artifact_remains_byte_identical(self) -> None:
+    def test_historical_public_api_artifact_remains_byte_identical(self) -> None:
         self.contract()
         payload = PUBLIC_API_MANIFEST.read_bytes()
         self.assertEqual(len(payload), 95_207)

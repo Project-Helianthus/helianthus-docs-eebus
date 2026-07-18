@@ -39,7 +39,7 @@ inert M5A shape. `StateRoot` and `DiscoveryEnabled` are explicit gateway
 additions in M5A-R1. The existing three material-path fields stay present for
 source compatibility but enabled activation accepts them only when empty.
 
-| Gateway input | Runtime v2 input | Rule |
+| Gateway input | Runtime v1 input | Rule |
 | --- | --- | --- |
 | `Enabled` | `Enabled` | `direct` |
 | `ListenPort` | `ListenAddress.port` | `required-1..65535` |
@@ -166,7 +166,7 @@ API, or protocol surface.
 ## Rollback And Dependency Gate
 
 If any prerequisite cannot preserve these constraints, withdraw this candidate
-before any dependent code merge. Runtime v2, listener policy, identity loading,
+before any dependent code merge. The initial runtime v1 contract, listener policy, identity loading,
 gateway activation, and M5B remain blocked until this candidate is accepted.
 Rollback removes only the candidate pages and tests; it creates no durable
 migration and leaves the inert M5A scaffold and existing eBUS lifecycle

@@ -23,18 +23,22 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 SOURCE_REPOSITORY = "Project-Helianthus/helianthus-eebusreg"
 DOCS_REPOSITORY = "Project-Helianthus/helianthus-docs-eebus"
-SOURCE_COMMIT = "59cbea0593f27caf558b" "c4cc9b665c52fc50b683"
-SOURCE_TREE = "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d"
+SOURCE_PULL_REQUEST = 45
+SOURCE_COMMIT = "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb"
+SOURCE_TREE = "b090651c99d5b6817a40" "997b14c1b6a2a37c124e"
+WORKFLOW_COMMIT = "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399"
+WORKFLOW_REF = "refs/pull/45/merge"
+RETIRED_SOURCE_COMMIT = "59cbea0593f27caf558bc4cc9b665c52fc50b683"
+RETIRED_SOURCE_TREE = "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"
 CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
 CANDIDATE_DOCS_MERGE = "df231977989625fae8a9" "2d94b3ca88ef9e52c6f2"
 CANDIDATE_DOCS_MERGED_AT = "2026-07-15T09:43:13Z"
-SOURCE_MERGED_AT = "2026-07-15T09:44:37Z"
-SOURCE_REF = "refs/heads/main"
+SOURCE_REF = "refs/heads/issue/44-pre-release-api-v1"
 CANDIDATE_REF = "refs/heads/issue/24-msp055-lifecycle-facade"
-RUN_ID = 29405631374
+RUN_ID = 29638678140
 RUN_ATTEMPT = 1
-ARTIFACT_ID = 8338910226
-ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29405631374-1"
+ARTIFACT_ID = 8427914108
+ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29638678140-1"
 PREDICATE_TYPE = (
     "https://project-helianthus.github.io/attestations/"
     "eebus-api-surface/v1"
@@ -74,20 +78,20 @@ CANDIDATE_PATHS = {
     "verification": Path("api/_candidate/msp-055/verification.json"),
 }
 ACTIVE_HASHES = {
-    "manifest": "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c",
-    "predicate": "e36da7bb216b85e3a6c97d195c5269f9" "2e8cdb3437c459ec1a5fc0990c36fd3e",
-    "attestation": "e8506c1b7551d41d8a447fe83b8bc54b" "1c8d7f42068d3bbf54e99d4a604976c0",
-    "verification": "cae8bbf7cd1318d9c878ee51d65b7c65" "04c59db9dcdc52cb09a01b10d58bb250",
+    "manifest": "bbabab51cc0a0e833c645f51767e67a3" "4c0361ba61c45b0065ecfda55ed6c32f",
+    "predicate": "02c12af763414630b1c4cc4ec52c6244" "9a0947d0e165ba9dec2be85201c2790a",
+    "attestation": "5dc1c3ce63f8b58cb37507a3ac707d5b" "2f41098e20e5cae9e5b2b83598446de3",
+    "verification": "898e14f9f0b9f85d6414facdb4be4efb" "a891161df78a89951e6ed0410994058c",
 }
 CANDIDATE_HASHES = {
-    "manifest": ACTIVE_HASHES["manifest"],
+    "manifest": "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c",
     "predicate": "5960ac6dc00942ea7a19d2559934b382" "ac700ae445b492abb8d223a6f14b72e4",
     "attestation": "2419bb9ab2187c19642f80f01d1e776b" "6b52df8cdf182e41ac9329e916ebdfc9",
     "verification": "a1de3f1ff4163871dcb416348723b104" "afab4edfe3f0d4e1fe0a3f0fef58cbf0",
 }
 SCHEMA_ID = "helianthus.docs.eebus.msp-055-api-freeze.v1"
 SCHEMA_URN = "urn:helianthus:eebus:msp-055-api-freeze:v1"
-SCHEMA_SHA256 = "d570dd12d7bb706eeb8448a5537fcfba004c8bdb487a9205e9cf891d90e47961"
+SCHEMA_SHA256 = "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35"
 STABLE_CHANNELS = {
     "search": Path("api/search-index.json"),
     "sitemap": Path("api/sitemap.xml"),
@@ -98,10 +102,8 @@ OFFLINE_POLICY = {
     "closed-record-schema",
     "exact-artifact-byte-hashes",
     "candidate-byte-preservation-and-retirement",
-    "candidate-before-source-merge",
-    "merged-source-commit-tree-ref-run-attempt",
-    "manifest-api-v1-and-candidate-byte-equivalence",
-    "manifest-regenerated-from-merged-source",
+    "green-source-pr-head-tree-ref-run-attempt",
+    "manifest-regenerated-from-exact-source-head",
     "predicate-statement-verification-consistency",
     "stable-channel-membership-and-candidate-exclusion",
     "marked-go-examples-compile-at-exact-source",
@@ -109,20 +111,19 @@ OFFLINE_POLICY = {
     "online-provenance-required-in-ci",
 }
 ONLINE_POLICY = {
-    "source-commit-tree-and-merge",
+    "source-commit-tree-and-pr-head",
     "workflow-run-and-artifact",
     (
-        "attestation-repository-bundle-predicate-source-digest-source-ref-"
-        "signer-workflow-deny-self-hosted-runners"
+        "attestation-repository-bundle-predicate-head-digest-head-ref-"
+        "workflow-digest-workflow-ref-signer-workflow-deny-self-hosted-runners"
     ),
 }
 INVALIDATION_CONDITIONS = {
     "source-commit-or-tree-differs",
+    "source-pr-head-differs",
     "run-id-attempt-ref-or-conclusion-differs",
     "artifact-byte-digest-differs",
-    "candidate-or-source-merge-order-differs",
     "candidate-evidence-is-not-byte-preserved-or-retired",
-    "candidate-attestation-is-replayed-as-merged-provenance",
     "active-reference-is-missing-from-any-stable-channel",
     "candidate-path-leaks-into-stable-output",
     "marked-example-does-not-compile-at-exact-source",
@@ -244,11 +245,11 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             record["source"],
             {
                 "repository": SOURCE_REPOSITORY,
-                "pull_request": 25,
+                "pull_request": SOURCE_PULL_REQUEST,
                 "commit": SOURCE_COMMIT,
                 "tree": SOURCE_TREE,
                 "ref": SOURCE_REF,
-                "merged_at": SOURCE_MERGED_AT,
+                "merged_at": None,
             },
         )
         self.assertEqual(
@@ -271,7 +272,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         self.assertEqual(candidate["docs_commit"], CANDIDATE_DOCS_MERGE)
         self.assertEqual(candidate["docs_merged_at"], CANDIDATE_DOCS_MERGED_AT)
         self.assertEqual(candidate["source_commit"], CANDIDATE_SOURCE)
-        self.assertEqual(candidate["source_tree"], SOURCE_TREE)
+        self.assertEqual(candidate["source_tree"], RETIRED_SOURCE_TREE)
         self.assertEqual(candidate["source_ref"], CANDIDATE_REF)
         self.assertEqual(candidate["record_path"], CANDIDATE_RECORD_REL.as_posix())
         self.assertEqual(candidate["reference_path"], CANDIDATE_REFERENCE_REL.as_posix())
@@ -282,7 +283,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             {
                 "id": RUN_ID,
                 "attempt": RUN_ATTEMPT,
-                "event": "push",
+                "event": "pull_request",
                 "conclusion": "success",
                 "ref": SOURCE_REF,
                 "artifact_id": ARTIFACT_ID,
@@ -295,6 +296,8 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 "predicate_type": PREDICATE_TYPE,
                 "signer_workflow": SIGNER_WORKFLOW,
                 "runner_environment": "github-hosted",
+                "workflow_commit": WORKFLOW_COMMIT,
+                "workflow_ref": WORKFLOW_REF,
             },
         )
         expected_publication = {
@@ -324,12 +327,6 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                     "sha256": expected_hash,
                 },
             )
-        self.assertEqual(
-            (parse_utc(SOURCE_MERGED_AT) - parse_utc(CANDIDATE_DOCS_MERGED_AT)).total_seconds(),
-            84,
-            "candidate docs must be immutably proven merged before source",
-        )
-
     def test_publication_record_schema_closes_every_object(self) -> None:
         schema_path = require_file(self, REPO, SCHEMA_REL)
         self.assertEqual(sha256(schema_path), SCHEMA_SHA256)
@@ -378,7 +375,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         visit(schema, "#")
         self.assertEqual(open_objects, [], f"publication schema has open objects: {open_objects}")
 
-    def test_merged_artifacts_have_exact_bytes_and_candidate_manifest_equivalence(self) -> None:
+    def test_pre_release_artifacts_have_exact_bytes(self) -> None:
         missing = [
             ACTIVE_PATHS[name].as_posix()
             for name in ACTIVE_HASHES
@@ -388,13 +385,8 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         for name, expected in ACTIVE_HASHES.items():
             with self.subTest(name=name):
                 self.assertEqual(sha256(REPO / ACTIVE_PATHS[name]), expected)
-        self.assertEqual(
-            (REPO / ACTIVE_PATHS["manifest"]).read_bytes(),
-            (REPO / CANDIDATE_PATHS["manifest"]).read_bytes(),
-            "merged and candidate API manifests must remain byte-identical",
-        )
 
-    def test_merged_predicate_bundle_and_verification_bind_only_merged_provenance(self) -> None:
+    def test_predicate_and_certificate_bind_head_and_workflow_identities(self) -> None:
         predicate = read_json(require_file(self, REPO, ACTIVE_PATHS["predicate"]))
         bundle = read_json(require_file(self, REPO, ACTIVE_PATHS["attestation"]))
         verification = read_json(require_file(self, REPO, ACTIVE_PATHS["verification"]))
@@ -409,8 +401,8 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 "repository": SOURCE_REPOSITORY,
                 "commit": SOURCE_COMMIT,
                 "ref": SOURCE_REF,
-                "event_name": "push",
-                "pull_request_number": "",
+                "event_name": "pull_request",
+                "pull_request_number": str(SOURCE_PULL_REQUEST),
             },
         )
         self.assertEqual(predicate["workflow"]["run_id"], str(RUN_ID))
@@ -422,12 +414,12 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         result = verification[0]["verificationResult"]
         self.assertEqual(result["statement"], statement)
         certificate = result["signature"]["certificate"]
-        self.assertEqual(certificate["githubWorkflowTrigger"], "push")
-        self.assertEqual(certificate["githubWorkflowSHA"], SOURCE_COMMIT)
+        self.assertEqual(certificate["githubWorkflowTrigger"], "pull_request")
+        self.assertEqual(certificate["githubWorkflowSHA"], WORKFLOW_COMMIT)
         self.assertEqual(certificate["githubWorkflowRepository"], SOURCE_REPOSITORY)
-        self.assertEqual(certificate["githubWorkflowRef"], SOURCE_REF)
-        self.assertEqual(certificate["sourceRepositoryDigest"], SOURCE_COMMIT)
-        self.assertEqual(certificate["sourceRepositoryRef"], SOURCE_REF)
+        self.assertEqual(certificate["githubWorkflowRef"], WORKFLOW_REF)
+        self.assertEqual(certificate["sourceRepositoryDigest"], WORKFLOW_COMMIT)
+        self.assertEqual(certificate["sourceRepositoryRef"], WORKFLOW_REF)
         self.assertEqual(certificate["runnerEnvironment"], "github-hosted")
         self.assertEqual(
             certificate["runInvocationURI"],
@@ -449,7 +441,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 "reason": "promoted-to-active",
                 "active_version": ACTIVE_ROOT_REL.as_posix(),
                 "publication_record": RECORD_REL.as_posix(),
-                "source_commit": SOURCE_COMMIT,
+                "source_commit": RETIRED_SOURCE_COMMIT,
             },
         )
         page = require_file(self, REPO, CANDIDATE_REFERENCE_REL).read_text(encoding="utf-8")
@@ -508,6 +500,10 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             f'source_commit: "{SOURCE_COMMIT}"',
             f'source_tree: "{SOURCE_TREE}"',
             "Config",
+            "ListenAddress netip.AddrPort",
+            "DiscoveryEnabled bool",
+            "PairingPolicy PairingPolicy",
+            "PairingPolicyClosed",
             "Remote",
             "Runtime",
             "func New(Config) (Runtime, error)",
@@ -542,6 +538,8 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             "MCP",
         ):
             self.assertIn(token, text)
+        for stale in ("ConfigV2", "NewV2", "PairingPolicyV2", "PairingPolicyV2Closed"):
+            self.assertNotIn(stale, text)
 
     def test_every_go_example_is_complete_marked_and_compile_owned(self) -> None:
         text = require_file(self, REPO, REFERENCE_REL).read_text(encoding="utf-8")
@@ -742,7 +740,10 @@ class FakeRunner:
                 stderr="synthetic attestation failure" if self.attestation_code else "",
             )
         if command[:2] == ("gh", "pr"):
-            number = next((part for part in command if part in {"19", "25"}), "")
+            number = next(
+                (part for part in command if part in {"19", str(SOURCE_PULL_REQUEST)}),
+                "",
+            )
             payload = (
                 {
                     "state": "MERGED",
@@ -752,10 +753,10 @@ class FakeRunner:
                 }
                 if number == "19"
                 else {
-                    "state": "MERGED",
-                    "mergedAt": SOURCE_MERGED_AT,
-                    "mergeCommit": {"oid": SOURCE_COMMIT},
-                    "headRefOid": CANDIDATE_SOURCE,
+                    "state": "OPEN",
+                    "mergedAt": None,
+                    "headRefName": SOURCE_REF.removeprefix("refs/heads/"),
+                    "headRefOid": SOURCE_COMMIT,
                     "headRepositoryOwner": {"login": "Project-Helianthus"},
                 }
             )
@@ -767,7 +768,7 @@ class FakeRunner:
                     "sha": SOURCE_COMMIT,
                     "commit": {
                         "tree": {"sha": SOURCE_TREE},
-                        "committer": {"date": SOURCE_MERGED_AT},
+                        "committer": {"date": "2026-07-18T09:08:54Z"},
                     },
                     "verification": None,
                 }
@@ -782,10 +783,10 @@ class FakeRunner:
             elif f"actions/runs/{RUN_ID}" in endpoint:
                 payload = {
                     "id": RUN_ID,
-                    "event": "push",
+                    "event": "pull_request",
                     "conclusion": "success",
                     "head_sha": SOURCE_COMMIT,
-                    "head_branch": "main",
+                    "head_branch": SOURCE_REF.removeprefix("refs/heads/"),
                     "run_attempt": RUN_ATTEMPT,
                     "path": ".github/workflows/ci.yml",
                 }
@@ -805,7 +806,7 @@ class FakeRunner:
             "workflow_run": {
                 "id": RUN_ID,
                 "head_sha": SOURCE_COMMIT,
-                "head_branch": "main",
+                "head_branch": SOURCE_REF.removeprefix("refs/heads/"),
             },
         }
 
@@ -925,13 +926,13 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
 
         self.assert_mutation("offline: artifact-digest", mutate)
 
-    def test_merge_ordering_mutation_is_rejected(self) -> None:
+    def test_pre_release_source_state_mutation_is_rejected(self) -> None:
         self.assert_mutation(
-            "offline: merge-order",
+            "offline: source-state",
             lambda root: self.mutate_record(
                 root,
-                lambda record: record["candidate"].__setitem__(
-                    "docs_merged_at", "2026-07-15T09:45:00Z"
+                lambda record: record["source"].__setitem__(
+                    "merged_at", "2026-07-18T09:30:00Z"
                 ),
             ),
         )
@@ -984,7 +985,7 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
             )
             self.assertIn("offline: generated-manifest", errors)
 
-    def test_candidate_attestation_replay_cannot_be_renamed_as_merged_provenance(self) -> None:
+    def test_candidate_attestation_replay_cannot_replace_source_provenance(self) -> None:
         def mutate(root: Path) -> None:
             for name in ("attestation", "verification"):
                 destination = root / ACTIVE_PATHS[name]
@@ -1001,7 +1002,7 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
                 ),
             )
 
-        self.assert_mutation("offline: merged-provenance", mutate)
+        self.assert_mutation("offline: source-provenance", mutate)
 
     def test_online_verification_is_optional_and_exact_when_enabled(self) -> None:
         with contract_fixture() as (root, source):
@@ -1016,8 +1017,8 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
             for flag, value in (
                 ("--repo", SOURCE_REPOSITORY),
                 ("--predicate-type", PREDICATE_TYPE),
-                ("--source-digest", SOURCE_COMMIT),
-                ("--source-ref", SOURCE_REF),
+                ("--source-digest", WORKFLOW_COMMIT),
+                ("--source-ref", WORKFLOW_REF),
                 ("--signer-workflow", SIGNER_WORKFLOW),
             ):
                 index = verify.index(flag)

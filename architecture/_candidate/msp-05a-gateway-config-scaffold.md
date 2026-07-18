@@ -128,7 +128,7 @@ from an M5A field. The legacy certificate, private-key, and trust-store path
 fields remain source-compatible but must be empty under the revised production
 contract. They are not aliases for `StateRoot`.
 
-M5A-R1 follows the runtime v2 and scoped-listener prerequisites. It must add the
+M5A-R1 follows the initial runtime v1 and scoped-listener prerequisites. It must add the
 two inputs explicitly and preserve every existing field until the gateway can
 map the complete configuration product without loss. Any missing, ambiguous,
 unsupported, or future value fails before runtime construction.
