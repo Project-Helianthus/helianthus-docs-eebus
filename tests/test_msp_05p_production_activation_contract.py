@@ -312,6 +312,27 @@ func NewV2(config ConfigV2) (Runtime, error)""".split()
         ):
             self.assertIn(phrase, normalized)
 
+    def test_msp_05p_reg_runtime_provider_and_transport_proof_gate_is_closed(self) -> None:
+        self.require_contracts()
+        _, body = read_markdown(ARCH)
+        rows = table_rows(body, "## MSP-05P-REG-RUNTIME Transport Proof Gate")
+        self.assertEqual(
+            [code(row["Gate"]) for row in rows],
+            ["G02", "G05", "G07", "G09"],
+        )
+        normalized = " ".join(body.split())
+        for phrase in (
+            "selected installed protected provider",
+            "no weaker, file-only, generated, replacement, or other fallback",
+            "before service construction, listener start, or mDNS publication",
+            "provider selection or validation failure returns `protected_material_unavailable`",
+            "startup rollback withdraws any active publication with `TTL=0` before listener close",
+            "shutdown withdraws any active publication with `TTL=0` before listener close",
+            "no multicast record, listener, goroutine, session, or durable trust mutation leaks",
+            "candidate implementation proof, not a supported API or protocol claim",
+        ):
+            self.assertIn(phrase, normalized)
+
     def test_disabled_default_anti_leak_and_rollback_are_explicit(self) -> None:
         self.require_contracts()
         bodies = [read_markdown(path)[1] for path in (ARCH, PROTOCOL, API)]
