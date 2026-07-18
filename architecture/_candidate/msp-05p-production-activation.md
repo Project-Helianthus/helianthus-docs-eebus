@@ -130,6 +130,39 @@ first-trust flow may hold one ephemeral candidate and OOB fingerprint
 confirmation, with no persistent write before confirmation. That flow remains
 internal and admin-gated; this candidate adds no public trust mutation.
 
+## MSP-05P-REG-RUNTIME Transport Proof Gate
+
+`MSP-05P-REG-RUNTIME` is a candidate implementation proof, not a supported API
+or protocol claim. A later implementation may not report ready unless all four
+proof cases below pass against the same selected configuration and lifecycle
+attempt. They are an activation precondition, not evidence that a peer, a
+device, or the eeBUS protocol requires this design.
+
+| Gate | Required implementation proof |
+| --- | --- |
+| `G02` | The selected installed protected provider supplies and validates the configured local identity while pairing remains closed; an unknown peer produces no durable trust write. |
+| `G05` | The exact transport listener binds only the configured address and port; wildcard, alternate-address, and unexpected bridge exposure fail. |
+| `G07` | With discovery disabled, no mDNS provider is started and no advertisement appears; if discovery had become active before a later failure, cleanup withdraws it before listener close and verifies negative/TTL behavior. |
+| `G09` | The selected provider's certificate-derived local identity, masked remote identity binding, and pairing state retain their accepted values across proof restart without regenerating or replacing identity. |
+
+Provider choice is an all-or-nothing prerequisite for enabled activation. The
+selected installed protected provider is the only material authority for that
+attempt: it must complete its required identity and binding checks before any
+service construction, listener start, or mDNS publication. A provider may not
+degrade to a file-only key, generated identity, replacement identity, or any
+other weaker source. The provider selection or validation failure returns
+`protected_material_unavailable`; it prevents every later lifecycle effect.
+
+In addition to the four mapped transport cases, failure injection covers every
+startup boundary after a prior effect, not only the first listener error. Each
+branch releases its own resource exactly once; startup rollback withdraws any
+active publication with `TTL=0` before listener close and joins its started
+work before returning. Ordinary and repeated shutdown apply the same ordering:
+shutdown withdraws any active publication with `TTL=0` before listener close
+and leaves no multicast record, listener, goroutine, session, or durable trust
+mutation leaks. Neither proof type authorizes a new consumer, trust mutation,
+API, or protocol surface.
+
 ## Rollback And Dependency Gate
 
 If any prerequisite cannot preserve these constraints, withdraw this candidate
