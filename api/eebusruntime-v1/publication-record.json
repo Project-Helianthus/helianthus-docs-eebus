@@ -6,10 +6,10 @@
   "source": {
     "repository": "Project-Helianthus/helianthus-eebusreg",
     "pull_request": 45,
-    "commit": "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb",
+    "commit": "7a5852e009bbdcba47f0a34ba866070a4ab35ef8",
     "tree": "b090651c99d5b6817a40997b14c1b6a2a37c124e",
-    "ref": "refs/heads/issue/44-pre-release-api-v1",
-    "merged_at": null
+    "ref": "refs/heads/main",
+    "merged_at": "2026-07-18T11:06:48Z"
   },
   "candidate": {
     "docs_repository": "Project-Helianthus/helianthus-docs-eebus",
@@ -41,20 +41,20 @@
     }
   },
   "run": {
-    "id": 29638678140,
+    "id": 29642000784,
     "attempt": 1,
-    "event": "pull_request",
+    "event": "push",
     "conclusion": "success",
-    "ref": "refs/heads/issue/44-pre-release-api-v1",
-    "artifact_id": 8427914108,
-    "artifact_name": "helianthus-eebusreg-api-surface-v1-29638678140-1"
+    "ref": "refs/heads/main",
+    "artifact_id": 8428896581,
+    "artifact_name": "helianthus-eebusreg-api-surface-v1-29642000784-1"
   },
   "attestation": {
     "predicate_type": "https://project-helianthus.github.io/attestations/eebus-api-surface/v1",
     "signer_workflow": "Project-Helianthus/helianthus-eebusreg/.github/workflows/ci.yml",
     "runner_environment": "github-hosted",
-    "workflow_commit": "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399",
-    "workflow_ref": "refs/pull/45/merge"
+    "workflow_commit": "7a5852e009bbdcba47f0a34ba866070a4ab35ef8",
+    "workflow_ref": "refs/heads/main"
   },
   "artifacts": {
     "manifest": {
@@ -63,15 +63,15 @@
     },
     "predicate": {
       "path": "api/eebusruntime-v1/predicate.json",
-      "sha256": "02c12af763414630b1c4cc4ec52c62449a0947d0e165ba9dec2be85201c2790a"
+      "sha256": "e84acd2d7ccc63c3a150e9f53d61480d967bf03f5ac827f7a692f14e9ebe534e"
     },
     "attestation": {
       "path": "api/eebusruntime-v1/attestation.json",
-      "sha256": "5dc1c3ce63f8b58cb37507a3ac707d5b2f41098e20e5cae9e5b2b83598446de3"
+      "sha256": "9b67ab54ef0b9637abdb9450e2a4b94ee56c040883b0d1ee98899d4a02d9142f"
     },
     "verification": {
       "path": "api/eebusruntime-v1/verification.json",
-      "sha256": "898e14f9f0b9f85d6414facdb4be4efba891161df78a89951e6ed0410994058c"
+      "sha256": "485c7976f7de52a35c55ad590bc3fdfac97420f72bb7a6d7fc80afd418798c87"
     }
   },
   "publication": {
@@ -89,7 +89,7 @@
       "closed-record-schema",
       "exact-artifact-byte-hashes",
       "candidate-byte-preservation-and-retirement",
-      "green-source-pr-head-tree-ref-run-attempt",
+      "green-source-merge-tree-ref-run-attempt",
       "manifest-regenerated-from-exact-source-head",
       "predicate-statement-verification-consistency",
       "stable-channel-membership-and-candidate-exclusion",
@@ -98,14 +98,14 @@
       "online-provenance-required-in-ci"
     ],
     "online": [
-      "source-commit-tree-and-pr-head",
+      "source-merge-commit-tree-and-pr",
       "workflow-run-and-artifact",
       "attestation-repository-bundle-predicate-head-digest-head-ref-workflow-digest-workflow-ref-signer-workflow-deny-self-hosted-runners"
     ]
   },
   "invalidation_conditions": [
     "source-commit-or-tree-differs",
-    "source-pr-head-differs",
+    "source-pr-merge-state-differs",
     "run-id-attempt-ref-or-conclusion-differs",
     "artifact-byte-digest-differs",
     "candidate-evidence-is-not-byte-preserved-or-retired",

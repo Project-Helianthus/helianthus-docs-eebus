@@ -66,10 +66,10 @@
       "properties": {
         "repository": {"const": "Project-Helianthus/helianthus-eebusreg"},
         "pull_request": {"type": "integer", "const": 45},
-        "commit": {"const": "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"},
+        "commit": {"const": "7a5852e009bbdcba47f0a34ba866070a4ab35ef8"},
         "tree": {"const": "b090651c99d5b6817a40997b14c1b6a2a37c124e"},
-        "ref": {"const": "refs/heads/issue/44-pre-release-api-v1"},
-        "merged_at": {"type": "null"}
+        "ref": {"const": "refs/heads/main"},
+        "merged_at": {"const": "2026-07-18T11:06:48Z"}
       }
     },
     "candidate": {
@@ -105,13 +105,13 @@
       "additionalProperties": false,
       "required": ["id", "attempt", "event", "conclusion", "ref", "artifact_id", "artifact_name"],
       "properties": {
-        "id": {"type": "integer", "const": 29638678140},
+        "id": {"type": "integer", "const": 29642000784},
         "attempt": {"type": "integer", "const": 1},
-        "event": {"const": "pull_request"},
+        "event": {"const": "push"},
         "conclusion": {"const": "success"},
-        "ref": {"const": "refs/heads/issue/44-pre-release-api-v1"},
-        "artifact_id": {"type": "integer", "const": 8427914108},
-        "artifact_name": {"const": "helianthus-eebusreg-api-surface-v1-29638678140-1"}
+        "ref": {"const": "refs/heads/main"},
+        "artifact_id": {"type": "integer", "const": 8428896581},
+        "artifact_name": {"const": "helianthus-eebusreg-api-surface-v1-29642000784-1"}
       }
     },
     "attestation": {
@@ -122,8 +122,8 @@
         "predicate_type": {"const": "https://project-helianthus.github.io/attestations/eebus-api-surface/v1"},
         "signer_workflow": {"const": "Project-Helianthus/helianthus-eebusreg/.github/workflows/ci.yml"},
         "runner_environment": {"const": "github-hosted"},
-        "workflow_commit": {"const": "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399"},
-        "workflow_ref": {"const": "refs/pull/45/merge"}
+        "workflow_commit": {"const": "7a5852e009bbdcba47f0a34ba866070a4ab35ef8"},
+        "workflow_ref": {"const": "refs/heads/main"}
       }
     },
     "publication": {
