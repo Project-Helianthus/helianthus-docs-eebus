@@ -28,6 +28,11 @@
         },
         {
           "dependency_kind": "standard_library",
+          "qualifier": "netip",
+          "path": "net/netip"
+        },
+        {
+          "dependency_kind": "standard_library",
           "qualifier": "time",
           "path": "time"
         }
@@ -195,6 +200,14 @@
         },
         {
           "kind": "const",
+          "name": "PairingPolicyClosed",
+          "type": "PairingPolicy",
+          "signature": "const PairingPolicyClosed PairingPolicy = \"closed\"",
+          "value_kind": "string",
+          "value": "\"closed\""
+        },
+        {
+          "kind": "const",
           "name": "ServiceKindV1Local",
           "type": "ServiceKindV1",
           "signature": "const ServiceKindV1Local ServiceKindV1 = \"local\"",
@@ -311,8 +324,8 @@
         {
           "kind": "type",
           "name": "Config",
-          "type": "struct{ Enabled bool; StateRoot string; Interface string; ListenPort int; Remotes []Remote }",
-          "signature": "type Config struct{ Enabled bool; StateRoot string; Interface string; ListenPort int; Remotes []Remote }",
+          "type": "struct{ Enabled bool; StateRoot string; Interface string; ListenAddress netip.AddrPort; DiscoveryEnabled bool; Remotes []Remote; PairingPolicy PairingPolicy }",
+          "signature": "type Config struct{ Enabled bool; StateRoot string; Interface string; ListenAddress netip.AddrPort; DiscoveryEnabled bool; Remotes []Remote; PairingPolicy PairingPolicy }",
           "type_form": "defined",
           "type_parameters": []
         },
@@ -385,6 +398,14 @@
           "name": "PairingObservationV1",
           "type": "struct{ Remote eebusraw.RedactedID \"json:\\\"remote\\\"\"; State eebusraw.PairingState \"json:\\\"state\\\"\"; Since time.Time \"json:\\\"since,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
           "signature": "type PairingObservationV1 struct{ Remote eebusraw.RedactedID \"json:\\\"remote\\\"\"; State eebusraw.PairingState \"json:\\\"state\\\"\"; Since time.Time \"json:\\\"since,omitempty\\\"\"; Raw []eebusevidence.ObjectV1 \"json:\\\"raw,omitempty\\\"\"; Unknown []eebusraw.UnknownField \"json:\\\"unknown,omitempty\\\"\" }",
+          "type_form": "defined",
+          "type_parameters": []
+        },
+        {
+          "kind": "type",
+          "name": "PairingPolicy",
+          "type": "string",
+          "signature": "type PairingPolicy string",
           "type_form": "defined",
           "type_parameters": []
         },

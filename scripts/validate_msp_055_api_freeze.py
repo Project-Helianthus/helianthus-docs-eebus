@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the closed MSP-055 merged API publication."""
+"""Validate the closed MSP-055 pre-release API publication."""
 from __future__ import annotations
 
 import argparse
@@ -23,18 +23,22 @@ from validate_api_surface_v1 import validate_document
 
 SOURCE_REPOSITORY = "Project-Helianthus/helianthus-eebusreg"
 DOCS_REPOSITORY = "Project-Helianthus/helianthus-docs-eebus"
-SOURCE_COMMIT = "59cbea0593f27caf558bc4cc9b665c52fc50b683"
-SOURCE_TREE = "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d"
-SOURCE_REF = "refs/heads/main"
-SOURCE_MERGED_AT = "2026-07-15T09:44:37Z"
+SOURCE_PULL_REQUEST = 45
+SOURCE_COMMIT = "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb"
+SOURCE_TREE = "b090651c99d5b6817a40" "997b14c1b6a2a37c124e"
+SOURCE_REF = "refs/heads/issue/44-pre-release-api-v1"
+WORKFLOW_COMMIT = "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399"
+WORKFLOW_REF = "refs/pull/45/merge"
+RETIRED_SOURCE_COMMIT = "59cbea0593f27caf558bc4cc9b665c52fc50b683"
+RETIRED_SOURCE_TREE = "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d"
 CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
 CANDIDATE_REF = "refs/heads/issue/24-msp055-lifecycle-facade"
 CANDIDATE_DOCS_MERGE = "df231977989625fae8a9" "2d94b3ca88ef9e52c6f2"
 CANDIDATE_DOCS_MERGED_AT = "2026-07-15T09:43:13Z"
-RUN_ID = 29405631374
+RUN_ID = 29638678140
 RUN_ATTEMPT = 1
-ARTIFACT_ID = 8338910226
-ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29405631374-1"
+ARTIFACT_ID = 8427914108
+ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29638678140-1"
 PREDICATE_TYPE = (
     "https://project-helianthus.github.io/attestations/eebus-api-surface/v1"
 )
@@ -44,7 +48,7 @@ SIGNER_WORKFLOW = (
 GO_VERSION = "1.24.13"
 SCHEMA_ID = "helianthus.docs.eebus.msp-055-api-freeze.v1"
 SCHEMA_URN = "urn:helianthus:eebus:msp-055-api-freeze:v1"
-SCHEMA_SHA256 = "d570dd12d7bb706eeb8448a5537fcfba004c8bdb487a9205e9cf891d90e47961"
+SCHEMA_SHA256 = "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35"
 
 ACTIVE_ROOT_REL = Path("api/eebusruntime-v1")
 REFERENCE_REL = ACTIVE_ROOT_REL / "reference.md"
@@ -69,13 +73,13 @@ CANDIDATE_PATHS = {
     "verification": Path("api/_candidate/msp-055/verification.json"),
 }
 ACTIVE_HASHES = {
-    "manifest": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c",
-    "predicate": "e36da7bb216b85e3a6c97d195c5269f92e8cdb3437c459ec1a5fc0990c36fd3e",
-    "attestation": "e8506c1b7551d41d8a447fe83b8bc54b1c8d7f42068d3bbf54e99d4a604976c0",
-    "verification": "cae8bbf7cd1318d9c878ee51d65b7c6504c59db9dcdc52cb09a01b10d58bb250",
+    "manifest": "bbabab51cc0a0e833c645f51767e67a34c0361ba61c45b0065ecfda55ed6c32f",
+    "predicate": "02c12af763414630b1c4cc4ec52c62449a0947d0e165ba9dec2be85201c2790a",
+    "attestation": "5dc1c3ce63f8b58cb37507a3ac707d5b2f41098e20e5cae9e5b2b83598446de3",
+    "verification": "898e14f9f0b9f85d6414facdb4be4efba891161df78a89951e6ed0410994058c",
 }
 CANDIDATE_HASHES = {
-    "manifest": ACTIVE_HASHES["manifest"],
+    "manifest": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c",
     "predicate": "5960ac6dc00942ea7a19d2559934b382ac700ae445b492abb8d223a6f14b72e4",
     "attestation": "2419bb9ab2187c19642f80f01d1e776b6b52df8cdf182e41ac9329e916ebdfc9",
     "verification": "a1de3f1ff4163871dcb416348723b104afab4edfe3f0d4e1fe0a3f0fef58cbf0",
@@ -90,10 +94,8 @@ EXPECTED_OFFLINE_POLICY = {
     "closed-record-schema",
     "exact-artifact-byte-hashes",
     "candidate-byte-preservation-and-retirement",
-    "candidate-before-source-merge",
-    "merged-source-commit-tree-ref-run-attempt",
-    "manifest-api-v1-and-candidate-byte-equivalence",
-    "manifest-regenerated-from-merged-source",
+    "green-source-pr-head-tree-ref-run-attempt",
+    "manifest-regenerated-from-exact-source-head",
     "predicate-statement-verification-consistency",
     "stable-channel-membership-and-candidate-exclusion",
     "marked-go-examples-compile-at-exact-source",
@@ -101,20 +103,19 @@ EXPECTED_OFFLINE_POLICY = {
     "online-provenance-required-in-ci",
 }
 EXPECTED_ONLINE_POLICY = {
-    "source-commit-tree-and-merge",
+    "source-commit-tree-and-pr-head",
     "workflow-run-and-artifact",
     (
-        "attestation-repository-bundle-predicate-source-digest-source-ref-"
-        "signer-workflow-deny-self-hosted-runners"
+        "attestation-repository-bundle-predicate-head-digest-head-ref-"
+        "workflow-digest-workflow-ref-signer-workflow-deny-self-hosted-runners"
     ),
 }
 EXPECTED_INVALIDATIONS = {
     "source-commit-or-tree-differs",
+    "source-pr-head-differs",
     "run-id-attempt-ref-or-conclusion-differs",
     "artifact-byte-digest-differs",
-    "candidate-or-source-merge-order-differs",
     "candidate-evidence-is-not-byte-preserved-or-retired",
-    "candidate-attestation-is-replayed-as-merged-provenance",
     "active-reference-is-missing-from-any-stable-channel",
     "candidate-path-leaks-into-stable-output",
     "marked-example-does-not-compile-at-exact-source",
@@ -231,7 +232,10 @@ def _record_errors(root: Path, record: Any) -> set[str]:
     }:
         errors.add("offline: record-schema")
         source = {}
-    if source.get("repository") != SOURCE_REPOSITORY or source.get("pull_request") != 25:
+    if (
+        source.get("repository") != SOURCE_REPOSITORY
+        or source.get("pull_request") != SOURCE_PULL_REQUEST
+    ):
         errors.add("offline: source-identity")
     if source.get("commit") != SOURCE_COMMIT:
         errors.add("offline: source-commit")
@@ -239,14 +243,14 @@ def _record_errors(root: Path, record: Any) -> set[str]:
         errors.add("offline: source-tree")
     if source.get("ref") != SOURCE_REF:
         errors.add("offline: source-ref")
-    if source.get("merged_at") != SOURCE_MERGED_AT:
-        errors.add("offline: merge-order")
+    if source.get("merged_at") is not None:
+        errors.add("offline: source-state")
 
     run = record.get("run")
     expected_run = {
         "id": RUN_ID,
         "attempt": RUN_ATTEMPT,
-        "event": "push",
+        "event": "pull_request",
         "conclusion": "success",
         "ref": SOURCE_REF,
         "artifact_id": ARTIFACT_ID,
@@ -285,7 +289,7 @@ def _record_errors(root: Path, record: Any) -> set[str]:
         "docs_commit": CANDIDATE_DOCS_MERGE,
         "docs_merged_at": CANDIDATE_DOCS_MERGED_AT,
         "source_commit": CANDIDATE_SOURCE,
-        "source_tree": SOURCE_TREE,
+        "source_tree": RETIRED_SOURCE_TREE,
         "source_ref": CANDIDATE_REF,
         "record_path": CANDIDATE_RECORD_REL.as_posix(),
         "reference_path": CANDIDATE_REFERENCE_REL.as_posix(),
@@ -293,21 +297,13 @@ def _record_errors(root: Path, record: Any) -> set[str]:
     }
     if any(candidate.get(key) != value for key, value in expected_candidate.items()):
         errors.add("offline: candidate-retirement")
-    candidate_time = _parse_utc(candidate.get("docs_merged_at"))
-    source_time = _parse_utc(source.get("merged_at"))
-    if (
-        candidate_time is None
-        or source_time is None
-        or candidate_time >= source_time
-        or (source_time - candidate_time).total_seconds() != 84
-    ):
-        errors.add("offline: merge-order")
-
     attestation = record.get("attestation")
     if attestation != {
         "predicate_type": PREDICATE_TYPE,
         "signer_workflow": SIGNER_WORKFLOW,
         "runner_environment": "github-hosted",
+        "workflow_commit": WORKFLOW_COMMIT,
+        "workflow_ref": WORKFLOW_REF,
     }:
         errors.add("offline: record-schema")
     publication = record.get("publication")
@@ -397,13 +393,6 @@ def _artifact_errors(root: Path, record: dict[str, Any]) -> set[str]:
     manifest_path = root / ACTIVE_PATHS["manifest"]
     if manifest_path.is_file() and validate_document(manifest_path):
         errors.add("offline: manifest-api-v1")
-    candidate_manifest = root / CANDIDATE_PATHS["manifest"]
-    if (
-        not manifest_path.is_file()
-        or not candidate_manifest.is_file()
-        or manifest_path.read_bytes() != candidate_manifest.read_bytes()
-    ):
-        errors.add("offline: manifest-equivalence")
     return errors
 
 
@@ -425,7 +414,7 @@ def _provenance_errors(root: Path) -> set[str]:
         bundle = _read_json(root / ACTIVE_PATHS["attestation"])
         verification = _read_json(root / ACTIVE_PATHS["verification"])
     except (OSError, ValueError, json.JSONDecodeError):
-        return {"offline: merged-provenance"}
+        return {"offline: source-provenance"}
     statement = _statement(bundle)
     verified_statement = _value(verification, 0, "verificationResult", "statement")
     certificate = _value(verification, 0, "verificationResult", "signature", "certificate")
@@ -441,8 +430,8 @@ def _provenance_errors(root: Path) -> set[str]:
         "schema_version": 1,
         "source": {
             "commit": SOURCE_COMMIT,
-            "event_name": "push",
-            "pull_request_number": "",
+            "event_name": "pull_request",
+            "pull_request_number": str(SOURCE_PULL_REQUEST),
             "ref": SOURCE_REF,
             "repository": SOURCE_REPOSITORY,
         },
@@ -465,12 +454,12 @@ def _provenance_errors(root: Path) -> set[str]:
         and statement == verified_statement
     )
     certificate_expected = {
-        "githubWorkflowTrigger": "push",
-        "githubWorkflowSHA": SOURCE_COMMIT,
+        "githubWorkflowTrigger": "pull_request",
+        "githubWorkflowSHA": WORKFLOW_COMMIT,
         "githubWorkflowRepository": SOURCE_REPOSITORY,
-        "githubWorkflowRef": SOURCE_REF,
-        "sourceRepositoryDigest": SOURCE_COMMIT,
-        "sourceRepositoryRef": SOURCE_REF,
+        "githubWorkflowRef": WORKFLOW_REF,
+        "sourceRepositoryDigest": WORKFLOW_COMMIT,
+        "sourceRepositoryRef": WORKFLOW_REF,
         "runnerEnvironment": "github-hosted",
         "runInvocationURI": (
             f"https://github.com/{SOURCE_REPOSITORY}/actions/runs/"
@@ -482,7 +471,7 @@ def _provenance_errors(root: Path) -> set[str]:
     )
     serialized = json.dumps(statement, sort_keys=True) if statement is not None else ""
     if not valid_statement or not valid_certificate or CANDIDATE_SOURCE in serialized:
-        return {"offline: merged-provenance"}
+        return {"offline: source-provenance"}
     return set()
 
 
@@ -499,7 +488,7 @@ def _candidate_errors(root: Path) -> set[str]:
             "reason": "promoted-to-active",
             "active_version": ACTIVE_ROOT_REL.as_posix(),
             "publication_record": RECORD_REL.as_posix(),
-            "source_commit": SOURCE_COMMIT,
+            "source_commit": RETIRED_SOURCE_COMMIT,
         }
     ):
         errors.add("offline: candidate-retirement")
@@ -601,16 +590,14 @@ def _source_errors(
         try:
             generated_bytes = generated.read_bytes()
             active_bytes = (root / ACTIVE_PATHS["manifest"]).read_bytes()
-            candidate_bytes = (root / CANDIDATE_PATHS["manifest"]).read_bytes()
         except OSError:
-            generated_bytes = active_bytes = candidate_bytes = b""
+            generated_bytes = active_bytes = b""
             errors.add("offline: generated-manifest")
         if (
             result is None
             or result.returncode != 0
             or not generated_bytes
             or generated_bytes != active_bytes
-            or generated_bytes != candidate_bytes
         ):
             errors.add("offline: generated-manifest")
     return errors
@@ -758,8 +745,8 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
     source_pr = _json_result(
         runner,
         (
-            "gh", "pr", "view", "25", "--repo", SOURCE_REPOSITORY,
-            "--json", "state,mergedAt,mergeCommit,headRefOid,headRepositoryOwner",
+            "gh", "pr", "view", str(SOURCE_PULL_REQUEST), "--repo", SOURCE_REPOSITORY,
+            "--json", "state,mergedAt,headRefName,headRefOid,headRepositoryOwner",
         ),
     )
     if (
@@ -770,13 +757,12 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
     ):
         errors.add("online: candidate-merge")
     if (
-        _value(source_pr, "state") != "MERGED"
-        or _value(source_pr, "mergedAt") != SOURCE_MERGED_AT
-        or _value(source_pr, "mergeCommit", "oid") != SOURCE_COMMIT
-        or _value(source_pr, "headRefOid") != CANDIDATE_SOURCE
+        _value(source_pr, "state") not in {"OPEN", "MERGED"}
+        or _value(source_pr, "headRefName") != SOURCE_REF.removeprefix("refs/heads/")
+        or _value(source_pr, "headRefOid") != SOURCE_COMMIT
         or _value(source_pr, "headRepositoryOwner", "login") != "Project-Helianthus"
     ):
-        errors.add("online: source-merge")
+        errors.add("online: source-pr-head")
 
     source_commit = _json_result(
         runner, ("gh", "api", f"repos/{SOURCE_REPOSITORY}/commits/{SOURCE_COMMIT}")
@@ -797,10 +783,10 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
     )
     expected_run = {
         "id": RUN_ID,
-        "event": "push",
+        "event": "pull_request",
         "conclusion": "success",
         "head_sha": SOURCE_COMMIT,
-        "head_branch": "main",
+        "head_branch": SOURCE_REF.removeprefix("refs/heads/"),
         "run_attempt": RUN_ATTEMPT,
         "path": ".github/workflows/ci.yml",
     }
@@ -830,7 +816,8 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
             or value.get("expired") is not False
             or _value(value, "workflow_run", "id") != RUN_ID
             or _value(value, "workflow_run", "head_sha") != SOURCE_COMMIT
-            or _value(value, "workflow_run", "head_branch") != "main"
+            or _value(value, "workflow_run", "head_branch")
+            != SOURCE_REF.removeprefix("refs/heads/")
         ):
             errors.add("online: workflow-artifact")
     verified = _completed(
@@ -840,8 +827,8 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
             "--repo", SOURCE_REPOSITORY,
             "--bundle", str(root / ACTIVE_PATHS["attestation"]),
             "--predicate-type", PREDICATE_TYPE,
-            "--source-digest", SOURCE_COMMIT,
-            "--source-ref", SOURCE_REF,
+            "--source-digest", WORKFLOW_COMMIT,
+            "--source-ref", WORKFLOW_REF,
             "--signer-workflow", SIGNER_WORKFLOW,
             "--deny-self-hosted-runners",
         ),

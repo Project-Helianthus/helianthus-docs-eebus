@@ -81,8 +81,11 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
 }
-MSP055_MANIFEST_SHA256 = (
+MSP055_RETIRED_MANIFEST_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
+)
+MSP055_MANIFEST_SHA256 = (
+    "bbabab51cc0a0e833c645f51767e67a3" "4c0361ba61c45b0065ecfda55ed6c32f"
 )
 MSP055_CANDIDATE_PREDICATE_SHA256 = (
     "5960ac6dc00942ea7a19d2559934b382" "ac700ae445b492abb8d223a6f14b72e4"
@@ -94,20 +97,23 @@ MSP055_CANDIDATE_VERIFICATION_SHA256 = (
     "a1de3f1ff4163871dcb416348723b104" "afab4edfe3f0d4e1fe0a3f0fef58cbf0"
 )
 MSP055_ACTIVE_PREDICATE_SHA256 = (
-    "e36da7bb216b85e3a6c97d195c5269f9" "2e8cdb3437c459ec1a5fc0990c36fd3e"
+    "02c12af763414630b1c4cc4ec52c6244" "9a0947d0e165ba9dec2be85201c2790a"
 )
 MSP055_ACTIVE_ATTESTATION_SHA256 = (
-    "e8506c1b7551d41d8a447fe83b8bc54b" "1c8d7f42068d3bbf54e99d4a604976c0"
+    "5dc1c3ce63f8b58cb37507a3ac707d5b" "2f41098e20e5cae9e5b2b83598446de3"
 )
 MSP055_ACTIVE_VERIFICATION_SHA256 = (
-    "cae8bbf7cd1318d9c878ee51d65b7c65" "04c59db9dcdc52cb09a01b10d58bb250"
+    "898e14f9f0b9f85d6414facdb4be4efb" "a891161df78a89951e6ed0410994058c"
 )
-MSP055_SOURCE_COMMIT = "59cbea0593f27caf558b" "c4cc9b665c52fc50b683"
+MSP055_SOURCE_COMMIT = "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb"
+MSP055_WORKFLOW_COMMIT = "fe6bd97c812605ce812c" "649f3ac3bd0eeaa0f399"
+MSP055_RETIRED_SOURCE_COMMIT = "59cbea0593f27caf558b" "c4cc9b665c52fc50b683"
 MSP055_CANDIDATE_SOURCE = "ad79f0bbe589d95d56cc" "738203604fec78639d90"
-MSP055_SOURCE_TREE = "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d"
+MSP055_SOURCE_TREE = "b090651c99d5b6817a40" "997b14c1b6a2a37c124e"
+MSP055_RETIRED_SOURCE_TREE = "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d"
 MSP055_CANDIDATE_DOCS_MERGE = "df231977989625fae8a9" "2d94b3ca88ef9e52c6f2"
 MSP055_CANDIDATE_DIGESTS = {
-    MSP055_MANIFEST_SHA256,
+    MSP055_RETIRED_MANIFEST_SHA256,
     MSP055_CANDIDATE_PREDICATE_SHA256,
     MSP055_CANDIDATE_ATTESTATION_SHA256,
     MSP055_CANDIDATE_VERIFICATION_SHA256,
@@ -120,25 +126,27 @@ MSP055_ACTIVE_DIGESTS = {
 }
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
-        MSP055_SOURCE_COMMIT,
+        MSP055_RETIRED_SOURCE_COMMIT,
         MSP055_CANDIDATE_SOURCE,
         *MSP055_CANDIDATE_DIGESTS,
     },
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json": {
         MSP055_CANDIDATE_SOURCE,
-        MSP055_MANIFEST_SHA256,
+        MSP055_RETIRED_MANIFEST_SHA256,
     },
     "api/_candidate/msp-055/verification.json": {
         MSP055_CANDIDATE_SOURCE,
-        MSP055_MANIFEST_SHA256,
+        MSP055_RETIRED_MANIFEST_SHA256,
     },
     "api/eebusruntime-v1/predicate.json": {
         MSP055_SOURCE_COMMIT,
         MSP055_MANIFEST_SHA256,
     },
     "api/eebusruntime-v1/publication-record.json": {
+        MSP055_RETIRED_SOURCE_TREE,
         MSP055_SOURCE_TREE,
         MSP055_SOURCE_COMMIT,
+        MSP055_WORKFLOW_COMMIT,
         MSP055_CANDIDATE_SOURCE,
         MSP055_CANDIDATE_DOCS_MERGE,
         *MSP055_CANDIDATE_DIGESTS,
@@ -146,11 +154,14 @@ MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     },
     "api/eebusruntime-v1/verification.json": {
         MSP055_SOURCE_COMMIT,
+        MSP055_WORKFLOW_COMMIT,
         MSP055_MANIFEST_SHA256,
     },
     "api/schema/helianthus.docs.eebus.msp-055-api-freeze.v1.schema.json": {
+        MSP055_RETIRED_SOURCE_TREE,
         MSP055_SOURCE_TREE,
         MSP055_SOURCE_COMMIT,
+        MSP055_WORKFLOW_COMMIT,
         MSP055_CANDIDATE_SOURCE,
         MSP055_CANDIDATE_DOCS_MERGE,
     },
@@ -160,10 +171,38 @@ MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS = set(
 )
 MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
     ".github/workflows/docs-ci.yml": {
-        "59cbea0593f27caf558b" "c4cc9b665c52fc50b683",
+        MSP055_SOURCE_COMMIT,
+    },
+    "api/_candidate/msp-05p-eebusruntime-v1-correction.md": {
+        MSP055_SOURCE_COMMIT,
+        MSP055_SOURCE_TREE,
+        MSP055_MANIFEST_SHA256,
     },
     "api/eebusruntime-v1/reference.md": {
-        "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d",
+        MSP055_SOURCE_COMMIT,
+        MSP055_SOURCE_TREE,
+    },
+    "scripts/validate_msp_055_api_freeze.py": {
+        MSP055_RETIRED_SOURCE_TREE,
+        MSP055_RETIRED_SOURCE_COMMIT,
+        MSP055_SOURCE_TREE,
+        MSP055_SOURCE_COMMIT,
+        MSP055_WORKFLOW_COMMIT,
+        MSP055_RETIRED_MANIFEST_SHA256,
+        MSP055_MANIFEST_SHA256,
+        MSP055_CANDIDATE_PREDICATE_SHA256,
+        MSP055_CANDIDATE_ATTESTATION_SHA256,
+        MSP055_CANDIDATE_VERIFICATION_SHA256,
+        MSP055_ACTIVE_PREDICATE_SHA256,
+        MSP055_ACTIVE_ATTESTATION_SHA256,
+        MSP055_ACTIVE_VERIFICATION_SHA256,
+        "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35",
+    },
+    "tests/test_msp_055_api_freeze.py": {
+        MSP055_RETIRED_SOURCE_TREE,
+        MSP055_RETIRED_SOURCE_COMMIT,
+        MSP055_WORKFLOW_COMMIT,
+        "57c130e55b2574c030026c606db6da4d4eb4f51ab4de1554e1b78ae546c1ea35",
     },
 }
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
@@ -436,7 +475,7 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
         "publication_status": "api-contract",
         "claim_status": "no-protocol-claims",
     },
-    "ed309f81859828dd42b65c4ae63794ab" "5de853502f5dec4b51bec312a8b80465": {
+    "0a7ecba0ba7449fa26d12c152d5e48fd" "1ff150c9816b8a83cc3cd16c32c64517": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:"
             "api/eebusruntime-v1/reference.md"
@@ -453,8 +492,8 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
             "commit produces different public declarations or evidence bytes."
         ),
         "api_version": "eebusruntime-v1",
-        "source_commit": "59cbea0593f27caf558b" "c4cc9b665c52fc50b683",
-        "source_tree": "01c17785fe9aac8d8536" "545e03e1ec1d4a4dff9d",
+        "source_commit": "6af4cdcedb5f7f93d01a" "53c48c6abc0c19f92edb",
+        "source_tree": "b090651c99d5b6817a40" "997b14c1b6a2a37c124e",
         "stable_navigation": "true",
         "search": "true",
         "sitemap": "true",

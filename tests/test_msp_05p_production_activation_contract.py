@@ -10,7 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 ARCH_REL = "architecture/_candidate/msp-05p-production-activation.md"
 PROTOCOL_REL = "protocols/_candidate/msp-05p-scoped-ship-listener.md"
-API_REL = "api/_candidate/msp-05p-eebusruntime-v2.md"
+API_REL = "api/_candidate/msp-05p-eebusruntime-v1-correction.md"
 M5A_REL = "architecture/_candidate/msp-05a-gateway-config-scaffold.md"
 ARCH = ROOT / ARCH_REL
 PROTOCOL = ROOT / PROTOCOL_REL
@@ -77,10 +77,10 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
 
     def test_candidate_metadata_and_publication_confinement(self) -> None:
         self.require_contracts()
-        for relative, path, domain in (
-            (ARCH_REL, ARCH, "architecture"),
-            (PROTOCOL_REL, PROTOCOL, "protocols"),
-            (API_REL, API, "api"),
+        for relative, path, domain, issue in (
+            (ARCH_REL, ARCH, "architecture", "36"),
+            (PROTOCOL_REL, PROTOCOL, "protocols", "36"),
+            (API_REL, API, "api", "40"),
         ):
             with self.subTest(relative=relative):
                 metadata, body = read_markdown(path)
@@ -98,7 +98,7 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
                 ):
                     self.assertEqual(metadata[channel], "false")
                 self.assertIn(
-                    "https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/36",
+                    f"https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/{issue}",
                     body,
                 )
         for relative in (
@@ -120,7 +120,7 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         rows = table_rows(body, "## Gateway To Runtime Mapping")
         got = {
             code(row["Gateway input"]): (
-                code(row["Runtime v2 input"]),
+                code(row["Runtime v1 input"]),
                 code(row["Rule"]),
             )
             for row in rows
@@ -243,31 +243,39 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, normalized)
 
-    def test_additive_v2_api_preserves_v1_and_hides_dependencies(self) -> None:
+    def test_initial_v1_api_is_exact_and_hides_dependencies(self) -> None:
         self.require_contracts()
         _, body = read_markdown(API)
-        rows = table_rows(body, "## Candidate Public Additions")
+        rows = table_rows(body, "## Exact Public Shape")
         got = {code(row["Public name"]): code(row["Shape"]) for row in rows}
         self.assertEqual(
             got,
             {
-                "ConfigV2": "struct",
+                "Config": "struct",
                 "ListenAddress": "netip.AddrPort",
                 "DiscoveryEnabled": "bool",
-                "PairingPolicy": "PairingPolicyV2",
-                "PairingPolicyV2": "string",
-                "PairingPolicyV2Closed": "constant",
-                "NewV2": "func(ConfigV2)(Runtime,error)",
+                "Config.PairingPolicy": "PairingPolicy",
+                "PairingPolicy": "string",
+                "PairingPolicyClosed": "constant",
+                "New": "func(Config)(Runtime,error)",
             },
         )
         normalized = " ".join(body.split())
+        for stale in (
+            "ConfigV2",
+            "NewV2",
+            "PairingPolicyV2",
+            "PairingPolicyV2Closed",
+        ):
+            self.assertNotIn(stale, body)
         for phrase in (
-            "`Config`, `Remote`, `Runtime`, and `New` remain source compatible",
-            "enabled v1 behavior remains fail closed",
-            "gateway production activation uses `NewV2` only",
-            "no `enbility`, `ship-go`, `spine-go`, WebSocket, mDNS, certificate-provider, or store implementation type",
-            "standard-library `net/netip.AddrPort`",
-            "No public trust or pairing mutation is added",
+            "no tag, GitHub release, or known downstream consumer",
+            "one constructor and one configuration shape",
+            "package imports standard-library `net/netip`",
+            "valid specified unicast address with a non-zero port",
+            "nil or empty remote allowlist are valid",
+            "public facade contains no `enbility`, SHIP, SPINE, WebSocket, mDNS, certificate-provider, or store implementation type",
+            "adds no MCP, GraphQL, Portal, Home Assistant, command, raw-write, semantic projection, or public trust mutation",
         ):
             self.assertIn(phrase, normalized)
 
@@ -276,21 +284,21 @@ class MSP05PProductionActivationContractTest(unittest.TestCase):
         self.assertEqual(
             " ".join(go_blocks[0].split()),
             " ".join(
-                """type PairingPolicyV2 string
+                """type PairingPolicy string
 
-const PairingPolicyV2Closed PairingPolicyV2 = "closed"
+const PairingPolicyClosed PairingPolicy = "closed"
 
-type ConfigV2 struct {
+type Config struct {
     Enabled bool
     StateRoot string
     Interface string
     ListenAddress netip.AddrPort
     DiscoveryEnabled bool
     Remotes []Remote
-    PairingPolicy PairingPolicyV2
+    PairingPolicy PairingPolicy
 }
 
-func NewV2(config ConfigV2) (Runtime, error)""".split()
+func New(config Config) (Runtime, error)""".split()
             ),
         )
 
@@ -344,9 +352,9 @@ func NewV2(config ConfigV2) (Runtime, error)""".split()
             "disabled default performs no runtime construction, filesystem access, goroutine, socket, or mDNS operation",
             "does not modify `transportFromConn`, `protocol.Bus`, or `router.BusEventRouter`",
             "no `eebus.v1`, `ebus.v1`, GraphQL, Portal, Home Assistant, command, raw-write, or promoted-semantic surface",
-            "remove the additive v2 contract and retain v1 unchanged",
-            "remove listener/discovery policy additions and retain the legacy constructor",
-            "withdraw this candidate before any dependent code merge",
+            "first release has one constructor and one configuration shape",
+            "Disabled configuration is valid only as the zero product",
+            "rollback withdraws this candidate",
         ):
             self.assertIn(phrase, normalized)
 

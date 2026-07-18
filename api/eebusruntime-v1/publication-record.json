@@ -5,11 +5,11 @@
   "version": "eebusruntime-v1",
   "source": {
     "repository": "Project-Helianthus/helianthus-eebusreg",
-    "pull_request": 25,
-    "commit": "59cbea0593f27caf558bc4cc9b665c52fc50b683",
-    "tree": "01c17785fe9aac8d8536545e03e1ec1d4a4dff9d",
-    "ref": "refs/heads/main",
-    "merged_at": "2026-07-15T09:44:37Z"
+    "pull_request": 45,
+    "commit": "6af4cdcedb5f7f93d01a53c48c6abc0c19f92edb",
+    "tree": "b090651c99d5b6817a40997b14c1b6a2a37c124e",
+    "ref": "refs/heads/issue/44-pre-release-api-v1",
+    "merged_at": null
   },
   "candidate": {
     "docs_repository": "Project-Helianthus/helianthus-docs-eebus",
@@ -41,35 +41,37 @@
     }
   },
   "run": {
-    "id": 29405631374,
+    "id": 29638678140,
     "attempt": 1,
-    "event": "push",
+    "event": "pull_request",
     "conclusion": "success",
-    "ref": "refs/heads/main",
-    "artifact_id": 8338910226,
-    "artifact_name": "helianthus-eebusreg-api-surface-v1-29405631374-1"
+    "ref": "refs/heads/issue/44-pre-release-api-v1",
+    "artifact_id": 8427914108,
+    "artifact_name": "helianthus-eebusreg-api-surface-v1-29638678140-1"
   },
   "attestation": {
     "predicate_type": "https://project-helianthus.github.io/attestations/eebus-api-surface/v1",
     "signer_workflow": "Project-Helianthus/helianthus-eebusreg/.github/workflows/ci.yml",
-    "runner_environment": "github-hosted"
+    "runner_environment": "github-hosted",
+    "workflow_commit": "fe6bd97c812605ce812c649f3ac3bd0eeaa0f399",
+    "workflow_ref": "refs/pull/45/merge"
   },
   "artifacts": {
     "manifest": {
       "path": "api/eebusruntime-v1/manifest.json",
-      "sha256": "c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c"
+      "sha256": "bbabab51cc0a0e833c645f51767e67a34c0361ba61c45b0065ecfda55ed6c32f"
     },
     "predicate": {
       "path": "api/eebusruntime-v1/predicate.json",
-      "sha256": "e36da7bb216b85e3a6c97d195c5269f92e8cdb3437c459ec1a5fc0990c36fd3e"
+      "sha256": "02c12af763414630b1c4cc4ec52c62449a0947d0e165ba9dec2be85201c2790a"
     },
     "attestation": {
       "path": "api/eebusruntime-v1/attestation.json",
-      "sha256": "e8506c1b7551d41d8a447fe83b8bc54b1c8d7f42068d3bbf54e99d4a604976c0"
+      "sha256": "5dc1c3ce63f8b58cb37507a3ac707d5b2f41098e20e5cae9e5b2b83598446de3"
     },
     "verification": {
       "path": "api/eebusruntime-v1/verification.json",
-      "sha256": "cae8bbf7cd1318d9c878ee51d65b7c6504c59db9dcdc52cb09a01b10d58bb250"
+      "sha256": "898e14f9f0b9f85d6414facdb4be4efba891161df78a89951e6ed0410994058c"
     }
   },
   "publication": {
@@ -87,10 +89,8 @@
       "closed-record-schema",
       "exact-artifact-byte-hashes",
       "candidate-byte-preservation-and-retirement",
-      "candidate-before-source-merge",
-      "merged-source-commit-tree-ref-run-attempt",
-      "manifest-api-v1-and-candidate-byte-equivalence",
-      "manifest-regenerated-from-merged-source",
+      "green-source-pr-head-tree-ref-run-attempt",
+      "manifest-regenerated-from-exact-source-head",
       "predicate-statement-verification-consistency",
       "stable-channel-membership-and-candidate-exclusion",
       "marked-go-examples-compile-at-exact-source",
@@ -98,18 +98,17 @@
       "online-provenance-required-in-ci"
     ],
     "online": [
-      "source-commit-tree-and-merge",
+      "source-commit-tree-and-pr-head",
       "workflow-run-and-artifact",
-      "attestation-repository-bundle-predicate-source-digest-source-ref-signer-workflow-deny-self-hosted-runners"
+      "attestation-repository-bundle-predicate-head-digest-head-ref-workflow-digest-workflow-ref-signer-workflow-deny-self-hosted-runners"
     ]
   },
   "invalidation_conditions": [
     "source-commit-or-tree-differs",
+    "source-pr-head-differs",
     "run-id-attempt-ref-or-conclusion-differs",
     "artifact-byte-digest-differs",
-    "candidate-or-source-merge-order-differs",
     "candidate-evidence-is-not-byte-preserved-or-retired",
-    "candidate-attestation-is-replayed-as-merged-provenance",
     "active-reference-is-missing-from-any-stable-channel",
     "candidate-path-leaks-into-stable-output",
     "marked-example-does-not-compile-at-exact-source"
