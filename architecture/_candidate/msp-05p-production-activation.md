@@ -130,6 +130,37 @@ first-trust flow may hold one ephemeral candidate and OOB fingerprint
 confirmation, with no persistent write before confirmation. That flow remains
 internal and admin-gated; this candidate adds no public trust mutation.
 
+## MSP-05P-REG-RUNTIME Transport Proof Gate
+
+`MSP-05P-REG-RUNTIME` is a candidate implementation proof, not a supported API
+or protocol claim. A later implementation may not report ready unless all four
+proof cases below pass against the same selected configuration and lifecycle
+attempt. They are an activation precondition, not evidence that a peer, a
+device, or the eeBUS protocol requires this design.
+
+| Gate | Required implementation proof |
+| --- | --- |
+| `G02` | The selected installed protected provider supplies and validates the configured local identity while pairing remains closed; an unknown peer produces no durable trust write. |
+| `G05` | A trace proves that the selected installed protected provider is used with no weaker, file-only, generated, replacement, or other fallback before service construction, listener start, or mDNS publication. |
+| `G07` | A forced startup failure after an earlier effect proves reverse-order cleanup; startup rollback withdraws any active publication with `TTL=0` before listener close. |
+| `G09` | Repeated shutdown proves that shutdown withdraws any active publication with `TTL=0` before listener close and leaves no multicast record, listener, goroutine, session, or durable trust mutation leaks. |
+
+Provider choice is an all-or-nothing prerequisite for enabled activation. The
+selected installed protected provider is the only material authority for that
+attempt: it must complete its required identity and binding checks before any
+service construction, listener start, or mDNS publication. A provider may not
+degrade to a file-only key, generated identity, replacement identity, or any
+other weaker source. The provider selection or validation failure returns
+`protected_material_unavailable`; it prevents every later lifecycle effect.
+
+The `G07` failure injection covers every boundary after a prior effect, not
+only the first listener error. Each branch releases its own resource exactly
+once, withdraws an already active publication before closing its exact listener,
+and joins its started work before returning. `G09` applies the same withdrawal
+and no-leak rule to ordinary and repeated shutdown, including shutdown after a
+partially completed startup. Neither proof case authorizes a new consumer,
+trust mutation, API, or protocol surface.
+
 ## Rollback And Dependency Gate
 
 If any prerequisite cannot preserve these constraints, withdraw this candidate
