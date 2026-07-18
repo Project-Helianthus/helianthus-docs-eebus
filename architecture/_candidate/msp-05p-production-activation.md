@@ -141,9 +141,9 @@ device, or the eeBUS protocol requires this design.
 | Gate | Required implementation proof |
 | --- | --- |
 | `G02` | The selected installed protected provider supplies and validates the configured local identity while pairing remains closed; an unknown peer produces no durable trust write. |
-| `G05` | A trace proves that the selected installed protected provider is used with no weaker, file-only, generated, replacement, or other fallback before service construction, listener start, or mDNS publication. |
-| `G07` | A forced startup failure after an earlier effect proves reverse-order cleanup; startup rollback withdraws any active publication with `TTL=0` before listener close. |
-| `G09` | Repeated shutdown proves that shutdown withdraws any active publication with `TTL=0` before listener close and leaves no multicast record, listener, goroutine, session, or durable trust mutation leaks. |
+| `G05` | The exact transport listener binds only the configured address and port; wildcard, alternate-address, and unexpected bridge exposure fail. |
+| `G07` | With discovery disabled, no mDNS provider is started and no advertisement appears; if discovery had become active before a later failure, cleanup withdraws it before listener close and verifies negative/TTL behavior. |
+| `G09` | The selected provider's certificate-derived local identity, masked remote identity binding, and pairing state retain their accepted values across proof restart without regenerating or replacing identity. |
 
 Provider choice is an all-or-nothing prerequisite for enabled activation. The
 selected installed protected provider is the only material authority for that
@@ -153,13 +153,15 @@ degrade to a file-only key, generated identity, replacement identity, or any
 other weaker source. The provider selection or validation failure returns
 `protected_material_unavailable`; it prevents every later lifecycle effect.
 
-The `G07` failure injection covers every boundary after a prior effect, not
-only the first listener error. Each branch releases its own resource exactly
-once, withdraws an already active publication before closing its exact listener,
-and joins its started work before returning. `G09` applies the same withdrawal
-and no-leak rule to ordinary and repeated shutdown, including shutdown after a
-partially completed startup. Neither proof case authorizes a new consumer,
-trust mutation, API, or protocol surface.
+In addition to the four mapped transport cases, failure injection covers every
+startup boundary after a prior effect, not only the first listener error. Each
+branch releases its own resource exactly once; startup rollback withdraws any
+active publication with `TTL=0` before listener close and joins its started
+work before returning. Ordinary and repeated shutdown apply the same ordering:
+shutdown withdraws any active publication with `TTL=0` before listener close
+and leaves no multicast record, listener, goroutine, session, or durable trust
+mutation leaks. Neither proof type authorizes a new consumer, trust mutation,
+API, or protocol surface.
 
 ## Rollback And Dependency Gate
 

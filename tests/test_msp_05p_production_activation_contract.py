@@ -323,9 +323,12 @@ func NewV2(config ConfigV2) (Runtime, error)""".split()
         normalized = " ".join(body.split())
         for phrase in (
             "selected installed protected provider",
-            "no weaker, file-only, generated, replacement, or other fallback",
-            "before service construction, listener start, or mDNS publication",
+            "may not degrade to a file-only key, generated identity, replacement identity, or any other weaker source",
+            "before any service construction, listener start, or mDNS publication",
             "provider selection or validation failure returns `protected_material_unavailable`",
+            "exact transport listener binds only the configured address and port",
+            "With discovery disabled, no mDNS provider is started",
+            "certificate-derived local identity, masked remote identity binding, and pairing state retain their accepted values",
             "startup rollback withdraws any active publication with `TTL=0` before listener close",
             "shutdown withdraws any active publication with `TTL=0` before listener close",
             "no multicast record, listener, goroutine, session, or durable trust mutation leaks",
