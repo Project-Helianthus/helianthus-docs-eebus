@@ -60,6 +60,8 @@ API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
     "api/_candidate/msp-055/verification.json",
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
+    "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
     "api/eebusruntime-v1/attestation.json",
     "api/eebusruntime-v1/manifest.json",
     "api/eebusruntime-v1/predicate.json",
@@ -80,7 +82,10 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-declaration.json",
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
-    "api/fixtures/msp-06/jcs-hash-vectors-v1.json",
+}
+CANDIDATE_API_MACHINE_ARTIFACTS = {
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
+    "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
 }
 MSP055_RETIRED_MANIFEST_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
@@ -127,16 +132,17 @@ MSP055_ACTIVE_DIGESTS = {
     MSP055_ACTIVE_VERIFICATION_SHA256,
 }
 MSP06_PROVENANCE_MACHINE_FINGERPRINTS = {
-    "api/fixtures/msp-06/jcs-hash-vectors-v1.json": {
+    "api/_candidate/msp-06/jcs-hash-vectors-v1.json": {
         "a" * 64,
         "b55af27c4bd5f02ebeca8f901b84d2940b22e7bea7230e4d06f275d903bfdd72",
-        "67b92b3b0c49c2514971965335baefd7508cf28813c7dd81fa0c4d371f12c103",
+        "fd16c106364021a01f7a014dbf9f6a2871051afc5eb7d313a5967f5346eb48f9",
         "d091f9c83c091f79652fe8786375b3fe4ce0861a56f5bfbafedbe431877ff0e8",
         "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
         "bb80eb37329e0a7e980fe3638c9722c44ac3184f7488f20c28cf67ae0b5f4f96",
         "1dd1b393e6cd221850141f0fb4aa66e050abab7cd8fd32abffc8c3e8135b9555",
+        "c88088abcd03a63a675b1b6886b67c9f44c4eff3e081fad3a7315dc8c4928ae9",
         "8ddc952deff2bd36eade164c45b2799d0b46851086f40a0acb0116f985c33395",
-        "c48c355a9667b6f6f79684d961877255d26b81e27a24818d4c7f20afa00dced2",
+        "4ab875e3987cc60dd0fdc382a3d0063b86742bc2349be5831d96e3bf05b7918e",
     },
 }
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
@@ -2382,6 +2388,16 @@ def _provenance_errors(
         rel == "api/_candidate/msp-06-eebus-mcp-v1.md"
         and claim_status == "no-protocol-claims"
     ):
+        source_commit = metadata.get("source_commit")
+        source_binding = (
+            "Project-Helianthus/helianthus-eebusreg@"
+            + MSP055_SOURCE_COMMIT
+            + ":eebusruntime"
+        )
+        if source_commit != MSP055_SOURCE_COMMIT:
+            errors.append(f"{rel}: source_commit must pin the reviewed runtime source")
+        if source_binding not in text:
+            errors.append(f"{rel}: source_commit body binding is missing or disagrees")
         if metadata.get("source_class") != "derived_inference":
             errors.append(
                 f"{rel}: no-protocol candidate source_class must be derived_inference"
@@ -2562,6 +2578,18 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             channel_pages[channel].update(pages)
     publication_channels, publication_channel_errors = _load_publication_channels(root)
     errors.extend(publication_channel_errors)
+    if not CANDIDATE_API_MACHINE_ARTIFACTS <= API_MACHINE_ARTIFACTS:
+        errors.append("api/_candidate/msp-06: candidate machine registry is not allowlisted")
+    for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS):
+        if not _is_candidate_path(rel):
+            errors.append(f"{rel}: candidate machine artifact escaped candidate root")
+        artifact = root / rel
+        if not artifact.is_file() or artifact.is_symlink():
+            errors.append(f"{rel}: candidate machine artifact is missing")
+    if publication_channels is not None:
+        registered_outputs = set(publication_channels["registered"])
+        for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS & registered_outputs):
+            errors.append(f"{rel}: candidate machine artifact registered as stable output")
 
     for path in sorted(regular_files, key=lambda value: os.fsencode(_rel(value, root))):
         if ".pytest_cache" in path.parts or "__pycache__" in path.parts:

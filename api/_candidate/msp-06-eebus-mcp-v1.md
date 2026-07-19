@@ -49,8 +49,9 @@ until a later promotion gate replaces this candidate.
 The table is the closed stable inventory. No pairing mutation, trust mutation,
 raw write, command, or administrative tool is part of this contract.
 
-`id_digest` is a redacted SHA-256 selector. It selects an already redacted ID
-and never accepts a raw identity. An unrecognized argument, including an
+`id_digest` is a redacted SHA-256 selector represented by the runtime-scoped
+pseudonym defined below. It selects an already redacted ID and never accepts a
+raw identity. An unrecognized argument, including an
 authorization, mask, or principal selector, is rejected before provider access.
 
 ## Wire Object Schemas
@@ -77,7 +78,7 @@ authorization, mask, or principal selector, is rejected before provider access.
 | `UseCaseClaimDataV1` | `id` | `evidence` | `false` |
 | `DeviceDataV1` | `id,entities,usecase_claims` | `evidence` | `false` |
 | `TopologyDataV1` | `devices` | `none` | `false` |
-| `SnapshotMetaDataV1` | `contract,runtime,local_ski,mask_tier,captured_at,data_timestamp,data_hash` | `none` | `false` |
+| `SnapshotMetaDataV1` | `contract,runtime,mask_tier,captured_at,data_timestamp,data_hash` | `none` | `false` |
 | `SnapshotDataV1` | `meta,status,pairing,services,sessions,topology` | `evidence` | `false` |
 | `EvidenceRefsV1` | `runtime_status_ref,services_list_ref,services_get_ref,sessions_list_ref,sessions_get_ref,topology_ref,pairing_status_ref` | `none` | `false` |
 | `CapturedRootV1` | `snapshot_ref,expires_at,snapshot_content_hash,evidence_refs,snapshot` | `none` | `false` |
@@ -89,6 +90,34 @@ and non-null `error`. An omitted optional field is not serialized as null.
 Raw runtime `Unknown` values are never copied to wire DTOs. Public error
 messages are fixed by error code; backend error text is never copied into
 `message`.
+
+The normative candidate schema is
+[`api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json`](msp-06/helianthus.eebus.mcp.v1.schema.json).
+It uses JSON Schema Draft 2020-12 and closes every object with
+`additionalProperties=false`. Timestamps are UTC RFC 3339 strings with a
+literal `Z`; hashes match `sha256:<64-lowercase-hex>`; reference tokens and
+identity pseudonyms are 43-character unpadded base64url strings. Integers on
+the wire are restricted to the portable JSON safe-integer range. The schema's
+closed enum values are normative. In particular, runtime, session, pairing,
+and feature-role `unknown` values are rejected instead of serialized.
+
+## Collection Ordering
+
+| Collection | Unique identity | Ascending order |
+| --- | --- | --- |
+| `services` | `id.digest,kind` | `id.digest,kind` |
+| `sessions` | `id.digest` | `id.digest` |
+| `pairing` | `remote.digest` | `remote.digest` |
+| `devices` | `id.digest` | `id.digest` |
+| `entities` | `id.digest` | `id.digest` |
+| `features` | `id.digest` | `id.digest` |
+| `usecase_claims` | `id.digest` | `id.digest` |
+| `evidence` | `kind,digest,size,data_timestamp` | `kind,digest,size,data_timestamp` |
+
+All comparisons are bytewise ascending over their serialized UTF-8 scalar
+values. Providers must reject duplicate unique identities as
+`contract_violation`; they must not silently retain one duplicate. These rules
+apply recursively to live and captured responses before hashing.
 
 The contract identity is `helianthus-eebus-mcp`, with major `1` and minor `0`.
 The mode is `live` or `evidence`. A valid degraded snapshot is an explained
@@ -113,7 +142,9 @@ Each reference is bound when minted to runtime identity, MCP contract identity,
 tool identity, scope, the `redacted` mask tier, and the effective
 `eebus.raw.read` authorization scope. Callers supply only the opaque token;
 they cannot supply, override, or request any binding component. Each token has
-32 cryptographically random bytes encoded as unpadded base64url.
+32 cryptographically random bytes encoded as unpadded base64url. Its canonical
+wire syntax is exactly 43 ASCII characters matching `[A-Za-z0-9_-]{43}` and it
+decodes to exactly 32 bytes; decoders reject non-canonical re-encodings.
 
 Evidence references resolve only through the exact tool and scope in the
 table. The internal drop operation is part of the MCP server implementation
@@ -135,11 +166,23 @@ descendants expire when `now >= expires_at`. Capture first builds and validates
 the detached root, then concurrent captures reserve quota atomically. Capture
 failure consumes no active slot. A full active store returns `quota_exceeded`.
 
+Quota and tombstone bounds count one root group regardless of its eight tokens.
+All capture, lookup, drop, expiry, purge, and eviction transitions execute under
+one store mutex. Each operation captures `now` once; after deterministic expiry
+purge, the mutation or lookup is its linearization point. Capture builds its
+detached snapshot before taking the mutex, then purges, checks quota, mints all
+eight tokens, and inserts the complete root group atomically.
+
 Drop or expiry moves the root and descendants to terminal tombstones and
 invalidates every descendant evidence reference. Tombstone TTL starts at the
 terminal transition. When the tombstone bound is reached, the oldest terminal
-tombstone is evicted first. While a descendant tombstone exists, it resolves as
+tombstone is evicted first, with the total tie break
+`terminal_at then root token bytes`. While a descendant tombstone exists, it resolves as
 `snapshot_gone`; after eviction, the same well-formed reference is unknown.
+
+Every reference retains the policy version that minted it. Later policy changes
+cannot reinterpret its binding, extend its lifetime, or alter its terminal
+result.
 
 An unknown well-formed evidence reference returns `not_found`.
 `snapshot.drop` returns exactly `dropped` or `already_gone`, never returns
@@ -192,6 +235,23 @@ Error messages are stable, redacted contract strings. The server never exposes
 backend text, reference material, identity material, or stack details through
 an error.
 
+## Exact Error Mapping
+
+| Code | Message | Retriable | Source layer |
+| --- | --- | --- | --- |
+| `invalid_argument` | `invalid argument` | `false` | `mcp` |
+| `not_found` | `not found` | `false` | `mcp` |
+| `permission_denied` | `permission denied` | `false` | `policy` |
+| `admin_required` | `administrator authorization required` | `false` | `policy` |
+| `backend_unavailable` | `eeBUS runtime unavailable` | `true` | `eebusruntime` |
+| `timeout` | `eeBUS runtime request timed out` | `true` | `eebusruntime` |
+| `snapshot_gone` | `snapshot no longer available` | `false` | `snapshot-store` |
+| `quota_exceeded` | `snapshot quota exceeded` | `true` | `snapshot-store` |
+| `contract_violation` | `eeBUS MCP contract violation` | `false` | `mcp` |
+
+This table is exhaustive and normative. Implementations must emit the exact
+message, retry flag, and source layer for the selected code.
+
 ## Error Precedence
 
 | Stage | Rule |
@@ -222,9 +282,9 @@ cannot change the earlier error.
 | `error` | stable public error or null |
 
 `meta.data_hash` has the form `sha256:<64-lowercase-hex>` and is SHA-256 over
-the RFC 8785/JCS serialization of exactly the table fields. The numeric rule is:
-non-finite numbers
-and negative zero are rejected. Integers or exact decimals outside the
+the RFC 8785/JCS serialization of exactly the table fields. Object keys are
+ordered recursively by UTF-16 code units as required by JCS. The numeric rule
+is: non-finite numbers and negative zero are rejected. Integers or exact decimals outside the
 portable JSON safe-integer range are strings. The hash view distinguishes an
 explicit null from an omitted field.
 
@@ -233,8 +293,16 @@ and backend error text. They are excluded from hash material. Token
 substitution therefore cannot change the
 hash of otherwise identical captured content, while payload mutation must
 change it. Stable public error normalization makes the hash independent of
-backend message text. The JCS fixture under `api/fixtures/msp-06/` freezes
-these cases.
+backend message text.
+
+For a capture, `snapshot_content_hash equals snapshot.meta.data_hash`. That
+snapshot-content projection `excludes SnapshotMetaDataV1.data_hash` to avoid a
+self-reference and excludes the opaque tokens, capture time, and expiry time
+listed above. The `capture envelope meta.data_hash is a separate envelope hash`
+over the capture response's own hash view and therefore generally differs from
+the snapshot-content hash. The runtime's internal source hash is not copied to
+the stable wire as a correlator. The executable candidate vectors live at
+`api/_candidate/msp-06/jcs-hash-vectors-v1.json`.
 
 ## Runtime Registration And Replay
 
@@ -272,6 +340,22 @@ mutation and disconnect. G14 proves reference binding and the fixed policy.
 G15 proves quota, drop, expiry, tombstone, and eviction behavior. G16 proves
 that PEM, token, full fingerprint, IP, MAC, serial, local identity, stable peer
 id, and pairing history never enter shareable output.
+
+Every `IdentityDigestV1.digest` is produced with a process-ephemeral
+HMAC-SHA-256 key and encoded as an unpadded 43-character base64url
+runtime-scoped pseudonym. The HMAC input is domain-separated by contract,
+identity kind, runtime instance, and the raw identity bytes. A provider must
+re-pseudonymize every raw SKI, raw SHIP ID, full fingerprint, or source-side
+redacted identifier; it must never forward a stable source digest. The key is
+never persisted, logged, returned, or reused after process restart.
+
+The positive output allowlist consists only of fields declared in the closed
+candidate JSON schema. Raw identity, certificate or authentication material,
+network coordinates, trust-store content, and pairing history have no wire
+field and must fail closed as `contract_violation` if encountered during DTO
+construction. The fixed reader policy does not establish a trusted network
+boundary: the unauthenticated route remains untrusted ingress, so masking and
+pseudonymization are mandatory even on loopback or a private subnet.
 
 Reference tokens are permitted only in designated direct MCP response fields.
 The artifact rule is: logs, errors, and publishable gate artifacts contain no

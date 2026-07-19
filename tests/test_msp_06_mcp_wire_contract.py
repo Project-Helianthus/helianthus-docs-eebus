@@ -651,9 +651,13 @@ class MSP06MCPWireContractTest(unittest.TestCase):
 
         recursive = next(v for v in fixture["vectors"] if v["name"] == "unicode-key-order")
         self.assertIn("😀", recursive["cases"][0]["canonical"])
-        token = next(v for v in fixture["vectors"] if v["name"] == "token-substitution-invariant")
-        self.assertEqual(len(token["cases"]), 2)
-        self.assertEqual(token["exclude_paths"], ["/data/snapshot_ref"])
+        reference_vector = next(
+            v
+            for v in fixture["vectors"]
+            if v["name"] == "token-substitution-invariant"
+        )
+        self.assertEqual(len(reference_vector["cases"]), 2)
+        self.assertEqual(reference_vector["exclude_paths"], ["/data/snapshot_ref"])
         mutated = next(v for v in fixture["vectors"] if v["name"] == "payload-mutation")
         self.assertEqual(mutated["relation"], "distinct")
         error = next(v for v in fixture["vectors"] if v["name"] == "error-message-invariant")
