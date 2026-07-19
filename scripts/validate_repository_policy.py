@@ -80,6 +80,7 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-declaration.json",
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
+    "api/fixtures/msp-06/jcs-hash-vectors-v1.json",
 }
 MSP055_RETIRED_MANIFEST_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
@@ -126,6 +127,17 @@ MSP055_ACTIVE_DIGESTS = {
     MSP055_ACTIVE_VERIFICATION_SHA256,
 }
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
+    "api/fixtures/msp-06/jcs-hash-vectors-v1.json": {
+        "a" * 64,
+        "b55af27c4bd5f02ebeca8f901b84d2940b22e7bea7230e4d06f275d903bfdd72",
+        "67b92b3b0c49c2514971965335baefd7508cf28813c7dd81fa0c4d371f12c103",
+        "d091f9c83c091f79652fe8786375b3fe4ce0861a56f5bfbafedbe431877ff0e8",
+        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "bb80eb37329e0a7e980fe3638c9722c44ac3184f7488f20c28cf67ae0b5f4f96",
+        "1dd1b393e6cd221850141f0fb4aa66e050abab7cd8fd32abffc8c3e8135b9555",
+        "8ddc952deff2bd36eade164c45b2799d0b46851086f40a0acb0116f985c33395",
+        "c48c355a9667b6f6f79684d961877255d26b81e27a24818d4c7f20afa00dced2",
+    },
     "api/_candidate/msp-055/candidate-record.json": {
         MSP055_RETIRED_SOURCE_COMMIT,
         MSP055_CANDIDATE_SOURCE,
@@ -178,6 +190,9 @@ MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
         MSP055_SOURCE_COMMIT,
         MSP055_SOURCE_TREE,
         MSP055_MANIFEST_SHA256,
+    },
+    "api/_candidate/msp-06-eebus-mcp-v1.md": {
+        MSP055_SOURCE_COMMIT,
     },
     "api/eebusruntime-v1/reference.md": {
         MSP055_SOURCE_COMMIT,
@@ -236,7 +251,7 @@ SCAFFOLD_PAGES = {
 
 SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
-    "api/README.md": "5e26fbec849b10143efb2e12001d9b01" "09bb9a119a2f723399322adf1917c454",
+    "api/README.md": "2344891fc7a684e4fd43372a05ec143e" "6d0d39c975f3de595abf95de63515ea0",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
@@ -2355,6 +2370,21 @@ def _provenance_errors(
         artifact_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if artifact_hash != SCAFFOLD_ARTIFACT_SHA256[rel]:
             errors.append(f"{rel}: scaffold artifact differs from the reviewed no-claim content")
+        return errors
+
+    if (
+        rel == "api/_candidate/msp-06-eebus-mcp-v1.md"
+        and claim_status == "no-protocol-claims"
+    ):
+        if metadata.get("source_class") != "derived_inference":
+            errors.append(
+                f"{rel}: no-protocol candidate source_class must be derived_inference"
+            )
+        if metadata.get("hypothesis_status") != "draft":
+            errors.append(f"{rel}: no-protocol candidate hypothesis_status must be draft")
+        falsifier = metadata.get("falsifier", "").strip()
+        if not falsifier or falsifier.lower() in {"none", "n/a", "unknown", "tbd"}:
+            errors.append(f"{rel}: no-protocol candidate falsifier must be explicit")
         return errors
 
     if claim_status != "evidence-backed":
