@@ -126,7 +126,7 @@ MSP055_ACTIVE_DIGESTS = {
     MSP055_ACTIVE_ATTESTATION_SHA256,
     MSP055_ACTIVE_VERIFICATION_SHA256,
 }
-MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
+MSP06_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/fixtures/msp-06/jcs-hash-vectors-v1.json": {
         "a" * 64,
         "b55af27c4bd5f02ebeca8f901b84d2940b22e7bea7230e4d06f275d903bfdd72",
@@ -138,6 +138,8 @@ MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
         "8ddc952deff2bd36eade164c45b2799d0b46851086f40a0acb0116f985c33395",
         "c48c355a9667b6f6f79684d961877255d26b81e27a24818d4c7f20afa00dced2",
     },
+}
+MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
         MSP055_RETIRED_SOURCE_COMMIT,
         MSP055_CANDIDATE_SOURCE,
@@ -182,6 +184,10 @@ MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
 MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS = set(
     MSP055_PROVENANCE_MACHINE_FINGERPRINTS
 )
+PROVENANCE_MACHINE_FINGERPRINTS = {
+    **MSP055_PROVENANCE_MACHINE_FINGERPRINTS,
+    **MSP06_PROVENANCE_MACHINE_FINGERPRINTS,
+}
 MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
     ".github/workflows/docs-ci.yml": {
         MSP055_SOURCE_COMMIT,
@@ -1995,7 +2001,7 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     )
     expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
     diagnostics = machine_publication_diagnostics(result)
-    allowed_fingerprints = MSP055_PROVENANCE_MACHINE_FINGERPRINTS.get(rel)
+    allowed_fingerprints = PROVENANCE_MACHINE_FINGERPRINTS.get(rel)
     if allowed_fingerprints is not None:
         actual_fingerprints = set()
         for variant in {text, _fully_decode_reference(text)}:
