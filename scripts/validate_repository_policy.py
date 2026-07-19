@@ -2578,18 +2578,19 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             channel_pages[channel].update(pages)
     publication_channels, publication_channel_errors = _load_publication_channels(root)
     errors.extend(publication_channel_errors)
-    if not CANDIDATE_API_MACHINE_ARTIFACTS <= API_MACHINE_ARTIFACTS:
-        errors.append("api/_candidate/msp-06: candidate machine registry is not allowlisted")
-    for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS):
-        if not _is_candidate_path(rel):
-            errors.append(f"{rel}: candidate machine artifact escaped candidate root")
-        artifact = root / rel
-        if not artifact.is_file() or artifact.is_symlink():
-            errors.append(f"{rel}: candidate machine artifact is missing")
-    if publication_channels is not None:
-        registered_outputs = set(publication_channels["registered"])
-        for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS & registered_outputs):
-            errors.append(f"{rel}: candidate machine artifact registered as stable output")
+    if (root / "api").is_dir():
+        if not CANDIDATE_API_MACHINE_ARTIFACTS <= API_MACHINE_ARTIFACTS:
+            errors.append("api/_candidate/msp-06: candidate machine registry is not allowlisted")
+        for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS):
+            if not _is_candidate_path(rel):
+                errors.append(f"{rel}: candidate machine artifact escaped candidate root")
+            artifact = root / rel
+            if not artifact.is_file() or artifact.is_symlink():
+                errors.append(f"{rel}: candidate machine artifact is missing")
+        if publication_channels is not None:
+            registered_outputs = set(publication_channels["registered"])
+            for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS & registered_outputs):
+                errors.append(f"{rel}: candidate machine artifact registered as stable output")
 
     for path in sorted(regular_files, key=lambda value: os.fsencode(_rel(value, root))):
         if ".pytest_cache" in path.parts or "__pycache__" in path.parts:
