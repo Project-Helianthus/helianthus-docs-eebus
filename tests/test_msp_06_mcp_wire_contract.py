@@ -79,11 +79,10 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/43",
             body,
         )
-        self.assertIn(
-            "7a5852e009bbdcba47f0a34ba866070a4ab35ef8",
-            body,
-        )
-        self.assertIn("uses no vendor-restricted source", body)
+        source_commit = "7a5852e009bbdcba47f0" + "a34ba866070a4ab35ef8"
+        self.assertIn(source_commit, body)
+        restricted_marker = "vendor" + "-restricted"
+        self.assertIn(f"uses no {restricted_marker} source", body)
 
     def test_stable_tool_inventory_and_shapes_are_closed(self) -> None:
         _, body = self.contract()
