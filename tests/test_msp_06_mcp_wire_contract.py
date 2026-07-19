@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -10,10 +12,34 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import validate_repository_policy as repository_policy  # noqa: E402
+
+
+API_MACHINE_ARTIFACTS = repository_policy.API_MACHINE_ARTIFACTS
+CANDIDATE_API_MACHINE_ARTIFACTS = getattr(
+    repository_policy,
+    "CANDIDATE_API_MACHINE_ARTIFACTS",
+    set(),
+)
+MSP06_PROVENANCE_MACHINE_FINGERPRINTS = getattr(
+    repository_policy,
+    "MSP06_PROVENANCE_MACHINE_FINGERPRINTS",
+    {},
+)
+_provenance_errors = repository_policy._provenance_errors
+
+
 CONTRACT_REL = "api/_candidate/msp-06-eebus-mcp-v1.md"
 CONTRACT = ROOT / CONTRACT_REL
 LANDING = ROOT / "api/README.md"
-JCS_FIXTURE = ROOT / "api/fixtures/msp-06/jcs-hash-vectors-v1.json"
+MACHINE_ROOT_REL = "api/_candidate/msp-06"
+SCHEMA_REL = f"{MACHINE_ROOT_REL}/helianthus.eebus.mcp.v1.schema.json"
+JCS_FIXTURE_REL = f"{MACHINE_ROOT_REL}/jcs-hash-vectors-v1.json"
+SCHEMA = ROOT / SCHEMA_REL
+JCS_FIXTURE = ROOT / JCS_FIXTURE_REL
+SOURCE_COMMIT = "7a5852e009bbdcba47f0" + "a34ba866070a4ab35ef8"
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -58,6 +84,64 @@ def code_value(value: str) -> str:
     return value[1:-1]
 
 
+def parse_jcs_input(raw: str) -> object:
+    def parse_int(token: str) -> int:
+        if token == "-0":
+            raise ValueError("negative-zero")
+        value = int(token)
+        if abs(value) > 9_007_199_254_740_991:
+            raise ValueError("unsafe-integer")
+        return value
+
+    def parse_float(token: str) -> float:
+        raise ValueError(f"non-integer-number:{token}")
+
+    return json.loads(raw, parse_int=parse_int, parse_float=parse_float)
+
+
+def canonicalize_jcs_subset(value: object) -> str:
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if type(value) is int:
+        if abs(value) > 9_007_199_254_740_991:
+            raise ValueError("unsafe-integer")
+        return str(value)
+    if isinstance(value, float):
+        raise ValueError("non-integer-number")
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(value, list):
+        return "[" + ",".join(canonicalize_jcs_subset(item) for item in value) + "]"
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise ValueError("non-string-key")
+        keys = sorted(value, key=lambda key: key.encode("utf-16-be"))
+        return "{" + ",".join(
+            canonicalize_jcs_subset(key) + ":" + canonicalize_jcs_subset(value[key])
+            for key in keys
+        ) + "}"
+    raise ValueError(f"unsupported-jcs-type:{type(value).__name__}")
+
+
+def remove_json_pointers(value: object, pointers: list[str]) -> object:
+    projected = copy.deepcopy(value)
+    for pointer in pointers:
+        self = projected
+        parts = pointer.removeprefix("/").split("/") if pointer else []
+        for part in parts[:-1]:
+            if not isinstance(self, dict):
+                raise AssertionError(f"non-object pointer segment in {pointer}")
+            self = self[part.replace("~1", "/").replace("~0", "~")]
+        if not parts or not isinstance(self, dict):
+            raise AssertionError(f"invalid exclusion pointer {pointer}")
+        del self[parts[-1].replace("~1", "/").replace("~0", "~")]
+    return projected
+
+
 class MSP06MCPWireContractTest(unittest.TestCase):
     def contract(self) -> tuple[dict[str, str], str]:
         self.assertTrue(CONTRACT.is_file(), f"missing MSP-06 contract: {CONTRACT_REL}")
@@ -82,8 +166,8 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/43",
             body,
         )
-        source_commit = "7a5852e009bbdcba47f0" + "a34ba866070a4ab35ef8"
-        self.assertIn(source_commit, body)
+        self.assertEqual(metadata["source_commit"], SOURCE_COMMIT)
+        self.assertIn(SOURCE_COMMIT, body)
         restricted_marker = "vendor" + "-restricted"
         self.assertIn(f"uses no {restricted_marker} source", body)
 
@@ -201,7 +285,7 @@ class MSP06MCPWireContractTest(unittest.TestCase):
                 "DeviceDataV1": ("id,entities,usecase_claims", "evidence", "false"),
                 "TopologyDataV1": ("devices", "none", "false"),
                 "SnapshotMetaDataV1": (
-                    "contract,runtime,local_ski,mask_tier,captured_at,data_timestamp,data_hash",
+                    "contract,runtime,mask_tier,captured_at,data_timestamp,data_hash",
                     "none",
                     "false",
                 ),
@@ -337,6 +421,12 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "`now >= expires_at`",
             "Tombstone TTL starts at the terminal transition",
             "concurrent captures reserve quota atomically",
+            "exactly 43 ASCII characters",
+            "decodes to exactly 32 bytes",
+            "one root group regardless of its eight tokens",
+            "linearization point",
+            "terminal_at then root token bytes",
+            "policy version that minted it",
         ):
             self.assertIn(phrase, normalized)
 
@@ -413,6 +503,10 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "excluded from hash material",
             "runtime state and degradation reason",
             "no visible services is never represented as an unexplained empty success",
+            "snapshot_content_hash equals snapshot.meta.data_hash",
+            "excludes SnapshotMetaDataV1.data_hash",
+            "capture envelope meta.data_hash is a separate envelope hash",
+            "UTF-16 code units",
         ):
             self.assertIn(phrase, normalized)
         hash_fields = {
@@ -455,17 +549,133 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             ],
         )
         for vector in fixture["vectors"]:
-            if vector["outcome"] == "accept":
-                canonical = vector["canonical"].encode("utf-8")
-                expected = "sha256:" + hashlib.sha256(canonical).hexdigest()
-                self.assertEqual(vector["sha256"], expected, vector["name"])
-            else:
-                self.assertEqual(vector["outcome"], "reject")
-                self.assertNotIn("sha256", vector)
+            self.assertTrue(vector["cases"], vector["name"])
+            if vector["outcome"] == "reject":
+                self.assertNotIn("sha256", vector["cases"][0])
         self.assertNotEqual(
-            fixture["vectors"][2]["sha256"],
-            fixture["vectors"][3]["sha256"],
+            fixture["vectors"][2]["cases"][0]["sha256"],
+            fixture["vectors"][3]["cases"][0]["sha256"],
         )
+
+    def test_candidate_machine_artifacts_and_wire_schema_are_closed(self) -> None:
+        expected_artifacts = {SCHEMA_REL, JCS_FIXTURE_REL}
+        self.assertEqual(CANDIDATE_API_MACHINE_ARTIFACTS, expected_artifacts)
+        self.assertTrue(expected_artifacts <= API_MACHINE_ARTIFACTS)
+        self.assertTrue(all(path.startswith(MACHINE_ROOT_REL + "/") for path in expected_artifacts))
+        self.assertEqual(
+            set(MSP06_PROVENANCE_MACHINE_FINGERPRINTS),
+            {JCS_FIXTURE_REL},
+        )
+
+        self.assertTrue(SCHEMA.is_file(), f"missing wire schema: {SCHEMA_REL}")
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(schema["$id"], "urn:helianthus:eebus:mcp:v1:candidate")
+        definitions = schema["$defs"]
+        _, body = self.contract()
+        wire_rows = table_rows(body, "## Wire Object Schemas")
+        for row in wire_rows:
+            name = code_value(row["Object"])
+            definition = definitions[name]
+            self.assertEqual(definition["type"], "object", name)
+            self.assertFalse(definition["additionalProperties"], name)
+            required = set(code_value(row["Required fields"]).split(","))
+            optional_text = code_value(row["Optional fields"])
+            optional = set() if optional_text == "none" else set(optional_text.split(","))
+            self.assertEqual(set(definition["required"]), required, name)
+            self.assertEqual(set(definition["properties"]), required | optional, name)
+
+        self.assertNotIn("local_ski", definitions["SnapshotMetaDataV1"]["properties"])
+        self.assertEqual(definitions["TimestampV1"]["format"], "date-time")
+        self.assertEqual(definitions["HashV1"]["pattern"], "^sha256:[0-9a-f]{64}$")
+        self.assertEqual(definitions["OpaqueTokenV1"]["pattern"], "^[A-Za-z0-9_-]{43}$")
+        self.assertEqual(definitions["MaskTierV1"]["const"], "redacted")
+        self.assertEqual(definitions["AuthScopeV1"]["const"], "eebus.raw.read")
+        self.assertNotIn("unknown", definitions["RuntimeStateV1"]["enum"])
+        for name in (
+            "ServicesListDataV1",
+            "SessionsListDataV1",
+            "PairingStatusDataV1",
+            "TopologyDataV1",
+        ):
+            array_schema = next(
+                value
+                for value in definitions[name]["properties"].values()
+                if value.get("type") == "array"
+            )
+            self.assertTrue(array_schema["uniqueItems"], name)
+            self.assertTrue(array_schema["x-order-by"], name)
+
+        error_map = {
+            code_value(row["Code"]): (
+                code_value(row["Message"]),
+                code_value(row["Retriable"]),
+                code_value(row["Source layer"]),
+            )
+            for row in table_rows(body, "## Exact Error Mapping")
+        }
+        self.assertEqual(set(error_map), {
+            "invalid_argument", "not_found", "permission_denied", "admin_required",
+            "backend_unavailable", "timeout", "snapshot_gone", "quota_exceeded",
+            "contract_violation",
+        })
+        self.assertEqual(error_map["backend_unavailable"], (
+            "eeBUS runtime unavailable", "true", "eebusruntime"
+        ))
+
+    def test_jcs_vectors_execute_projection_canonicalization_and_relations(self) -> None:
+        fixture = json.loads(JCS_FIXTURE.read_text(encoding="utf-8"))
+        self.assertEqual(fixture["contract"], "helianthus.eebus.mcp.jcs-hash-vectors.v1")
+        for vector in fixture["vectors"]:
+            cases = vector["cases"]
+            if vector["outcome"] == "reject":
+                for case in cases:
+                    with self.assertRaisesRegex(ValueError, vector["reason"]):
+                        parse_jcs_input(case["input_json"])
+                continue
+            digests: list[str] = []
+            for case in cases:
+                value = parse_jcs_input(case["input_json"])
+                projection = remove_json_pointers(value, vector.get("exclude_paths", []))
+                canonical = canonicalize_jcs_subset(projection)
+                self.assertEqual(canonical, case["canonical"], vector["name"])
+                digest = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                self.assertEqual(digest, case["sha256"], vector["name"])
+                digests.append(digest)
+            if vector["relation"] == "equal":
+                self.assertEqual(len(set(digests)), 1, vector["name"])
+            elif vector["relation"] == "distinct":
+                self.assertEqual(len(set(digests)), len(digests), vector["name"])
+            else:
+                self.assertEqual(vector["relation"], "single")
+
+        recursive = next(v for v in fixture["vectors"] if v["name"] == "unicode-key-order")
+        self.assertIn("😀", recursive["cases"][0]["canonical"])
+        token = next(v for v in fixture["vectors"] if v["name"] == "token-substitution-invariant")
+        self.assertEqual(len(token["cases"]), 2)
+        self.assertEqual(token["exclude_paths"], ["/data/snapshot_ref"])
+        mutated = next(v for v in fixture["vectors"] if v["name"] == "payload-mutation")
+        self.assertEqual(mutated["relation"], "distinct")
+        error = next(v for v in fixture["vectors"] if v["name"] == "error-message-invariant")
+        self.assertEqual(error["exclude_paths"], ["/backend_error"])
+        self.assertTrue(all('"message":"eeBUS runtime unavailable"' in case["canonical"] for case in error["cases"]))
+
+    def test_provenance_pin_rejects_omission_mismatch_and_body_disagreement(self) -> None:
+        metadata, body = self.contract()
+        for name, mutated_metadata, mutated_body in (
+            ("omitted", {key: value for key, value in metadata.items() if key != "source_commit"}, body),
+            ("mismatch", {**metadata, "source_commit": "0" * 40}, body),
+            ("body-disagreement", metadata, body.replace(SOURCE_COMMIT, "1" * 40)),
+        ):
+            with self.subTest(name=name):
+                errors = _provenance_errors(
+                    ROOT,
+                    CONTRACT_REL,
+                    mutated_body,
+                    mutated_metadata,
+                    fixture_mode=False,
+                )
+                self.assertTrue(any("source_commit" in error for error in errors), errors)
 
     def test_runtime_registration_reconnect_and_anti_leak_boundaries(self) -> None:
         _, body = self.contract()
@@ -530,6 +740,12 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "Reference tokens are permitted only in designated direct MCP response fields",
             "logs, errors, and publishable gate artifacts contain no reference token",
             "public API manifest contains no `ToolDrop` declaration",
+            "process-ephemeral HMAC-SHA-256 key",
+            "runtime-scoped pseudonym",
+            "raw SKI",
+            "raw SHIP ID",
+            "certificate or authentication material",
+            "fixed reader policy does not establish a trusted network boundary",
         ):
             self.assertIn(phrase, normalized)
 

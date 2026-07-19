@@ -2268,7 +2268,8 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             Path("api/schema/helianthus.docs.eebus.msp-055-api-freeze.v1.schema.json"),
         }
         msp_06_candidate_artifacts = {
-            Path("api/fixtures/msp-06/jcs-hash-vectors-v1.json"),
+            Path("api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json"),
+            Path("api/_candidate/msp-06/jcs-hash-vectors-v1.json"),
         }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
