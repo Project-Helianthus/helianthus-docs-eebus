@@ -60,6 +60,8 @@ API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1-predicate.json",
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
     "api/_candidate/msp-055/verification.json",
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
+    "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
     "api/eebusruntime-v1/attestation.json",
     "api/eebusruntime-v1/manifest.json",
     "api/eebusruntime-v1/predicate.json",
@@ -80,6 +82,10 @@ API_MACHINE_ARTIFACTS = {
     "api/fixtures/v1/negative/unexported-declaration.json",
     "api/fixtures/v1/negative/unexported-receiver.json",
     "api/fixtures/v1/negative/unknown-field.json",
+}
+CANDIDATE_API_MACHINE_ARTIFACTS = {
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
+    "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
 }
 MSP055_RETIRED_MANIFEST_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
@@ -124,6 +130,20 @@ MSP055_ACTIVE_DIGESTS = {
     MSP055_ACTIVE_PREDICATE_SHA256,
     MSP055_ACTIVE_ATTESTATION_SHA256,
     MSP055_ACTIVE_VERIFICATION_SHA256,
+}
+MSP06_PROVENANCE_MACHINE_FINGERPRINTS = {
+    "api/_candidate/msp-06/jcs-hash-vectors-v1.json": {
+        "a" * 64,
+        "b55af27c4bd5f02ebeca8f901b84d2940b22e7bea7230e4d06f275d903bfdd72",
+        "fd16c106364021a01f7a014dbf9f6a2871051afc5eb7d313a5967f5346eb48f9",
+        "d091f9c83c091f79652fe8786375b3fe4ce0861a56f5bfbafedbe431877ff0e8",
+        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "bb80eb37329e0a7e980fe3638c9722c44ac3184f7488f20c28cf67ae0b5f4f96",
+        "1dd1b393e6cd221850141f0fb4aa66e050abab7cd8fd32abffc8c3e8135b9555",
+        "c88088abcd03a63a675b1b6886b67c9f44c4eff3e081fad3a7315dc8c4928ae9",
+        "8ddc952deff2bd36eade164c45b2799d0b46851086f40a0acb0116f985c33395",
+        "4ab875e3987cc60dd0fdc382a3d0063b86742bc2349be5831d96e3bf05b7918e",
+    },
 }
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
@@ -170,6 +190,10 @@ MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
 MSP055_PROVENANCE_IDENTIFIER_ARTIFACTS = set(
     MSP055_PROVENANCE_MACHINE_FINGERPRINTS
 )
+PROVENANCE_MACHINE_FINGERPRINTS = {
+    **MSP055_PROVENANCE_MACHINE_FINGERPRINTS,
+    **MSP06_PROVENANCE_MACHINE_FINGERPRINTS,
+}
 MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
     ".github/workflows/docs-ci.yml": {
         MSP055_SOURCE_COMMIT,
@@ -178,6 +202,9 @@ MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
         MSP055_SOURCE_COMMIT,
         MSP055_SOURCE_TREE,
         MSP055_MANIFEST_SHA256,
+    },
+    "api/_candidate/msp-06-eebus-mcp-v1.md": {
+        MSP055_SOURCE_COMMIT,
     },
     "api/eebusruntime-v1/reference.md": {
         MSP055_SOURCE_COMMIT,
@@ -236,7 +263,7 @@ SCAFFOLD_PAGES = {
 
 SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
-    "api/README.md": "5e26fbec849b10143efb2e12001d9b01" "09bb9a119a2f723399322adf1917c454",
+    "api/README.md": "99cd8f1833d1a1f801f4d04d62b1ecb" "95f20ad73d8dadc04c654f1fdcf31f1f3",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
@@ -1980,7 +2007,7 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     )
     expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
     diagnostics = machine_publication_diagnostics(result)
-    allowed_fingerprints = MSP055_PROVENANCE_MACHINE_FINGERPRINTS.get(rel)
+    allowed_fingerprints = PROVENANCE_MACHINE_FINGERPRINTS.get(rel)
     if allowed_fingerprints is not None:
         actual_fingerprints = set()
         for variant in {text, _fully_decode_reference(text)}:
@@ -2357,6 +2384,31 @@ def _provenance_errors(
             errors.append(f"{rel}: scaffold artifact differs from the reviewed no-claim content")
         return errors
 
+    if (
+        rel == "api/_candidate/msp-06-eebus-mcp-v1.md"
+        and claim_status == "no-protocol-claims"
+    ):
+        source_commit = metadata.get("source_commit")
+        source_binding = (
+            "Project-Helianthus/helianthus-eebusreg@"
+            + MSP055_SOURCE_COMMIT
+            + ":eebusruntime"
+        )
+        if source_commit != MSP055_SOURCE_COMMIT:
+            errors.append(f"{rel}: source_commit must pin the reviewed runtime source")
+        if source_binding not in text:
+            errors.append(f"{rel}: source_commit body binding is missing or disagrees")
+        if metadata.get("source_class") != "derived_inference":
+            errors.append(
+                f"{rel}: no-protocol candidate source_class must be derived_inference"
+            )
+        if metadata.get("hypothesis_status") != "draft":
+            errors.append(f"{rel}: no-protocol candidate hypothesis_status must be draft")
+        falsifier = metadata.get("falsifier", "").strip()
+        if not falsifier or falsifier.lower() in {"none", "n/a", "unknown", "tbd"}:
+            errors.append(f"{rel}: no-protocol candidate falsifier must be explicit")
+        return errors
+
     if claim_status != "evidence-backed":
         errors.append(f"{rel}: non-scaffold page claim_status must be 'evidence-backed'")
         return errors
@@ -2526,6 +2578,19 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             channel_pages[channel].update(pages)
     publication_channels, publication_channel_errors = _load_publication_channels(root)
     errors.extend(publication_channel_errors)
+    if (root / "api").is_dir():
+        if not CANDIDATE_API_MACHINE_ARTIFACTS <= API_MACHINE_ARTIFACTS:
+            errors.append("api/_candidate/msp-06: candidate machine registry is not allowlisted")
+        for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS):
+            if not _is_candidate_path(rel):
+                errors.append(f"{rel}: candidate machine artifact escaped candidate root")
+            artifact = root / rel
+            if not artifact.is_file() or artifact.is_symlink():
+                errors.append(f"{rel}: candidate machine artifact is missing")
+        if publication_channels is not None:
+            registered_outputs = set(publication_channels["registered"])
+            for rel in sorted(CANDIDATE_API_MACHINE_ARTIFACTS & registered_outputs):
+                errors.append(f"{rel}: candidate machine artifact registered as stable output")
 
     for path in sorted(regular_files, key=lambda value: os.fsencode(_rel(value, root))):
         if ".pytest_cache" in path.parts or "__pycache__" in path.parts:

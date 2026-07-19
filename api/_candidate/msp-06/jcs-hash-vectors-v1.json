@@ -1,0 +1,132 @@
+{
+  "contract": "helianthus.eebus.mcp.jcs-hash-vectors.v1",
+  "vectors": [
+    {
+      "name": "object-key-order",
+      "outcome": "accept",
+      "relation": "single",
+      "cases": [
+        {
+          "input_json": "{\"z\":0,\"a\":1}",
+          "canonical": "{\"a\":1,\"z\":0}",
+          "sha256": "sha256:b55af27c4bd5f02ebeca8f901b84d2940b22e7bea7230e4d06f275d903bfdd72"
+        }
+      ]
+    },
+    {
+      "name": "unicode-key-order",
+      "outcome": "accept",
+      "relation": "single",
+      "cases": [
+        {
+          "input_json": "{\"outer\":{\"\":\"bmp\",\"😀\":\"supplementary\"},\"\\r\":\"cr\",\"1\":\"one\",\"€\":\"euro\"}",
+          "canonical": "{\"\\r\":\"cr\",\"1\":\"one\",\"outer\":{\"😀\":\"supplementary\",\"\":\"bmp\"},\"€\":\"euro\"}",
+          "sha256": "sha256:fd16c106364021a01f7a014dbf9f6a2871051afc5eb7d313a5967f5346eb48f9"
+        }
+      ]
+    },
+    {
+      "name": "explicit-null",
+      "outcome": "accept",
+      "relation": "single",
+      "cases": [
+        {
+          "input_json": "{\"a\":null}",
+          "canonical": "{\"a\":null}",
+          "sha256": "sha256:d091f9c83c091f79652fe8786375b3fe4ce0861a56f5bfbafedbe431877ff0e8"
+        }
+      ]
+    },
+    {
+      "name": "omitted-field",
+      "outcome": "accept",
+      "relation": "single",
+      "cases": [
+        {
+          "input_json": "{}",
+          "canonical": "{}",
+          "sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        }
+      ]
+    },
+    {
+      "name": "safe-integer-string",
+      "outcome": "accept",
+      "relation": "single",
+      "cases": [
+        {
+          "input_json": "{\"n\":\"9007199254740992\"}",
+          "canonical": "{\"n\":\"9007199254740992\"}",
+          "sha256": "sha256:bb80eb37329e0a7e980fe3638c9722c44ac3184f7488f20c28cf67ae0b5f4f96"
+        }
+      ]
+    },
+    {
+      "name": "negative-zero-rejected",
+      "outcome": "reject",
+      "reason": "negative-zero",
+      "cases": [
+        {
+          "input_json": "{\"n\":-0}"
+        }
+      ]
+    },
+    {
+      "name": "token-substitution-invariant",
+      "outcome": "accept",
+      "relation": "equal",
+      "exclude_paths": [
+        "/data/snapshot_ref"
+      ],
+      "cases": [
+        {
+          "input_json": "{\"data\":{\"snapshot_content_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"snapshot_ref\":\"opaque-a\"},\"tool\":\"eebus.v1.snapshot.capture\"}",
+          "canonical": "{\"data\":{\"snapshot_content_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"tool\":\"eebus.v1.snapshot.capture\"}",
+          "sha256": "sha256:1dd1b393e6cd221850141f0fb4aa66e050abab7cd8fd32abffc8c3e8135b9555"
+        },
+        {
+          "input_json": "{\"data\":{\"snapshot_content_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"snapshot_ref\":\"opaque-b\"},\"tool\":\"eebus.v1.snapshot.capture\"}",
+          "canonical": "{\"data\":{\"snapshot_content_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"tool\":\"eebus.v1.snapshot.capture\"}",
+          "sha256": "sha256:1dd1b393e6cd221850141f0fb4aa66e050abab7cd8fd32abffc8c3e8135b9555"
+        }
+      ]
+    },
+    {
+      "name": "payload-mutation",
+      "outcome": "accept",
+      "relation": "distinct",
+      "cases": [
+        {
+          "input_json": "{\"data\":{\"value\":\"before\"},\"tool\":\"eebus.v1.services.get\"}",
+          "canonical": "{\"data\":{\"value\":\"before\"},\"tool\":\"eebus.v1.services.get\"}",
+          "sha256": "sha256:c88088abcd03a63a675b1b6886b67c9f44c4eff3e081fad3a7315dc8c4928ae9"
+        },
+        {
+          "input_json": "{\"data\":{\"value\":\"after\"},\"tool\":\"eebus.v1.services.get\"}",
+          "canonical": "{\"data\":{\"value\":\"after\"},\"tool\":\"eebus.v1.services.get\"}",
+          "sha256": "sha256:8ddc952deff2bd36eade164c45b2799d0b46851086f40a0acb0116f985c33395"
+        }
+      ]
+    },
+    {
+      "name": "error-message-invariant",
+      "outcome": "accept",
+      "relation": "equal",
+      "exclude_paths": [
+        "/backend_error"
+      ],
+      "cases": [
+        {
+          "input_json": "{\"backend_error\":\"implementation-detail-a\",\"error\":{\"code\":\"backend_unavailable\",\"message\":\"eeBUS runtime unavailable\",\"retriable\":true,\"source_layer\":\"eebusruntime\"}}",
+          "canonical": "{\"error\":{\"code\":\"backend_unavailable\",\"message\":\"eeBUS runtime unavailable\",\"retriable\":true,\"source_layer\":\"eebusruntime\"}}",
+          "sha256": "sha256:4ab875e3987cc60dd0fdc382a3d0063b86742bc2349be5831d96e3bf05b7918e"
+        },
+        {
+          "input_json": "{\"backend_error\":\"implementation-detail-b\",\"error\":{\"code\":\"backend_unavailable\",\"message\":\"eeBUS runtime unavailable\",\"retriable\":true,\"source_layer\":\"eebusruntime\"}}",
+          "canonical": "{\"error\":{\"code\":\"backend_unavailable\",\"message\":\"eeBUS runtime unavailable\",\"retriable\":true,\"source_layer\":\"eebusruntime\"}}",
+          "sha256": "sha256:4ab875e3987cc60dd0fdc382a3d0063b86742bc2349be5831d96e3bf05b7918e"
+        }
+      ]
+    }
+  ]
+}
