@@ -5,7 +5,7 @@ license: "AGPL-3.0-only"
 publication_status: "active"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260711-001, EV-20260714-001"
+evidence_ids: "EV-20260711-001, EV-20260714-001, EV-20260720-001"
 hypothesis_status: "publishable"
 falsifier: "A publishable canonical contract changes these ownership or evidence-acceptance boundaries."
 cross_seed_target: "Project-Helianthus/helianthus-docs-ebus:docs/platform/shared-registry-boundary.md"
@@ -45,6 +45,8 @@ platform contract.
 | Supported | Cross-runtime registry semantics remain platform-owned. | `derived_inference` | `EV-20260711-001` and the canonical link above | The canonical platform ownership manifest withdraws or moves that contract. |
 | Supported | G17 and G19 use live-run authority; CI replay has separate authority for deterministic negative cases. | `observed_runtime` | `EV-20260714-001` | A later accepted public gate contract merges those evidence authorities. |
 | Supported | Run proof binds a fresh challenge and bounded window to one run, while G19 transport and first redacted SPINE evidence bind to one connection generation. | `derived_inference` | `EV-20260714-001` | An accepted public gate contract permits stale, cross-run, or cross-generation proof. |
+| Partial/negative observation | One protected outbound-pairing observation recorded only the local registration transition with auto-accept disabled; it recorded no completed candidate, durable trust, trusted reconnect, or device-semantic result. | `observed_runtime` | `EV-20260720-001` | A future independently reproducible redacted observation under the same bounded conditions demonstrates different registration or automatic-accept behavior. |
+| Candidate policy | An endpoint allowlist is not trust: outbound attempt reporting is gated and fail-closed, queue state is bounded and ephemeral, and a reconnect endpoint follows only exact OOB confirmation plus durable commit. | `derived_inference` | `architecture/_candidate/msp-04b-first-trust-admin-local.md`; informed but not proven by `EV-20260720-001` | A merged, tested contract permits an allowlist/report/unfinished attempt to create trust or exposes an endpoint publicly. |
 | Candidate policy | Unimplemented runtime and API details carry no supported status here. | `derived_inference` | `EV-20260711-001` | A merged implementation and regenerated API surface provide publishable support. |
 
 ## Interop Evidence Boundary
