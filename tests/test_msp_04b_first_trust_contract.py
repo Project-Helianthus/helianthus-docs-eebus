@@ -99,7 +99,6 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
 
         for relative in (
             "README.md",
-            "architecture/README.md",
             "api/search-index.json",
             "api/sitemap.xml",
             "api/versioned-bundle.txt",
@@ -109,6 +108,13 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
                 CANDIDATE_REL,
                 (ROOT / relative).read_text(encoding="utf-8"),
             )
+
+        architecture = (ROOT / "architecture/README.md").read_text(encoding="utf-8")
+        self.assertEqual(architecture.count(CANDIDATE_REL), 1)
+        self.assertIn(
+            "| Candidate policy | An endpoint allowlist is not trust:",
+            architecture,
+        )
 
         self.assertIn(
             "https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/22",
@@ -319,7 +325,8 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
             "mutation is disabled",
             "reopen is required",
             "trust outcome is unknown",
-            "Restart discards the volatile window, candidate, nonce, active idempotency state, and terminal-result cache",
+            "Restart discards the volatile window, candidate, nonce, active idempotency state",
+            "outbound-attempt queue",
             "durable remote association alone reloads trust",
         )
         for phrase in required:
@@ -332,10 +339,10 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         )[0]
         self.assertEqual(
             table_first_column(body, "## Falsifiable Gate Matrix"),
-            {"G02", "G03", "G04", "G16"},
+            {"G02", "G03", "G04", "G05", "G06", "G16"},
         )
         rows: dict[str, str] = {}
-        for gate in ("G02", "G03", "G04", "G16"):
+        for gate in ("G02", "G03", "G04", "G05", "G06", "G16"):
             row = next(
                 line
                 for line in gate_section.splitlines()
@@ -361,6 +368,16 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
                 "one candidate",
                 "one deterministic `candidate_busy` denial",
                 "wrong fingerprint leaves the store unchanged",
+            ),
+            "G05": (
+                "allowlisted outbound endpoint",
+                "bounded ephemeral attempt record",
+                "no dial, trust write, or public endpoint output",
+            ),
+            "G06": (
+                "pairing completion is accepted only for its current private attempt binding",
+                "exact OOB confirmation plus `commit_durable`",
+                "trusted reconnect endpoint",
             ),
         }
         for gate, phrases in locked_meanings.items():
@@ -404,21 +421,43 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         self.assertIn("random per-run labels, outcomes, and counts only", normalized)
         self.assertIn("shareable artifacts", normalized)
         forbidden_categories = (
-            "raw or encoded SKI",
+            "raw or encoded peer identity",
             "fingerprint",
             "PEM",
             "key",
             "token",
-            "SHIP ID",
+            "protocol-service identity",
+            "endpoint",
             "IP address",
+            "port",
             "MAC address",
             "serial",
             "local identity",
             "stable peer digest",
+            "attempt token",
             "history",
         )
         for category in forbidden_categories:
             self.assertIn(category, normalized)
+
+    def test_outbound_revocation_cancels_without_locking_dial(self) -> None:
+        _, body = read_markdown(CANDIDATE)
+        section = body.split("## Protected Outbound Pairing And Endpoint Discipline", 1)[
+            1
+        ].split("\n## ", 1)[0]
+        normalized = " ".join(section.split())
+        required = (
+            "Revocation or unregister linearizes ahead of an in-flight gated trusted reconnect",
+            "before its `DialContext` call or later continuation",
+            "invalidates the attempt record and cancels its exact attempt context",
+            "neither a new dial nor a resumed handshake",
+            "MUST release that lock before `DialContext`",
+            "No lock may span the dial or wait for its result",
+            "without waiting for an in-flight dial to return",
+            "late dial result cannot revive, continue, or register the attempt",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
 
     def test_msp04a_keeps_pairing_policy_outside_the_store(self) -> None:
         metadata, body = read_markdown(STORE_CANDIDATE)

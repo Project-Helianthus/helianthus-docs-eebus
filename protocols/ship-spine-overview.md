@@ -29,10 +29,9 @@ G17 proves all of the following in one bounded live run:
 - the post-withdrawal negative confirms no inbound connection attributable to
   the withdrawn announcement.
 
-G17 never establishes that VR940 advertises or exposes a server endpoint for
-SHIP. Its
-direction remains a local Helianthus announcement that may lead to an inbound
-VR940 connection.
+G17 does not fix the direction of a later protocol handshake. A local Helianthus
+announcement may lead to an inbound connection, while independently observed
+endpoint evidence may support a separately gated outbound attempt.
 
 ### Protected Registration Signal
 
@@ -59,6 +58,35 @@ generation does not complete G19.
 
 The first SPINE evidence proves only that data reached the redacted evidence
 boundary. It does not promote any protocol meaning.
+
+## Candidate Outbound Endpoint Policy
+
+Private, non-publishable operator evidence motivated evaluation of a separately
+configured outbound endpoint fallback. That private evidence establishes no
+publishable claim about the target transport role, discovery records, endpoint
+availability, or pairing outcome. `EV-20260720-001` does not supply any of those
+claims; it proves only the local `register=false` to `register=true` transition
+with automatic handshake acceptance disabled, followed by return to the closed
+local state.
+
+The fallback below is candidate policy, not observed target behavior. It applies
+only when the expected peer identity is already known through an independent
+operator channel.
+
+The fallback has three independent operations:
+
+1. A bounded authenticated first-trust window temporarily queues the exact
+   allowlisted peer without marking it trusted.
+2. A manual endpoint report supplies host, port, and path only to an installed
+   outgoing-attempt authorization gate. Hubs without that gate reject the
+   operation.
+3. `SHIP` pairing completion remains attempt-aware and cannot persist trust. Only exact
+   OOB confirmation and a durable association commit may invoke the separate
+   trusted-registration operation.
+
+Window close, expiry, cancellation, revocation, or a denied attempt removes or
+invalidates ephemeral admission. A configured endpoint is transport input,
+not discovery evidence, identity evidence, or semantic evidence.
 
 ## Evidence Authority
 

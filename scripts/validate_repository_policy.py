@@ -254,7 +254,6 @@ SCAFFOLD_PAGES = {
     "README.md": "ownership-policy",
     "api/README.md": "ownership-landing",
     "api/api-surface-v1.md": "api-contract",
-    "devices/vr940f.md": "planned-target",
     "evidence/README.md": "evidence-policy",
     "evidence/evidence-template.md": "template",
     "re-notes/template.md": "template",
@@ -265,7 +264,6 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
     "api/README.md": "99cd8f1833d1a1f801f4d04d62b1ecb" "95f20ad73d8dadc04c654f1fdcf31f1f3",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
-    "devices/vr940f.md": "6eea7a357ebddb66073ad4647d87234c" "94bbbf58050685c49d3db5d9a286d211",
     "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
     "evidence/evidence-template.md": (
         "02910e849eab14a43251f4d28f4cb1e" "115c0feb6f78a32b2b600c85830c150e5"
@@ -278,7 +276,13 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "2696adaa5a139c84b12f8c17cff8546d" "3c3efe9634653c06fd6a7b625fb9e0ff"
+        "79bae1a8bc06da4800b7e302ad12b4fd" "208ba27e9bf56fded655b7fa5eabaf80"
+    ),
+}
+
+PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
+    "devices/vr940f.md": (
+        "264d47e55270a61d5de2b2f88b6f18c" "5b7e844c71c16034e73e64b49b65c5482"
     ),
 }
 
@@ -494,6 +498,37 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
+    "310c9f80488c8e1609c90dbbf57c935e" "04cb2d4b5515bc32c1b76fcfd3e821b9": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001, EV-20260714-001, EV-20260720-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical contract changes these ownership or "
+            "evidence-acceptance boundaries."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
 }
 PRODUCTION_REVIEWED_SUPPORTED_API = {
     "74a8f24cc7d835029d368d67ebcb1856" "77db7c4177a26bbb60165b4cbedf36d5": {
@@ -596,6 +631,26 @@ PRODUCTION_REVIEWED_EVIDENCE = {
             ),
         },
     },
+    "EV-20260720-001": {
+        "3128517af9d0cfe45d236727675f0b4d" "aa2f1e44594adc80ee2bd7e93b1c933c": {
+            "canonical_source": (
+                "Project-Helianthus/helianthus-docs-eebus:"
+                "evidence/EV-20260720-001.md"
+            ),
+            "owner_domain": "evidence",
+            "license": "CC0-1.0",
+            "publication_status": "publishable",
+            "claim_status": "evidence-backed",
+            "source_class": "observed_runtime",
+            "evidence_ids": "EV-20260720-001",
+            "hypothesis_status": "publishable",
+            "falsifier": (
+                "A future independently reproducible redacted observation "
+                "under the same bounded conditions shows different "
+                "registration or automatic-accept behavior."
+            ),
+        },
+    },
 }
 FIXTURE_REVIEWED_EVIDENCE = {
     "EV-20260711-001": {
@@ -637,6 +692,33 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         ),
         "claim_status": "no-protocol-claims",
         "publication_status": "planned-target",
+    },
+    "b71baf2145cc721db1dd81f56b4b02b9" "6f0c633471872f2c5fc88383288af44d": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
+        ),
+        "owner_domain": "devices",
+        "license": "CC0-1.0",
+        "claim_status": "evidence-backed",
+        "publication_status": "planned-target",
+        "source_class": "observed_runtime",
+        "evidence_ids": "EV-20260720-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A future independently reproducible redacted observation "
+            "establishes a completed transport, trust, or reconnect outcome "
+            "under the same bounded conditions."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
     },
 }
 FIXTURE_REVIEWED_CROSS_SEED = {
@@ -2368,6 +2450,13 @@ def _provenance_errors(
         and hashlib.sha256(text.encode("utf-8")).hexdigest() != expected_protocol_hash
     ):
         errors.append(f"{rel}: reviewed protocol artifact differs")
+
+    expected_device_hash = PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256.get(rel)
+    if (
+        expected_device_hash is not None
+        and hashlib.sha256(text.encode("utf-8")).hexdigest() != expected_device_hash
+    ):
+        errors.append(f"{rel}: reviewed device artifact differs")
 
     expected_scaffold_status = SCAFFOLD_PAGES.get(rel)
     claim_status = metadata.get("claim_status")

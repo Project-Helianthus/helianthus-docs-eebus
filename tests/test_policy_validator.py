@@ -698,11 +698,27 @@ class PolicyValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("reviewed protocol artifact differs", result.stderr)
 
+    def test_reviewed_device_lock_survives_cross_seed_metadata_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "devices" / "vr940f.md"
+            text = page.read_text(encoding="utf-8")
+            text = "\n".join(
+                line
+                for line in text.splitlines()
+                if not line.startswith("cross_seed_")
+            ) + "\n\nUnreviewed device transport behavior.\n"
+            page.write_text(text, encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("reviewed device artifact differs", result.stderr)
+
     def test_scaffold_front_matter_is_locked_against_asserted_behavior(self) -> None:
         scaffold_pages = (
             "README.md",
             "api/README.md",
-            "devices/vr940f.md",
             "evidence/README.md",
             "evidence/evidence-template.md",
             "re-notes/template.md",
