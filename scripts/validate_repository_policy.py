@@ -278,7 +278,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "8e238089d340fd39e3064c62293caebe" "3c551789971c18eab87de5c7fcc4bfda"
+        "2696adaa5a139c84b12f8c17cff8546d" "3c3efe9634653c06fd6a7b625fb9e0ff"
     ),
 }
 

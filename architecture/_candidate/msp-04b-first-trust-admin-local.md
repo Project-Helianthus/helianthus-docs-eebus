@@ -5,7 +5,7 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260711-001"
+evidence_ids: "EV-20260711-001,EV-20260720-001"
 hypothesis_status: "draft"
 falsifier: "An accepted architecture review or conformance result demonstrates that the merged MSP-04B implementation cannot preserve exact-candidate confirmation, local-admin confinement, store ownership, or public privacy boundaries."
 stable_navigation: "false"
@@ -200,6 +200,26 @@ marks reopen required after the in-flight store operation is safely fenced.
 Known store outcomes follow the mapping below. Deterministic tests MUST record
 the ordered events for success, every failure outcome, a blocked Commit, a
 racing peer while the global flag remains true, and terminal cleanup.
+
+## SHIP Pairing Registration Advertisement
+
+The SHIP DNS-SD `register` value is a discovery signal, not a trust decision.
+`PAIRING_CLOSED` advertises `register=false`, while `OPEN_EMPTY` advertises
+`register=true`. `CANDIDATE_PENDING` keeps `register=true` within the original
+bounded window so the selected protocol exchange remains discoverable; the
+single-candidate rule still rejects every competing peer deterministically.
+
+After exact confirmation, `COMMITTING` may retain `register=true` only during
+the bounded commit-wait interval needed by the winning handshake. Close,
+expiry, cancellation, or any terminal commit effect withdraws or replaces the
+announcement with `register=false`. `DISABLED` also advertises
+`register=false` and requires a successful reopen before another window.
+
+This registration signal is independent from handshake acceptance:
+`auto-accept` remains `false`. It does not approve the selected peer and does
+not persist trust. Only the exact, durably confirmed association reaches
+`RegisterRemoteSKI`. A failed registration update is an explicit degraded
+outcome and cannot be represented as an empty successful window.
 
 ## Store Commit Outcome Mapping
 
