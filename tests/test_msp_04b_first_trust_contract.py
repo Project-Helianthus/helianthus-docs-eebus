@@ -10,6 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CANDIDATE_REL = "architecture/_candidate/msp-04b-first-trust-admin-local.md"
 CANDIDATE = ROOT / CANDIDATE_REL
+PROTOCOL = ROOT / "protocols/ship-spine-overview.md"
 STORE_CANDIDATE = ROOT / "architecture/_candidate/msp-04a-persistent-store.md"
 MSP04A_IMPLEMENTATION_COMMIT = (
     "034c4cc5f7a58bdab08c" + "95d5b59fa8af13c5dd1d"
@@ -269,6 +270,29 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
+
+    def test_protected_pairing_window_controls_registration_not_auto_accept(self) -> None:
+        _, architecture = read_markdown(CANDIDATE)
+        _, protocol = read_markdown(PROTOCOL)
+        architecture = " ".join(architecture.split())
+        protocol = " ".join(protocol.split())
+
+        for phrase in (
+            "`PAIRING_CLOSED` advertises `register=false`",
+            "`OPEN_EMPTY` advertises `register=true`",
+            "`CANDIDATE_PENDING` advertises `register=false`",
+            "`auto-accept` remains `false`",
+            "does not persist trust",
+        ):
+            self.assertIn(phrase, architecture)
+
+        for phrase in (
+            "`register=true` means that bounded pairing registration is available",
+            "does not mean that the peer is trusted",
+            "does not enable automatic handshake acceptance",
+            "withdraw or replace the announcement with `register=false`",
+        ):
+            self.assertIn(phrase, protocol)
 
     def test_failures_races_restart_and_store_outcomes_fail_closed(self) -> None:
         _, body = read_markdown(CANDIDATE)
