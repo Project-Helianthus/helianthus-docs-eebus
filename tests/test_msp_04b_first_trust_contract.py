@@ -280,7 +280,8 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         for phrase in (
             "`PAIRING_CLOSED` advertises `register=false`",
             "`OPEN_EMPTY` advertises `register=true`",
-            "`CANDIDATE_PENDING` advertises `register=false`",
+            "`CANDIDATE_PENDING` keeps `register=true` within the original bounded window",
+            "`COMMITTING` may retain `register=true` only during the bounded commit-wait interval",
             "`auto-accept` remains `false`",
             "does not persist trust",
         ):

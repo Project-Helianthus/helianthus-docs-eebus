@@ -5,7 +5,7 @@ license: "CC0-1.0"
 publication_status: "publishable"
 claim_status: "evidence-backed"
 source_class: "observed_runtime"
-evidence_ids: "EV-20260714-001"
+evidence_ids: "EV-20260714-001,EV-20260720-001"
 hypothesis_status: "publishable"
 falsifier: "A later accepted public gate contract changes the G17 or G19 acceptance boundary."
 ---
@@ -33,6 +33,21 @@ G17 never establishes that VR940 advertises or exposes a server endpoint for
 SHIP. Its
 direction remains a local Helianthus announcement that may lead to an inbound
 VR940 connection.
+
+### Protected Registration Signal
+
+In the SHIP DNS-SD record, `register=true` means that bounded pairing
+registration is available. It does not mean that the peer is trusted and does
+not enable automatic handshake acceptance. A manual first-trust implementation
+therefore keeps handshake auto-accept disabled and composes the published
+registration value from independent automatic and user-mediated availability.
+
+The user-mediated value is true only for its authenticated, bounded lifecycle.
+When that lifecycle closes, expires, or reaches a terminal effect, the service
+must withdraw or replace the announcement with `register=false`. A selected
+candidate may remain advertised during the same bounded window and commit-wait
+interval; this preserves transport liveness but does not admit a competing
+candidate or authorize persistent trust.
 
 ## G19: Inbound Direct Access
 
