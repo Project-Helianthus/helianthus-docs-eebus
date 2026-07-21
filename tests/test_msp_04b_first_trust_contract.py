@@ -112,7 +112,7 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         architecture = (ROOT / "architecture/README.md").read_text(encoding="utf-8")
         self.assertEqual(architecture.count(CANDIDATE_REL), 1)
         self.assertIn(
-            "| Candidate policy | Allowlists and configured endpoints authorize possible transport behavior but create no visible service, session, pairing candidate, or other observation.",
+            "| Candidate policy | Authorization allowlist is policy; visible service, session, pairing candidate, and other observation rows are callback-owned.",
             architecture,
         )
 
@@ -370,7 +370,7 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
                 "wrong fingerprint leaves the store unchanged",
             ),
             "G05": (
-                "Configured SKIs/endpoints",
+                "Allowlist entries",
                 "opening a pairing window",
                 "no remote queue, dial, visible service, session, topology, or candidate",
             ),
@@ -448,7 +448,7 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         )[0]
         normalized = " ".join(section.split())
         required = (
-            "allowlisted SKI or configured endpoint is policy input only",
+            "allowlisted SKI is policy input only",
             "does not authenticate a peer",
             "Startup and pairing-window transitions do not convert configured policy",
             "An mDNS observation callback may create a visible service",

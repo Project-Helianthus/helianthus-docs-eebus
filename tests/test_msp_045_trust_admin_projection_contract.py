@@ -265,7 +265,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "does not create any `PairingObservationV1`, `ServiceV1`, `SessionV1`, or topology row",
             "No redacted candidate identity or placeholder row is emitted",
             "does not change public cardinality, ordering, or timing",
-            "Configured or durable policy does not create a remote row",
+            "Durable policy does not create a remote row",
             "A service row requires an mDNS observation callback",
             "a session row requires a connection callback",
         )
@@ -329,7 +329,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "cannot promote durable trust",
             "Admin availability is mutation capability only",
             "candidate identity, fingerprint, nonce, idempotency key, admin path, and history are never projected",
-            "Configured endpoints and durable associations are also policy, not observation evidence",
+            "Durable associations are policy, not observation evidence",
             f"Callbacks from the {PAIRING_TRANSPORT} path report the corresponding observed stage only",
         )
         for phrase in required:
