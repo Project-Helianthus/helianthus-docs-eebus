@@ -34,6 +34,22 @@ def load_policy_module():
 
 
 class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
+    INBOUND_PATHS = (
+        "protocols/ship-spine-overview.md",
+        "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md",
+        "api/_candidate/msp-05p-eebusruntime-v1-correction.md",
+    )
+    INBOUND_CLAUSE = (
+        "Discovery observations and allowlist evaluation never initiate an "
+        "outbound dial or pairing attempt"
+    )
+    SCHEMA_PATH = "architecture/_candidate/msp-04a-persistent-store.md"
+    SCHEMA_CLAUSES = (
+        "only current persistence schema version 1",
+        "Every non-current schema version fails closed",
+        "leaves every store byte unchanged",
+    )
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.architecture = read("architecture/_candidate/msp-04a-persistent-store.md")
@@ -143,31 +159,61 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         validator = getattr(policy, "normative_inbound_only_errors")
         variants = (
             "A discovery observation opens a TCP connection to an allowlisted peer.",
-            "An observed service launches a " + "SH" + "IP handshake with a peer.",
-            "Allowlist evaluation initiates a pairing exchange for the peer.",
-            "A network observation starts a dial to the remote peer.",
+            "A TCP connection is opened when discovery sees an allowlisted peer.",
+            "Pairing is triggered by allowlist evaluation.",
+            "A " + "SH" + "IP handshake launches after an observed service appears.",
+            "A pairing dial starts because an allowlisted peer was observed.",
+            "To connect by TCP, the runtime consumes a discovery observation.",
         )
 
         for body in variants:
             with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                page = root / "protocols" / "ship-spine-overview.md"
-                page.parent.mkdir(parents=True)
-                page.write_text(
-                    "---\n"
-                    'canonical_source: "fixture"\n'
-                    'owner_domain: "protocols"\n'
-                    'license: "CC0-1.0"\n'
-                    'publication_status: "publishable"\n'
-                    "---\n\n"
-                    f"{body}\n",
-                    encoding="utf-8",
-                )
+                for relative_path in self.INBOUND_PATHS:
+                    page = root / relative_path
+                    page.parent.mkdir(parents=True, exist_ok=True)
+                    page.write_text(
+                        self.INBOUND_CLAUSE
+                        + ".\n"
+                        + (f"{body}\n" if relative_path == self.INBOUND_PATHS[0] else ""),
+                        encoding="utf-8",
+                    )
                 errors = validator(root)
 
-            self.assertTrue(
-                any("outbound-initiation" in error for error in errors), errors
+            self.assertEqual(
+                [
+                    "protocols/ship-spine-overview.md:2: forbidden "
+                    "outbound-initiation"
+                ],
+                errors,
             )
+
+    def test_policy_allows_explicit_inbound_only_prohibitions(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "normative_inbound_only_errors")
+        variants = (
+            "No discovery observation opens a TCP connection.",
+            "An allowlisted peer must not initiate pairing.",
+            "SHIP pairing is prohibited from starting after observation.",
+            "A TCP connection does not launch from discovery.",
+            "Discovery cannot trigger a SHIP handshake.",
+            "The allowlist is not permitted to connect a TCP peer.",
+        )
+
+        for body in variants:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative_path in self.INBOUND_PATHS:
+                    page = root / relative_path
+                    page.parent.mkdir(parents=True, exist_ok=True)
+                    page.write_text(
+                        self.INBOUND_CLAUSE
+                        + ".\n"
+                        + (f"{body}\n" if relative_path == self.INBOUND_PATHS[0] else ""),
+                        encoding="utf-8",
+                    )
+
+                self.assertEqual([], validator(root))
 
     def test_inbound_only_clause_is_canonical_across_normative_surfaces(self) -> None:
         required = "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
@@ -181,32 +227,59 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         validator = getattr(policy, "strict_current_schema_errors")
         variants = (
             "Schema version 0 is converted to schema version 1 before activation.",
-            "An older store is accepted and loaded after an upgrade.",
-            "A non-current generation is transformed into current bytes.",
-            "A fallback selects an older manifest when current data cannot load.",
-            "The runtime accepts a legacy state during startup.",
+            "An older store is loaded before activation.",
+            "Loading occurs before activation for a legacy store.",
+            "Conversion precedes activation of schema version 0.",
+            "Upgrade is applied to a non-current schema before startup.",
+            "A schema-version-0 store is transformed before activation.",
+            "The runtime falls back to older persisted state.",
+            "Fallback accepts legacy state during startup.",
         )
 
         for body in variants:
             with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                page = root / "architecture" / "_candidate" / "msp-04a-persistent-store.md"
+                page = root / self.SCHEMA_PATH
                 page.parent.mkdir(parents=True)
                 page.write_text(
-                    "---\n"
-                    'canonical_source: "fixture"\n'
-                    'owner_domain: "architecture"\n'
-                    'license: "AGPL-3.0-only"\n'
-                    'publication_status: "candidate"\n'
-                    "---\n\n"
-                    f"{body}\n",
+                    "\n".join(f"{clause}." for clause in self.SCHEMA_CLAUSES)
+                    + f"\n{body}\n",
                     encoding="utf-8",
                 )
                 errors = validator(root)
 
-            self.assertTrue(
-                any("strict-current-schema" in error for error in errors), errors
+            self.assertEqual(
+                [
+                    "architecture/_candidate/msp-04a-persistent-store.md:4: "
+                    "forbidden strict-current-schema transition"
+                ],
+                errors,
             )
+
+    def test_policy_allows_explicit_current_only_prohibitions(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "strict_current_schema_errors")
+        variants = (
+            "No older schema is accepted or loaded.",
+            "Schema version 0 is not loaded before activation.",
+            "Conversion of a legacy store is prohibited.",
+            "The runtime must not upgrade a non-current store.",
+            "Current-only activation cannot fall back to schema version 0.",
+            "An older fixture was observed but never transformed.",
+        )
+
+        for body in variants:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                page = root / self.SCHEMA_PATH
+                page.parent.mkdir(parents=True)
+                page.write_text(
+                    "\n".join(f"{clause}." for clause in self.SCHEMA_CLAUSES)
+                    + f"\n{body}\n",
+                    encoding="utf-8",
+                )
+
+                self.assertEqual([], validator(root))
 
 
 if __name__ == "__main__":
