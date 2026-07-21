@@ -138,6 +138,76 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             schema_errors,
         )
 
+    def test_policy_rejects_renamed_outbound_initiation(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "ship_identity_corpus_errors")
+        variants = (
+            "A discovery observation opens a TCP connection to an allowlisted peer.",
+            "An observed service launches a SHIP handshake with a peer.",
+            "Allowlist evaluation initiates a pairing exchange for the peer.",
+            "A network observation starts a dial to the remote peer.",
+        )
+
+        for body in variants:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                page = root / "protocols" / "current.md"
+                page.parent.mkdir(parents=True)
+                page.write_text(
+                    "---\n"
+                    'canonical_source: "fixture"\n'
+                    'owner_domain: "protocols"\n'
+                    'license: "CC0-1.0"\n'
+                    'publication_status: "publishable"\n'
+                    "---\n\n"
+                    f"{body}\n",
+                    encoding="utf-8",
+                )
+                errors = validator(root)
+
+            self.assertTrue(
+                any("outbound-initiation" in error for error in errors), errors
+            )
+
+    def test_inbound_only_clause_is_canonical_across_normative_surfaces(self) -> None:
+        required = "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
+
+        for text in (self.protocol, self.security, self.api):
+            with self.subTest(document=text):
+                self.assertIn(required, compact(text))
+
+    def test_policy_rejects_noncurrent_schema_transitions_and_missing_contract(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "strict_current_schema_errors")
+        variants = (
+            "Schema version 0 is converted to schema version 1 before activation.",
+            "An older store is accepted and loaded after an upgrade.",
+            "A non-current generation is transformed into current bytes.",
+            "A fallback selects an older manifest when current data cannot load.",
+            "The runtime accepts a legacy state during startup.",
+        )
+
+        for body in variants:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                page = root / "architecture" / "_candidate" / "msp-04a-persistent-store.md"
+                page.parent.mkdir(parents=True)
+                page.write_text(
+                    "---\n"
+                    'canonical_source: "fixture"\n'
+                    'owner_domain: "architecture"\n'
+                    'license: "AGPL-3.0-only"\n'
+                    'publication_status: "candidate"\n'
+                    "---\n\n"
+                    f"{body}\n",
+                    encoding="utf-8",
+                )
+                errors = validator(root)
+
+            self.assertTrue(
+                any("strict-current-schema" in error for error in errors), errors
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
