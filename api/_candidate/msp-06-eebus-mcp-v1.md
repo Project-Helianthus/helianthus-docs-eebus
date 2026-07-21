@@ -53,7 +53,7 @@ raw write, command, or administrative tool is part of this contract.
 
 The `eebus.v1` family projects raw runtime observations only. The provider must
 not synthesize a service, session, pairing row, topology row, or evidence
-reference from an allowlist, configured endpoint, protected identity, durable
+reference from an allowlist, protected identity, durable
 SHIP ID, or open local registration window.
 
 An mDNS observation may populate the service tools without populating the

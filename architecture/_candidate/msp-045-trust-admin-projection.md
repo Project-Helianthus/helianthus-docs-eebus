@@ -134,7 +134,7 @@ ordering, or timing.
 | `CANDIDATE_PENDING\|association_incomplete` | `absent-from-all-public-collections` | `absent-without-live-observation` |
 | `COMMITTING-before-store-and-anchor-durable` | `absent-from-all-public-collections` | `absent-without-live-observation` |
 
-Configured or durable policy does not create a remote row. A service row
+Durable policy does not create a remote row. A service row
 requires an mDNS observation callback, a session row requires a connection
 callback, and a candidate requires the pairing callback from that transport
 connection. Durable trust may classify an already observed remote; it cannot
@@ -145,7 +145,7 @@ create observation cardinality, identity, ordering, or timestamps by itself.
 Configuration allowlist and pretrust are admission inputs only. They cannot
 prove durable pairing and cannot promote durable trust. Admin availability is
 mutation capability only; it is not evidence of trust, denial, or liveness.
-Configured endpoints and durable associations are also policy, not observation
+Durable associations are policy, not observation
 evidence. Callbacks from the SHIP path report the corresponding observed stage
 only.
 

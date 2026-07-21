@@ -43,13 +43,13 @@ publishable evidence entry exists.
 
 Shareable runtime evidence uses only the closed `eebus.v1` read-only contract
 and remains raw and redacted. It does not publish certificate SKIs, durable SHIP
-IDs, `nodeToken` values, protected `StoreInstance` material, configured
-endpoints, private network coordinates, or stable peer fingerprints. Exact
+IDs, `nodeToken` values, protected `StoreInstance` material, private network
+coordinates, or stable peer fingerprints. Exact
 identity comparisons are recorded as pass/fail against protected redacted
 references.
 
-Policy is not observation evidence. An allowlist, configured endpoint, durable
-association, or open local pairing window cannot by itself produce a visible
+Policy is not observation evidence. An allowlist, durable association, or open
+local pairing window cannot by itself produce a visible
 service, session, pairing candidate, topology record, or protocol-stage claim.
 Published service evidence requires an mDNS observation, session evidence
 requires a connection callback, and candidate evidence requires a

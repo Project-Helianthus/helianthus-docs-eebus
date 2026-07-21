@@ -386,7 +386,7 @@ store operation or proof that the peer was malicious.
 
 ## Authorization And Observation Separation
 
-An allowlisted SKI or configured endpoint is policy input only. It may constrain
+An allowlisted SKI is policy input only. It may constrain
 which peer a transport is permitted to handle, but it does not authenticate a
 peer, complete SHIP, authorize `RegisterRemoteSKI`, write a durable association,
 or create any observation. Startup and pairing-window transitions do not
@@ -399,7 +399,7 @@ The pairing callback from that transport connection may create the single
 volatile candidate. Earlier stages cannot synthesize later stages. Only exact
 OOB confirmation followed by `commit_durable` creates durable trust.
 
-Configured endpoints, allowlist entries, protected identity material, and raw
+Allowlist entries, protected identity material, and raw
 callback identities are private runtime material. They are excluded from public
 `Runtime`, `Snapshot`, `PairingState`, MCP, GraphQL, Portal, Home Assistant,
 CLI, metrics, traces, logs, fixtures, evidence, and all other shareable output.
@@ -412,7 +412,7 @@ declaration gains an open, close, confirm, cancel, register, unregister, trust,
 candidate-mutation, allowlist, or endpoint operation. No
 public value exposes candidate presence, remote candidate identity, fingerprint,
 nonce, idempotency key, connection generation, starting store generation,
-expiry, admin path, command history, configured endpoint, or allowlist entry.
+expiry, admin path, command history, or allowlist entry.
 
 The AF_UNIX command protocol, coordinator, candidate record, and facade
 translation types remain private implementation details. The candidate does
@@ -450,7 +450,7 @@ substitute for the deterministic cases below.
 | `G02` | While pairing is closed, an unknown peer is refused and a store spy observes zero store writes. | Falsified if the peer is admitted, a candidate appears, or any persistent write occurs while the window is closed. |
 | `G03` | While the window is open, the coordinator holds exactly one ephemeral RAM candidate and performs no persistent write before exact OOB confirmation; an incomplete association remains pending/no-write. | Falsified if candidate state is durable, more than one candidate is held, or a write occurs before exact OOB confirmation and complete association binding. |
 | `G04` | Two racing peers yield one candidate and one deterministic `candidate_busy` denial, and wrong fingerprint leaves the store unchanged. | Falsified if both peers win, the loser outcome varies, wrong OOB input clears/replaces the candidate, or any store write occurs for the wrong fingerprint. |
-| `G05` | Configured SKIs/endpoints and opening a pairing window create no remote queue, dial, visible service, session, topology, or candidate; the window changes only local `register=true`. | Falsified if policy configuration or the window transition creates any remote effect or observed state. |
+| `G05` | Allowlist entries and opening a pairing window result in no remote queue, dial, visible service, session, topology, or candidate; the window changes only local `register=true`. | Falsified if any remote effect or observed state follows policy configuration or the window transition. |
 | `G06` | An mDNS callback creates only service visibility, a connection callback creates the session, and a transport-backed pairing callback creates the candidate; only exact OOB confirmation plus `commit_durable` creates trust. | Falsified if an earlier stage creates a later-stage observation or policy input substitutes for a callback. |
 | `G16` | Public artifact scans contain random per-run labels, outcomes, and counts only, while API-diff tests keep the supported public surface read-only and candidate-free. | Falsified if any forbidden identity/secret category, candidate detail, stable peer history, or public mutation declaration appears in an artifact. |
 
@@ -507,7 +507,7 @@ values and no live peer dependency:
    reject absent/stale/mismatched values without writes, call
    `RegisterRemoteSKI` only after durable confirmation, and prove race
    losers/closed-window peers are cancelled.
-6. Observation-source tests prove that configured SKIs/endpoints and opening a
+6. Observation-source tests prove that allowlist entries and opening a
    pairing window create no queue, dial, service, session, topology, or
    candidate; mDNS, connection, and transport-backed pairing callbacks create
    only their respective stages, and trust follows only exact OOB confirmation
