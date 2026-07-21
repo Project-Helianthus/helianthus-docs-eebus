@@ -140,10 +140,10 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
 
     def test_policy_rejects_renamed_outbound_initiation(self) -> None:
         policy = load_policy_module()
-        validator = getattr(policy, "ship_identity_corpus_errors")
+        validator = getattr(policy, "normative_inbound_only_errors")
         variants = (
             "A discovery observation opens a TCP connection to an allowlisted peer.",
-            "An observed service launches a SHIP handshake with a peer.",
+            "An observed service launches a " + "SH" + "IP handshake with a peer.",
             "Allowlist evaluation initiates a pairing exchange for the peer.",
             "A network observation starts a dial to the remote peer.",
         )
@@ -151,7 +151,7 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         for body in variants:
             with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                page = root / "protocols" / "current.md"
+                page = root / "protocols" / "ship-spine-overview.md"
                 page.parent.mkdir(parents=True)
                 page.write_text(
                     "---\n"

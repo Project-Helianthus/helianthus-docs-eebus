@@ -1040,11 +1040,87 @@ def ship_identity_corpus_errors(
 
 
 STRICT_CURRENT_SCHEMA_PATH = "architecture/_candidate/msp-04a-persistent-store.md"
-STRICT_CURRENT_SCHEMA_FORBIDDEN = re.compile(r"\b(?:migration|rewrite)\b", re.IGNORECASE)
+STRICT_CURRENT_SCHEMA_REQUIRED = (
+    "only current persistence schema version 1",
+    "Every non-current schema version fails closed",
+    "leaves every store byte unchanged",
+)
+STRICT_CURRENT_SCHEMA_TRANSITION = re.compile(
+    r"\b(?:schema\s+version\s+\d+|older|legacy|non-current)\b"
+    r"[^.\n]{0,160}\b(?:accept|load|convert|upgrade|transform|fallback|select)\w*\b",
+    re.IGNORECASE,
+)
+NORMATIVE_INBOUND_ONLY_PATHS = (
+    "protocols/ship-spine-overview.md",
+    "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md",
+    "api/_candidate/msp-05p-eebusruntime-v1-correction.md",
+)
+NORMATIVE_INBOUND_ONLY_CLAUSE = (
+    "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
+)
+OUTBOUND_INITIATION = re.compile(
+    r"\b(?:discovery|observed\s+service|network\s+observation|allowlist(?:\s+evaluation)?)\b"
+    r"[^.\n]{0,160}\b(?:open|launch|initiat|start|dial)\w*\b"
+    r"[^.\n]{0,100}\b(?:TCP|SHIP|connection|handshake|dial|pairing)\b",
+    re.IGNORECASE,
+)
+NEGATED_INITIATION = re.compile(
+    r"\b(?:never|cannot|does\s+not|do\s+not|must\s+not)\s+"
+    r"(?:open|launch|initiat|start|dial|accept|load|convert|upgrade|transform|select)\w*\b",
+    re.IGNORECASE,
+)
+
+
+def _semantic_transition_errors(
+    body: str,
+    pattern: re.Pattern[str],
+    *,
+    path: str,
+    rule: str,
+) -> list[str]:
+    errors: list[str] = []
+    for match in pattern.finditer(body):
+        sentence_start = max(body.rfind(".", 0, match.start()), body.rfind("\n", 0, match.start())) + 1
+        sentence_end = body.find(".", match.end())
+        if sentence_end == -1:
+            sentence_end = len(body)
+        sentence = body[sentence_start:sentence_end]
+        if NEGATED_INITIATION.search(sentence):
+            continue
+        line = body.count("\n", 0, match.start()) + 1
+        errors.append(f"{path}:{line}: forbidden {rule}")
+    return errors
+
+
+def normative_inbound_only_errors(root: Path) -> list[str]:
+    """Require and protect the inbound-only rule only on normative runtime surfaces."""
+
+    errors: list[str] = []
+    for relative_path in NORMATIVE_INBOUND_ONLY_PATHS:
+        path = root / relative_path
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"{relative_path}: missing normative inbound-only surface")
+            continue
+        try:
+            body = _markdown_body(_read(path))
+        except UnicodeDecodeError:
+            errors.append(f"{relative_path}: normative inbound-only surface is unreadable")
+            continue
+        if NORMATIVE_INBOUND_ONLY_CLAUSE not in " ".join(body.split()):
+            errors.append(f"{relative_path}: missing canonical inbound-only clause")
+        errors.extend(
+            _semantic_transition_errors(
+                body,
+                OUTBOUND_INITIATION,
+                path=relative_path,
+                rule="outbound-initiation",
+            )
+        )
+    return errors
 
 
 def strict_current_schema_errors(root: Path) -> list[str]:
-    """Reject legacy persistence transition wording in the current-schema contract."""
+    """Reject non-current persistence activation in the one current-schema contract."""
 
     path = root / STRICT_CURRENT_SCHEMA_PATH
     if not path.is_file() or path.is_symlink():
@@ -1053,12 +1129,19 @@ def strict_current_schema_errors(root: Path) -> list[str]:
         body = _markdown_body(_read(path))
     except UnicodeDecodeError:
         return []
-    errors: list[str] = []
-    for match in STRICT_CURRENT_SCHEMA_FORBIDDEN.finditer(body):
-        line = body.count("\n", 0, match.start()) + 1
-        errors.append(
-            f"{STRICT_CURRENT_SCHEMA_PATH}:{line}: forbidden strict-current-schema wording"
+    errors = [
+        f"{STRICT_CURRENT_SCHEMA_PATH}: strict-current-schema missing canonical current-only clause"
+        for clause in STRICT_CURRENT_SCHEMA_REQUIRED
+        if clause not in " ".join(body.split())
+    ]
+    errors.extend(
+        _semantic_transition_errors(
+            body,
+            STRICT_CURRENT_SCHEMA_TRANSITION,
+            path=STRICT_CURRENT_SCHEMA_PATH,
+            rule="strict-current-schema transition",
         )
+    )
     return errors
 
 
@@ -3496,6 +3579,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             )
 
     errors.extend(ship_identity_corpus_errors(root))
+    errors.extend(normative_inbound_only_errors(root))
     errors.extend(strict_current_schema_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 

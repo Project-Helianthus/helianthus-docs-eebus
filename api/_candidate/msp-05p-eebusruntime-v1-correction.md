@@ -93,6 +93,8 @@ raw-write, semantic projection, or public trust mutation. Closed pairing is a
 constructor invariant, not an administrative mutation API. It defines no
 attempt bridge, preconnection operation, or fallback transport route; discovery
 and allowlist inputs remain inbound observation and authorization only.
+Discovery observations and allowlist evaluation never initiate an outbound dial
+or pairing attempt.
 
 ## Provenance And Rollback
 
