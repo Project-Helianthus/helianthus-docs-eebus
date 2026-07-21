@@ -49,6 +49,22 @@ until a later promotion gate replaces this candidate.
 The table is the closed stable inventory. No pairing mutation, trust mutation,
 raw write, command, or administrative tool is part of this contract.
 
+## Observation Source Boundary
+
+The `eebus.v1` family projects raw runtime observations only. The provider must
+not synthesize a service, session, pairing row, topology row, or evidence
+reference from an allowlist, protected identity, durable
+SHIP ID, or open local registration window.
+
+An mDNS observation may populate the service tools without populating the
+session tools. A connection callback may then populate the session tools. A
+transport-backed pairing callback may populate pairing status. Each stage is
+independent, and an earlier stage cannot imply a later one.
+
+This identity/discovery contract adds no tool, field, semantic object, GraphQL
+field, Portal model, Home Assistant entity, or write path. Shareable
+output remains raw, redacted, and limited to the closed stable inventory above.
+
 `id_digest` is a redacted SHA-256 selector represented by the runtime-scoped
 pseudonym defined below. It selects an already redacted ID and never accepts a
 raw identity. An unrecognized argument, including an

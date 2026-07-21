@@ -43,7 +43,7 @@ availability, callback order, or public observations.
 | `public_api_sha256` | `c93492bd275b5e14d3c9e05da701730d6d34a197e0653e6b169d103418bfcc8c` |
 | `disk_schema` | `MSP-04C-R2_control_schema_v3_unchanged` |
 | `persistence` | `derived_never_persisted` |
-| `semantic_change` | `new_contract_version+explicit_conformance_migration` |
+| `semantic_change` | `new_contract_version+separate_review` |
 
 This contract is not a public Go API, not a disk schema, not an admin wire
 schema, and not an MCP schema. It adds no field, enum value, mutation, or
@@ -131,20 +131,23 @@ ordering, or timing.
 
 | Candidate condition | Candidate public effect | Existing durable remote rows |
 | --- | --- | --- |
-| `CANDIDATE_PENDING\|association_incomplete` | `absent-from-all-public-collections` | `unchanged-or-unpaired-from-durable-record-only` |
-| `COMMITTING-before-store-and-anchor-durable` | `absent-from-all-public-collections` | `unchanged-or-unpaired-from-durable-record-only` |
+| `CANDIDATE_PENDING\|association_incomplete` | `absent-from-all-public-collections` | `absent-without-live-observation` |
+| `COMMITTING-before-store-and-anchor-durable` | `absent-from-all-public-collections` | `absent-without-live-observation` |
 
-Existing configured durable remote rows may remain `unpaired`, but only from
-their durable record and coordinator classification. They cannot acquire a
-candidate-derived identity, service, session, topology relationship, count,
-ordering position, or timestamp.
+Durable policy does not create a remote row. A service row
+requires an mDNS observation callback, a session row requires a connection
+callback, and a candidate requires the pairing callback from that transport
+connection. Durable trust may classify an already observed remote; it cannot
+create observation cardinality, identity, ordering, or timestamps by itself.
 
 ## Admission, Admin, And Privacy Boundary
 
 Configuration allowlist and pretrust are admission inputs only. They cannot
 prove durable pairing and cannot promote durable trust. Admin availability is
 mutation capability only; it is not evidence of trust, denial, or liveness.
-Callbacks from the SHIP path report liveness only.
+Durable associations are policy, not observation
+evidence. Callbacks from the SHIP path report the corresponding observed stage
+only.
 
 The candidate identity, fingerprint, nonce, idempotency key, admin path, and
 history are never projected. No candidate detail, command detail, protected
@@ -153,18 +156,19 @@ contract.
 
 ## Publication Linearization
 
-State transitions publish after durable or terminal linearization even without
-a network callback. Publication observes the coordinator result; callback
-arrival is not the trust linearization point. A store `commit_durable` result
-alone never publishes `paired`; the exact protected-anchor finalization must
-also be durably complete.
+State transitions publish after durable or terminal linearization only when a
+matching live observation already owns the remote row. Publication observes
+the coordinator result; callback arrival is not the trust linearization point,
+but policy state cannot create a row. A store `commit_durable` result alone
+never publishes `paired`; the exact protected-anchor finalization and a current
+transport-backed observation must both exist.
 
 | Linearized outcome | Required publication | Network callback required |
 | --- | --- | --- |
-| `store-commit-durable+protected-anchor-finalization-durable` | `paired` | `no` |
-| `commit_not_published+protected-anchor-clear-durable` | `unpaired-with-candidate-absent` | `no` |
-| `commit_applied_maintenance_failed\|commit_durability_unknown\|interruption_or_descriptor_mismatch\|protected-anchor-finalization-unknown` | `unknown+paired-false+denied-trust` | `no` |
-| `REVOKED\|TOMBSTONED\|QUARANTINED\|ADMIN_HOLD\|BACKOFF_ACTIVE` | `denied` | `no` |
+| `store-commit-durable+protected-anchor-finalization-durable` | `paired-on-current-observed-row` | `current-observation-required` |
+| `commit_not_published+protected-anchor-clear-durable` | `candidate-absent; no policy-derived row` | `current-observation-required-for-row` |
+| `commit_applied_maintenance_failed\|commit_durability_unknown\|interruption_or_descriptor_mismatch\|protected-anchor-finalization-unknown` | `unknown+paired-false+denied-trust-on-current-observed-row` | `current-observation-required-for-row` |
+| `REVOKED\|TOMBSTONED\|QUARANTINED\|ADMIN_HOLD\|BACKOFF_ACTIVE` | `denied-on-current-observed-row` | `current-observation-required-for-row` |
 | `disconnect\|reconnect-callback` | `liveness-only` | `callback-is-event` |
 
 Maintenance failure, interruption, descriptor mismatch, and every
@@ -173,30 +177,31 @@ durability-unknown store or protected-anchor outcome fail closed, keep
 
 ## Startup And Restart Publication
 
-On successful startup or restart, the coordinator publishes each durable
-classification after reload, structural classification, and protected-anchor
-checks complete, without waiting for a callback from the SHIP path. These are
-classification publications, not liveness promotions.
+On successful startup or restart, the coordinator reloads durable
+classifications privately after structural classification and protected-anchor
+checks complete. Reload creates no remote row. A later live observation may
+create a row that the coordinator then classifies from that durable state.
+Local runtime degradation remains available without a remote callback.
 
 | Classified product | Required publication | Network callback required |
 | --- | --- | --- |
-| `durably_trusted+store-and-protected-anchor-finalized` | `paired` | `no` |
-| `terminal_denial` | `denied` | `no` |
-| `identity_unavailable` | `unknown+certificate-unavailable` | `no` |
-| `not_yet_trusted` | `unpaired-with-candidate-absent` | `no` |
+| `durably_trusted+store-and-protected-anchor-finalized` | `no-policy-derived-remote-row` | `current-observation-required-for-row` |
+| `terminal_denial` | `no-policy-derived-remote-row` | `current-observation-required-for-row` |
+| `identity_unavailable` | `runtime-degradation-only` | `no` |
+| `not_yet_trusted` | `no-policy-derived-remote-row` | `current-observation-required-for-row` |
 
 ## Rollback Ledger
 
 | Case | Projection | Rollback rule |
 | --- | --- | --- |
 | `pre-durable-cancel\|expiry\|failure\|association_incomplete` | `candidate-absent` | `no-candidate-publication` |
-| `store-commit-durable+protected-anchor-finalization-durable` | `paired` | `callback-cannot-roll-back` |
-| `commit_not_published+protected-anchor-clear-durable` | `unpaired-with-candidate-absent` | `no-trust-and-no-candidate-publication` |
-| `commit_applied_maintenance_failed\|commit_durability_unknown\|interruption_or_descriptor_mismatch\|protected-anchor-finalization-unknown` | `unknown+denied-trust` | `fail-closed-until-terminal` |
-| `revocation\|tombstone-terminal` | `denied+denied-trust` | `callback-cannot-resurrect` |
+| `store-commit-durable+protected-anchor-finalization-durable` | `paired-on-current-observed-row` | `restart-cannot-create-row` |
+| `commit_not_published+protected-anchor-clear-durable` | `candidate-absent` | `no-trust-and-no-policy-derived-row` |
+| `commit_applied_maintenance_failed\|commit_durability_unknown\|interruption_or_descriptor_mismatch\|protected-anchor-finalization-unknown` | `unknown+denied-trust-on-current-observed-row` | `fail-closed-without-policy-derived-row` |
+| `revocation\|tombstone-terminal` | `denied-on-current-observed-row` | `callback-cannot-resurrect-or-create` |
 
-## Migration Boundary
+## Contract Change Boundary
 
 Any future change to precedence, state meaning, field mapping, atomicity,
-authority, or linearization requires a new contract version and an explicit
-conformance migration. Reinterpreting this contract in place is forbidden.
+authority, or linearization requires a new contract version and a separate
+review. Reinterpreting this contract in place is forbidden.

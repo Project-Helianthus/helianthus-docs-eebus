@@ -37,6 +37,11 @@ canonical source is the
 This page records only where the local adapter hands responsibility to that
 platform contract.
 
+The [canonical local identity contract](ship-identity.md) defines separate
+ownership for the protected local store, certificate identity,
+protocol-service identity, discovery label, authorization policy, and observed
+runtime state.
+
 ## Claim Register
 
 | Status | Local statement | Evidence class | Evidence | Falsifier |
@@ -45,8 +50,9 @@ platform contract.
 | Supported | Cross-runtime registry semantics remain platform-owned. | `derived_inference` | `EV-20260711-001` and the canonical link above | The canonical platform ownership manifest withdraws or moves that contract. |
 | Supported | G17 and G19 use live-run authority; CI replay has separate authority for deterministic negative cases. | `observed_runtime` | `EV-20260714-001` | A later accepted public gate contract merges those evidence authorities. |
 | Supported | Run proof binds a fresh challenge and bounded window to one run, while G19 transport and first redacted SPINE evidence bind to one connection generation. | `derived_inference` | `EV-20260714-001` | An accepted public gate contract permits stale, cross-run, or cross-generation proof. |
-| Partial/negative observation | One protected outbound-pairing observation recorded only the local registration transition with auto-accept disabled; it recorded no completed candidate, durable trust, trusted reconnect, or device-semantic result. | `observed_runtime` | `EV-20260720-001` | A future independently reproducible redacted observation under the same bounded conditions demonstrates different registration or automatic-accept behavior. |
-| Candidate policy | An endpoint allowlist is not trust: outbound attempt reporting is gated and fail-closed, queue state is bounded and ephemeral, and a reconnect endpoint follows only exact OOB confirmation plus durable commit. | `derived_inference` | `architecture/_candidate/msp-04b-first-trust-admin-local.md`; informed but not proven by `EV-20260720-001` | A merged, tested contract permits an allowlist/report/unfinished attempt to create trust or exposes an endpoint publicly. |
+| Partial/negative observation | One protected pairing observation recorded only the local registration transition with auto-accept disabled; it recorded no completed candidate, durable trust, trusted reconnect, or device-semantic result. | `observed_runtime` | `EV-20260720-001` | A future independently reproducible redacted observation under the same bounded conditions demonstrates different registration or automatic-accept behavior. |
+| Candidate policy | Authorization allowlist is policy; visible service, session, pairing candidate, and other observation rows are callback-owned. | `derived_inference` | `architecture/_candidate/msp-04b-first-trust-admin-local.md`; informed but not proven by `EV-20260720-001` | A merged, tested contract permits policy configuration alone to create observed remote state. |
+| Canonical identity | Certificate SKI, protected store identity, durable SHIP ID, DNS-SD instance, authorization policy, and observed state retain separate ownership and lifecycles. | `derived_inference` | `EV-20260714-001`, `EV-20260720-001` | A publishable bounded run demonstrates forced shared identity or observation authority between any two concepts. |
 | Candidate policy | Unimplemented runtime and API details carry no supported status here. | `derived_inference` | `EV-20260711-001` | A merged implementation and regenerated API surface provide publishable support. |
 
 ## Interop Evidence Boundary
@@ -81,6 +87,11 @@ a landed runtime or public API shape.
 The v1 schema contract and synthetic fixtures remain active and unchanged.
 Unimplemented reference material is candidate-only; stable navigation, search,
 sitemap, versioned bundles, and release bundles omit it.
+
+Identity and discovery changes do not add a semantic projection. Shareable
+runtime evidence remains raw, redacted, and available through the `eebus.v1`
+closed read-only tool family. Policy configuration has no representation as
+observed service, session, topology, pairing, or semantic state.
 
 ## M4.5 Roadmap
 

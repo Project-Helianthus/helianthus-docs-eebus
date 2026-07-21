@@ -4,117 +4,123 @@ owner_domain: "protocols"
 license: "CC0-1.0"
 publication_status: "publishable"
 claim_status: "evidence-backed"
-source_class: "observed_runtime"
+source_class: "derived_inference"
 evidence_ids: "EV-20260714-001,EV-20260720-001"
 hypothesis_status: "publishable"
-falsifier: "A later accepted public gate contract changes the G17 or G19 acceptance boundary."
+contract_status: "normative"
+live_validation_status: "pending"
+falsifier: "A bounded redacted live run violates the canonical advertisement, callback provenance, transport ordering, or identity-repair stability gate."
 ---
 
-# G17/G19 SHIP/SPINE Interop Gates
+# Canonical Discovery For SHIP And G17/G19 Interop Gates
 
-## Scope
+## Scope And Classification
 
-This page defines the accepted evidence boundary for the MSP-03D-R live interop
-gates. It records transport-stage acceptance only. It does not publish SPINE
-semantics or a consumer surface.
+This page defines the single normative discovery design for SHIP and the
+pending live acceptance boundary for the G17/G19 gates. The design is derived
+from project identity, security, and redaction requirements. Earlier evidence
+informs the gate shape but does not prove this identity or TXT behavior. This
+page does not establish deployed support, SPINE semantics, or a consumer
+surface.
 
-## G17: Local Announcement
+## Canonical Local Advertisement
 
-G17 proves all of the following in one bounded live run:
+The runtime publishes exactly one `_ship._tcp` service after the exact listener
+is bound. Its DNS-SD instance is:
 
-- Helianthus publishes the configured local service announcement;
-- an independent LAN observer discovers that announcement;
-- myVaillant shows the corresponding trust visibility;
+```text
+Helianthus EnergyManagementSystem eebusreg
+```
+
+The TXT record has this closed field set:
+
+| Key | Value |
+| --- | --- |
+| `txtvers` | `1` |
+| `path` | `/ship/` |
+| `id` | `HLS-<nodeToken>` |
+| `ski` | `<certificate SKI>` |
+| `brand` | `Helianthus` |
+| `model` | `eebusreg` |
+| `type` | `EnergyManagementSystem` |
+| `register` | `<window>` |
+
+`id` is the canonical SHIP ID derived from the protected `StoreInstance`.
+`ski` is the current certificate SKI and has a separate lifecycle. The DNS-SD
+instance is a fixed human-facing label and does not participate in either
+identity. The advertised address and port equal the one bound listener.
+`<window>` is `true` only while the bounded local registration window is open;
+otherwise it is `false`.
+
+## G17: Pending Local Announcement Gate
+
+One bounded live run must establish all of the following:
+
+- exactly one canonical Helianthus announcement is visible on the selected
+  interface and bound address;
+- an independent LAN observer resolves the exact instance and closed TXT set;
+- the registration window changes only `register` from `false` to `true` and
+  back to `false`;
 - withdrawal is observed with exact `TTL=0`; and
 - the post-withdrawal negative confirms no inbound connection attributable to
   the withdrawn announcement.
 
-G17 does not fix the direction of a later protocol handshake. A local Helianthus
-announcement may lead to an inbound connection, while independently observed
-endpoint evidence may support a separately gated outbound attempt.
+The announcement alone creates no remote session or pairing candidate.
 
 ### Protected Registration Signal
 
-In the SHIP DNS-SD record, `register=true` means that bounded pairing
-registration is available. It does not mean that the peer is trusted and does
-not enable automatic handshake acceptance. A manual first-trust implementation
-therefore keeps handshake auto-accept disabled and composes the published
-registration value from independent automatic and user-mediated availability.
+`register=true` means that bounded pairing registration is
+available. It does not mean that the peer is trusted and does not enable
+automatic handshake acceptance. Opening the local pairing window changes only
+this local value. It does not queue, report, or dial a remote and cannot create
+a remote service, session, topology row, or candidate.
 
-The user-mediated value is true only for its authenticated, bounded lifecycle.
-When that lifecycle closes, expires, or reaches a terminal effect, the service
-must withdraw or replace the announcement with `register=false`. A selected
-candidate may remain advertised during the same bounded window and commit-wait
-interval; this preserves transport liveness but does not admit a competing
-candidate or authorize persistent trust.
+When the bounded lifecycle closes, expires, or reaches a terminal effect, the
+service must withdraw or replace the announcement with `register=false`. No pairing-window
+transition selects a peer or schedules transport work.
 
-## G19: Inbound Direct Access
+## G19: Pending Inbound Transport Gate
 
-G19 starts with VR940 acting as the client and Helianthus accepting the inbound
-connection. Acceptance requires one ordered TCP, TLS, and WebSocket sequence,
-completion of SHIP, and then the first redacted SPINE evidence from that same
-live run and connection generation. Evidence from another run or connection
-generation does not complete G19.
+G19 starts with the live peer initiating TCP and Helianthus accepting that
+connection. The gate requires ordered TCP, SHIP, and first redacted SPINE-stage
+evidence from one live run and connection generation. Evidence from another
+run or generation cannot complete the gate. The first SPINE evidence proves
+only that data reached the raw redacted boundary and receives no semantic
+meaning.
 
-The first SPINE evidence proves only that data reached the redacted evidence
-boundary. It does not promote any protocol meaning.
+## Observation Provenance
 
-## Candidate Outbound Endpoint Policy
+Authorization policy and observed network state have separate provenance. An
+allowlisted SKI may permit later transport handling, but it cannot create a
+visible service, session, pairing candidate, address observation, or topology
+row.
 
-Private, non-publishable operator evidence motivated evaluation of a separately
-configured outbound endpoint fallback. That private evidence establishes no
-publishable claim about the target transport role, discovery records, endpoint
-availability, or pairing outcome. `EV-20260720-001` does not supply any of those
-claims; it proves only the local `register=false` to `register=true` transition
-with automatic handshake acceptance disabled, followed by return to the closed
-local state.
+An mDNS observation callback may create a visible remote service. Only an
+actual connection callback may create a session. Only the pairing callback
+from an active transport connection may create the single volatile pairing
+candidate. A service observation cannot imply a session, and neither policy
+configuration nor an open local registration window can stand in for a live
+callback.
 
-The fallback below is candidate policy, not observed target behavior. It applies
-only when the expected peer identity is already known through an independent
-operator channel.
+## Repair Stability Gate
 
-The fallback has three independent operations:
-
-1. A bounded authenticated first-trust window temporarily queues the exact
-   allowlisted peer without marking it trusted.
-2. A manual endpoint report supplies host, port, and path only to an installed
-   outgoing-attempt authorization gate. Hubs without that gate reject the
-   operation.
-3. `SHIP` pairing completion remains attempt-aware and cannot persist trust. Only exact
-   OOB confirmation and a durable association commit may invoke the separate
-   trusted-registration operation.
-
-Window close, expiry, cancellation, revocation, or a denied attempt removes or
-invalidates ephemeral admission. A configured endpoint is transport input,
-not discovery evidence, identity evidence, or semantic evidence.
-
-## Evidence Authority
-
-Live observer evidence and deterministic CI replay have separate authority.
-Live evidence establishes what happened on the LAN and in the operator trust
-flow. CI replay establishes deterministic handling of negative cases and
-fail-closed validation. A replay result cannot substitute for a missing live
-observation.
-
-A negative or partial live run is terminal for that attempt. It narrows what
-was observed without establishing that the same result applies to every
-environment or later run.
+After a real host-key and certificate repair, the certificate SKI must change.
+The decoded raw 32-byte `StoreInstance`, derived `nodeToken`, canonical SHIP ID,
+and DNS-SD instance must remain exactly unchanged. The next advertisement must
+contain the unchanged `id` and the changed `ski`. Failure of any equality or
+inequality check fails the gate.
 
 ## Run Binding And Redaction
 
-A valid operator proof is bound to a fresh run challenge, a bounded acceptance
-window, redacted endpoint and expected-peer references, and the transport
-evidence from that run. The ordered transport proof and first redacted SPINE
-evidence remain bound to one current connection generation. Stale, reused,
-cross-run, or cross-generation proof is rejected.
+A valid proof is bound to a fresh run challenge, bounded acceptance window,
+redacted listener and expected-peer references, and transport evidence from
+that run. Public evidence contains stage results, counts, protected-reference
+comparisons, and authority labels. It omits packet captures, raw transcripts,
+private addresses, actual store identity, actual SHIP ID, and raw peer
+identity.
 
-Public evidence contains redacted references, digests, stage results, and
-authority labels. It omits packet captures, raw transcripts, sensitive
-material, private addresses, and raw peer identity.
-
-## Candidate Implementation Status
-
-The inspected code worktree proposes concrete fields for the run challenge,
-time window, redacted references, transport digest, connection generation, and
-first-SPINE digest. Those field choices are uncommitted candidate details. This
-page supports the contract above, not a landed runtime or public API shape.
+This contract is tracked by
+[docs issue 48](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/48)
+and
+[runtime issue 54](https://github.com/Project-Helianthus/helianthus-eebusreg/issues/54).
+Live validation remains pending.

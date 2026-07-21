@@ -264,7 +264,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
     "api/README.md": "99cd8f1833d1a1f801f4d04d62b1ecb" "95f20ad73d8dadc04c654f1fdcf31f1f3",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
-    "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
+    "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
     "evidence/evidence-template.md": (
         "02910e849eab14a43251f4d28f4cb1e" "115c0feb6f78a32b2b600c85830c150e5"
     ),
@@ -276,13 +276,13 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "79bae1a8bc06da4800b7e302ad12b4fd" "208ba27e9bf56fded655b7fa5eabaf80"
+        "32253f617f5fa9c225a3738a124c689d" "d80becde7252f57057b1d6cd3d7bcf80"
     ),
 }
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "264d47e55270a61d5de2b2f88b6f18c" "5b7e844c71c16034e73e64b49b65c5482"
+        "75ad978cfaec7573003508df67a28305" "fc7ccdf580d05ee25d7784fad8da7510"
     ),
 }
 
@@ -440,6 +440,52 @@ NONPUBLISHABLE_PUBLICATION_STATUSES = {
     "template",
     "withdrawn",
 }
+SHIP_IDENTITY_CURRENT_STATUSES = {
+    "active",
+    "api-contract",
+    "candidate",
+    "contribution-policy",
+    "evidence-policy",
+    "ownership-landing",
+    "ownership-policy",
+    "planned-target",
+    "publishable",
+}
+SHIP_IDENTITY_SUPERSEDED_ALLOW: dict[str, frozenset[str]] = {}
+SHIP_IDENTITY_FORBIDDEN_PATTERNS = {
+    "configured-endpoint-field": re.compile(
+        r"\bconfigured(?:[_ -]+remote)?[_ -]+endpoints?\b", re.IGNORECASE
+    ),
+    "queue-remote-ski": re.compile(r"\bQueueRemoteSKI\b"),
+    "report-remote-endpoint": re.compile(r"\bReportRemoteEndpoint\b"),
+    "endpoint-forced-pairing": re.compile(
+        r"\bendpoint[-_ ]forced(?:[-_ ]pairing)?\b|"
+        r"\bforced[-_ ]endpoint(?:[-_ ]pairing)?\b|"
+        r"\bOutgoing Attempt Gate\b|"
+        r"\bDurable Outgoing Attempt Reservation\b|"
+        r"\bendpoint_(?:path|fallback)\b",
+        re.IGNORECASE,
+    ),
+    "noncanonical-publisher": re.compile(
+        r"\bRawProbe\b|\b(?:Python|compat(?:ibility)?) publisher\b",
+        re.IGNORECASE,
+    ),
+    "alternate-ship-id": re.compile(
+        r"\balternate SHIP ID\b|\balternate protocol-service\b",
+        re.IGNORECASE,
+    ),
+}
+SHIP_IDENTITY_POLICY_CREATION_PATTERN = re.compile(
+    r"\b(?:authorization policy|policy configuration|allowlist(?:ed)?(?: SKI| entry)?)\b"
+    r"[^\n.]{0,120}\b(?:creates?|publishes?|produces?|populates?|synthesizes?)\b"
+    r"[^\n.]{0,120}\b(?:service|session|candidate|observation|topology|remote row)\b",
+    re.IGNORECASE,
+)
+SHIP_IDENTITY_NEGATED_CREATION_PATTERN = re.compile(
+    r"\b(?:cannot|never|does not|do not|must not)\s+"
+    r"(?:create|publish|produce|populate|synthesize)\b",
+    re.IGNORECASE,
+)
 SUMMARY_NORMATIVE_PATTERN = re.compile(
     r"\b(?:must|shall|should(?:\s+not)?|may\s+not|cannot|never|"
     r"(?:is|are|be|remain)\s+(?:mandatory|required)|"
@@ -498,7 +544,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
-    "310c9f80488c8e1609c90dbbf57c935e" "04cb2d4b5515bc32c1b76fcfd3e821b9": {
+    "4a6caf9058d2682fd5e6980f4eada383" "011efc1aa35bf547e6868e0f4731045e": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -632,7 +678,7 @@ PRODUCTION_REVIEWED_EVIDENCE = {
         },
     },
     "EV-20260720-001": {
-        "3128517af9d0cfe45d236727675f0b4d" "aa2f1e44594adc80ee2bd7e93b1c933c": {
+        "18ddba29e4c8c7ed01659aa6a8799ac" "13ca6ede9c2a48b78f1bb52835697d593": {
             "canonical_source": (
                 "Project-Helianthus/helianthus-docs-eebus:"
                 "evidence/EV-20260720-001.md"
@@ -693,7 +739,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "claim_status": "no-protocol-claims",
         "publication_status": "planned-target",
     },
-    "b71baf2145cc721db1dd81f56b4b02b9" "6f0c633471872f2c5fc88383288af44d": {
+    "3d9476af41d3ebb0557b7a75dc86812c" "b1a06ae9b634b43622ab0139a9eb12de": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
         ),
@@ -701,13 +747,12 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "license": "CC0-1.0",
         "claim_status": "evidence-backed",
         "publication_status": "planned-target",
-        "source_class": "observed_runtime",
-        "evidence_ids": "EV-20260720-001",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260714-001,EV-20260720-001",
         "hypothesis_status": "publishable",
         "falsifier": (
-            "A future independently reproducible redacted observation "
-            "establishes a completed transport, trust, or reconnect outcome "
-            "under the same bounded conditions."
+            "A bounded redacted live run violates the canonical advertisement, "
+            "callback provenance, transport ordering, or restart-persistence gate."
         ),
         "cross_seed_target": (
             "Project-Helianthus/helianthus-docs-ebus:"
@@ -719,6 +764,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
             "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
             "docs/platform/eebus-raw-first-contract.md"
         ),
+        "live_validation_status": "pending",
     },
 }
 FIXTURE_REVIEWED_CROSS_SEED = {
@@ -903,6 +949,89 @@ def _front_matter(text: str) -> tuple[dict[str, str] | None, str | None]:
     if not all(isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()):
         return None, "YAML front matter keys and values must be strings"
     return parsed, None
+
+
+def ship_identity_corpus_errors(
+    root: Path,
+    *,
+    superseded_allow: dict[str, frozenset[str]] | None = None,
+) -> list[str]:
+    """Reject retired canonical-identity paths in every current normative document.
+
+    Historical exceptions are never directory-wide. An exception must name one
+    evidence file and one rule, and that file must explicitly declare
+    identity_contract_scope=superseded_non_normative in front matter.
+    """
+
+    allow = SHIP_IDENTITY_SUPERSEDED_ALLOW if superseded_allow is None else superseded_allow
+    errors: list[str] = []
+    seen_allow_paths: set[str] = set()
+    for rel, rules in allow.items():
+        if (
+            not rel.startswith("evidence/")
+            or any(character in rel for character in "*?[]")
+            or not rules
+            or not rules.issubset(SHIP_IDENTITY_FORBIDDEN_PATTERNS)
+        ):
+            errors.append(
+                f"{rel}: canonical-identity allowance must be an exact evidence path and exact rule set"
+            )
+
+    for domain in sorted(PUBLISHABLE_DOMAINS):
+        domain_root = root / domain
+        if not domain_root.is_dir():
+            continue
+        for path in sorted(domain_root.rglob("*.md")):
+            if not path.is_file() or path.is_symlink():
+                continue
+            rel = _rel(path, root)
+            try:
+                text = _read(path)
+            except UnicodeDecodeError:
+                continue
+            metadata, front_matter_error = _front_matter(text)
+            if front_matter_error is not None or metadata is None:
+                continue
+            if metadata.get("publication_status") not in SHIP_IDENTITY_CURRENT_STATUSES:
+                continue
+
+            superseded = (
+                metadata.get("identity_contract_scope")
+                == "superseded_non_normative"
+            )
+            allowed_rules = allow.get(rel, frozenset())
+            if allowed_rules:
+                seen_allow_paths.add(rel)
+                if not superseded or metadata.get("owner_domain") != "evidence":
+                    errors.append(
+                        f"{rel}: canonical-identity allowance requires superseded_non_normative evidence metadata"
+                    )
+                    allowed_rules = frozenset()
+            elif superseded:
+                errors.append(
+                    f"{rel}: superseded_non_normative identity evidence has no exact allowance"
+                )
+
+            body = _markdown_body(text)
+            for rule, pattern in SHIP_IDENTITY_FORBIDDEN_PATTERNS.items():
+                for match in pattern.finditer(body):
+                    if superseded and rule in allowed_rules:
+                        continue
+                    line = body.count("\n", 0, match.start()) + 1
+                    errors.append(f"{rel}:{line}: forbidden canonical-identity rule {rule}")
+
+            for match in SHIP_IDENTITY_POLICY_CREATION_PATTERN.finditer(body):
+                if SHIP_IDENTITY_NEGATED_CREATION_PATTERN.search(match.group(0)):
+                    continue
+                rule = "policy-created-observation"
+                if superseded and rule in allowed_rules:
+                    continue
+                line = body.count("\n", 0, match.start()) + 1
+                errors.append(f"{rel}:{line}: forbidden canonical-identity rule {rule}")
+
+    for rel in sorted(set(allow) - seen_allow_paths):
+        errors.append(f"{rel}: canonical-identity allowance did not match current evidence")
+    return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
 def _markdown_body(text: str) -> str:
@@ -3338,6 +3467,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 "ted-source quarantine rule"
             )
 
+    errors.extend(ship_identity_corpus_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 

@@ -66,10 +66,13 @@ coordinator decision.
 
 ## Candidate And Confirmation Binding
 
-The coordinator has exactly one volatile candidate slot. An eligible first
-contact captures the pairing identity and all immediately available bindings.
-The candidate may remain association-incomplete until the matching service
-identifier is observed, but it still occupies the only slot.
+The coordinator has exactly one volatile candidate slot. Only a pairing
+callback backed by an active transport connection may create it. Configuration,
+an allowlist match, an mDNS observation, and a locally opened pairing window
+cannot create a candidate. An eligible pairing callback captures the pairing
+identity and all immediately available bindings. The candidate may remain
+association-incomplete until the matching service identifier is observed, but
+it still occupies the only slot.
 
 | Binding | Constraint |
 | --- | --- |
@@ -121,8 +124,8 @@ This mechanism proves explicit confirmation of that exact candidate under
 channel, that displayed data came from an independent source, or that the peer
 certificate has any property beyond the separately validated association. If
 certificate-leaf SHA-256 is desired later, that requires a redesigned
-confirmation contract, new binding and normalization rules, migration of any
-admin client, and a separate review. It MUST NOT be substituted silently for
+confirmation contract, new binding and normalization rules, and a separate
+review. It MUST NOT be substituted silently for
 `fingerprint_v1`.
 
 ## Coordinator State Machine
@@ -208,6 +211,11 @@ The SHIP DNS-SD `register` value is a discovery signal, not a trust decision.
 `register=true`. `CANDIDATE_PENDING` keeps `register=true` within the original
 bounded window so the selected protocol exchange remains discoverable; the
 single-candidate rule still rejects every competing peer deterministically.
+
+Opening the window has one network-visible effect: the local advertisement
+changes to `register=true`. It does not queue or report a remote, launch a dial,
+fabricate a service or session observation, or select a candidate. Those states
+require their corresponding discovery, connection, and pairing callbacks.
 
 After exact confirmation, `COMMITTING` may retain `register=true` only during
 the bounded commit-wait interval needed by the winning handshake. Close,
@@ -376,86 +384,35 @@ transport closes the window, a commit fails closed, or mutation becomes
 disabled. Cancellation is a runtime effect of the coordinator result, not a
 store operation or proof that the peer was malicious.
 
-## Protected Outbound Pairing And Endpoint Discipline
+## Authorization And Observation Separation
 
-An outbound endpoint allowlist is an admission input, not trust. It may say
-that the private coordinator is permitted to consider a discovered endpoint
-for one outbound SHIP attempt; it does not authenticate a peer, complete SHIP,
-authorize `RegisterRemoteSKI`, create a reconnect right, or write a durable
-association. A malformed, stale, ambiguous, unauthorized, or unavailable
-allowlist result fails closed: no dial, no candidate, no endpoint report, and
-no trust effect.
+An allowlisted SKI is policy input only. It may constrain
+which peer a transport is permitted to handle, but it does not authenticate a
+peer, complete SHIP, authorize `RegisterRemoteSKI`, write a durable association,
+or create any observation. Startup and pairing-window transitions do not
+convert configured policy into remote service, session, topology, pairing, or
+candidate state.
 
-While a locally authenticated pairing window is open, the coordinator may keep
-a bounded, RAM-only queue of eligible outbound attempt records. An entry holds
-only opaque endpoint and discovery bindings, a fresh private attempt token,
-the window/candidate generation, and a monotonic expiry. The queue has a fixed
-capacity and per-entry expiry; duplicate, stale, over-capacity, and
-window-mismatched reports are rejected without replacing an earlier entry.
-It is neither a durable work queue nor a retry ledger. Closing the window,
-window expiry, candidate expiry, cancellation, commit start, disabled
-mutation, and process restart clear every queued record and cancel any
-associated in-flight attempt.
+Remote evidence has three independent sources. An mDNS observation callback may
+create a visible service. An actual connection callback may create a session.
+The pairing callback from that transport connection may create the single
+volatile candidate. Earlier stages cannot synthesize later stages. Only exact
+OOB confirmation followed by `commit_durable` creates durable trust.
 
-The endpoint-report path is a gate, not a passive diagnostic feed. It may
-release an attempt only after same-UID local authorization, an open unexpired
-window, a successful current allowlist decision, and a complete bounded report
-binding. If report validation, queueing, cancellation, or dispatch cannot be
-proved for that exact record, the coordinator reports a stable no-attempt
-outcome and fails closed. It must not fall back to an older endpoint, a DNS
-cache entry, an inferred address, or an unauthenticated discovery result.
-
-`SHIP` pairing completion is attempt-aware. A completion or callback may affect the
-current candidate only when its private attempt token, endpoint binding,
-connection generation, and unexpired window all match the linearized queue
-record. A late completion, a completion from a prior retry, or a callback after
-close/expiry/cancel is ignored or cancelled and cannot turn an allowlisted
-endpoint into a trusted peer. This rule applies equally when the transport
-performs address-family or discovery retries: each wire attempt remains bound
-to the same authorized record or is denied.
-
-Revocation or unregister linearizes ahead of an in-flight gated trusted
-reconnect before its `DialContext` call or later continuation. The coordinator
-then invalidates the attempt record and cancels its exact attempt context; the
-facade rechecks that invalidation immediately before dialing and before every
-continuation that could use the reconnect endpoint. A revocation/unregister
-winner therefore permits neither a new dial nor a resumed handshake, even if
-the record was previously allowlisted or had already passed a report gate.
-
-The coordinator may hold its serialization lock while it creates, binds, or
-invalidates an attempt record, but it MUST release that lock before
-`DialContext`. No lock may span the dial or wait for its result. Cancellation,
-close, expiry, revocation, and unregister must be able to reach the exact
-attempt context without waiting for an in-flight dial to return. The dialer
-receives only a cancellable attempt context and an immutable private snapshot;
-once cancellation wins, a late dial result cannot revive, continue, or register
-the attempt.
-
-Only exact OOB confirmation followed by `commit_durable` creates durable trust.
-Before that point, an endpoint is an ephemeral attempt input, not an association
-attribute. After durable confirmation, a matching endpoint may be retained as
-a private trusted-reconnect endpoint for that exact association and used only
-through the normal trusted reconnect path. Reconnect eligibility is derived
-from the durable association, never from the allowlist or an unfinished queue
-entry; revocation, a changed association binding, or a failed durability result
-removes the right to use it.
-
-Endpoint values, attempt tokens, queue position, endpoint-report outcomes that
-would identify a peer, and reconnect endpoint details are private runtime
-material. They are excluded from public `Runtime`, `Snapshot`, `PairingState`,
-MCP, GraphQL, Portal, Home Assistant, CLI, metrics, traces, logs, fixtures,
-evidence, and all other shareable output.
+Allowlist entries, protected identity material, and raw
+callback identities are private runtime material. They are excluded from public
+`Runtime`, `Snapshot`, `PairingState`, MCP, GraphQL, Portal, Home Assistant,
+CLI, metrics, traces, logs, fixtures, evidence, and all other shareable output.
 
 ## Public Surface Freeze
 
 MSP-04B does not change the active public API contract. Public `Runtime`,
 `Snapshot`, and `PairingState` remain read-only observations. No public
 declaration gains an open, close, confirm, cancel, register, unregister, trust,
-candidate-mutation, endpoint-report, allowlist, or reconnect operation. No
+candidate-mutation, allowlist, or endpoint operation. No
 public value exposes candidate presence, remote candidate identity, fingerprint,
 nonce, idempotency key, connection generation, starting store generation,
-expiry, admin path, command history, endpoint, endpoint report, queue state,
-attempt token, or trusted reconnect endpoint.
+expiry, admin path, command history, or allowlist entry.
 
 The AF_UNIX command protocol, coordinator, candidate record, and facade
 translation types remain private implementation details. The candidate does
@@ -469,11 +426,12 @@ MSP-045's combined read-only mapping is defined by the
 ## Restart And Recovery
 
 Restart discards the volatile window, candidate, nonce, active idempotency
-state, terminal-result cache, endpoint reports, and outbound-attempt queue.
+state, and terminal-result cache.
 The new process starts `DISABLED`, opens the store under MSP-04A rules, reloads
 only the selected durable associations, and enters `PAIRING_CLOSED` when safe.
-It never infers an open window, permitted endpoint, or in-flight attempt from a
-stale socket, process residue, previous reply, log, cache, or client replay.
+It never infers an open window, visible service, session, candidate, or observed
+endpoint from configuration, a stale socket, process residue, previous reply,
+log, cache, or client replay.
 
 If Open reports an unavailable or ambiguous store state, mutation stays
 `DISABLED`. `commit_applied_maintenance_failed` and
@@ -492,8 +450,8 @@ substitute for the deterministic cases below.
 | `G02` | While pairing is closed, an unknown peer is refused and a store spy observes zero store writes. | Falsified if the peer is admitted, a candidate appears, or any persistent write occurs while the window is closed. |
 | `G03` | While the window is open, the coordinator holds exactly one ephemeral RAM candidate and performs no persistent write before exact OOB confirmation; an incomplete association remains pending/no-write. | Falsified if candidate state is durable, more than one candidate is held, or a write occurs before exact OOB confirmation and complete association binding. |
 | `G04` | Two racing peers yield one candidate and one deterministic `candidate_busy` denial, and wrong fingerprint leaves the store unchanged. | Falsified if both peers win, the loser outcome varies, wrong OOB input clears/replaces the candidate, or any store write occurs for the wrong fingerprint. |
-| `G05` | An allowlisted outbound endpoint creates at most one bounded ephemeral attempt record; stale, malformed, unauthorized, full-queue, closed-window, cancelled, and expired reports cause no dial, trust write, or public endpoint output. | Falsified if an allowlist result acts as trust, a stale/unauthorized report dials, queue state survives cleanup, or an endpoint value reaches a shareable surface. |
-| `G06` | A `SHIP` pairing completion is accepted only for its current private attempt binding, and only exact OOB confirmation plus `commit_durable` enables a trusted reconnect endpoint. | Falsified if a late/retried completion is accepted, close/expiry/cancel leaves an attempt live, or an endpoint becomes reconnectable before durable trust. |
+| `G05` | Allowlist entries and opening a pairing window result in no remote queue, dial, visible service, session, topology, or candidate; the window changes only local `register=true`. | Falsified if any remote effect or observed state follows policy configuration or the window transition. |
+| `G06` | An mDNS callback creates only service visibility, a connection callback creates the session, and a transport-backed pairing callback creates the candidate; only exact OOB confirmation plus `commit_durable` creates trust. | Falsified if an earlier stage creates a later-stage observation or policy input substitutes for a callback. |
 | `G16` | Public artifact scans contain random per-run labels, outcomes, and counts only, while API-diff tests keep the supported public surface read-only and candidate-free. | Falsified if any forbidden identity/secret category, candidate detail, stable peer history, or public mutation declaration appears in an artifact. |
 
 Store-boundary and AF_UNIX proofs remain separate required tests. They support
@@ -549,16 +507,15 @@ values and no live peer dependency:
    reject absent/stale/mismatched values without writes, call
    `RegisterRemoteSKI` only after durable confirmation, and prove race
    losers/closed-window peers are cancelled.
-6. Outbound-attempt tests prove allowlist-not-trust, bounded ephemeral queue
-   capacity and expiry, endpoint-report fail-closed behavior, attempt-aware
-   `SHIP` pairing completion across retry and late-callback cases, cleanup on close,
-   expiry, and cancel, revocation/unregister cancellation before dial and
-   continuation, no serialization lock across `DialContext`, and private
-   trusted-reconnect use only after exact OOB confirmation plus `commit_durable`.
+6. Observation-source tests prove that allowlist entries and opening a
+   pairing window create no queue, dial, service, session, topology, or
+   candidate; mDNS, connection, and transport-backed pairing callbacks create
+   only their respective stages, and trust follows only exact OOB confirmation
+   plus `commit_durable`.
 7. Recovery tests cover `commit_applied_maintenance_failed`,
    `commit_durability_unknown`, disabled mutation, mandatory reopen, durable
    association reload, loss of every volatile field across restart, and no
-   restoration of an untrusted endpoint or outbound attempt.
+   reconstruction of observed remote state from policy configuration.
 8. Public API and artifact tests compare the frozen public API, reject public
    mutation/candidate detail, and scan all G16 outputs for forbidden raw,
    encoded, truncated, hashed, formatted, endpoint-derived, and path-derived
@@ -580,7 +537,7 @@ MSP-04B adds none of the following:
   command-line administration;
 - store-owned pairing/trust policy or socket lifecycle;
 - durable window, candidate, nonce, idempotency, or command-history records;
-- durable outbound attempt queues or endpoint reports before `commit_durable`;
+- policy-derived remote observations or pairing-window-triggered remote work;
 - public candidate detail or public mutation API;
 - protocol-semantic claims or device-specific behavior; or
 - support or implementation-completion claims before code and publication

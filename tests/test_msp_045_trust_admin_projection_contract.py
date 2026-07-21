@@ -155,7 +155,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                 "disk_schema": ("MSP-04C-R2_control_schema_v3_unchanged",),
                 "persistence": ("derived_never_persisted",),
                 "semantic_change": (
-                    "new_contract_version+explicit_conformance_migration",
+                    "new_contract_version+separate_review",
                 ),
             },
         )
@@ -252,11 +252,11 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             {
                 "CANDIDATE_PENDING|association_incomplete": (
                     "absent-from-all-public-collections",
-                    "unchanged-or-unpaired-from-durable-record-only",
+                    "absent-without-live-observation",
                 ),
                 "COMMITTING-before-store-and-anchor-durable": (
                     "absent-from-all-public-collections",
-                    "unchanged-or-unpaired-from-durable-record-only",
+                    "absent-without-live-observation",
                 ),
             },
         )
@@ -265,7 +265,9 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "does not create any `PairingObservationV1`, `ServiceV1`, `SessionV1`, or topology row",
             "No redacted candidate identity or placeholder row is emitted",
             "does not change public cardinality, ordering, or timing",
-            "Existing configured durable remote rows may remain `unpaired`",
+            "Durable policy does not create a remote row",
+            "A service row requires an mDNS observation callback",
+            "a session row requires a connection callback",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -327,7 +329,8 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             "cannot promote durable trust",
             "Admin availability is mutation capability only",
             "candidate identity, fingerprint, nonce, idempotency key, admin path, and history are never projected",
-            f"Callbacks from the {PAIRING_TRANSPORT} path report liveness only",
+            "Durable associations are policy, not observation evidence",
+            f"Callbacks from the {PAIRING_TRANSPORT} path report the corresponding observed stage only",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -344,20 +347,20 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             publication,
             {
                 "store-commit-durable+protected-anchor-finalization-durable": (
-                    "paired",
-                    "no",
+                    "paired-on-current-observed-row",
+                    "current-observation-required",
                 ),
                 "commit_not_published+protected-anchor-clear-durable": (
-                    "unpaired-with-candidate-absent",
-                    "no",
+                    "candidate-absent; no policy-derived row",
+                    "current-observation-required-for-row",
                 ),
                 "commit_applied_maintenance_failed|commit_durability_unknown|interruption_or_descriptor_mismatch|protected-anchor-finalization-unknown": (
-                    "unknown+paired-false+denied-trust",
-                    "no",
+                    "unknown+paired-false+denied-trust-on-current-observed-row",
+                    "current-observation-required-for-row",
                 ),
                 "REVOKED|TOMBSTONED|QUARANTINED|ADMIN_HOLD|BACKOFF_ACTIVE": (
-                    "denied",
-                    "no",
+                    "denied-on-current-observed-row",
+                    "current-observation-required-for-row",
                 ),
                 "disconnect|reconnect-callback": ("liveness-only", "callback-is-event"),
             },
@@ -377,26 +380,26 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                     "no-candidate-publication",
                 ),
                 "store-commit-durable+protected-anchor-finalization-durable": (
-                    "paired",
-                    "callback-cannot-roll-back",
+                    "paired-on-current-observed-row",
+                    "restart-cannot-create-row",
                 ),
                 "commit_not_published+protected-anchor-clear-durable": (
-                    "unpaired-with-candidate-absent",
-                    "no-trust-and-no-candidate-publication",
+                    "candidate-absent",
+                    "no-trust-and-no-policy-derived-row",
                 ),
                 "commit_applied_maintenance_failed|commit_durability_unknown|interruption_or_descriptor_mismatch|protected-anchor-finalization-unknown": (
-                    "unknown+denied-trust",
-                    "fail-closed-until-terminal",
+                    "unknown+denied-trust-on-current-observed-row",
+                    "fail-closed-without-policy-derived-row",
                 ),
                 "revocation|tombstone-terminal": (
-                    "denied+denied-trust",
-                    "callback-cannot-resurrect",
+                    "denied-on-current-observed-row",
+                    "callback-cannot-resurrect-or-create",
                 ),
             },
         )
 
         self.assertIn(
-            "State transitions publish after durable or terminal linearization even without a network callback",
+            "State transitions publish after durable or terminal linearization only when a matching live observation already owns the remote row",
             " ".join(body.split()),
         )
         self.assertIn(
@@ -404,7 +407,7 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             " ".join(body.split()),
         )
 
-    def test_startup_and_restart_publish_classification_without_callbacks(self) -> None:
+    def test_startup_and_restart_do_not_publish_policy_derived_remote_rows(self) -> None:
         _, body = self.contract()
         startup = coded_table(
             body,
@@ -416,23 +419,30 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             startup,
             {
                 "durably_trusted+store-and-protected-anchor-finalized": (
-                    "paired",
-                    "no",
+                    "no-policy-derived-remote-row",
+                    "current-observation-required-for-row",
                 ),
-                "terminal_denial": ("denied", "no"),
+                "terminal_denial": (
+                    "no-policy-derived-remote-row",
+                    "current-observation-required-for-row",
+                ),
                 "identity_unavailable": (
-                    "unknown+certificate-unavailable",
+                    "runtime-degradation-only",
                     "no",
                 ),
-                "not_yet_trusted": ("unpaired-with-candidate-absent", "no"),
+                "not_yet_trusted": (
+                    "no-policy-derived-remote-row",
+                    "current-observation-required-for-row",
+                ),
             },
         )
         normalized = " ".join(body.split())
         self.assertIn(
-            "after reload, structural classification, and protected-anchor checks complete",
+            "reloads durable classifications privately after structural classification and protected-anchor checks complete",
             normalized,
         )
-        self.assertIn("without waiting for a", normalized)
+        self.assertIn("Reload creates no remote row", normalized)
+        self.assertIn("Local runtime degradation remains available without a remote callback", normalized)
 
     def test_normative_tables_and_headings_are_unique(self) -> None:
         _, body = self.contract()
