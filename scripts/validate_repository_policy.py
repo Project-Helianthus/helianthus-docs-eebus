@@ -1060,7 +1060,20 @@ INBOUND_ACTION_LEMMAS = frozenset(
     {"open", "initiate", "launch", "dial", "start", "trigger", "connect"}
 )
 INBOUND_TARGET_FORMS = frozenset(
-    {"tcp", "ship", "connection", "connections", "handshake", "handshakes", "pairing", "pairings"}
+    {
+        "tcp",
+        "ship",
+        "connection",
+        "connections",
+        "handshake",
+        "handshakes",
+        "pairing",
+        "pairings",
+        "dial",
+        "dials",
+        "dialed",
+        "dialing",
+    }
 )
 SCHEMA_TRANSITION_LEMMAS = frozenset(
     {"accept", "load", "convert", "upgrade", "transform", "fallback"}
@@ -1075,6 +1088,20 @@ SEMANTIC_LEMMA_ALIASES = {
     "observation": "observe",
     "observations": "observe",
     "transformation": "transform",
+}
+SEMANTIC_CONTRACTIONS = {
+    "aren't": "are not",
+    "can't": "cannot",
+    "couldn't": "could not",
+    "didn't": "did not",
+    "doesn't": "does not",
+    "don't": "do not",
+    "isn't": "is not",
+    "mustn't": "must not",
+    "shouldn't": "should not",
+    "wasn't": "was not",
+    "weren't": "were not",
+    "won't": "will not",
 }
 NEGATION_PHRASES = (
     ("must", "not"),
@@ -1097,7 +1124,10 @@ NEGATION_PHRASES = (
 def _semantic_tokens(text: str) -> list[str]:
     """Normalize punctuation and hyphens into lower-case semantic tokens."""
 
-    return [match.group(0).lower() for match in SEMANTIC_TOKEN.finditer(text)]
+    normalized = text.lower().replace("’", "'")
+    for contraction, expansion in SEMANTIC_CONTRACTIONS.items():
+        normalized = normalized.replace(contraction, expansion)
+    return [match.group(0) for match in SEMANTIC_TOKEN.finditer(normalized)]
 
 
 def _semantic_units(body: str) -> list[tuple[int, str]]:
@@ -1153,7 +1183,7 @@ def contains_negated_action(
         return True
 
     local_right = right[:7]
-    return "prohibited" in local_right or any(
+    return "no" in local_right or "prohibited" in local_right or any(
         _contains_phrase(local_right, phrase) for phrase in NEGATION_PHRASES
     )
 
@@ -1233,7 +1263,12 @@ def _inbound_outbound_violation(sentence: str) -> bool:
 
 
 def _has_noncurrent_schema_source(tokens: list[str]) -> bool:
-    if any(token in {"older", "legacy"} for token in tokens):
+    if any(token in {"older", "legacy", "noncurrent"} for token in tokens):
+        return True
+    if any(
+        token.startswith("v") and token[1:].isdigit() and token != "v1"
+        for token in tokens
+    ):
         return True
     if any(tokens[index : index + 2] == ["non", "current"] for index in range(len(tokens) - 1)):
         return True

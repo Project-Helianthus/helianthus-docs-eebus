@@ -167,6 +167,10 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "Discovery must not open TCP but launches a "
             + "SH"
             + "IP handshake.",
+            "A discovery observation dials a remote peer over TCP.",
+            "An allowlisted peer was dialed after a network observation.",
+            "Dialing starts after an allowlist observation.",
+            "A TCP dial launches after discovery.",
         )
 
         for body in variants:
@@ -201,6 +205,11 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "A TCP connection does not launch from discovery.",
             "Discovery cannot trigger a " + "SH" + "IP handshake.",
             "The allowlist is not permitted to connect a TCP peer.",
+            "A discovery observation doesn't open a TCP connection.",
+            "An allowlisted peer can't initiate pairing.",
+            "Discovery won't trigger a " + "SH" + "IP handshake.",
+            "A discovery observation opens no TCP connection.",
+            "An observed service dials no " + "SH" + "IP peer.",
         )
 
         for body in variants:
@@ -238,6 +247,10 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "The runtime falls back to older persisted state.",
             "Fallback accepts legacy state during startup",
             "A legacy store is not loaded but is converted before activation.",
+            "A noncurrent schema is loaded before activation.",
+            "The runtime converts v0 to v1 before activation.",
+            "Fallback loads v2 during startup.",
+            "A v0 store is accepted before activation.",
         )
 
         for body in variants:
@@ -270,6 +283,12 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "The runtime must not upgrade a non-current store.",
             "Current-only activation cannot fall back to schema version 0.",
             "An older fixture was observed but never transformed.",
+            "The runtime accepts no older schema.",
+            "The runtime doesn't load a noncurrent schema.",
+            "The runtime can't transform v0.",
+            "Only v1 is accepted before activation.",
+            "No v2 schema is upgraded.",
+            "The runtime won't fall back to v0.",
         )
 
         for body in variants:
