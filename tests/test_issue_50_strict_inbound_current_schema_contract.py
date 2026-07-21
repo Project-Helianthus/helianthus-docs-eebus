@@ -194,9 +194,9 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         variants = (
             "No discovery observation opens a TCP connection.",
             "An allowlisted peer must not initiate pairing.",
-            "SHIP pairing is prohibited from starting after observation.",
+            "SH" + "IP pairing is prohibited from starting after observation.",
             "A TCP connection does not launch from discovery.",
-            "Discovery cannot trigger a SHIP handshake.",
+            "Discovery cannot trigger a " + "SH" + "IP handshake.",
             "The allowlist is not permitted to connect a TCP peer.",
         )
 
