@@ -57,8 +57,8 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         normalized = compact(self.protocol)
 
         self.assertIn("exactly one canonical SHIP/mDNS publisher", normalized)
-        self.assertIn("RawProbe is not a runtime identity", normalized)
-        self.assertNotIn("RawProbe publisher", self.corpus)
+        self.assertIn("No second publisher, probe identity", normalized)
+        self.assertNotIn("RawProbe", self.corpus)
 
     def test_discovery_and_allowlist_are_inbound_only(self) -> None:
         for text in (self.protocol, self.security):
@@ -82,7 +82,7 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         normalized = compact(self.architecture)
 
         self.assertIn("only current persistence schema version 1", normalized)
-        self.assertIn("every non-current schema version fails closed", normalized)
+        self.assertIn("Every non-current schema version fails closed", normalized)
         self.assertIn("leaves every store byte unchanged", normalized)
         self.assertNotIn("migration", self.architecture.lower())
         self.assertNotIn("rewrite", self.architecture.lower())
@@ -97,6 +97,7 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
     def test_policy_rejects_removed_runtime_paths_in_current_docs(self) -> None:
         policy = load_policy_module()
         validator = getattr(policy, "ship_identity_corpus_errors")
+        schema_validator = getattr(policy, "strict_current_schema_errors")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             page = root / "protocols" / "current.md"
@@ -112,12 +113,29 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
                 encoding="utf-8",
             )
             errors = validator(root)
+            schema_page = root / "architecture" / "_candidate" / "msp-04a-persistent-store.md"
+            schema_page.parent.mkdir(parents=True)
+            schema_page.write_text(
+                "---\n"
+                'canonical_source: "fixture"\n'
+                'owner_domain: "architecture"\n'
+                'license: "AGPL-3.0-only"\n'
+                'publication_status: "candidate"\n'
+                "---\n\n"
+                "Older bytes need a migration before use.\n",
+                encoding="utf-8",
+            )
+            schema_errors = schema_validator(root)
 
         self.assertTrue(
             any("noncanonical-publisher" in error for error in errors), errors
         )
         self.assertTrue(
             any("outbound-initiation" in error for error in errors), errors
+        )
+        self.assertTrue(
+            any("strict-current-schema" in error for error in schema_errors),
+            schema_errors,
         )
 
 

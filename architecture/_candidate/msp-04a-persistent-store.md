@@ -46,10 +46,9 @@ file format, or a compatibility promise to consumers.
 
 The store belongs to the eeBUS runtime implementation in
 `helianthus-eebusreg`. It owns durable representation, validation, generation
-commit, migration mechanics, and storage-integrity classification for
-runtime-local state. It does not own protocol interpretation, pairing policy,
-trust decisions, lifecycle transitions, semantic projection, or consumer
-behavior.
+commit, and storage-integrity classification for runtime-local state. It does
+not own protocol interpretation, pairing policy, trust decisions, lifecycle
+transitions, semantic projection, or consumer behavior.
 
 The store is internal-only:
 
@@ -158,8 +157,8 @@ content:
    fixed layout, generation grammar, and recognized temporary grammar are
    accepted. Unknown objects are never deleted and cause `layout_rejected`.
 
-These checks apply on every open, migration, and commit. Safety failures do not
-fall back to another root or expose rejected content. Remote, userspace,
+These checks apply on every open and commit. Safety failures do not fall back
+to another root or expose rejected content. Remote, userspace,
 overlay, or otherwise unusual filesystems are supported only after their exact
 backend combination has conformance evidence for every required primitive;
 otherwise the capability probe rejects them.
@@ -215,7 +214,7 @@ Every generation has exactly these top-level fields:
 
 | Field | Type | Constraint |
 | --- | --- | --- |
-| `schema_version` | unsigned integer | Exactly `1` for the initial graph. |
+| `schema_version` | unsigned integer | Exactly `1` for the current schema. |
 | `generation` | generation metadata | Sequence and parent binding described below. |
 | `local_identity` | local identity record or `null` | One atomic local identity record. |
 | `remote_identities` | array of remote identity association records | At most 1024 records, in canonical record order. |
@@ -358,42 +357,25 @@ Parsing is bounded before allocation and fail-closed:
 The decoder rejects invalid UTF-8, duplicate keys, unknown fields, trailing
 data, comments, non-integer numbers, negative or overflowing integers, invalid
 or non-canonical base64, invalid NFC, disallowed Unicode categories, and any
-value outside these limits. A new field requires a new version and migration
-edge; readers never ignore it.
+value outside these limits. A field outside this closed schema is rejected.
 
-## Version And Migration Policy
+## Current Schema Acceptance
 
 Slot format, manifest payload version, generation schema version, and protected
-key provider version are independent closed domains. V1 readers accept slot
-format 1, manifest version 1, and generation schema 1 only.
+key provider version are independent closed domains. This runtime accepts only
+current persistence schema version 1: slot format 1, manifest version 1, and
+generation schema 1.
 
-The initial generation migration graph is the single vertex `v1`; no historical
-on-disk format is implied. Future versions extend an explicit directed acyclic
-graph. Every accepted older version MUST have exactly one path to the current
-version. Branching paths, cycles, skipped mandatory versions, implicit
-best-effort conversion, and downgrade migrations are forbidden.
+Every non-current schema version fails closed before record activation. It
+returns `unsupported_schema_version`, loads no durable state, and leaves every
+store byte unchanged. The selected highest-epoch manifest remains authoritative;
+Open never selects an older manifest, parent generation, or unreferenced file
+as an alternative. No historical disk format is accepted by this runtime.
 
-Each migration edge is a pure deterministic transformation over a validated
-selected generation. It performs no filesystem, network, clock, environment,
-or random input. The result is validated against the target schema and key
-provider before it is committed as a new generation whose exact parent is the
-selected generation. Migration never edits existing generation or manifest
-bytes. A failed migration leaves both selected manifest and current generation
-unchanged.
-
-Version handling is exact:
-
-- current version: validate and load without rewriting;
-- accepted older generation with one migration path: migrate through the normal
-  durable commit state machine;
-- older version without a path: `unsupported_legacy_version`;
-- version greater than the reader's current version:
-  `unsupported_future_version`; and
-- an unsupported slot envelope version is `unsupported_future_version` when
-  greater than 1 and `unsupported_legacy_version` otherwise.
-
-Future-version state is not corruption. Open does not inspect or activate an
-older manifest or parent generation after selecting a future-version epoch.
+An ordinary restart loads the exact current StoreInstance from the selected
+current generation. The raw 32-byte StoreInstance must remain byte-for-byte
+unchanged across restart, and the derived nodeToken and canonical SHIP ID must
+remain unchanged with it.
 
 ## One-Writer Contract
 
@@ -405,7 +387,7 @@ record content are not inspected first.
 The implementation also prevents two store instances in one process from
 owning the same root. If another process or local instance owns the lock, open
 returns `writer_busy` immediately. It does not enumerate deep layout, read a
-manifest or generation, create a temporary file, wait, steal, delete, rewrite,
+manifest or generation, create a temporary file, wait, steal, delete, alter,
 or infer a stale owner from `LOCK`. Operating-system release after process
 termination is the only stale-lock recovery. A platform without the required
 lock primitive returns `lock_unavailable`.
@@ -421,7 +403,7 @@ Open applies the following states in order. The first terminal result wins:
    controls, and capabilities required to acquire and hold the lock.
 3. `open_lock`: acquire the in-process guard and non-blocking process lock.
    `writer_busy` therefore precedes every deep-layout, manifest, generation,
-   migration, and key-provider result.
+   schema, and key-provider result.
 4. `open_layout`: while locked, verify `generations/`, enumerate and validate the
    bounded fixed layout, and classify recognized temporary and orphan files
    without mutating or adopting them.
@@ -430,16 +412,16 @@ Open applies the following states in order. The first terminal result wins:
    exact empty bootstrap with no slot or generation may proceed to initial
    commit; an existing store with no selectable slot fails closed.
 6. `open_current`: parse the selected payload, resolve only its fixed current
-   reference, verify exact generation bytes and metadata, and apply version
-   handling. A future version terminates here without inspecting older content.
+   reference, verify exact generation bytes and metadata, and apply
+   current-schema acceptance. A non-current version terminates here without
+   inspecting older content.
 7. `open_recovery_classification`: only when selected current bytes are missing
    or corrupt, validate the selected manifest's exact parent as an inactive
    recovery candidate. No records, store handle, or normal runtime state are
    returned from this state.
 8. `open_key_capability`: for a valid current generation, probe, validate, and
    unseal every protected-key reference and verify certificate binding.
-9. `open_migrate_or_return`: run the unique migration path through Commit or
-   return the unchanged current in-memory state.
+9. `open_return`: return the unchanged current in-memory state.
 
 Deep layout errors cannot mask `writer_busy`; conversely, unsafe root or `LOCK`
 objects are rejected before attempting to lock an attacker-controlled object.
@@ -499,14 +481,14 @@ fails current-schema validation, Open fails closed.
 The exact parent reference in that same manifest MAY be validated to distinguish
 `recovery_candidate_available` from `no_valid_current`. A recovery candidate is
 inactive evidence only: its bytes are not returned as normal state, it is not
-loaded by the runtime, no manifest is rewritten, and no trust, pairing,
+loaded by the runtime, no manifest is altered, and no trust, pairing,
 lifecycle, or anti-rollback decision is made. Activation and anti-rollback
 policy belong to MSP-04C.
 
 The other manifest slot is used only by the epoch-selection rule for
 crash-consistent publication. Once a highest publication-valid manifest is
 selected, Open never chooses the lower epoch because current content is corrupt.
-Future-version content also never takes the recovery-candidate path. The store
+Non-current content also never takes the recovery-candidate path. The store
 does not scan for or adopt unreferenced generations.
 
 MSP-04A performs no automatic corruption quarantine, move, deletion, or
@@ -540,8 +522,8 @@ implementation MUST satisfy all of these controls:
   fingerprints, payload hashes, or an absolute store path; and
 - test failures and fuzz output use synthetic fixtures and redacted summaries.
 
-Protected material is never converted to a portable key for backup, migration,
-diagnostics, or testing. Provider attestation is checked on every Open and
+Protected material is never converted to a portable key for backup, diagnostics,
+or testing. Provider attestation is checked on every Open and
 key-bearing Commit rather than persisted as a trusted metadata assertion.
 
 ## Deterministic Outcomes
@@ -553,7 +535,6 @@ precedence.
 | --- | --- |
 | `opened_empty` | A new empty v1 store was durably initialized. |
 | `opened_current` | The selected current generation was loaded unchanged. |
-| `opened_migrated` | One unique migration path produced a durable selected generation. |
 | `recovery_candidate_available` | Current is unusable; the exact parent validates as inactive evidence, and no runtime state is returned. |
 | `commit_durable` | New generation and manifest publication reached directory durability. |
 | `commit_applied_maintenance_failed` | Manifest publication is durable, but post-publication cleanup failed; reopen is required. |
@@ -566,13 +547,11 @@ precedence.
 | `lock_unavailable` | Required one-writer locking cannot be enforced. |
 | `manifest_ambiguous` | Equal highest epochs contain different manifest bytes. |
 | `no_valid_manifest` | An existing store has no publication-valid manifest slot. |
-| `unsupported_legacy_version` | No unique migration path exists from an older accepted domain. |
-| `unsupported_future_version` | State uses a newer slot, manifest, or generation version. |
+| `unsupported_schema_version` | Slot, manifest, or generation uses any non-current version. |
 | `malformed_state` | Strict parsing or record validation failed. |
 | `no_valid_current` | Selected current is invalid and its exact parent is absent or invalid. |
 | `key_provider_unavailable` | Required provider/version/capability or attestation is unavailable. |
 | `key_material_unavailable` | Protected material is wrong-host, invalid, non-unsealable, or certificate-mismatched. |
-| `migration_failed` | A migration edge failed; manifest slots remain unchanged. |
 | `maintenance_failed` | Pre-publication cleanup failed with selected state unchanged. |
 | `commit_not_published` | A write failed before manifest-slot replacement; selected state is unchanged. |
 | `commit_durability_unknown` | The target slot was replaced but root-directory fsync failed; reopen is required. |
@@ -595,9 +574,9 @@ MSP-04A is not complete until these bounded suites pass with synthetic data:
 1. Pure schema and canonicalization tests cover all golden vectors, recursive
    UTF-8-byte key ordering, exact escaping, NFC, standard padded base64,
    re-encode equality, duplicate/unknown keys, bounds, and manifest checksums.
-2. Pure version-graph tests cover current v1, no-path legacy, future slot,
-   manifest and schema versions, graph cycles/branches, and the rule that future
-   versions never select an older generation.
+2. Current-schema tests cover accepted v1, every non-current slot, manifest,
+   and generation version, and the rule that a rejected selected generation
+   never selects older content.
 3. Default Linux and Darwin filesystem tests use real temporary directories for
    root/child symlinks, traversal, wrong mode, hard links, non-regular objects,
    pathname-to-fd substitution, unknown entries, descriptor confinement,
@@ -619,9 +598,9 @@ MSP-04A is not complete until these bounded suites pass with synthetic data:
    platform-specific provider capability lanes for host/deployment binding,
    wrong-host failure, Validate/Unseal availability, certificate SPKI binding,
    non-exportability, and attested deployment properties.
-8. Migration tests cover pure deterministic transformation, before/after schema
-   validation, failure without slot mutation, and normal two-slot publication
-   when the first real edge is introduced.
+8. Rejection tests cover every non-current schema input, no durable-state
+   return, and byte-for-byte preservation of both manifest slots and the
+   selected generation.
 9. Secret and determinism tests scan errors, logs, formatting, fuzz summaries,
    temporary names, environment, argv, metrics, and traces against every
    sensitive synthetic value and encoded form, then repeat schedules and faults

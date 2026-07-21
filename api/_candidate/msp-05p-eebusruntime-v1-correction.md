@@ -90,7 +90,9 @@ mDNS, certificate-provider, or store implementation type.
 
 This contract adds no MCP, GraphQL, Portal, Home Assistant, command,
 raw-write, semantic projection, or public trust mutation. Closed pairing is a
-constructor invariant, not an administrative mutation API.
+constructor invariant, not an administrative mutation API. It defines no
+attempt bridge, preconnection operation, or fallback transport route; discovery
+and allowlist inputs remain inbound observation and authorization only.
 
 ## Provenance And Rollback
 
@@ -101,6 +103,6 @@ ref; the active publication validates both values rather than treating them as
 the same identity.
 
 Before source merge, rollback withdraws this candidate and restores the prior
-active reference. It performs no state migration. After source squash-merge,
+active reference. It leaves runtime state untouched. After source squash-merge,
 promotion requires a provenance-only refresh proving that the merged source
 tree is exactly the candidate tree.

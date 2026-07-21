@@ -276,7 +276,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "32253f617f5fa9c225a3738a124c689d" "d80becde7252f57057b1d6cd3d7bcf80"
+        "82c7b469cd8c0c5cef6e8ccef289bfc0" "4746f26503c32f7eb89aefa7a2ecf50c"
     ),
 }
 
@@ -468,6 +468,11 @@ SHIP_IDENTITY_FORBIDDEN_PATTERNS = {
     ),
     "noncanonical-publisher": re.compile(
         r"\bRawProbe\b|\b(?:Python|compat(?:ibility)?) publisher\b",
+        re.IGNORECASE,
+    ),
+    "outbound-initiation": re.compile(
+        r"\b(?:OutgoingAttemptBridge|pre[-_ ]?dial|"
+        r"(?:dial|pairing)[-_ ]?fallback|endpoint_(?:path|fallback))\b",
         re.IGNORECASE,
     ),
     "alternate-ship-id": re.compile(
@@ -1032,6 +1037,29 @@ def ship_identity_corpus_errors(
     for rel in sorted(set(allow) - seen_allow_paths):
         errors.append(f"{rel}: canonical-identity allowance did not match current evidence")
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
+
+
+STRICT_CURRENT_SCHEMA_PATH = "architecture/_candidate/msp-04a-persistent-store.md"
+STRICT_CURRENT_SCHEMA_FORBIDDEN = re.compile(r"\b(?:migration|rewrite)\b", re.IGNORECASE)
+
+
+def strict_current_schema_errors(root: Path) -> list[str]:
+    """Reject legacy persistence transition wording in the current-schema contract."""
+
+    path = root / STRICT_CURRENT_SCHEMA_PATH
+    if not path.is_file() or path.is_symlink():
+        return []
+    try:
+        body = _markdown_body(_read(path))
+    except UnicodeDecodeError:
+        return []
+    errors: list[str] = []
+    for match in STRICT_CURRENT_SCHEMA_FORBIDDEN.finditer(body):
+        line = body.count("\n", 0, match.start()) + 1
+        errors.append(
+            f"{STRICT_CURRENT_SCHEMA_PATH}:{line}: forbidden strict-current-schema wording"
+        )
+    return errors
 
 
 def _markdown_body(text: str) -> str:
@@ -3468,6 +3496,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             )
 
     errors.extend(ship_identity_corpus_errors(root))
+    errors.extend(strict_current_schema_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
