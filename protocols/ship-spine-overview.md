@@ -25,9 +25,9 @@ surface.
 
 ## Canonical Local Advertisement
 
-The runtime has exactly one canonical SHIP/mDNS publisher. It publishes exactly
-one `_ship._tcp` service after the exact listener is bound. Its DNS-SD instance
-is:
+The runtime has exactly one canonical SHIP/mDNS publisher. It publishes
+exactly one `_ship._tcp` service after the exact listener is bound. Its DNS-SD
+instance is:
 
 ```text
 Helianthus EnergyManagementSystem eebusreg
