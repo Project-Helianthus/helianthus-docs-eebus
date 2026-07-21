@@ -25,8 +25,9 @@ surface.
 
 ## Canonical Local Advertisement
 
-The runtime publishes exactly one `_ship._tcp` service after the exact listener
-is bound. Its DNS-SD instance is:
+The runtime has exactly one canonical SHIP/mDNS publisher. It publishes
+exactly one `_ship._tcp` service after the exact listener is bound. Its DNS-SD
+instance is:
 
 ```text
 Helianthus EnergyManagementSystem eebusreg
@@ -50,7 +51,8 @@ The TXT record has this closed field set:
 instance is a fixed human-facing label and does not participate in either
 identity. The advertised address and port equal the one bound listener.
 `<window>` is `true` only while the bounded local registration window is open;
-otherwise it is `false`.
+otherwise it is `false`. No second publisher, probe identity, or advertisement
+path exists.
 
 ## G17: Pending Local Announcement Gate
 
@@ -93,7 +95,8 @@ meaning.
 Authorization policy and observed network state have separate provenance. An
 allowlisted SKI may permit later transport handling, but it cannot create a
 visible service, session, pairing candidate, address observation, or topology
-row.
+row. Discovery observations and allowlist evaluation never initiate an outbound
+dial or pairing attempt.
 
 An mDNS observation callback may create a visible remote service. Only an
 actual connection callback may create a session. Only the pairing callback
