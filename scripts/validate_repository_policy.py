@@ -276,7 +276,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "734c5668cd1937b088cbb12c7c4dd6b7" "8c0fc76cc76873dc2d49092aded65b3b"
+        "9df78ba7e0d7c2f3587748dd4d799737" "509e97c76aebc42ae5be4f3964f72131"
     ),
 }
 
@@ -1045,13 +1045,13 @@ STRICT_CURRENT_SCHEMA_REQUIRED = (
     "Every non-current schema version fails closed",
     "leaves every store byte unchanged",
 )
-NORMATIVE_INBOUND_ONLY_PATHS = (
+NORMATIVE_OUTBOUND_PAIRING_PATHS = (
     "protocols/ship-spine-overview.md",
-    "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md",
-    "api/_candidate/msp-05p-eebusruntime-v1-correction.md",
+    "architecture/_candidate/msp-052-outbound-pairing-contract.md",
+    "api/_candidate/msp-052-outbound-pairing-api.md",
 )
-NORMATIVE_INBOUND_ONLY_CLAUSE = (
-    "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
+NORMATIVE_OUTBOUND_PAIRING_CLAUSE = (
+    "discovery and allowlist evaluation alone never initiate a network attempt"
 )
 SEMANTIC_TOKEN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 SEMANTIC_UNIT = re.compile(r"[^.!?;]+(?:[.!?;]+|$)")
@@ -1317,30 +1317,65 @@ def _semantic_contract_errors(
     return errors
 
 
-def normative_inbound_only_errors(root: Path) -> list[str]:
-    """Require and protect the inbound-only rule only on normative runtime surfaces."""
+def outbound_pairing_contract_errors(root: Path) -> list[str]:
+    """Require the bounded candidate route while preserving passive discovery."""
 
     errors: list[str] = []
-    for relative_path in NORMATIVE_INBOUND_ONLY_PATHS:
+    for relative_path in NORMATIVE_OUTBOUND_PAIRING_PATHS:
         path = root / relative_path
         if not path.is_file() or path.is_symlink():
-            errors.append(f"{relative_path}: missing normative inbound-only surface")
+            errors.append(f"{relative_path}: missing outbound-pairing surface")
             continue
         try:
             body = _markdown_body(_read(path))
         except UnicodeDecodeError:
-            errors.append(f"{relative_path}: normative inbound-only surface is unreadable")
+            errors.append(f"{relative_path}: outbound-pairing surface is unreadable")
             continue
-        if NORMATIVE_INBOUND_ONLY_CLAUSE not in " ".join(body.split()):
-            errors.append(f"{relative_path}: missing canonical inbound-only clause")
-        errors.extend(
-            _semantic_contract_errors(
-                body,
-                _inbound_outbound_violation,
-                path=relative_path,
-                rule="outbound-initiation",
-            )
-        )
+        normalized = " ".join(body.split())
+        if NORMATIVE_OUTBOUND_PAIRING_CLAUSE not in normalized:
+            errors.append(f"{relative_path}: missing passive-discovery clause")
+
+    required_by_path = {
+        "protocols/ship-spine-overview.md": (
+            "Passive `_ship._tcp` discovery",
+            "opaque, process-local `candidate_ref`",
+            "no caller-supplied or static endpoint",
+            "no hostname, path, or address fallback",
+            "Before a WebSocket upgrade",
+            "SHIP remains at `SmeStateApproved`",
+            "Inbound operation remains supported",
+        ),
+        "architecture/_candidate/msp-052-outbound-pairing-contract.md": (
+            "`visible`",
+            "`selected/validated`",
+            "`connected-untrusted`",
+            "`trusted`",
+            "exactly 40 characters",
+            "no SPINE progression",
+            "active candidate queue",
+            "fresh mDNS discovery",
+            "Inbound `register=true` remains",
+        ),
+        "api/_candidate/msp-052-outbound-pairing-api.md": (
+            "stable API surface is read-only candidate visibility",
+            "experimental/admin",
+            "exactly 40 lowercase hexadecimal characters",
+            "no stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation",
+        ),
+    }
+    for relative_path, required_terms in required_by_path.items():
+        path = root / relative_path
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            normalized = " ".join(_markdown_body(_read(path)).split())
+        except UnicodeDecodeError:
+            continue
+        for required in required_terms:
+            if required not in normalized:
+                errors.append(
+                    f"{relative_path}: missing outbound-pairing requirement {required!r}"
+                )
     return errors
 
 
@@ -3804,7 +3839,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             )
 
     errors.extend(ship_identity_corpus_errors(root))
-    errors.extend(normative_inbound_only_errors(root))
+    errors.extend(outbound_pairing_contract_errors(root))
     errors.extend(strict_current_schema_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 

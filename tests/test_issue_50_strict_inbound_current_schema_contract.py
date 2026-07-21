@@ -34,14 +34,14 @@ def load_policy_module():
 
 
 class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
-    INBOUND_PATHS = (
+    OUTBOUND_PATHS = (
         "protocols/ship-spine-overview.md",
-        "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md",
-        "api/_candidate/msp-05p-eebusruntime-v1-correction.md",
+        "architecture/_candidate/msp-052-outbound-pairing-contract.md",
+        "api/_candidate/msp-052-outbound-pairing-api.md",
     )
-    INBOUND_CLAUSE = (
-        "Discovery observations and allowlist evaluation never initiate an "
-        "outbound dial or pairing attempt"
+    OUTBOUND_CLAUSE = (
+        "discovery and allowlist evaluation alone never initiate a "
+        "network attempt"
     )
     SCHEMA_PATH = "architecture/_candidate/msp-04a-persistent-store.md"
     SCHEMA_CLAUSES = (
@@ -76,11 +76,11 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         self.assertIn("No second publisher, probe identity", normalized)
         self.assertNotIn("RawProbe", self.corpus)
 
-    def test_discovery_and_allowlist_are_inbound_only(self) -> None:
-        for text in (self.protocol, self.security):
-            with self.subTest(document=text):
-                normalized = compact(text)
-                self.assertIn("never initiate an outbound dial or pairing attempt", normalized)
+    def test_outbound_contract_replaces_the_obsolete_inbound_only_rule(self) -> None:
+        normalized = compact(self.protocol)
+        self.assertIn(self.OUTBOUND_CLAUSE, normalized)
+        self.assertIn("Inbound operation remains supported", normalized)
+        self.assertNotIn("Discovery observations and allowlist evaluation never initiate", normalized)
 
     def test_outgoing_attempt_legacy_paths_are_absent(self) -> None:
         for forbidden in (
@@ -154,85 +154,26 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             schema_errors,
         )
 
-    def test_policy_rejects_renamed_outbound_initiation(self) -> None:
+    def test_policy_requires_all_outbound_pairing_contract_surfaces(self) -> None:
         policy = load_policy_module()
-        validator = getattr(policy, "normative_inbound_only_errors")
-        variants = (
-            "A discovery observation opens a TCP connection to an allowlisted peer.",
-            "A TCP connection is opened when discovery sees an allowlisted peer.",
-            "Pairing is triggered by allowlist evaluation.",
-            "A " + "SH" + "IP handshake launches after an observed service appears.",
-            "A pairing dial starts because an allowlisted peer was observed.",
-            "To connect by TCP, the runtime consumes a discovery observation",
-            "Discovery must not open TCP but launches a "
-            + "SH"
-            + "IP handshake.",
-            "A discovery observation dials a remote peer over TCP.",
-            "An allowlisted peer was dialed after a network observation.",
-            "Dialing starts after an allowlist observation.",
-            "A TCP dial launches after discovery.",
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative_path in self.OUTBOUND_PATHS:
+                page = root / relative_path
+                page.parent.mkdir(parents=True, exist_ok=True)
+                page.write_text(self.OUTBOUND_CLAUSE + ".\n", encoding="utf-8")
+            errors = validator(root)
+
+        self.assertTrue(
+            any("missing outbound-pairing requirement" in error for error in errors),
+            errors,
         )
 
-        for body in variants:
-            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                for relative_path in self.INBOUND_PATHS:
-                    page = root / relative_path
-                    page.parent.mkdir(parents=True, exist_ok=True)
-                    page.write_text(
-                        self.INBOUND_CLAUSE
-                        + ".\n"
-                        + (f"{body}\n" if relative_path == self.INBOUND_PATHS[0] else ""),
-                        encoding="utf-8",
-                    )
-                errors = validator(root)
-
-            self.assertEqual(
-                [
-                    "protocols/ship-spine-overview.md:2: forbidden "
-                    "outbound-initiation"
-                ],
-                errors,
-            )
-
-    def test_policy_allows_explicit_inbound_only_prohibitions(self) -> None:
-        policy = load_policy_module()
-        validator = getattr(policy, "normative_inbound_only_errors")
-        variants = (
-            "No discovery observation opens a TCP connection.",
-            "An allowlisted peer must not initiate pairing.",
-            "SH" + "IP pairing is prohibited from starting after observation.",
-            "A TCP connection does not launch from discovery.",
-            "Discovery cannot trigger a " + "SH" + "IP handshake.",
-            "The allowlist is not permitted to connect a TCP peer.",
-            "A discovery observation doesn't open a TCP connection.",
-            "An allowlisted peer can't initiate pairing.",
-            "Discovery won't trigger a " + "SH" + "IP handshake.",
-            "A discovery observation opens no TCP connection.",
-            "An observed service dials no " + "SH" + "IP peer.",
-        )
-
-        for body in variants:
-            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                for relative_path in self.INBOUND_PATHS:
-                    page = root / relative_path
-                    page.parent.mkdir(parents=True, exist_ok=True)
-                    page.write_text(
-                        self.INBOUND_CLAUSE
-                        + ".\n"
-                        + (f"{body}\n" if relative_path == self.INBOUND_PATHS[0] else ""),
-                        encoding="utf-8",
-                    )
-
-                self.assertEqual([], validator(root))
-
-    def test_inbound_only_clause_is_canonical_across_normative_surfaces(self) -> None:
-        required = "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
-
-        for text in (self.protocol, self.security, self.api):
-            with self.subTest(document=text):
-                self.assertIn(required, compact(text))
+    def test_outbound_pairing_contract_is_canonical_across_owned_surfaces(self) -> None:
+        for relative_path in self.OUTBOUND_PATHS:
+            with self.subTest(document=relative_path):
+                self.assertIn(self.OUTBOUND_CLAUSE, compact(read(relative_path)))
 
     def test_policy_rejects_noncurrent_schema_transitions_and_missing_contract(self) -> None:
         policy = load_policy_module()

@@ -12,16 +12,18 @@ live_validation_status: "pending"
 falsifier: "A bounded redacted live run violates the canonical advertisement, callback provenance, transport ordering, or identity-repair stability gate."
 ---
 
-# Canonical Discovery For SHIP And G17/G19 Interop Gates
+# Canonical Discovery And Candidate Pairing For SHIP
 
 ## Scope And Classification
 
-This page defines the single normative discovery design for SHIP and the
-pending live acceptance boundary for the G17/G19 gates. The design is derived
-from project identity, security, and redaction requirements. Earlier evidence
-informs the gate shape but does not prove this identity or TXT behavior. This
-page does not establish deployed support, SPINE semantics, or a consumer
-surface.
+This page defines the Helianthus discovery design and the pending live
+acceptance boundary for the G17/G19 gates. Its outbound-candidate rules are a
+Helianthus runtime contract for the companion
+[`helianthus-ship-go` pull request 15][ship-go-pr], not a generic protocol
+claim or a quotation from a restricted EEBUS source. Earlier
+evidence informs the gate shape but does not prove this identity or TXT
+behavior. This page does not establish deployed support, SPINE semantics, or a
+consumer surface.
 
 ## Canonical Local Advertisement
 
@@ -90,13 +92,18 @@ run or generation cannot complete the gate. The first SPINE evidence proves
 only that data reached the raw redacted boundary and receives no semantic
 meaning.
 
+Inbound operation remains supported. In particular, local `register=true`
+continues to advertise a bounded inbound registration window; it neither
+auto-trusts a peer nor disables the separately constrained outbound candidate
+path below.
+
 ## Observation Provenance
 
 Authorization policy and observed network state have separate provenance. An
 allowlisted SKI may permit later transport handling, but it cannot create a
 visible service, session, pairing candidate, address observation, or topology
-row. Discovery observations and allowlist evaluation never initiate an outbound
-dial or pairing attempt.
+row. Passive discovery and allowlist evaluation alone never initiate a network
+attempt.
 
 An mDNS observation callback may create a visible remote service. Only an
 actual connection callback may create a session. Only the pairing callback
@@ -104,6 +111,41 @@ from an active transport connection may create the single volatile pairing
 candidate. A service observation cannot imply a session, and neither policy
 configuration nor an open local registration window can stand in for a live
 callback.
+
+## Candidate-Bound Outbound Pairing
+
+Passive `_ship._tcp` discovery may expose a visible candidate, but it does not
+dial, trust, or persist that candidate. Each visible candidate has an opaque,
+process-local `candidate_ref` bound to one exact mDNS observation and its
+revision. A withdrawn, replaced, consumed, or restarted observation invalidates
+that reference; neither its value nor an SKI alone identifies a dial target.
+
+An operator may select that exact reference only after separately validating
+the observation's expected SKI as exactly 40 lowercase hexadecimal characters.
+The resulting attempt uses one deterministic concrete address from that same
+observation. It accepts no caller-supplied or static endpoint and has no
+hostname, path, or address fallback. The observation supplies the endpoint
+material; the caller supplies only the expected identity check.
+
+Before a WebSocket upgrade, the outbound TLS connection pins the presented
+certificate identity to the exact selected expected identity. A mismatch fails before the
+WebSocket handler or protocol traffic. A successful TLS check is still
+connected-untrusted: SHIP remains at `SmeStateApproved` and SPINE does not
+start until the matching trust association has committed durably.
+
+The state meanings and persistence/reconnect rules are Helianthus architecture
+concerns, and the read-only/public versus experimental/admin boundary is an API
+concern. They are recorded separately so this protocol page does not turn them
+into generic protocol claims.
+
+## Evidence Boundary For The Candidate Contract
+
+`EV-20260720-001` records only a protected local `register` transition with
+automatic acceptance disabled. It did not observe an outbound target, endpoint,
+TLS pin, completed SHIP session, durable trust, trusted reconnect, or a VR940f
+server role. The outbound rules above are therefore candidate design
+requirements backed by the companion source review, not an observed-lab claim
+about VR940f/myVaillant.
 
 ## Repair Stability Gate
 
@@ -127,3 +169,5 @@ This contract is tracked by
 and
 [runtime issue 54](https://github.com/Project-Helianthus/helianthus-eebusreg/issues/54).
 Live validation remains pending.
+
+[ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15
