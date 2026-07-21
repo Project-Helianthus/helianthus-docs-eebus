@@ -112,7 +112,7 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         architecture = (ROOT / "architecture/README.md").read_text(encoding="utf-8")
         self.assertEqual(architecture.count(CANDIDATE_REL), 1)
         self.assertIn(
-            "| Candidate policy | An endpoint allowlist is not trust:",
+            "| Candidate policy | Allowlists and configured endpoints authorize possible transport behavior but create no visible service, session, pairing candidate, or other observation.",
             architecture,
         )
 
@@ -326,7 +326,7 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
             "reopen is required",
             "trust outcome is unknown",
             "Restart discards the volatile window, candidate, nonce, active idempotency state",
-            "outbound-attempt queue",
+            "never infers an open window, visible service, session, candidate, or observed endpoint from configuration",
             "durable remote association alone reloads trust",
         )
         for phrase in required:
@@ -370,14 +370,15 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
                 "wrong fingerprint leaves the store unchanged",
             ),
             "G05": (
-                "allowlisted outbound endpoint",
-                "bounded ephemeral attempt record",
-                "no dial, trust write, or public endpoint output",
+                "Configured SKIs/endpoints",
+                "opening a pairing window",
+                "no remote queue, dial, visible service, session, topology, or candidate",
             ),
             "G06": (
-                "pairing completion is accepted only for its current private attempt binding",
+                "mDNS callback creates only service visibility",
+                "connection callback creates the session",
+                "transport-backed pairing callback creates the candidate",
                 "exact OOB confirmation plus `commit_durable`",
-                "trusted reconnect endpoint",
             ),
         }
         for gate, phrases in locked_meanings.items():
@@ -440,21 +441,20 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         for category in forbidden_categories:
             self.assertIn(category, normalized)
 
-    def test_outbound_revocation_cancels_without_locking_dial(self) -> None:
+    def test_authorization_and_observation_sources_are_separate(self) -> None:
         _, body = read_markdown(CANDIDATE)
-        section = body.split("## Protected Outbound Pairing And Endpoint Discipline", 1)[
-            1
-        ].split("\n## ", 1)[0]
+        section = body.split("## Authorization And Observation Separation", 1)[1].split(
+            "\n## ", 1
+        )[0]
         normalized = " ".join(section.split())
         required = (
-            "Revocation or unregister linearizes ahead of an in-flight gated trusted reconnect",
-            "before its `DialContext` call or later continuation",
-            "invalidates the attempt record and cancels its exact attempt context",
-            "neither a new dial nor a resumed handshake",
-            "MUST release that lock before `DialContext`",
-            "No lock may span the dial or wait for its result",
-            "without waiting for an in-flight dial to return",
-            "late dial result cannot revive, continue, or register the attempt",
+            "allowlisted SKI or configured endpoint is policy input only",
+            "does not authenticate a peer",
+            "Startup and pairing-window transitions do not convert configured policy",
+            "An mDNS observation callback may create a visible service",
+            "An actual connection callback may create a session",
+            "pairing callback from that transport connection may create the single volatile candidate",
+            "Only exact OOB confirmation followed by `commit_durable` creates durable trust",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)

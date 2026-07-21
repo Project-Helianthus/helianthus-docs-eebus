@@ -264,7 +264,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
     "api/README.md": "99cd8f1833d1a1f801f4d04d62b1ecb" "95f20ad73d8dadc04c654f1fdcf31f1f3",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
-    "evidence/README.md": "4afae6e8ab7848ded9068f43523794ee" "ccf8f325f91659557a453646a00423ff",
+    "evidence/README.md": "e6a5dcac6689af42f91ec2aee487940" "f5ccbc31f87bbd7c74442eab2c0af6738",
     "evidence/evidence-template.md": (
         "02910e849eab14a43251f4d28f4cb1e" "115c0feb6f78a32b2b600c85830c150e5"
     ),
@@ -276,13 +276,13 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "79bae1a8bc06da4800b7e302ad12b4fd" "208ba27e9bf56fded655b7fa5eabaf80"
+        "94c9679da58258a66db1fcb19eb8094f" "9ed1a50fc3e3db275697d23be0cb8c59"
     ),
 }
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "264d47e55270a61d5de2b2f88b6f18c" "5b7e844c71c16034e73e64b49b65c5482"
+        "8e4576175e269965f181bd358981b2d0f" "0c0957d671a4600c2b97d3cda3ce7ce"
     ),
 }
 
@@ -498,7 +498,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
-    "310c9f80488c8e1609c90dbbf57c935e" "04cb2d4b5515bc32c1b76fcfd3e821b9": {
+    "e57a6c2decbd750f480c9f11d48a1019" "dd9ab511928b06077a74beea459d6d0d": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -632,7 +632,7 @@ PRODUCTION_REVIEWED_EVIDENCE = {
         },
     },
     "EV-20260720-001": {
-        "3128517af9d0cfe45d236727675f0b4d" "aa2f1e44594adc80ee2bd7e93b1c933c": {
+        "18ddba29e4c8c7ed01659aa6a8799ac" "13ca6ede9c2a48b78f1bb52835697d593": {
             "canonical_source": (
                 "Project-Helianthus/helianthus-docs-eebus:"
                 "evidence/EV-20260720-001.md"
@@ -693,7 +693,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "claim_status": "no-protocol-claims",
         "publication_status": "planned-target",
     },
-    "b71baf2145cc721db1dd81f56b4b02b9" "6f0c633471872f2c5fc88383288af44d": {
+    "6ac24ae202cd6bc2f0295001659ab6034" "0a49bd6c6f8c138e4722702f7d15069": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
         ),
@@ -702,12 +702,11 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "claim_status": "evidence-backed",
         "publication_status": "planned-target",
         "source_class": "observed_runtime",
-        "evidence_ids": "EV-20260720-001",
+        "evidence_ids": "EV-20260714-001,EV-20260720-001",
         "hypothesis_status": "publishable",
         "falsifier": (
-            "A future independently reproducible redacted observation "
-            "establishes a completed transport, trust, or reconnect outcome "
-            "under the same bounded conditions."
+            "A bounded redacted live run violates the canonical advertisement, "
+            "callback provenance, transport ordering, or restart-persistence gate."
         ),
         "cross_seed_target": (
             "Project-Helianthus/helianthus-docs-ebus:"
