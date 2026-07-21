@@ -163,7 +163,10 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "Pairing is triggered by allowlist evaluation.",
             "A " + "SH" + "IP handshake launches after an observed service appears.",
             "A pairing dial starts because an allowlisted peer was observed.",
-            "To connect by TCP, the runtime consumes a discovery observation.",
+            "To connect by TCP, the runtime consumes a discovery observation",
+            "Discovery must not open TCP but launches a "
+            + "SH"
+            + "IP handshake.",
         )
 
         for body in variants:
@@ -233,7 +236,8 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "Upgrade is applied to a non-current schema before startup.",
             "A schema-version-0 store is transformed before activation.",
             "The runtime falls back to older persisted state.",
-            "Fallback accepts legacy state during startup.",
+            "Fallback accepts legacy state during startup",
+            "A legacy store is not loaded but is converted before activation.",
         )
 
         for body in variants:

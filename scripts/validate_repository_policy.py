@@ -14,7 +14,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import unquote, urlsplit
 
 import yaml
@@ -1045,11 +1045,6 @@ STRICT_CURRENT_SCHEMA_REQUIRED = (
     "Every non-current schema version fails closed",
     "leaves every store byte unchanged",
 )
-STRICT_CURRENT_SCHEMA_TRANSITION = re.compile(
-    r"\b(?:schema\s+version\s+\d+|older|legacy|non-current)\b"
-    r"[^.\n]{0,160}\b(?:accept|load|convert|upgrade|transform|fallback|select)\w*\b",
-    re.IGNORECASE,
-)
 NORMATIVE_INBOUND_ONLY_PATHS = (
     "protocols/ship-spine-overview.md",
     "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md",
@@ -1058,37 +1053,232 @@ NORMATIVE_INBOUND_ONLY_PATHS = (
 NORMATIVE_INBOUND_ONLY_CLAUSE = (
     "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
 )
-OUTBOUND_INITIATION = re.compile(
-    r"\b(?:discovery|observed\s+service|network\s+observation|allowlist(?:\s+evaluation)?)\b"
-    r"[^.\n]{0,160}\b(?:open|launch|initiat|start|dial)\w*\b"
-    r"[^.\n]{0,100}\b(?:TCP|SHIP|connection|handshake|dial|pairing)\b",
-    re.IGNORECASE,
+SEMANTIC_TOKEN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+SEMANTIC_UNIT = re.compile(r"[^.!?;]+(?:[.!?;]+|$)")
+INBOUND_SOURCE_LEMMAS = frozenset({"discover", "observe", "allowlist"})
+INBOUND_ACTION_LEMMAS = frozenset(
+    {"open", "initiate", "launch", "dial", "start", "trigger", "connect"}
 )
-NEGATED_INITIATION = re.compile(
-    r"\b(?:never|cannot|does\s+not|do\s+not|must\s+not)\s+"
-    r"(?:open|launch|initiat|start|dial|accept|load|convert|upgrade|transform|select)\w*\b",
-    re.IGNORECASE,
+INBOUND_TARGET_FORMS = frozenset(
+    {"tcp", "ship", "connection", "connections", "handshake", "handshakes", "pairing", "pairings"}
+)
+SCHEMA_TRANSITION_LEMMAS = frozenset(
+    {"accept", "load", "convert", "upgrade", "transform", "fallback"}
+)
+SCHEMA_TRANSITION_EXACT = frozenset({"conversion"})
+SEMANTIC_LEMMA_ALIASES = {
+    "acceptance": "accept",
+    "conversion": "convert",
+    "discoveries": "discover",
+    "discovery": "discover",
+    "initiation": "initiate",
+    "observation": "observe",
+    "observations": "observe",
+    "transformation": "transform",
+}
+NEGATION_PHRASES = (
+    ("must", "not"),
+    ("does", "not"),
+    ("do", "not"),
+    ("did", "not"),
+    ("is", "not"),
+    ("are", "not"),
+    ("was", "not"),
+    ("were", "not"),
+    ("is", "prohibited", "from"),
+    ("are", "prohibited", "from"),
+    ("was", "prohibited", "from"),
+    ("were", "prohibited", "from"),
+    ("is", "not", "permitted", "to"),
+    ("are", "not", "permitted", "to"),
 )
 
 
-def _semantic_transition_errors(
+def _semantic_tokens(text: str) -> list[str]:
+    """Normalize punctuation and hyphens into lower-case semantic tokens."""
+
+    return [match.group(0).lower() for match in SEMANTIC_TOKEN.finditer(text)]
+
+
+def _semantic_units(body: str) -> list[tuple[int, str]]:
+    """Return sentence-or-line units with their source offsets."""
+
+    units: list[tuple[int, str]] = []
+    for match in SEMANTIC_UNIT.finditer(body):
+        sentence = match.group(0)
+        stripped = sentence.lstrip()
+        if stripped:
+            units.append((match.start() + len(sentence) - len(stripped), stripped))
+    return units
+
+
+def _contains_phrase(tokens: list[str], phrase: tuple[str, ...]) -> bool:
+    width = len(phrase)
+    return any(tuple(tokens[index : index + width]) == phrase for index in range(len(tokens) - width + 1))
+
+
+def _token_has_lemma(token: str, lemma: str) -> bool:
+    if SEMANTIC_LEMMA_ALIASES.get(token, token) == lemma:
+        return True
+    if lemma.endswith("e"):
+        return token in {f"{lemma}s", f"{lemma}d", f"{lemma[:-1]}ing"}
+    return token in {f"{lemma}s", f"{lemma}es", f"{lemma}ed", f"{lemma}ing"}
+
+
+def contains_negated_action(
+    tokens: list[str],
+    action_index: int,
+    *,
+    previous_action_index: int | None = None,
+    previous_action_negated: bool = False,
+    next_action_index: int | None = None,
+) -> bool:
+    """Classify explicit prohibition local to one matched action."""
+
+    left_start = 0 if previous_action_index is None else previous_action_index + 1
+    left = tokens[left_start:action_index]
+    right_end = len(tokens) if next_action_index is None else next_action_index
+    right = tokens[action_index + 1 : right_end]
+
+    if previous_action_negated and left and all(
+        token in {"and", "or", "nor", "also", "then"} for token in left
+    ):
+        return True
+    if "no" in left or "never" in left or "cannot" in left:
+        return True
+    for index, token in enumerate(left):
+        if token == "not" and (index + 1 == len(left) or left[index + 1] != "only"):
+            return True
+    if any(_contains_phrase(left, phrase) for phrase in NEGATION_PHRASES):
+        return True
+
+    local_right = right[:7]
+    return "prohibited" in local_right or any(
+        _contains_phrase(local_right, phrase) for phrase in NEGATION_PHRASES
+    )
+
+
+def _action_indices(
+    tokens: list[str],
+    lemmas: frozenset[str],
+    *,
+    exact: frozenset[str] = frozenset(),
+    fall_back: bool = False,
+    exclude_nominal_dial: bool = False,
+    exclude_connection_noun: bool = False,
+) -> list[int]:
+    indices = [
+        index
+        for index, token in enumerate(tokens)
+        if token in exact or any(_token_has_lemma(token, lemma) for lemma in lemmas)
+    ]
+    if exclude_nominal_dial:
+        indices = [
+            index
+            for index in indices
+            if not (
+                tokens[index] == "dial"
+                and index > 0
+                and tokens[index - 1] in {"a", "an", "the", "outbound", "remote", "local"}
+            )
+        ]
+    if exclude_connection_noun:
+        indices = [index for index in indices if tokens[index] not in {"connection", "connections"}]
+    if fall_back:
+        indices.extend(
+            index
+            for index, token in enumerate(tokens[:-1])
+            if token in {"fall", "falls", "fell", "falling"} and tokens[index + 1] == "back"
+        )
+    return sorted(set(indices))
+
+
+def _has_unnegated_action(tokens: list[str], action_indices: list[int]) -> bool:
+    previous_index: int | None = None
+    previous_negated = False
+    for position, action_index in enumerate(action_indices):
+        next_index = action_indices[position + 1] if position + 1 < len(action_indices) else None
+        negated = contains_negated_action(
+            tokens,
+            action_index,
+            previous_action_index=previous_index,
+            previous_action_negated=previous_negated,
+            next_action_index=next_index,
+        )
+        if not negated:
+            return True
+        previous_index = action_index
+        previous_negated = negated
+    return False
+
+
+def _inbound_outbound_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    actions = _action_indices(
+        tokens,
+        INBOUND_ACTION_LEMMAS,
+        exclude_nominal_dial=True,
+        exclude_connection_noun=True,
+    )
+    return (
+        any(
+            _token_has_lemma(token, lemma)
+            for token in tokens
+            for lemma in INBOUND_SOURCE_LEMMAS
+        )
+        and any(token in INBOUND_TARGET_FORMS for token in tokens)
+        and bool(actions)
+        and _has_unnegated_action(tokens, actions)
+    )
+
+
+def _has_noncurrent_schema_source(tokens: list[str]) -> bool:
+    if any(token in {"older", "legacy"} for token in tokens):
+        return True
+    if any(tokens[index : index + 2] == ["non", "current"] for index in range(len(tokens) - 1)):
+        return True
+    return (
+        "schema" in tokens
+        and "version" in tokens
+        and any(token.isdigit() and token != "1" for token in tokens)
+    )
+
+
+def _noncurrent_schema_transition_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    actions = _action_indices(
+        tokens,
+        SCHEMA_TRANSITION_LEMMAS,
+        exact=SCHEMA_TRANSITION_EXACT,
+        fall_back=True,
+    )
+    actions = [
+        index
+        for index in actions
+        if not (
+            any(_token_has_lemma(tokens[index], lemma) for lemma in {"accept", "load"})
+            and "v1" in tokens[index + 1 : index + 3]
+        )
+    ]
+    return (
+        _has_noncurrent_schema_source(tokens)
+        and bool(actions)
+        and _has_unnegated_action(tokens, actions)
+    )
+
+
+def _semantic_contract_errors(
     body: str,
-    pattern: re.Pattern[str],
+    classifier: Callable[[str], bool],
     *,
     path: str,
     rule: str,
 ) -> list[str]:
     errors: list[str] = []
-    for match in pattern.finditer(body):
-        sentence_start = max(body.rfind(".", 0, match.start()), body.rfind("\n", 0, match.start())) + 1
-        sentence_end = body.find(".", match.end())
-        if sentence_end == -1:
-            sentence_end = len(body)
-        sentence = body[sentence_start:sentence_end]
-        if NEGATED_INITIATION.search(sentence):
-            continue
-        line = body.count("\n", 0, match.start()) + 1
-        errors.append(f"{path}:{line}: forbidden {rule}")
+    for offset, sentence in _semantic_units(body):
+        if classifier(sentence):
+            line = body.count("\n", 0, offset) + 1
+            errors.append(f"{path}:{line}: forbidden {rule}")
     return errors
 
 
@@ -1109,9 +1299,9 @@ def normative_inbound_only_errors(root: Path) -> list[str]:
         if NORMATIVE_INBOUND_ONLY_CLAUSE not in " ".join(body.split()):
             errors.append(f"{relative_path}: missing canonical inbound-only clause")
         errors.extend(
-            _semantic_transition_errors(
+            _semantic_contract_errors(
                 body,
-                OUTBOUND_INITIATION,
+                _inbound_outbound_violation,
                 path=relative_path,
                 rule="outbound-initiation",
             )
@@ -1135,9 +1325,9 @@ def strict_current_schema_errors(root: Path) -> list[str]:
         if clause not in " ".join(body.split())
     ]
     errors.extend(
-        _semantic_transition_errors(
+        _semantic_contract_errors(
             body,
-            STRICT_CURRENT_SCHEMA_TRANSITION,
+            _noncurrent_schema_transition_violation,
             path=STRICT_CURRENT_SCHEMA_PATH,
             rule="strict-current-schema transition",
         )
