@@ -34,14 +34,14 @@ def load_policy_module():
 
 
 class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
-    INBOUND_PATHS = (
-        "protocols/ship-spine-overview.md",
-        "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md",
-        "api/_candidate/msp-05p-eebusruntime-v1-correction.md",
+    OUTBOUND_PATHS = (
+        "architecture/_candidate/msp-052-outbound-pairing-contract.md",
+        "api/_candidate/msp-052-outbound-pairing-api.md",
     )
-    INBOUND_CLAUSE = (
-        "Discovery observations and allowlist evaluation never initiate an "
-        "outbound dial or pairing attempt"
+    OUTBOUND_GUARD_PATHS = ("protocols/ship-spine-overview.md",) + OUTBOUND_PATHS
+    OUTBOUND_CLAUSE = (
+        "discovery and allowlist evaluation alone never initiate a "
+        "network attempt"
     )
     SCHEMA_PATH = "architecture/_candidate/msp-04a-persistent-store.md"
     SCHEMA_CLAUSES = (
@@ -58,6 +58,7 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md"
         )
         cls.api = read("api/_candidate/msp-05p-eebusruntime-v1-correction.md")
+        cls.outbound_api = read("api/_candidate/msp-052-outbound-pairing-api.md")
         cls.identity = read("architecture/ship-identity.md")
         cls.corpus = "\n".join(
             (
@@ -76,11 +77,24 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         self.assertIn("No second publisher, probe identity", normalized)
         self.assertNotIn("RawProbe", self.corpus)
 
-    def test_discovery_and_allowlist_are_inbound_only(self) -> None:
-        for text in (self.protocol, self.security):
-            with self.subTest(document=text):
-                normalized = compact(text)
-                self.assertIn("never initiate an outbound dial or pairing attempt", normalized)
+    def test_stable_protocol_retains_reviewed_passive_discovery_rule(self) -> None:
+        normalized = compact(self.protocol)
+        self.assertIn(
+            "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt",
+            normalized,
+        )
+        self.assertNotIn("candidate_ref", normalized)
+
+    def test_candidate_dependency_contracts_remain_private_and_experimental(self) -> None:
+        normalized = compact(self.outbound_api)
+        self.assertIn(
+            "`PairingCandidateQueuer` and `CandidateRef` are private experimental interdependency contracts only",
+            normalized,
+        )
+        self.assertIn(
+            "does not promote `candidate_ref` into `helianthus-eebusreg` public state",
+            normalized,
+        )
 
     def test_outgoing_attempt_legacy_paths_are_absent(self) -> None:
         for forbidden in (
@@ -154,85 +168,84 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             schema_errors,
         )
 
-    def test_policy_rejects_renamed_outbound_initiation(self) -> None:
+    def test_policy_requires_all_outbound_pairing_contract_surfaces(self) -> None:
         policy = load_policy_module()
-        validator = getattr(policy, "normative_inbound_only_errors")
-        variants = (
-            "A discovery observation opens a TCP connection to an allowlisted peer.",
-            "A TCP connection is opened when discovery sees an allowlisted peer.",
-            "Pairing is triggered by allowlist evaluation.",
-            "A " + "SH" + "IP handshake launches after an observed service appears.",
-            "A pairing dial starts because an allowlisted peer was observed.",
-            "To connect by TCP, the runtime consumes a discovery observation",
-            "Discovery must not open TCP but launches a "
-            + "SH"
-            + "IP handshake.",
-            "A discovery observation dials a remote peer over TCP.",
-            "An allowlisted peer was dialed after a network observation.",
-            "Dialing starts after an allowlist observation.",
-            "A TCP dial launches after discovery.",
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative_path in self.OUTBOUND_PATHS:
+                page = root / relative_path
+                page.parent.mkdir(parents=True, exist_ok=True)
+                page.write_text(self.OUTBOUND_CLAUSE + ".\n", encoding="utf-8")
+            errors = validator(root)
+
+        self.assertTrue(
+            any("missing outbound-pairing requirement" in error for error in errors),
+            errors,
         )
 
-        for body in variants:
+    def test_outbound_pairing_contract_is_canonical_across_owned_surfaces(self) -> None:
+        for relative_path in self.OUTBOUND_PATHS:
+            with self.subTest(document=relative_path):
+                self.assertIn(self.OUTBOUND_CLAUSE, compact(read(relative_path)))
+
+    def test_policy_rejects_automatic_or_discovery_driven_outbound_routes(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        variants = (
+            ("Discovery automatically dials a SHIP peer.", "automatic-outbound"),
+            ("An allowlisted S" + "KI triggers a remote connection.", "outbound-initiation"),
+            ("Discovery starts pairing with the visible peer.", "outbound-initiation"),
+            (
+                "Discovery creates a dial job. That job opens a TCP connection.",
+                "outbound-initiation",
+            ),
+        )
+        for body, rule in variants:
             with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                for relative_path in self.INBOUND_PATHS:
+                for relative_path in self.OUTBOUND_GUARD_PATHS:
                     page = root / relative_path
                     page.parent.mkdir(parents=True, exist_ok=True)
-                    page.write_text(
-                        self.INBOUND_CLAUSE
-                        + ".\n"
-                        + (f"{body}\n" if relative_path == self.INBOUND_PATHS[0] else ""),
-                        encoding="utf-8",
-                    )
+                    page.write_text(read(relative_path), encoding="utf-8")
+                target = root / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
+                target.write_text(
+                    target.read_text(encoding="utf-8") + f"\n{body}\n",
+                    encoding="utf-8",
+                )
+
                 errors = validator(root)
 
-            self.assertEqual(
-                [
-                    "protocols/ship-spine-overview.md:2: forbidden "
-                    "outbound-initiation"
-                ],
-                errors,
-            )
+            self.assertTrue(any(f"forbidden {rule}" in error for error in errors), errors)
 
-    def test_policy_allows_explicit_inbound_only_prohibitions(self) -> None:
+    def test_policy_rejects_endpoint_or_candidate_resurrection(self) -> None:
         policy = load_policy_module()
-        validator = getattr(policy, "normative_inbound_only_errors")
+        validator = getattr(policy, "outbound_pairing_contract_errors")
         variants = (
-            "No discovery observation opens a TCP connection.",
-            "An allowlisted peer must not initiate pairing.",
-            "SH" + "IP pairing is prohibited from starting after observation.",
-            "A TCP connection does not launch from discovery.",
-            "Discovery cannot trigger a " + "SH" + "IP handshake.",
-            "The allowlist is not permitted to connect a TCP peer.",
-            "A discovery observation doesn't open a TCP connection.",
-            "An allowlisted peer can't initiate pairing.",
-            "Discovery won't trigger a " + "SH" + "IP handshake.",
-            "A discovery observation opens no TCP connection.",
-            "An observed service dials no " + "SH" + "IP peer.",
+            "The runtime restores the previous endpoint after restart.",
+            "A hostname fallback is used when the observation disappears.",
+            "The process reuses a remembered candidate reference.",
+            "The runtime retains the endpoint. After restart, it connects to the peer.",
         )
-
         for body in variants:
             with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                for relative_path in self.INBOUND_PATHS:
+                for relative_path in self.OUTBOUND_GUARD_PATHS:
                     page = root / relative_path
                     page.parent.mkdir(parents=True, exist_ok=True)
-                    page.write_text(
-                        self.INBOUND_CLAUSE
-                        + ".\n"
-                        + (f"{body}\n" if relative_path == self.INBOUND_PATHS[0] else ""),
-                        encoding="utf-8",
-                    )
+                    page.write_text(read(relative_path), encoding="utf-8")
+                target = root / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
+                target.write_text(
+                    target.read_text(encoding="utf-8") + f"\n{body}\n",
+                    encoding="utf-8",
+                )
 
-                self.assertEqual([], validator(root))
+                errors = validator(root)
 
-    def test_inbound_only_clause_is_canonical_across_normative_surfaces(self) -> None:
-        required = "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt"
-
-        for text in (self.protocol, self.security, self.api):
-            with self.subTest(document=text):
-                self.assertIn(required, compact(text))
+            self.assertTrue(
+                any("forbidden outbound-resurrection" in error for error in errors),
+                errors,
+            )
 
     def test_policy_rejects_noncurrent_schema_transitions_and_missing_contract(self) -> None:
         policy = load_policy_module()

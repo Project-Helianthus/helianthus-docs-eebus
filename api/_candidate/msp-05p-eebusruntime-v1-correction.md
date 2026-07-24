@@ -92,9 +92,10 @@ This contract adds no MCP, GraphQL, Portal, Home Assistant, command,
 raw-write, semantic projection, or public trust mutation. Closed pairing is a
 constructor invariant, not an administrative mutation API. It defines no
 attempt bridge, preconnection operation, or fallback transport route; discovery
-and allowlist inputs remain inbound observation and authorization only.
-Discovery observations and allowlist evaluation never initiate an outbound dial
-or pairing attempt.
+and allowlist inputs remain observation and authorization only. Passive
+discovery and allowlist evaluation alone never initiate a network attempt. The
+separate operator-selected, observation-bound outbound-pairing candidate remains
+outside this frozen API candidate.
 
 ## Provenance And Rollback
 

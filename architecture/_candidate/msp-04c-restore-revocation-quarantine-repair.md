@@ -53,8 +53,9 @@ Durable trust and authorization records are policy only. Reload may classify a
 later observed peer, but it cannot create service visibility, a session,
 topology, or a candidate. A tombstone overrides an association on every
 startup. Restart clears the volatile pairing window, candidate, session, and
-service observations. Discovery observations and allowlist evaluation never
-initiate an outbound dial or pairing attempt.
+service observations. Passive discovery and allowlist evaluation alone never
+initiate a network attempt. This repair contract does not replace the separate
+operator-selected, observation-bound outbound-pairing candidate contract.
 
 ## Revocation
 
