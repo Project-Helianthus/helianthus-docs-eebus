@@ -41,7 +41,7 @@ state sequence:
 | --- | --- | --- |
 | `visible` | One passive mDNS observation is available for read-only inspection. | The observation owns its opaque `candidate_ref` and revision. |
 | `selected/validated` | The operator selected that exact reference and supplied the expected certificate identity. | Validation accepts only a lowercase 40-hex value equal to the selected observation. No trust record exists. |
-| `connected-untrusted` | TLS reached the selected peer and pinned its certificate identity before WebSocket upgrade. | The protocol state may reach `SmeStateApproved`; no SPINE data or durable trust is available. |
+| `connected-untrusted` | TLS reached the selected peer and pinned its certificate identity before WebSocket upgrade. | The protocol state may reach `SmeStateApproved`; no SPINE setup, semantic processing, payload delivery, or durable trust is available. Any SPINE datagram received while approval is pending closes the connection fail-closed. |
 | `trusted` | The exact selected association committed durably. | Only then may the pending handshake be approved and subsequent SPINE work begin. |
 
 `candidate_ref` is opaque and process-local. It binds one exact mDNS
@@ -62,8 +62,14 @@ selected observation.
 The TLS peer certificate is pinned to that exact SKI before the WebSocket
 upgrade. A pin mismatch aborts before a WebSocket handler runs. Passing the pin
 does not create trust: the connection holds at `SmeStateApproved`, with no
-SPINE progression, until the corresponding trust association commits durably.
-Automatic trust and persistence before that durable commit are forbidden.
+SPINE setup, semantic processing, or payload delivery until the corresponding
+trust association commits durably. A SPINE datagram received during that
+approval hold is rejected, closes the connection, and is never buffered,
+decoded, delivered, exposed, or persisted. Outside the approval hold, the
+generic post-handshake setup-race buffer is bounded to at most 16 raw datagrams
+and 16 KiB total for that exact connection. Overflow, cancellation, or a
+terminal close fails closed and discards that buffer. Automatic trust and
+persistence before the durable commit are forbidden.
 
 After restart, a trusted reconnect starts with fresh mDNS discovery. It may use
 only the persisted identity anchors (`persisted_ski` and `persisted_ship_id`) to

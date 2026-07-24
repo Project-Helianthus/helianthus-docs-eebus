@@ -21,20 +21,24 @@ candidate_output_path: "api/_candidate/msp-052-outbound-pairing-api.md"
 
 ## Status And Scope
 
-This candidate records the eeBUS API boundary for [docs issue 52][docs-issue]
-and companion [`helianthus-ship-go` pull request 15][ship-go-pr]. It adds no
-stable declaration, wire schema, consumer availability, or protocol fact. It
-describes the proposed public/read-only and experimental/admin split only.
+This candidate records the eeBUS control-plane boundary for
+[docs issue 52][docs-issue] and companion
+[`helianthus-ship-go` pull request 15][ship-go-pr]. It adds no stable
+declaration, wire schema, consumer availability, or protocol fact. Candidate
+inspection and selection remain private, owner-only local administration until
+a separate promotion gate explicitly supersedes the current public-surface
+freeze.
 
-## Stable Read-Only Candidate Visibility
+## Private Owner-Only Candidate Inspection
 
-The stable API surface is read-only candidate visibility. A visible row may
-contain an opaque `candidate_ref`, its lifecycle state, and redacted evidence
-status. `candidate_ref` names one exact, current mDNS observation revision for
-the current process. It is not an endpoint token and must not expose or accept a
-hostname, path, address, port, certificate, or peer identity.
+The same-UID local admin control plane may expose an opaque `candidate_ref`, its
+lifecycle state, and redacted evidence status. This inspection surface is
+experimental and non-public. `candidate_ref` names one exact, current mDNS
+observation revision for the current process. It is not an endpoint token and
+must not expose or accept a hostname, path, address, port, certificate, or peer
+identity.
 
-The stable surface reports only the following state vocabulary: `visible`,
+The private local surface uses only the following state vocabulary: `visible`,
 `selected/validated`, `connected-untrusted`, and `trusted`. It does not report
 an approval secret, queue implementation, persisted association contents, or
 an in-flight endpoint. A reference disappears when its observation is
@@ -42,7 +46,7 @@ withdrawn, replaced, consumed, or the process restarts.
 
 ## Experimental/Admin Mutation Boundary
 
-Any action that selects a candidate is experimental/admin, not stable public
+Any action that selects a candidate is experimental/admin, not stable or public
 API. It accepts the opaque `candidate_ref` plus an operator-validated expected
 SKI that is exactly 40 lowercase hexadecimal characters. The action rejects an
 unknown or stale reference and a mismatched SKI. It cannot accept a
@@ -54,6 +58,14 @@ only after exact validation; TLS pinning precedes WebSocket upgrade; the
 connection remains untrusted until durable trust commit. There is no public
 auto-trust operation, no mutation that persists before that commit, and no
 stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation.
+
+## Stable Public Freeze
+
+No stable or public value exposes candidate presence, `candidate_ref`, remote
+candidate identity, endpoint material, selection state, or pairing control.
+Public `Runtime`, `Snapshot`, and `PairingState` remain unchanged. Promotion of
+any candidate detail requires a separate API contract, doc gate, and consumer
+compatibility review.
 
 Inbound `register=true` remains compatible as an inbound registration signal.
 Passive discovery and allowlist evaluation alone never initiate a network

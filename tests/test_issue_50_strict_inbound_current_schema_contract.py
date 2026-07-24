@@ -35,10 +35,10 @@ def load_policy_module():
 
 class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
     OUTBOUND_PATHS = (
-        "protocols/ship-spine-overview.md",
         "architecture/_candidate/msp-052-outbound-pairing-contract.md",
         "api/_candidate/msp-052-outbound-pairing-api.md",
     )
+    OUTBOUND_GUARD_PATHS = ("protocols/ship-spine-overview.md",) + OUTBOUND_PATHS
     OUTBOUND_CLAUSE = (
         "discovery and allowlist evaluation alone never initiate a "
         "network attempt"
@@ -76,11 +76,13 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         self.assertIn("No second publisher, probe identity", normalized)
         self.assertNotIn("RawProbe", self.corpus)
 
-    def test_outbound_contract_replaces_the_obsolete_inbound_only_rule(self) -> None:
+    def test_stable_protocol_retains_reviewed_passive_discovery_rule(self) -> None:
         normalized = compact(self.protocol)
-        self.assertIn(self.OUTBOUND_CLAUSE, normalized)
-        self.assertIn("Inbound operation remains supported", normalized)
-        self.assertNotIn("Discovery observations and allowlist evaluation never initiate", normalized)
+        self.assertIn(
+            "Discovery observations and allowlist evaluation never initiate an outbound dial or pairing attempt",
+            normalized,
+        )
+        self.assertNotIn("candidate_ref", normalized)
 
     def test_outgoing_attempt_legacy_paths_are_absent(self) -> None:
         for forbidden in (
@@ -174,6 +176,64 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
         for relative_path in self.OUTBOUND_PATHS:
             with self.subTest(document=relative_path):
                 self.assertIn(self.OUTBOUND_CLAUSE, compact(read(relative_path)))
+
+    def test_policy_rejects_automatic_or_discovery_driven_outbound_routes(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        variants = (
+            ("Discovery automatically dials a SHIP peer.", "automatic-outbound"),
+            ("An allowlisted S" + "KI triggers a remote connection.", "outbound-initiation"),
+            ("Discovery starts pairing with the visible peer.", "outbound-initiation"),
+            (
+                "Discovery creates a dial job. That job opens a TCP connection.",
+                "outbound-initiation",
+            ),
+        )
+        for body, rule in variants:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative_path in self.OUTBOUND_GUARD_PATHS:
+                    page = root / relative_path
+                    page.parent.mkdir(parents=True, exist_ok=True)
+                    page.write_text(read(relative_path), encoding="utf-8")
+                target = root / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
+                target.write_text(
+                    target.read_text(encoding="utf-8") + f"\n{body}\n",
+                    encoding="utf-8",
+                )
+
+                errors = validator(root)
+
+            self.assertTrue(any(f"forbidden {rule}" in error for error in errors), errors)
+
+    def test_policy_rejects_endpoint_or_candidate_resurrection(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        variants = (
+            "The runtime restores the previous endpoint after restart.",
+            "A hostname fallback is used when the observation disappears.",
+            "The process reuses a remembered candidate reference.",
+            "The runtime retains the endpoint. After restart, it connects to the peer.",
+        )
+        for body in variants:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative_path in self.OUTBOUND_GUARD_PATHS:
+                    page = root / relative_path
+                    page.parent.mkdir(parents=True, exist_ok=True)
+                    page.write_text(read(relative_path), encoding="utf-8")
+                target = root / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
+                target.write_text(
+                    target.read_text(encoding="utf-8") + f"\n{body}\n",
+                    encoding="utf-8",
+                )
+
+                errors = validator(root)
+
+            self.assertTrue(
+                any("forbidden outbound-resurrection" in error for error in errors),
+                errors,
+            )
 
     def test_policy_rejects_noncurrent_schema_transitions_and_missing_contract(self) -> None:
         policy = load_policy_module()

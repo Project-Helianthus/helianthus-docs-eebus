@@ -276,7 +276,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "9df78ba7e0d7c2f3587748dd4d799737" "509e97c76aebc42ae5be4f3964f72131"
+        "734c5668cd1937b088cbb12c7c4dd6b7" "8c0fc76cc76873dc2d49092aded65b3b"
     ),
 }
 
@@ -1045,7 +1045,7 @@ STRICT_CURRENT_SCHEMA_REQUIRED = (
     "Every non-current schema version fails closed",
     "leaves every store byte unchanged",
 )
-NORMATIVE_OUTBOUND_PAIRING_PATHS = (
+OUTBOUND_PAIRING_GUARD_PATHS = (
     "protocols/ship-spine-overview.md",
     "architecture/_candidate/msp-052-outbound-pairing-contract.md",
     "api/_candidate/msp-052-outbound-pairing-api.md",
@@ -1053,6 +1053,16 @@ NORMATIVE_OUTBOUND_PAIRING_PATHS = (
 NORMATIVE_OUTBOUND_PAIRING_CLAUSE = (
     "discovery and allowlist evaluation alone never initiate a network attempt"
 )
+OUTBOUND_PAIRING_PASSIVE_CLAUSE_BY_PATH = {
+    "protocols/ship-spine-overview.md": (
+        "Discovery observations and allowlist evaluation never initiate an outbound "
+        "dial or pairing attempt"
+    ),
+    "architecture/_candidate/msp-052-outbound-pairing-contract.md": (
+        NORMATIVE_OUTBOUND_PAIRING_CLAUSE
+    ),
+    "api/_candidate/msp-052-outbound-pairing-api.md": NORMATIVE_OUTBOUND_PAIRING_CLAUSE,
+}
 SEMANTIC_TOKEN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 SEMANTIC_UNIT = re.compile(r"[^.!?;]+(?:[.!?;]+|$)")
 INBOUND_SOURCE_LEMMAS = frozenset({"discover", "observe", "allowlist"})
@@ -1262,6 +1272,122 @@ def _inbound_outbound_violation(sentence: str) -> bool:
     )
 
 
+def _automatic_outbound_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    actions = _action_indices(
+        tokens,
+        INBOUND_ACTION_LEMMAS,
+        exclude_nominal_dial=True,
+        exclude_connection_noun=True,
+    )
+    return (
+        any(token in {"automatic", "automatically"} for token in tokens)
+        and any(token in INBOUND_TARGET_FORMS for token in tokens)
+        and bool(actions)
+        and _has_unnegated_action(tokens, actions)
+    )
+
+
+def _has_inbound_source(tokens: list[str]) -> bool:
+    return any(
+        _token_has_lemma(token, lemma)
+        for token in tokens
+        for lemma in INBOUND_SOURCE_LEMMAS
+    )
+
+
+def _has_unnegated_inbound_target_action(tokens: list[str]) -> bool:
+    actions = _action_indices(
+        tokens,
+        INBOUND_ACTION_LEMMAS,
+        exclude_nominal_dial=True,
+        exclude_connection_noun=True,
+    )
+    return (
+        any(token in INBOUND_TARGET_FORMS for token in tokens)
+        and bool(actions)
+        and _has_unnegated_action(tokens, actions)
+    )
+
+
+def _linked_outbound_units(source: str, action: str) -> bool:
+    source_tokens = _semantic_tokens(source)
+    action_tokens = _semantic_tokens(action)
+    if any(token in {"cannot", "never", "no", "not"} for token in source_tokens):
+        return False
+    linked = (
+        any(token in INBOUND_TARGET_FORMS for token in source_tokens)
+        or any(
+            token in {"automatic", "automatically", "it", "job", "that", "then", "this"}
+            for token in action_tokens[:4]
+        )
+    )
+    return (
+        _has_inbound_source(source_tokens)
+        and linked
+        and _has_unnegated_inbound_target_action(action_tokens)
+    )
+
+
+def _inbound_outbound_adjacent_violation(left: str, right: str) -> bool:
+    return _linked_outbound_units(left, right) or _linked_outbound_units(right, left)
+
+
+def _automatic_outbound_adjacent_violation(left: str, right: str) -> bool:
+    for marker, action in ((left, right), (right, left)):
+        marker_tokens = _semantic_tokens(marker)
+        action_tokens = _semantic_tokens(action)
+        if any(token in {"cannot", "never", "no", "not"} for token in marker_tokens):
+            continue
+        if (
+            any(token in {"automatic", "automatically"} for token in marker_tokens)
+            and (
+                any(token in INBOUND_TARGET_FORMS for token in marker_tokens)
+                or any(token in {"it", "job", "that", "then", "this"} for token in action_tokens[:4])
+            )
+            and _has_unnegated_inbound_target_action(action_tokens)
+        ):
+            return True
+    return False
+
+
+def _outbound_resurrection_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    actions = _action_indices(
+        tokens,
+        frozenset(
+            {
+                "cache",
+                "fallback",
+                "persist",
+                "remember",
+                "restore",
+                "resurrect",
+                "retain",
+                "reuse",
+                "store",
+            }
+        ),
+        fall_back=True,
+    )
+    protected_targets = {
+        "address",
+        "candidate",
+        "endpoint",
+        "hostname",
+        "observation",
+        "path",
+        "ref",
+        "reference",
+        "route",
+    }
+    return (
+        any(token in protected_targets for token in tokens)
+        and bool(actions)
+        and _has_unnegated_action(tokens, actions)
+    )
+
+
 def _has_noncurrent_schema_source(tokens: list[str]) -> bool:
     if any(token in {"older", "legacy", "noncurrent"} for token in tokens):
         return True
@@ -1308,10 +1434,29 @@ def _semantic_contract_errors(
     *,
     path: str,
     rule: str,
+    adjacent_classifier: Callable[[str, str], bool] | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    for offset, sentence in _semantic_units(body):
-        if classifier(sentence):
+    units = _semantic_units(body)
+    classified = [classifier(sentence) for _, sentence in units]
+    for (offset, _), violation in zip(units, classified, strict=True):
+        if violation:
+            line = body.count("\n", 0, offset) + 1
+            errors.append(f"{path}:{line}: forbidden {rule}")
+
+    if adjacent_classifier is None:
+        return errors
+
+    for index, ((offset, sentence), (_, next_sentence)) in enumerate(
+        zip(units, units[1:], strict=False)
+    ):
+        if classified[index] or classified[index + 1]:
+            continue
+        sentence_end = offset + len(sentence)
+        next_offset = units[index + 1][0]
+        if re.search(r"\n\s*\n", body[sentence_end:next_offset]):
+            continue
+        if adjacent_classifier(sentence, next_sentence):
             line = body.count("\n", 0, offset) + 1
             errors.append(f"{path}:{line}: forbidden {rule}")
     return errors
@@ -1321,7 +1466,7 @@ def outbound_pairing_contract_errors(root: Path) -> list[str]:
     """Require the bounded candidate route while preserving passive discovery."""
 
     errors: list[str] = []
-    for relative_path in NORMATIVE_OUTBOUND_PAIRING_PATHS:
+    for relative_path in OUTBOUND_PAIRING_GUARD_PATHS:
         path = root / relative_path
         if not path.is_file() or path.is_symlink():
             errors.append(f"{relative_path}: missing outbound-pairing surface")
@@ -1332,32 +1477,49 @@ def outbound_pairing_contract_errors(root: Path) -> list[str]:
             errors.append(f"{relative_path}: outbound-pairing surface is unreadable")
             continue
         normalized = " ".join(body.split())
-        if NORMATIVE_OUTBOUND_PAIRING_CLAUSE not in normalized:
+        required_passive_clause = OUTBOUND_PAIRING_PASSIVE_CLAUSE_BY_PATH[relative_path]
+        if required_passive_clause not in normalized:
             errors.append(f"{relative_path}: missing passive-discovery clause")
+        for rule, classifier, adjacent_classifier in (
+            (
+                "outbound-initiation",
+                _inbound_outbound_violation,
+                _inbound_outbound_adjacent_violation,
+            ),
+            (
+                "automatic-outbound",
+                _automatic_outbound_violation,
+                _automatic_outbound_adjacent_violation,
+            ),
+            ("outbound-resurrection", _outbound_resurrection_violation, None),
+        ):
+            errors.extend(
+                _semantic_contract_errors(
+                    body,
+                    classifier,
+                    path=relative_path,
+                    rule=rule,
+                    adjacent_classifier=adjacent_classifier,
+                )
+            )
 
     required_by_path = {
-        "protocols/ship-spine-overview.md": (
-            "Passive `_ship._tcp` discovery",
-            "opaque, process-local `candidate_ref`",
-            "no caller-supplied or static endpoint",
-            "no hostname, path, or address fallback",
-            "Before a WebSocket upgrade",
-            "SHIP remains at `SmeStateApproved`",
-            "Inbound operation remains supported",
-        ),
         "architecture/_candidate/msp-052-outbound-pairing-contract.md": (
             "`visible`",
             "`selected/validated`",
             "`connected-untrusted`",
             "`trusted`",
             "exactly 40 characters",
-            "no SPINE progression",
+            "no SPINE setup, semantic processing, or payload delivery",
+            "SPINE datagram received during that approval hold is rejected",
+            "generic post-handshake setup-race buffer is bounded to at most 16 raw datagrams and 16 KiB total",
             "active candidate queue",
             "fresh mDNS discovery",
             "Inbound `register=true` remains",
         ),
         "api/_candidate/msp-052-outbound-pairing-api.md": (
-            "stable API surface is read-only candidate visibility",
+            "private, owner-only local administration",
+            "No stable or public value exposes candidate presence",
             "experimental/admin",
             "exactly 40 lowercase hexadecimal characters",
             "no stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation",
