@@ -58,6 +58,7 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             "architecture/_candidate/msp-04c-restore-revocation-quarantine-repair.md"
         )
         cls.api = read("api/_candidate/msp-05p-eebusruntime-v1-correction.md")
+        cls.outbound_api = read("api/_candidate/msp-052-outbound-pairing-api.md")
         cls.identity = read("architecture/ship-identity.md")
         cls.corpus = "\n".join(
             (
@@ -83,6 +84,17 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             normalized,
         )
         self.assertNotIn("candidate_ref", normalized)
+
+    def test_candidate_dependency_contracts_remain_private_and_experimental(self) -> None:
+        normalized = compact(self.outbound_api)
+        self.assertIn(
+            "`PairingCandidateQueuer` and `CandidateRef` are private experimental interdependency contracts only",
+            normalized,
+        )
+        self.assertIn(
+            "does not promote `candidate_ref` into `helianthus-eebusreg` public state",
+            normalized,
+        )
 
     def test_outgoing_attempt_legacy_paths_are_absent(self) -> None:
         for forbidden in (

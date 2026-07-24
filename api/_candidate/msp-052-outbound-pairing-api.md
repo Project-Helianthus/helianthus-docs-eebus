@@ -53,6 +53,12 @@ unknown or stale reference and a mismatched SKI. It cannot accept a
 caller-supplied or static endpoint, and it has no hostname, path, or address
 fallback.
 
+The dependency-fork names `PairingCandidateQueuer` and `CandidateRef` are
+private experimental interdependency contracts only. They are not members of
+the public Helianthus `eebusruntime` v1 API, stable MCP, GraphQL, Portal, or
+Home Assistant surfaces. Their presence in a fork does not promote
+`candidate_ref` into `helianthus-eebusreg` public state.
+
 The action creates no trust by itself. It may request a candidate-bound attempt
 only after exact validation; TLS pinning precedes WebSocket upgrade; the
 connection remains untrusted until durable trust commit. There is no public

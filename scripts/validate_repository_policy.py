@@ -1521,6 +1521,8 @@ def outbound_pairing_contract_errors(root: Path) -> list[str]:
             "private, owner-only local administration",
             "No stable or public value exposes candidate presence",
             "experimental/admin",
+            "`PairingCandidateQueuer` and `CandidateRef` are private experimental interdependency contracts only",
+            "does not promote `candidate_ref` into `helianthus-eebusreg` public state",
             "exactly 40 lowercase hexadecimal characters",
             "no stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation",
         ),
