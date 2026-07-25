@@ -181,6 +181,11 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
                 "PAIRING_CLOSED": {"OPEN_EMPTY"},
                 "OPEN_EMPTY": {"CANDIDATE_PENDING", "PAIRING_CLOSED"},
                 "CANDIDATE_PENDING": {
+                    "TRANSIENT_TRUSTED",
+                    "OPEN_EMPTY",
+                    "PAIRING_CLOSED",
+                },
+                "TRANSIENT_TRUSTED": {
                     "COMMITTING",
                     "OPEN_EMPTY",
                     "PAIRING_CLOSED",
@@ -286,8 +291,8 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
         for phrase in (
             "`PAIRING_CLOSED` advertises `register=false`",
             "`OPEN_EMPTY` advertises `register=true`",
-            "`CANDIDATE_PENDING` keeps `register=true` within the original bounded window",
-            "`COMMITTING` may retain `register=true` only during the bounded commit-wait interval",
+            "`CANDIDATE_PENDING` and `TRANSIENT_TRUSTED` keep `register=true`",
+            "`TRANSIENT_TRUSTED` and then `COMMITTING` may retain `register=true`",
             "`auto-accept` remains `false`",
             "does not persist trust",
         ):

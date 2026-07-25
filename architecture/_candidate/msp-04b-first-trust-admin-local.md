@@ -167,7 +167,8 @@ rule in the current state wins.
 | `DISABLED` | Mutation is unavailable because startup has not established a usable store, or a prior outcome requires reopen. | `PAIRING_CLOSED` only after a successful reopen and reload. |
 | `PAIRING_CLOSED` | Default state; no first-trust candidate may be admitted. | `OPEN_EMPTY` when an authenticated admin command opens a bounded window. |
 | `OPEN_EMPTY` | A bounded pairing window is open and the candidate slot is empty. | `CANDIDATE_PENDING` for the first linearized eligible peer; otherwise `PAIRING_CLOSED` on close or window expiry. |
-| `CANDIDATE_PENDING` | Exactly one eligible RAM candidate owns the slot. It may be pre-transient, or have one active transient registration while it waits for same-generation protocol evidence. | Remain pending on incomplete evidence, enter `COMMITTING` only after transient trust, non-empty matching `observed_remote_ship_id`, and `ship_handshake_complete` from `ConnectionStateCompleted`, enter `OPEN_EMPTY` after candidate cancel/expiry while the window remains open, or enter `PAIRING_CLOSED` when the window closes/expires. |
+| `CANDIDATE_PENDING` | Exactly one eligible RAM candidate owns the slot before OOB confirmation has authorized a transient registration. | Enter `TRANSIENT_TRUSTED` only after exact OOB confirmation and same-generation initial TLS binding, enter `OPEN_EMPTY` after candidate cancel/expiry while the window remains open, or enter `PAIRING_CLOSED` when the window closes/expires. |
+| `TRANSIENT_TRUSTED` | The exact candidate owns one volatile transient registration and awaits same-generation protocol evidence. | Remain transient on incomplete evidence, enter `COMMITTING` only after non-empty matching `observed_remote_ship_id` and `ship_handshake_complete` from `ConnectionStateCompleted`, enter `OPEN_EMPTY` after candidate cancel/expiry while the window remains open, or enter `PAIRING_CLOSED` when the window closes/expires. |
 | `COMMITTING` | The window is already closed and one complete post-handshake association is being validated and committed. | `PAIRING_CLOSED` after a known terminal result, or `DISABLED` when reopen is required. |
 
 Startup enters `DISABLED`. A successful store open reloads trust from durable
@@ -278,19 +279,20 @@ synchronous callback reentry, and terminal cleanup.
 
 The SHIP DNS-SD `register` value is a discovery signal, not a trust decision.
 `PAIRING_CLOSED` advertises `register=false`, while `OPEN_EMPTY` advertises
-`register=true`. `CANDIDATE_PENDING` keeps `register=true` within the original
-bounded window so the selected protocol exchange remains discoverable; the
-single-candidate rule still rejects every competing peer deterministically.
+`register=true`. `CANDIDATE_PENDING` and `TRANSIENT_TRUSTED` keep
+`register=true` within the original bounded window so the selected protocol
+exchange remains discoverable; the single-candidate rule still rejects every
+competing peer deterministically.
 
 Opening the window has one network-visible effect: the local advertisement
 changes to `register=true`. It does not queue or report a remote, launch a dial,
 fabricate a service or session observation, or select a candidate. Those states
 require their corresponding discovery, connection, and pairing callbacks.
 
-After exact confirmation, `COMMITTING` may retain `register=true` only during
-the bounded commit-wait interval needed by the winning handshake. Close,
-expiry, cancellation, or any terminal commit effect withdraws or replaces the
-announcement with `register=false`. `DISABLED` also advertises
+After exact confirmation, `TRANSIENT_TRUSTED` and then `COMMITTING` may retain
+`register=true` only during the bounded handshake and commit-wait intervals.
+Close, expiry, cancellation, or any terminal commit effect withdraws or
+replaces the announcement with `register=false`. `DISABLED` also advertises
 `register=false` and requires a successful reopen before another window.
 
 This registration signal is independent from handshake acceptance:
