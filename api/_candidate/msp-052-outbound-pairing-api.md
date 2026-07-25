@@ -69,31 +69,49 @@ Portal, or Home Assistant surfaces. Their presence in a dependency does not
 promote `candidate_ref` into `helianthus-eebusreg` public state.
 
 The action creates no trust by itself. It may request a candidate-bound attempt
-only after exact validation; TLS pinning precedes WebSocket upgrade. The exact
-TLS-bound OOB confirm then checks the complete fingerprint, nonce, expiry,
+only after exact validation; verification of the selected outbound TLS/WebSocket
+certificate short identifier precedes WebSocket upgrade. The first exact non-error
+`OutgoingAttemptHandshakeStateUpdate`, accepted only after exact attempt
+metadata validation, supplies the initial TLS binding for that generation. The
+exact TLS-bound OOB confirm then checks the complete fingerprint, nonce, expiry,
 connection generation, and starting store generation. It may call
 `RegisterRemoteSKI` once for that generation as bounded transient runtime
 trust, with no durable generation/store write. It cannot require
 `observed_remote_ship_id` or SHIP Access Methods at that point, because they
 occur only after Hello reaches mutual trust-ready.
 
-The private coordinator may propose durable trust only when that same transient
-generation remains TLS-bound, reports non-empty `observed_remote_ship_id`, and
-reports `ship_handshake_complete`. There is no public auto-trust operation, no mutation
-that persists before that post-handshake commit, and no stable GraphQL, MCP,
-Portal, Home Assistant, CLI, or network-admin mutation.
+The later tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` is an
+Access-Methods-stage event, not initial TLS evidence. It supplies the
+same-generation post-authorization remote SHIP ID. The private coordinator may
+propose durable trust only when that same transient generation remains
+TLS-bound, reports that non-empty `observed_remote_ship_id`, and then receives
+`ConnectionStateCompleted` as its terminal handshake proof. There is no public
+auto-trust operation, no mutation that persists before that post-handshake
+commit, and no stable GraphQL, MCP, Portal, Home Assistant, CLI, or
+network-admin mutation.
 
-Every timeout, disconnect, cancellation, restart, mismatch, stale generation,
-or handshake failure is a deterministic terminal outcome. If transient trust
-was active, the private facade calls `UnregisterRemoteSKI` at most once for the
-same generation; no terminal path can advance or rewrite the starting store
-generation. A transient timeout is `handshake_timeout` or
-`failed_closed_unchanged`, never `trust_outcome_unknown`. Identical idempotent
-replay returns the cached terminal or active result without a second
-register/unregister/commit effect. Reentrant and concurrent callbacks are
-serialized by the private coordinator and must revalidate the generation before
-each external effect. `trust_outcome_unknown` is reserved for an in-flight
-durable Commit with ambiguous store durability, followed by mandatory reopen.
+An initial request that lacks this TLS binding is
+`association_incomplete`; transient expiry is `candidate_expired`. Other
+deterministic disconnect, cancel, close, generation, and store outcomes retain
+their existing exact names. An invalid or stale post-transient admin request is
+a deterministic non-mutating no-op or error: it does not unregister or revoke
+the legitimate authorized candidate. In contrast, an actual candidate-lifecycle
+terminal event—expiry, observed disconnect/error, exact cancellation/close,
+generation conflict, shutdown, or deterministic store failure—revokes that
+candidate's transient trust exactly once when it was active. No terminal path
+can advance or rewrite the starting store generation. Identical idempotent replay
+returns the cached terminal or active result without a second
+register/unregister/commit effect.
+
+Reentrant and concurrent callbacks are serialized by the private coordinator
+and must revalidate the generation before each external effect. If the
+disconnect transition linearizes before the SHIP-ID or completion handoff,
+those stale handoffs cannot commit; if `ConnectionStateCompleted` linearizes
+first with all exact bindings, the durable commit may proceed. The outcome
+`trust_outcome_unknown` is reserved only after the durability-affecting recovery
+publication pipeline has begun: ambiguity in `PrepareControl`, anchor staging,
+finalization, clear, or `CommitControl` requires reopen. It is never used for a
+pre-persistence candidate, TLS, or handshake terminal event.
 
 The private attempt-gate dependency may journal an opaque reservation and that
 reservation's exact frozen discovered endpoint/path. It must not journal
