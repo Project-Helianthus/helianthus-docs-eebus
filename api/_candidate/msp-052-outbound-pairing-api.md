@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed API contract promotes candidate_ref or attempt-journal fields into stable eebusreg, MCP, or GraphQL; persists candidate_ref; accepts a non-current selection; or lets RuntimeConfig, static, or root fallback data authorize a dial."
+falsifier: "A reviewed API contract exposes candidate_ref outside the experimental internal dependency boundary; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; or retains transient trust after a terminal event."
 candidate_output: "true"
 stable_navigation: "false"
 search: "false"
@@ -46,10 +46,12 @@ attempt journal, trusted association, snapshot, reconnect record, or consumer
 payload.
 
 The private local surface uses only the following state vocabulary: `visible`,
-`selected/validated`, `connected-untrusted`, and `trusted`. It does not report
-an approval secret, queue implementation, persisted association contents, or
-an in-flight endpoint. A reference disappears when its observation is
-withdrawn, replaced, consumed, or the process restarts.
+`selected/validated`, `connected-untrusted`, `transient-trust-active`, and
+`trusted`. `transient-trust-active` is a bounded runtime fact, never a durable
+pairing result. The surface does not report an approval secret, queue
+implementation, persisted association contents, `observed_remote_ship_id`, or an
+in-flight endpoint. A reference disappears when its observation is withdrawn,
+replaced, consumed, or the process restarts.
 
 ## Experimental/Admin Mutation Boundary
 
@@ -67,10 +69,31 @@ Portal, or Home Assistant surfaces. Their presence in a dependency does not
 promote `candidate_ref` into `helianthus-eebusreg` public state.
 
 The action creates no trust by itself. It may request a candidate-bound attempt
-only after exact validation; TLS pinning precedes WebSocket upgrade; the
-connection remains untrusted until durable trust commit. There is no public
-auto-trust operation, no mutation that persists before that commit, and no
-stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation.
+only after exact validation; TLS pinning precedes WebSocket upgrade. The exact
+TLS-bound OOB confirm then checks the complete fingerprint, nonce, expiry,
+connection generation, and starting store generation. It may call
+`RegisterRemoteSKI` once for that generation as bounded transient runtime
+trust, with no durable generation/store write. It cannot require
+`observed_remote_ship_id` or SHIP Access Methods at that point, because they
+occur only after Hello reaches mutual trust-ready.
+
+The private coordinator may propose durable trust only when that same transient
+generation remains TLS-bound, reports non-empty `observed_remote_ship_id`, and
+reports `ship_handshake_complete`. There is no public auto-trust operation, no mutation
+that persists before that post-handshake commit, and no stable GraphQL, MCP,
+Portal, Home Assistant, CLI, or network-admin mutation.
+
+Every timeout, disconnect, cancellation, restart, mismatch, stale generation,
+or handshake failure is a deterministic terminal outcome. If transient trust
+was active, the private facade calls `UnregisterRemoteSKI` at most once for the
+same generation; no terminal path can advance or rewrite the starting store
+generation. A transient timeout is `handshake_timeout` or
+`failed_closed_unchanged`, never `trust_outcome_unknown`. Identical idempotent
+replay returns the cached terminal or active result without a second
+register/unregister/commit effect. Reentrant and concurrent callbacks are
+serialized by the private coordinator and must revalidate the generation before
+each external effect. `trust_outcome_unknown` is reserved for an in-flight
+durable Commit with ambiguous store durability, followed by mandatory reopen.
 
 The private attempt-gate dependency may journal an opaque reservation and that
 reservation's exact frozen discovered endpoint/path. It must not journal

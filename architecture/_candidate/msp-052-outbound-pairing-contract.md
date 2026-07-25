@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed implementation or conformance result shows that OPEN_EMPTY alone can authorize an outbound first-trust attempt, candidate_ref becomes durable or stable, a restart reuses journaled endpoint authority, one terminal event charges twice, or shutdown closes the coordinator/store before transport callbacks settle."
+falsifier: "A reviewed implementation or conformance result shows that exact TLS-bound OOB confirmation cannot create bounded transient trust before Hello reaches mutual trust-ready, that transient registration writes durable state, that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`, that any terminal path retains transient trust or changes the starting generation, or that candidate_ref becomes durable or stable."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -43,8 +43,9 @@ state sequence:
 | --- | --- | --- |
 | `visible` | One passive mDNS observation is available for read-only inspection. | The observation owns its opaque `candidate_ref` and revision. |
 | `selected/validated` | The operator selected that exact reference and supplied the expected certificate identity. | Validation accepts only a lowercase 40-hex value equal to the selected observation. No trust record exists. |
-| `connected-untrusted` | TLS reached the selected peer and pinned its certificate identity before WebSocket upgrade. | The protocol state may reach `SmeStateApproved`; no SPINE setup, semantic processing, payload delivery, or durable trust is available. Any SPINE datagram received while approval is pending closes the connection fail-closed. |
-| `trusted` | The exact selected association committed durably. | Only then may the pending handshake be approved and subsequent SPINE work begin. |
+| `connected-untrusted` | TLS reached the selected peer and pinned its certificate identity before WebSocket upgrade. | Exact TLS-bound OOB confirmation may now authorize one bounded transient runtime registration; before that, no SPINE setup, semantic processing, or payload delivery is available. Any SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
+| `transient-trust-active` | Exactly one `RegisterRemoteSKI` effect has admitted the selected, same-generation runtime peer after exact OOB confirmation. | This is not persistence. It permits Hello to reach mutual trust-ready, then SHIP Access Methods and `observed_remote_ship_id`, while the store generation remains unchanged. |
+| `trusted` | The exact selected association committed durably after same-generation `ship_handshake_complete` with non-empty `observed_remote_ship_id`. | It is the only persistent first-trust result. |
 
 `candidate_ref` is opaque and process-local. It binds one exact mDNS
 observation revision, rather than a reusable endpoint or a peer identity
@@ -71,15 +72,32 @@ selected observation.
 
 The TLS peer certificate is pinned to that exact SKI before the WebSocket
 upgrade. A pin mismatch aborts before a WebSocket handler runs. Passing the pin
-does not create trust: the connection holds at `SmeStateApproved`, with no
-SPINE setup, semantic processing, or payload delivery until the corresponding
-trust association commits durably. A SPINE datagram received during that
-approval hold is rejected, closes the connection, and is never buffered,
-decoded, delivered, exposed, or persisted. Outside the approval hold, the
-generic post-handshake setup-race buffer is bounded to at most 16 raw datagrams
-and 16 KiB total for that exact connection. Overflow, cancellation, or a
-terminal close fails closed and discards that buffer. Automatic trust and
-persistence before the durable commit are forbidden.
+does not create durable trust. Exact OOB confirmation of the TLS-bound
+fingerprint, nonce, expiry, connection generation, and starting store
+generation may call `RegisterRemoteSKI` once for that live generation, with no
+durable generation/store write. This transient runtime trust is bounded by the
+candidate and connection lifetime.
+
+The registered peer may then progress Hello to mutual trust-ready. The candidate
+must not demand SHIP Access Methods or `observed_remote_ship_id` before that point: both
+are later same-generation handshake evidence. No durable proposal may start
+until the facade has non-empty `observed_remote_ship_id` and
+`ship_handshake_complete`
+for that transiently registered connection. A SPINE datagram received during
+the pre-transient approval hold is rejected, closes the connection, and is
+never buffered, decoded, delivered, exposed, or persisted. Outside that hold,
+the generic post-handshake setup-race buffer is bounded to at most 16 raw
+datagrams and 16 KiB total for that exact connection. Overflow, cancellation,
+or a terminal close fails closed and discards that buffer. Automatic durable
+trust and persistence before the post-handshake commit are forbidden.
+
+Timeout, disconnect, cancellation, restart, fingerprint/nonce mismatch, stale
+connection or store generation, and handshake failure retire transient trust:
+they issue the matching `UnregisterRemoteSKI` at most once when registration
+occurred, discard the candidate, and leave the selected store generation
+unchanged. A process crash cannot rely on a final callback; recovery starts
+without any transient registration, candidate, or replay record and never
+reconstructs one from durable state.
 
 After exact selection, the coordinator's private attempt journal may durably
 bind the exact frozen discovered endpoint and path for one reservation before
@@ -138,10 +156,11 @@ durable commit; the connection owner enforces TLS pinning and SHIP hold; the
 store owns only durable records.
 
 The durable record begins only after the selected/validated candidate reaches
-the trusted transition. Candidate references, active queue state, and connection
-state do not enter durable storage. The private attempt journal is the sole
-exception for an unresolved reservation's exact frozen endpoint/path; it is
-terminally cleared and never copied into the trusted association.
+the post-handshake trusted transition. Candidate references, active queue state,
+transient-registration state, and connection state do not enter durable
+storage. The private attempt journal is the sole exception for an unresolved
+reservation's exact frozen endpoint/path; it is terminally cleared and never
+copied into the trusted association.
 
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/54
 [eebusreg-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/58
