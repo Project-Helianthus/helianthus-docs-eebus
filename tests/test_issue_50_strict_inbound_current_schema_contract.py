@@ -88,11 +88,19 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
     def test_candidate_dependency_contracts_remain_private_and_experimental(self) -> None:
         normalized = compact(self.outbound_api)
         self.assertIn(
-            "`PairingCandidateQueuer` and `CandidateRef` are private experimental interdependency contracts only",
+            "`PairingCandidateQueuer` and `CandidateRef` are private experimental process-local dependency capabilities only",
             normalized,
         )
         self.assertIn(
             "does not promote `candidate_ref` into `helianthus-eebusreg` public state",
+            normalized,
+        )
+        self.assertIn(
+            "`candidate_ref` is a process-local dependency capability only",
+            normalized,
+        )
+        self.assertIn(
+            "never durable and never stable `helianthus-eebusreg`, MCP, or GraphQL state",
             normalized,
         )
 
@@ -189,6 +197,24 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             with self.subTest(document=relative_path):
                 self.assertIn(self.OUTBOUND_CLAUSE, compact(read(relative_path)))
 
+    def test_issue54_selected_candidate_journal_and_shutdown_contract_is_explicit(self) -> None:
+        normalized = compact(
+            read("architecture/_candidate/msp-052-outbound-pairing-contract.md")
+        )
+        for required in (
+            "outbound first-trust eligibility requires both an active bounded pairing window and the exact currently selected candidate SKI",
+            "`OPEN_EMPTY` alone describes only the open window and empty inbound slot",
+            "private attempt journal may durably bind the exact frozen discovered endpoint and path",
+            "`AbortPrepared`, attempt-lease expiry, a protected attempt-helper panic, and restart recovery of an unresolved reservation each synthesize exactly one failure",
+            "matching revocation is the only non-failure cancellation",
+            "The transport/service stops first",
+            "`v0.7.1-helianthus.6`",
+            "`v0.6.1-helianthus.6`",
+            "`v0.7.1-helianthus.1`",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, normalized)
+
     def test_policy_rejects_automatic_or_discovery_driven_outbound_routes(self) -> None:
         policy = load_policy_module()
         validator = getattr(policy, "outbound_pairing_contract_errors")
@@ -246,6 +272,98 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
                 any("forbidden outbound-resurrection" in error for error in errors),
                 errors,
             )
+
+    def test_policy_rejects_split_selected_candidate_bypasses(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        classifier = getattr(policy, "_selected_candidate_bypass_violation")
+        variants = (
+            (
+                "Recovery is UNPAIRED_LOCKED and the pairing window is active.",
+                "It authorizes the outbound attempt.",
+            ),
+            (
+                "The runtime is in OPEN_EMPTY.",
+                "The next network attempt is eligible.",
+            ),
+            (
+                "A visible candidate is present.",
+                "The transport may initiate the connection.",
+            ),
+        )
+        for left, right in variants:
+            body = f"{left} {right}"
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                self.assertFalse(classifier(left))
+                self.assertFalse(classifier(right))
+                root = Path(directory)
+                for relative_path in self.OUTBOUND_GUARD_PATHS:
+                    page = root / relative_path
+                    page.parent.mkdir(parents=True, exist_ok=True)
+                    page.write_text(read(relative_path), encoding="utf-8")
+                target = root / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
+                target.write_text(
+                    target.read_text(encoding="utf-8") + f"\n{body}\n",
+                    encoding="utf-8",
+                )
+
+                errors = validator(root)
+
+            self.assertTrue(
+                any("forbidden selected-candidate-bypass" in error for error in errors),
+                errors,
+            )
+
+    def test_policy_rejects_split_persistence_reconnect_and_config_authority(self) -> None:
+        policy = load_policy_module()
+        validator = getattr(policy, "outbound_pairing_contract_errors")
+        resurrection = getattr(policy, "_outbound_resurrection_violation")
+        authority = getattr(policy, "_endpoint_authority_violation")
+        variants = (
+            (
+                "The attempt journal records the exact frozen discovered endpoint.",
+                "After restart, the runtime reconnects using that record.",
+                "outbound-resurrection",
+                resurrection,
+            ),
+            (
+                "The candidate_ref remains in process state.",
+                "It survives restart.",
+                "outbound-resurrection",
+                resurrection,
+            ),
+            (
+                "RuntimeConfig remains available.",
+                "It supplies the route.",
+                "endpoint-authority",
+                authority,
+            ),
+            (
+                "The root configuration is consulted.",
+                "It provides the WebSocket path.",
+                "endpoint-authority",
+                authority,
+            ),
+        )
+        for left, right, rule, classifier in variants:
+            body = f"{left} {right}"
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as directory:
+                self.assertFalse(classifier(left))
+                self.assertFalse(classifier(right))
+                root = Path(directory)
+                for relative_path in self.OUTBOUND_GUARD_PATHS:
+                    page = root / relative_path
+                    page.parent.mkdir(parents=True, exist_ok=True)
+                    page.write_text(read(relative_path), encoding="utf-8")
+                target = root / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
+                target.write_text(
+                    target.read_text(encoding="utf-8") + f"\n{body}\n",
+                    encoding="utf-8",
+                )
+
+                errors = validator(root)
+
+            self.assertTrue(any(f"forbidden {rule}" in error for error in errors), errors)
 
     def test_policy_rejects_noncurrent_schema_transitions_and_missing_contract(self) -> None:
         policy = load_policy_module()

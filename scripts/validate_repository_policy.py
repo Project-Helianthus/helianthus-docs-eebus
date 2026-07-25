@@ -1085,6 +1085,34 @@ INBOUND_TARGET_FORMS = frozenset(
         "dialing",
     }
 )
+SELECTED_GATE_ACTION_LEMMAS = frozenset(
+    {"allow", "authorize", "connect", "dial", "initiate", "launch", "permit", "start", "trigger"}
+)
+SELECTED_GATE_ACTION_EXACT = frozenset({"eligible", "eligibility"})
+SELECTED_GATE_TARGET_FORMS = INBOUND_TARGET_FORMS | frozenset(
+    {"attempt", "attempts", "outbound", "outgoing"}
+)
+PERSISTENCE_ACTION_LEMMAS = frozenset(
+    {
+        "cache",
+        "persist",
+        "publish",
+        "reload",
+        "restore",
+        "resurrect",
+        "save",
+        "serialize",
+        "survive",
+        "write",
+    }
+)
+PERSISTENCE_ACTION_EXACT = frozenset({"durable", "durability", "stable"})
+RESURRECTION_ACTION_LEMMAS = frozenset(
+    {"fallback", "reconnect", "remember", "retain", "reuse", "restore", "resurrect"}
+)
+ENDPOINT_AUTHORITY_ACTION_LEMMAS = frozenset(
+    {"authorize", "derive", "fallback", "permit", "provide", "resolve", "select", "supply", "use"}
+)
 SCHEMA_TRANSITION_LEMMAS = frozenset(
     {"accept", "load", "convert", "upgrade", "transform", "fallback"}
 )
@@ -1097,6 +1125,7 @@ SEMANTIC_LEMMA_ALIASES = {
     "initiation": "initiate",
     "observation": "observe",
     "observations": "observe",
+    "supplies": "supply",
     "transformation": "transform",
 }
 SEMANTIC_CONTRACTIONS = {
@@ -1180,10 +1209,37 @@ def contains_negated_action(
     right_end = len(tokens) if next_action_index is None else next_action_index
     right = tokens[action_index + 1 : right_end]
 
-    if previous_action_negated and left and all(
-        token in {"and", "or", "nor", "also", "then"} for token in left
-    ):
-        return True
+    if previous_action_negated:
+        if not left or all(
+            token in {"and", "or", "nor", "also", "then"} for token in left
+        ):
+            return True
+        if (
+            any(token in {"or", "nor"} for token in left)
+            and not any(
+                token
+                in {
+                    "are",
+                    "but",
+                    "can",
+                    "did",
+                    "do",
+                    "does",
+                    "however",
+                    "is",
+                    "may",
+                    "must",
+                    "shall",
+                    "should",
+                    "was",
+                    "were",
+                    "will",
+                    "yet",
+                }
+                for token in left
+            )
+        ):
+            return True
     if "no" in left or "never" in left or "cannot" in left:
         return True
     for index, token in enumerate(left):
@@ -1254,6 +1310,8 @@ def _has_unnegated_action(tokens: list[str], action_indices: list[int]) -> bool:
 
 def _inbound_outbound_violation(sentence: str) -> bool:
     tokens = _semantic_tokens(sentence)
+    if _allowed_fresh_discovery_attempt(tokens):
+        return False
     actions = _action_indices(
         tokens,
         INBOUND_ACTION_LEMMAS,
@@ -1351,41 +1409,201 @@ def _automatic_outbound_adjacent_violation(left: str, right: str) -> bool:
     return False
 
 
-def _outbound_resurrection_violation(sentence: str) -> bool:
+def _has_exact_selected_candidate_binding(tokens: list[str]) -> bool:
+    return (
+        "exact" in tokens
+        and any(token in {"current", "currently"} for token in tokens)
+        and any(_token_has_lemma(token, "select") for token in tokens)
+        and "candidate" in tokens
+        and "ski" in tokens
+    )
+
+
+def _allowed_fresh_discovery_attempt(tokens: list[str]) -> bool:
+    return (
+        _has_exact_selected_candidate_binding(tokens)
+        and "fresh" in tokens
+        and "reservation" in tokens
+        and "frozen" in tokens
+        and any(_token_has_lemma(token, "discover") for token in tokens)
+    )
+
+
+def _has_selected_gate_source(tokens: list[str]) -> bool:
+    return (
+        _contains_phrase(tokens, ("open", "empty"))
+        or _contains_phrase(tokens, ("unpaired", "locked"))
+        or (
+            "pairing" in tokens
+            and "window" in tokens
+            and any(token in {"active", "open"} for token in tokens)
+        )
+        or _contains_phrase(tokens, ("visible", "candidate"))
+    )
+
+
+def _selected_candidate_bypass_violation(sentence: str) -> bool:
     tokens = _semantic_tokens(sentence)
     actions = _action_indices(
         tokens,
-        frozenset(
-            {
-                "cache",
-                "fallback",
-                "persist",
-                "remember",
-                "restore",
-                "resurrect",
-                "retain",
-                "reuse",
-                "store",
-            }
-        ),
+        SELECTED_GATE_ACTION_LEMMAS,
+        exact=SELECTED_GATE_ACTION_EXACT,
+        exclude_nominal_dial=True,
+        exclude_connection_noun=True,
+    )
+    return (
+        _has_selected_gate_source(tokens)
+        and any(token in SELECTED_GATE_TARGET_FORMS for token in tokens)
+        and bool(actions)
+        and _has_unnegated_action(tokens, actions)
+        and not _has_exact_selected_candidate_binding(tokens)
+    )
+
+
+def _selected_candidate_bypass_adjacent_violation(left: str, right: str) -> bool:
+    return _selected_candidate_bypass_violation(f"{left} {right}")
+
+
+def _candidate_reference_persistence_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    if "candidate" not in tokens or not any(
+        token in {"ref", "reference", "references"} for token in tokens
+    ):
+        return False
+    actions = _action_indices(
+        tokens,
+        PERSISTENCE_ACTION_LEMMAS | RESURRECTION_ACTION_LEMMAS,
+        exact=PERSISTENCE_ACTION_EXACT,
         fall_back=True,
     )
-    protected_targets = {
+    return bool(actions) and _has_unnegated_action(tokens, actions)
+
+
+def _allowed_attempt_journal_binding(tokens: list[str]) -> bool:
+    return (
+        "attempt" in tokens
+        and "journal" in tokens
+        and "exact" in tokens
+        and "frozen" in tokens
+        and any(_token_has_lemma(token, "discover") for token in tokens)
+        and not any(
+            token in {"fallback", "reconnect", "restart", "runtimeconfig", "static"}
+            for token in tokens
+        )
+    )
+
+
+def _outbound_resurrection_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    if _candidate_reference_persistence_violation(sentence):
+        return True
+    targets = {
         "address",
-        "candidate",
         "endpoint",
         "hostname",
         "observation",
         "path",
-        "ref",
-        "reference",
         "route",
     }
-    return (
-        any(token in protected_targets for token in tokens)
-        and bool(actions)
-        and _has_unnegated_action(tokens, actions)
+    if not any(token in targets for token in tokens):
+        return False
+
+    persistence_actions = _action_indices(
+        tokens,
+        PERSISTENCE_ACTION_LEMMAS,
+        exact=PERSISTENCE_ACTION_EXACT,
+        fall_back=True,
     )
+    if (
+        persistence_actions
+        and _has_unnegated_action(tokens, persistence_actions)
+        and not _allowed_attempt_journal_binding(tokens)
+    ):
+        return True
+
+    resurrection_actions = _action_indices(
+        tokens,
+        RESURRECTION_ACTION_LEMMAS,
+        fall_back=True,
+    )
+    if _allowed_fresh_discovery_attempt(tokens):
+        return False
+    return bool(resurrection_actions) and _has_unnegated_action(
+        tokens, resurrection_actions
+    )
+
+
+def _outbound_resurrection_adjacent_violation(left: str, right: str) -> bool:
+    target_tokens = _semantic_tokens(left)
+    action_tokens = _semantic_tokens(right)
+    candidate_reference = "candidate" in target_tokens and any(
+        token in {"ref", "reference", "references"} for token in target_tokens
+    )
+    endpoint_target = any(
+        token in {"address", "endpoint", "hostname", "observation", "path", "route"}
+        for token in target_tokens
+    )
+    if not candidate_reference and not endpoint_target:
+        return False
+    actions = _action_indices(
+        action_tokens,
+        PERSISTENCE_ACTION_LEMMAS | RESURRECTION_ACTION_LEMMAS,
+        exact=PERSISTENCE_ACTION_EXACT,
+        fall_back=True,
+    )
+    return (
+        bool(actions)
+        and _has_unnegated_action(action_tokens, actions)
+        and any(
+            token in {"it", "record", "reference", "route", "that", "this"}
+            for token in action_tokens[:8]
+        )
+    )
+
+
+def _endpoint_authority_violation(sentence: str) -> bool:
+    tokens = _semantic_tokens(sentence)
+    if _allowed_fresh_discovery_attempt(tokens):
+        return False
+    targets = {"address", "endpoint", "hostname", "path", "route"}
+    authority_markers = {"config", "configuration", "default", "fallback", "root", "runtimeconfig", "static"}
+    if not any(token in targets for token in tokens) or not any(
+        token in authority_markers for token in tokens
+    ):
+        return False
+    actions = _action_indices(
+        tokens,
+        ENDPOINT_AUTHORITY_ACTION_LEMMAS,
+        fall_back=True,
+    )
+    if actions and _has_unnegated_action(tokens, actions):
+        return True
+    return "authority" in tokens and not any(
+        token in {"cannot", "never", "no", "not"} for token in tokens
+    )
+
+
+def _endpoint_authority_adjacent_violation(left: str, right: str) -> bool:
+    marker_tokens = _semantic_tokens(left)
+    action_tokens = _semantic_tokens(right)
+    if not any(
+        token in {"config", "configuration", "default", "fallback", "root", "runtimeconfig", "static"}
+        for token in marker_tokens
+    ):
+        return False
+    if not any(
+        token in {"address", "endpoint", "hostname", "path", "route"}
+        for token in action_tokens
+    ):
+        return False
+    if not any(token in {"it", "that", "this"} for token in action_tokens[:5]):
+        return False
+    actions = _action_indices(
+        action_tokens,
+        ENDPOINT_AUTHORITY_ACTION_LEMMAS,
+        fall_back=True,
+    )
+    return bool(actions) and _has_unnegated_action(action_tokens, actions)
 
 
 def _has_noncurrent_schema_source(tokens: list[str]) -> bool:
@@ -1491,7 +1709,21 @@ def outbound_pairing_contract_errors(root: Path) -> list[str]:
                 _automatic_outbound_violation,
                 _automatic_outbound_adjacent_violation,
             ),
-            ("outbound-resurrection", _outbound_resurrection_violation, None),
+            (
+                "selected-candidate-bypass",
+                _selected_candidate_bypass_violation,
+                _selected_candidate_bypass_adjacent_violation,
+            ),
+            (
+                "outbound-resurrection",
+                _outbound_resurrection_violation,
+                _outbound_resurrection_adjacent_violation,
+            ),
+            (
+                "endpoint-authority",
+                _endpoint_authority_violation,
+                _endpoint_authority_adjacent_violation,
+            ),
         ):
             errors.extend(
                 _semantic_contract_errors(
@@ -1516,15 +1748,32 @@ def outbound_pairing_contract_errors(root: Path) -> list[str]:
             "active candidate queue",
             "fresh mDNS discovery",
             "Inbound `register=true` remains",
+            "While recovery is `UNPAIRED_LOCKED`, outbound first-trust eligibility requires both an active bounded pairing window and the exact currently selected candidate SKI",
+            "`OPEN_EMPTY` alone describes only the open window and empty inbound slot",
+            "private attempt journal may durably bind the exact frozen discovered endpoint and path",
+            "never contains `candidate_ref`",
+            "`RuntimeConfig`, static configuration, root-path default, or fallback authority",
+            "`AbortPrepared`, attempt-lease expiry, a protected attempt-helper panic, and restart recovery of an unresolved reservation each synthesize exactly one failure",
+            "matching revocation is the only non-failure cancellation",
+            "without a retry charge",
+            "The transport/service stops first",
+            "callback sink settle terminal callbacks and synthetic failures",
+            "`v0.7.1-helianthus.6`",
+            "`v0.6.1-helianthus.6`",
+            "`v0.7.1-helianthus.1`",
         ),
         "api/_candidate/msp-052-outbound-pairing-api.md": (
             "private, owner-only local administration",
             "No stable or public value exposes candidate presence",
             "experimental/admin",
-            "`PairingCandidateQueuer` and `CandidateRef` are private experimental interdependency contracts only",
+            "`PairingCandidateQueuer` and `CandidateRef` are private experimental process-local dependency capabilities only",
             "does not promote `candidate_ref` into `helianthus-eebusreg` public state",
             "exactly 40 lowercase hexadecimal characters",
             "no stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation",
+            "`candidate_ref` is a process-local dependency capability only",
+            "never durable and never stable `helianthus-eebusreg`, MCP, or GraphQL state",
+            "must not journal `candidate_ref`",
+            "Stable eebusreg, MCP, and GraphQL remain candidate-free",
         ),
     }
     for relative_path, required_terms in required_by_path.items():
