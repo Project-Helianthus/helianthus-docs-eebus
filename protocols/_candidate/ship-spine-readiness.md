@@ -116,10 +116,18 @@ The admitted-subscriber snapshot is race-safe in
 unsubscription therefore stops later admission but does not erase a callback
 already admitted by an in-flight publication.
 
+Application callbacks admitted for one subscriber retain source publication
+order while different subscribers remain independently dispatchable
+([ordered application dispatcher](https://github.com/Project-Helianthus/helianthus-spine-go/pull/8)).
+Launching one independent goroutine per event is not conformant because an
+older graph capture could then complete after a newer lifecycle event.
+
 Helianthus must bind observations to the configured remote, active service
 instance, and current connection generation. A stale callback, unrelated
-remote identity, foreign device object, or prior generation cannot populate or
-refresh the current graph.
+remote identity, foreign device object, or prior generation cannot alter the
+current graph. Snapshot publication is revision-ordered across
+SPINE refresh and transport lifecycle paths; a snapshot captured at an older graph
+revision cannot become observable after a newer revision.
 
 This candidate adds no `CandidateRef`, exported dependency type, stable public
 API, semantic projection, GraphQL field, MCP schema, Portal field, or Home

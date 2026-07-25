@@ -136,7 +136,15 @@ native Detailed Discovery `DeviceChange`/`Add` event, reading the configured
 remote from the active service instance. A later native entity add/remove
 event may refresh that same live graph. Every refresh is bound to the current
 connection generation; an unrelated remote identity, foreign device object,
-stale service, or callback from an earlier generation is inert.
+stale service, or callback from an earlier generation cannot alter the current
+graph.
+
+Application events execute FIFO per subscriber without serializing independent
+subscribers. The raw runtime assigns a monotonic graph revision to every
+accepted observation change and serializes marshal plus publication; a
+lower-revision snapshot is dropped if a higher revision has already published.
+This ordering covers SPINE graph refresh, transport connection/disconnection, and
+trust-administration annotation.
 
 Graph refresh preserves each native feature role exactly, including `client`,
 `server`, and `special`. It never collapses `special` to an empty or
