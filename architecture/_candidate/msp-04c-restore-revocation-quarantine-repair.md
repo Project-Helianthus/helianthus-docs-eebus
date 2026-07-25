@@ -5,9 +5,9 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260711-001"
+evidence_ids: "EV-20260711-001,EV-20260714-001"
 hypothesis_status: "draft"
-falsifier: "An accepted architecture review or conformance result demonstrates that restore, revocation, quarantine, or identity repair can violate durable denial, local identity continuity, callback provenance, or the private administration boundary."
+falsifier: "An accepted architecture review or conformance result demonstrates that restore, revocation, quarantine, identity repair, SPINE readiness, or observer shutdown can violate durable denial, local identity continuity, callback provenance, or the private administration boundary."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -121,6 +121,56 @@ address, full fingerprint, key, certificate bytes, raw `StoreInstance`, actual
 `nodeToken`, actual SHIP ID, administration payload, or durable record. There
 is no public mutation and no semantic promotion.
 
+## SHIP/SPINE Readiness And Observer Lifecycle
+
+The
+[candidate SHIP/SPINE readiness boundary](../../protocols/_candidate/ship-spine-readiness.md)
+separates transport liveness from native graph and use-case evidence. A
+SHIP-layer connection callback owns the connected session only. It precedes
+SPINE remote device setup and Detailed Discovery, so a current connected session may
+transiently have an empty topology. Empty at that stage is not evidence that
+the remote has no entities or features.
+
+The runtime refreshes the device, entity, and feature graph only after the
+native Detailed Discovery `DeviceChange`/`Add` event, reading the configured
+remote from the active service instance. A later native entity add/remove
+event may refresh that same live graph. Every refresh is bound to the current
+connection generation; an unrelated remote identity, foreign device object,
+stale service, or callback from an earlier generation cannot alter the current
+graph.
+
+Application events execute FIFO per subscriber without serializing independent
+subscribers. The raw runtime assigns a monotonic graph revision to every
+accepted observation change and serializes marshal plus publication; a
+lower-revision snapshot is dropped if a higher revision has already published.
+This ordering covers SPINE graph refresh, transport connection/disconnection, and
+trust-administration annotation.
+
+Graph refresh preserves each native feature role exactly, including `client`,
+`server`, and `special`. It never collapses `special` to an empty or
+unspecified role. If a public projection cannot represent a native role, the
+raw observation remains distinct and that projection is unavailable pending a
+separate versioned API review; no lossy substitute or API promotion occurs in
+this contract.
+
+Detailed Discovery does not establish use-case support. The native stack asks
+for NodeManagement use-case data afterward. Use-case claims remain absent
+until a native data-update event carries real NodeManagement use-case data,
+then refresh from the active remote device. The runtime never derives them
+from feature presence, device class, local registration, configuration, or a
+prior session.
+
+The SPINE observer belongs to exactly one runtime lifecycle. Shutdown first
+closes callback admission and unsubscribes that observer, then drains callbacks
+already admitted by an in-flight event publication, then shuts down the
+service and releases the runtime. A callback after close is inert, and shutdown
+cannot return while an admitted callback can still publish. Startup failure
+and rollback follow the same unsubscribe-and-drain rule.
+
+These rules are private conformance behavior. They add no `CandidateRef`,
+exported dependency type, public API declaration, consumer field, or semantic
+promotion.
+
 ## Required Falsification Gates
 
 | Gate | Required result |
@@ -129,6 +179,8 @@ is no public mutation and no semantic promotion.
 | `revocation_durable` | Tombstone durability precedes successful withdrawal reporting, and restart cannot resurrect the association. |
 | `repair_identity_stable` | Real host-key and certificate repair changes certificate SKI while exact `StoreInstance`, `nodeToken`, and canonical SHIP ID remain unchanged. |
 | `callback_provenance` | Policy reload creates no row; mDNS, connection, and transport-backed pairing callbacks create only their owning stages. |
+| `ship_spine_readiness` | A connected session may remain topology-empty until Detailed Discovery device-add evidence; graph and later use-case events refresh only their native evidence classes, and `special` feature roles remain distinct. |
+| `observer_shutdown` | Unsubscribe precedes service shutdown, admitted callbacks drain before return, and stale or post-close callbacks publish nothing. |
 | `public_redaction` | Captured output contains no protected identity, private coordinate, secret, or promoted semantic. |
 
 All deterministic tests use synthetic identities and disposable protected
