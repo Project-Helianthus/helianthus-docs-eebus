@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed API contract exposes candidate_ref outside the experimental internal dependency boundary; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; or retains transient trust after a terminal event."
+falsifier: "A reviewed API contract exposes candidate_ref outside the experimental internal dependency boundary; consumes pre-confirm same-connection SHIP ID/completion before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI` and revalidated candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, and connection liveness; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; or retains transient trust after a terminal event."
 candidate_output: "true"
 stable_navigation: "false"
 search: "false"
@@ -28,6 +28,12 @@ This candidate records the eeBUS control-plane boundary for
 declaration, wire schema, consumer availability, or protocol fact. Candidate
 inspection and selection remain private, owner-only local administration; this
 contract does not establish a promotion path for `candidate_ref`.
+
+The narrow callback-ordering correction from [docs issue
+58][preconfirm-docs-issue] and [companion code issue 62][preconfirm-code-issue]
+is candidate-only. It accepts their published live evidence of pre-confirm SHIP
+ID/completion for one exact TLS-bound already-certificate-trusting connection;
+it does not promote a new stable API or broaden the contract to other peers.
 
 ## Private Owner-Only Candidate Inspection
 
@@ -70,21 +76,25 @@ promote `candidate_ref` into `helianthus-eebusreg` public state.
 
 The action creates no trust by itself. It may request a candidate-bound attempt
 only after exact validation; verification of the selected outbound TLS/WebSocket
-certificate-derived fingerprint precedes WebSocket upgrade. The first exact non-error
-`OutgoingAttemptHandshakeStateUpdate`, accepted only after exact attempt
-metadata validation, supplies the initial TLS binding for that generation. The
-exact TLS-bound OOB confirm then checks the complete fingerprint, nonce, expiry,
-connection generation, and starting store generation. It may call
-`RegisterRemoteSKI` once for that generation as bounded transient runtime
-trust, with no durable generation/store write. It cannot require
-`observed_remote_ship_id` or SHIP Access Methods at that point, because they
-occur only after Hello reaches mutual trust-ready.
+certificate-derived fingerprint precedes WebSocket upgrade. The first exact
+non-error `OutgoingAttemptHandshakeStateUpdate`, accepted only after exact
+attempt metadata validation, supplies the initial TLS binding for that
+generation. An exact same-connection SHIP ID/completion callback may arrive
+before confirmation for an already-certificate-trusting peer, but it is only a
+volatile untrusted latch: it cannot expose candidate detail, register trust,
+write state, or start durable commit.
 
-The later tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` is an
-Access-Methods-stage event, not initial TLS evidence. It supplies the
-same-generation post-authorization remote SHIP ID. The private coordinator may
-propose durable trust only when that same transient generation remains
-TLS-bound, reports that non-empty `observed_remote_ship_id`, and then receives
+The exact TLS-bound OOB confirm checks the complete fingerprint, nonce, expiry,
+connection generation, and starting store generation. It must execute
+`RegisterRemoteSKI` once for that live generation as bounded transient runtime
+trust, with no durable generation/store write, before it may consume a latch.
+Immediately before consumption, the private coordinator revalidates candidate
+nonce, remote fingerprint/SKI, connection generation, selected store generation,
+and connection liveness. The tagged `RemoteSKIConnected`/`ServiceShipIDUpdate`
+is not initial TLS evidence. It may supply the same-generation remote SHIP ID as
+fresh post-registration evidence or as that fully revalidated latch. The private
+coordinator may propose durable trust only when the same transient generation
+remains TLS-bound, reports non-empty `observed_remote_ship_id`, and has
 `ConnectionStateCompleted` as its terminal handshake proof. There is no public
 auto-trust operation, no mutation that persists before that post-handshake
 commit, and no stable GraphQL, MCP, Portal, Home Assistant, CLI, or
@@ -98,16 +108,19 @@ a deterministic non-mutating no-op or error: it does not unregister or revoke
 the legitimate authorized candidate. In contrast, an actual candidate-lifecycle
 terminal event—expiry, observed disconnect/error, exact cancellation/close,
 generation conflict, shutdown, or deterministic store failure—revokes that
-candidate's transient trust exactly once when it was active. No terminal path
-can advance or rewrite the starting store generation. Identical idempotent replay
-returns the cached terminal or active result without a second
-register/unregister/commit effect.
+candidate's transient trust exactly once when it was active, discards every
+pre-confirm latch, and cannot advance or rewrite the starting store generation.
+Identical idempotent replay returns the cached terminal or active result without
+a second register/unregister/commit effect.
 
 Reentrant and concurrent callbacks are serialized by the private coordinator
 and must revalidate the generation before each external effect. If the
 disconnect transition linearizes before the SHIP-ID or completion handoff,
-those stale handoffs cannot commit; if `ConnectionStateCompleted` linearizes
-first with all exact bindings, the durable commit may proceed. The outcome
+those stale handoffs cannot commit. A pre-confirm latch also fails closed unless
+the post-registration nonce, remote fingerprint/SKI, connection generation,
+selected store generation, and connection-liveness revalidation succeeds; only
+then may `ConnectionStateCompleted` with all exact bindings permit durable
+commit. The outcome
 `trust_outcome_unknown` is reserved only after the durability-affecting recovery
 publication pipeline has begun: ambiguity in `PrepareControl`, anchor staging,
 finalization, clear, or `CommitControl` requires reopen. It is never used for a
@@ -137,4 +150,6 @@ peer.
 
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/54
 [eebusreg-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/58
+[preconfirm-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/58
+[preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15
