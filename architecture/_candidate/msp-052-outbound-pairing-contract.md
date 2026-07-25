@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed implementation or conformance result shows that exact TLS-bound OOB confirmation cannot create bounded transient trust before Hello reaches mutual trust-ready, that transient registration writes durable state, that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`, that any terminal path retains transient trust or changes the starting generation, or that candidate_ref becomes durable or stable."
+falsifier: "A reviewed implementation or conformance result shows that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`, that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness, that transient registration writes durable state, that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`, that any terminal path retains transient trust or changes the starting generation, or that candidate_ref becomes durable or stable."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -32,6 +32,12 @@ not observe an outbound endpoint, TLS pin, completion of that protocol stage, du
 reconnect. Those items below are derived design requirements and remain
 candidate until the companion implementation and its review gates are complete.
 
+The limited pre-confirm ordering correction is documented by [docs issue
+58][preconfirm-docs-issue] and [companion code issue 62][preconfirm-code-issue].
+Their published live evidence permits only this inference: an exact TLS-bound,
+already-certificate-trusting connection can report SHIP ID and completion before
+local OOB confirmation. It does not establish a generic device or protocol rule.
+
 ## Candidate Lifecycle
 
 Passive `_ship._tcp` discovery and allowlist evaluation alone never initiate a
@@ -43,8 +49,8 @@ state sequence:
 | --- | --- | --- |
 | `visible` | One passive mDNS observation is available for read-only inspection. | The observation owns its opaque `candidate_ref` and revision. |
 | `selected/validated` | The operator selected that exact reference and supplied the expected certificate identity. | Validation accepts only a lowercase 40-hex value equal to the selected observation. No trust record exists. |
-| `connected-untrusted` | The first exact non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation. | It supplies the initial TLS binding before exact TLS-bound OOB confirmation; before that, no SPINE setup, semantic processing, or payload delivery is available. Any SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
-| `transient-trust-active` | Exactly one `RegisterRemoteSKI` effect has admitted the selected, same-generation runtime peer after exact OOB confirmation. | This is not persistence. It permits Hello to reach mutual trust-ready, then SHIP Access Methods. The later tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` supplies the same-generation post-authorization remote SHIP ID; it is not initial TLS evidence. |
+| `connected-untrusted` | The first exact non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation. | It supplies the initial TLS binding before exact TLS-bound OOB confirmation; no SPINE setup, semantic processing, or payload delivery is available. The sole ordering exception is an exact same-connection SHIP ID/completion callback from an already-certificate-trusting peer, which is volatile untrusted/no-write only; every other SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
+| `transient-trust-active` | Exactly one `RegisterRemoteSKI` effect has admitted the selected, same-generation runtime peer after exact OOB confirmation. | This is not persistence. Only after that effect executes may fresh protocol evidence or a fully revalidated pre-confirm latch supply the same-generation remote SHIP ID and completion. |
 | `trusted` | The exact selected association committed durably after same-generation `ConnectionStateCompleted` with non-empty `observed_remote_ship_id`. | It is the only persistent first-trust result. |
 
 `candidate_ref` is opaque and process-local. It binds one exact mDNS
@@ -82,19 +88,24 @@ generation/store write. This transient runtime trust is bounded by the candidate
 and connection lifetime.
 
 The registered peer may then progress Hello to mutual trust-ready. The candidate
-must not demand SHIP Access Methods or `observed_remote_ship_id` before that point: both
-are later same-generation handshake evidence. The tagged
-`RemoteSKIConnected`/`ServiceShipIDUpdate` occurs at that Access-Methods stage
-and supplies the post-authorization remote SHIP ID; it is never the initial TLS
-binding. No durable proposal may start until the facade has non-empty
-`observed_remote_ship_id` and `ConnectionStateCompleted` for that transiently
-registered connection. A SPINE datagram received during
-the pre-transient approval hold is rejected, closes the connection, and is
-never buffered, decoded, delivered, exposed, or persisted. Outside that hold,
-the generic post-handshake setup-race buffer is bounded to at most 16 raw
-datagrams and 16 KiB total for that exact connection. Overflow, cancellation,
-or a terminal close fails closed and discards that buffer. Automatic durable
-trust and persistence before the post-handshake commit are forbidden.
+must not demand SHIP Access Methods or `observed_remote_ship_id` before local
+confirmation: neither can authorize transient or durable trust. For the
+published pre-confirm correction, tagged `RemoteSKIConnected`/`ServiceShipIDUpdate`
+and `ConnectionStateCompleted` may arrive on the exact TLS-bound connection
+before confirmation, but the facade may retain them only as a volatile untrusted
+latch. Exact OOB confirmation must execute `RegisterRemoteSKI` first. Only then
+may the facade consume the latch after revalidating candidate nonce, remote
+fingerprint/SKI, connection generation, selected store generation, and
+connection liveness. The tagged update is never the initial TLS binding. No
+durable proposal may start until those checks pass and it has non-empty
+`observed_remote_ship_id` and `ConnectionStateCompleted` for the transiently
+registered connection. Every other SPINE datagram received during the
+pre-transient approval hold is rejected, closes the connection, and is never
+buffered, decoded, delivered, exposed, or persisted. Outside that hold, the
+generic post-handshake setup-race buffer is bounded to at most 16 raw datagrams
+and 16 KiB total for that exact connection. Overflow, cancellation, or a
+terminal close fails closed and discards that buffer. Automatic durable trust
+and persistence before the post-handshake commit are forbidden.
 
 An initial request without the initial TLS binding is
 `association_incomplete`; transient expiry is `candidate_expired`. Other
@@ -105,15 +116,19 @@ authorized candidate. Actual candidate-lifecycle terminal events—expiry,
 observed disconnect/error, exact cancellation/close, generation conflict,
 shutdown, or deterministic store failure—issue the matching
 `UnregisterRemoteSKI` exactly once when registration occurred, discard the
-candidate, and leave the selected store generation unchanged. A process crash
-cannot rely on a final callback; recovery starts without any transient
-registration, candidate, or replay record and never reconstructs one from
-durable state.
+candidate and every pre-confirm latch, and leave the selected store generation
+unchanged. A process crash cannot rely on a final callback; recovery starts
+without any transient registration, candidate, latch, or replay record and
+never reconstructs one from durable state.
 
 Callback and event handoffs are serialized with the candidate generation. If a
 disconnect transition is ordered before the SHIP-ID or completed handoff, that
-handoff is stale and cannot commit. If `ConnectionStateCompleted` is ordered
-first with all exact same-generation bindings, the durable commit may proceed.
+handoff is stale and cannot commit. If either callback was latched before
+confirmation, the exact confirmation must first execute transient registration,
+then revalidate candidate nonce, remote fingerprint/SKI, connection generation,
+selected store generation, and connection liveness before consumption. Only then
+may `ConnectionStateCompleted` with all exact same-generation bindings permit
+durable commit.
 `trust_outcome_unknown` is reserved only after the durability-affecting recovery
 publication pipeline has begun: ambiguity in `PrepareControl`, anchor staging,
 finalization, clear, or `CommitControl` requires reopen. It is never used for a
@@ -184,4 +199,6 @@ copied into the trusted association.
 
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/54
 [eebusreg-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/58
+[preconfirm-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/58
+[preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15
