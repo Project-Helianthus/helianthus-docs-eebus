@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed implementation or conformance result shows that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`, that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness, that transient registration writes durable state, that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`, that any terminal path retains transient trust or changes the starting generation, or that candidate_ref becomes durable or stable."
+falsifier: "A reviewed implementation or conformance result shows that `RequireAnyClientCert` alone supplies identity or inbound TLS authority; that custom `Hub.ServeHTTP` accepts inbound initial TLS evidence before WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; that a pending outbound or competing inbound loser emits pairing, SHIP-ID, completion, or close evidence; that a wrong-SKI, unselected, stale-generation, or overlapping inbound/outbound callback supplies or replaces authority; that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`; that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness; that transient registration writes durable state; that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`; that any terminal path retains transient trust or changes the starting generation; or that candidate, reservation, TLS, trust, peer, or endpoint detail persists early or becomes public."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -38,6 +38,12 @@ Their published live evidence permits only this inference: an exact TLS-bound,
 already-certificate-trusting connection can report SHIP ID and completion before
 local OOB confirmation. It does not establish a generic device or protocol rule.
 
+The selected-candidate inbound TLS-binding correction is tracked by [docs issue
+60][inbound-docs-issue] and [companion code issue
+64][inbound-code-issue]. It records a custom `helianthus-ship-go` callback
+boundary as candidate derived design; it does not establish generic SHIP,
+SPINE, or external-device behavior.
+
 ## Candidate Lifecycle
 
 Passive `_ship._tcp` discovery and allowlist evaluation alone never initiate a
@@ -49,7 +55,7 @@ state sequence:
 | --- | --- | --- |
 | `visible` | One passive mDNS observation is available for read-only inspection. | The observation owns its opaque `candidate_ref` and revision. |
 | `selected/validated` | The operator selected that exact reference and supplied the expected certificate identity. | Validation accepts only a lowercase 40-hex value equal to the selected observation. No trust record exists. |
-| `connected-untrusted` | The first exact non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation. | It supplies the initial TLS binding before exact TLS-bound OOB confirmation; no SPINE setup, semantic processing, or payload delivery is available. The sole ordering exception is an exact same-connection SHIP ID/completion callback from an already-certificate-trusting peer, which is volatile untrusted/no-write only; every other SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
+| `connected-untrusted` | The selected candidate has initial TLS evidence for the exact current generation from either the verified outbound callback or the verified inbound pairing-request callback. | Exactly one path supplies the initial TLS binding before exact TLS-bound OOB confirmation; no SPINE setup, semantic processing, or payload delivery is available. The sole ordering exception is an exact same-connection SHIP ID/completion callback from an already-certificate-trusting peer, which is volatile untrusted/no-write only; every other SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
 | `transient-trust-active` | Exactly one `RegisterRemoteSKI` effect has admitted the selected, same-generation runtime peer after exact OOB confirmation. | This is not persistence. Only after that effect executes may fresh protocol evidence or a fully revalidated pre-confirm latch supply the same-generation remote SHIP ID and completion. |
 | `trusted` | The exact selected association committed durably after same-generation `ConnectionStateCompleted` with non-empty `observed_remote_ship_id`. | It is the only persistent first-trust result. |
 
@@ -76,13 +82,41 @@ The expected identity uses the certificate short-identifier representation. It i
 exactly lowercase hexadecimal, exactly 40 characters, and exactly equal to the
 selected observation.
 
-The TLS peer certificate is pinned to that exact SKI before the WebSocket
-upgrade. A pin mismatch aborts before a WebSocket handler runs. The first exact
-non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of that
-selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt
-metadata validation; it supplies the initial TLS binding. Passing the pin does not create
-durable trust. Exact OOB confirmation of the TLS-bound fingerprint, nonce,
-expiry, connection generation, and starting store generation may call
+Outbound and inbound initial TLS evidence are distinct, generation-bound paths.
+For outbound, the TLS peer certificate is pinned to the selected candidate's
+exact SKI before WebSocket upgrade. A pin mismatch aborts before a WebSocket
+handler runs. The first exact non-error
+`OutgoingAttemptHandshakeStateUpdate` follows verification of that selected
+outbound TLS/WebSocket certificate-derived fingerprint and exact attempt
+metadata validation.
+
+For inbound, the custom `helianthus-ship-go` `Hub.ServeHTTP` emits
+`ConnectionStateReceivedPairingRequest` only after WebSocket upgrade and a
+complete identity gate. The gate recomputes the certificate short identifier
+from the presented P-256 public key through `cert.SkiFromCertificate`,
+constant-time compares the recomputed bytes with `SubjectKeyId`, and resolves
+the exact service/SKI pair. `RequireAnyClientCert` establishes certificate
+presence only; it is not identity proof and cannot authorize this callback as
+TLS evidence.
+
+Before callback emission, an opaque internal reservation keyed by the
+certificate-derived SKI selects and registers the exact winning inbound
+connection atomically. This is internal connection arbitration, not transient
+`RegisterRemoteSKI`, durable trust, or persistence. A pending outbound attempt
+and every competing inbound attempt for that key lose and emit no pairing
+callback, tagged SHIP-ID update, `ConnectionStateCompleted`, or close evidence.
+
+For a selected candidate, the facade may use the emitted winner callback as
+initial inbound TLS binding only when the resolved service/SKI equals the
+selection and the callback is bound to the exact current connection generation.
+There is no valid overlapping callback from a loser. Wrong-SKI,
+unselected-peer, stale-generation, loser, or overlap evidence fails closed
+without replacing the binding, registering trust, writing state, or exposing
+candidate detail.
+
+Passing either winning initial TLS path does not create durable trust. Exact
+OOB confirmation of the TLS-bound fingerprint, nonce, expiry, connection
+generation, and starting store generation may call
 `RegisterRemoteSKI` once for that live generation, with no durable
 generation/store write. This transient runtime trust is bounded by the candidate
 and connection lifetime.
@@ -185,10 +219,16 @@ or a protocol-version claim.
 
 Inbound `register=true` remains a local advertisement for bounded registration
 and is independent from outbound selection. It does not auto-trust, select an
-outbound peer, or authorize a static route. The discovery owner creates and
-invalidates observations; the pairing coordinator owns exact validation and
-durable commit; the connection owner enforces TLS pinning and SHIP hold; the
-store owns only durable records.
+outbound peer, or authorize a static route. An inbound
+`ConnectionStateReceivedPairingRequest` cannot select a candidate; it may bind
+TLS only for the exact already selected candidate and current connection
+generation after the custom `Hub.ServeHTTP` identity and winner-reservation
+preconditions above. This volatile inbound winner reservation is distinct from
+the durable outbound attempt-journal reservation below. It never becomes
+candidate state, durable state, or a public identifier. The discovery owner
+creates and invalidates observations; the pairing coordinator owns exact
+validation and durable commit; the connection owner enforces TLS pinning and
+SHIP hold; the store owns only durable records.
 
 The durable record begins only after the selected/validated candidate reaches
 the post-handshake trusted transition. Candidate references, active queue state,
@@ -201,4 +241,6 @@ copied into the trusted association.
 [eebusreg-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/58
 [preconfirm-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/58
 [preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
+[inbound-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/60
+[inbound-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/64
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15

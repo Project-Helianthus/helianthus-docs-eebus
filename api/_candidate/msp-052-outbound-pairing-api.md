@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed API contract exposes candidate_ref outside the experimental internal dependency boundary; consumes pre-confirm same-connection SHIP ID/completion before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI` and revalidated candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, and connection liveness; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; or retains transient trust after a terminal event."
+falsifier: "A reviewed API contract exposes candidate_ref, the opaque winner reservation, or inbound/outbound TLS-binding detail outside the experimental internal dependency boundary; treats `RequireAnyClientCert` alone as identity; accepts inbound initial TLS evidence before custom `Hub.ServeHTTP` completes WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; lets a pending outbound or competing inbound loser emit pairing, SHIP-ID, completion, or close evidence; lets a wrong-SKI, unselected, stale-generation, or overlapping callback supply or replace authority; consumes pre-confirm same-connection SHIP ID/completion before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI` and revalidated candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, and connection liveness; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; retains transient trust after a terminal event; or persists or publicly exposes candidate, reservation, TLS, trust, peer, or endpoint detail."
 candidate_output: "true"
 stable_navigation: "false"
 search: "false"
@@ -34,6 +34,12 @@ The narrow callback-ordering correction from [docs issue
 is candidate-only. It accepts their published live evidence of pre-confirm SHIP
 ID/completion for one exact TLS-bound already-certificate-trusting connection;
 it does not promote a new stable API or broaden the contract to other peers.
+
+The selected-candidate inbound TLS-binding correction from [docs issue
+60][inbound-docs-issue] and [companion code issue
+64][inbound-code-issue] is also candidate-only. It records a private custom
+dependency callback and does not add a stable declaration, field, endpoint,
+event, or consumer surface.
 
 ## Private Owner-Only Candidate Inspection
 
@@ -79,8 +85,32 @@ only after exact validation; verification of the selected outbound TLS/WebSocket
 certificate-derived fingerprint precedes WebSocket upgrade. The first exact
 non-error `OutgoingAttemptHandshakeStateUpdate`, accepted only after exact
 attempt metadata validation, supplies the initial TLS binding for that
-generation. An exact same-connection SHIP ID/completion callback may arrive
-before confirmation for an already-certificate-trusting peer, but it is only a
+generation on the outbound path.
+
+On the distinct inbound path, custom `helianthus-ship-go`
+`Hub.ServeHTTP` emits `ConnectionStateReceivedPairingRequest` only after
+WebSocket upgrade and the complete private identity gate. The gate recomputes
+the certificate short identifier from the presented P-256 public key through
+`cert.SkiFromCertificate`, constant-time compares it with `SubjectKeyId`, and
+resolves the exact service/SKI pair. `RequireAnyClientCert` alone proves only
+certificate presence and is not identity proof.
+
+An opaque internal reservation keyed by the certificate-derived SKI then
+atomically selects and internally registers the exact winning inbound
+connection before callback emission. This connection arbitration is not
+transient trust, durable trust, or public API. A pending outbound attempt and
+every competing inbound attempt are losers and emit no pairing callback,
+tagged SHIP-ID update, `ConnectionStateCompleted`, or close evidence.
+
+For an already selected candidate, the private facade may accept the emitted
+winner callback as the initial inbound TLS binding only when its
+certificate-derived SKI and resolved service/SKI equal the selection and the
+callback is bound to the exact current connection generation. Wrong-SKI,
+unselected, stale-generation, loser, or overlapping evidence is rejected
+without mutation or disclosure.
+
+An exact same-connection SHIP ID/completion callback may arrive before
+confirmation for an already-certificate-trusting peer, but it is only a
 volatile untrusted latch: it cannot expose candidate detail, register trust,
 write state, or start durable commit.
 
@@ -134,6 +164,11 @@ consumer field can supply fallback authority. Restart consumes an unresolved
 reservation as one synthetic failure before serving requests; it does not
 restore a candidate capability or reconnect route.
 
+That durable outbound attempt-journal reservation is distinct from the
+volatile inbound winner reservation. The winner reservation is discarded on
+connection termination or restart and is never journaled, persisted, exposed,
+or reconstructed.
+
 ## Stable Public Freeze
 
 No stable or public value exposes candidate presence, `candidate_ref`, remote
@@ -145,11 +180,17 @@ and consumer compatibility review.
 
 Inbound `register=true` remains compatible as an inbound registration signal.
 Passive discovery and allowlist evaluation alone never initiate a network
-attempt, and public visibility never implies a selected, connected, or trusted
-peer.
+attempt. `ConnectionStateReceivedPairingRequest` remains private dependency
+evidence and cannot select a peer. The opaque winner reservation and
+`candidate_ref` cannot enter `Runtime`, `Snapshot`, `PairingState`, stable
+eebusreg, MCP, GraphQL, Portal, Home Assistant, CLI, logs, metrics, traces,
+fixtures, or any stable/public schema. Public visibility never implies a
+selected, connected, or trusted peer.
 
 [docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/54
 [eebusreg-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/58
 [preconfirm-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/58
 [preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
+[inbound-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/60
+[inbound-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/64
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15
