@@ -164,7 +164,7 @@ review. It MUST NOT be substituted silently for
 
 | State | Meaning | Persistence boundary |
 | --- | --- | --- |
-| `TRANSIENT_TRUSTED` | Exact OOB confirmation has authorized one same-generation `RegisterRemoteSKI` effect after the initial TLS binding, while the candidate awaits its post-authorization remote SHIP ID and `ConnectionStateCompleted`. | Volatile only; it is never a durable association and is revoked exactly once only by a candidate-lifecycle terminal event. |
+| `TRANSIENT_TRUSTED` | Exact OOB confirmation has authorized one same-generation `RegisterRemoteSKI` effect after the initial TLS binding, while the candidate awaits fresh post-registration or fully revalidated latched remote SHIP ID and `ConnectionStateCompleted` evidence. | Volatile only; it is never a durable association and is revoked exactly once only by a candidate-lifecycle terminal event. |
 
 ## Coordinator State Machine
 
@@ -635,7 +635,7 @@ values and no live peer dependency:
    TLS-bound pairing key/generation, reject absent/stale/mismatched/disconnected
    values without writes, call `RegisterRemoteSKI` once after exact OOB
    confirmation before durable commit, and prove the stale policy to call
-   `RegisterRemoteSKI` only after durable confirmation is rejected. They also
+   `RegisterRemoteSKI` only after durable commit is rejected. They also
    prove pre-confirm SHIP ID/completion cannot be consumed until registration
    executes and every exact binding is revalidated, while race losers/closed-window
    peers are cancelled and terminal transient trust is unregistered once.
