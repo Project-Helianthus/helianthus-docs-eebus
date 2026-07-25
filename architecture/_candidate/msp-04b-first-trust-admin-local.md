@@ -78,7 +78,7 @@ evidence state is `handshake_incomplete`, not a reason to write the store.
 | Binding | Constraint |
 | --- | --- |
 | `remote_ski` | Opaque bytes from the pairing callback, bound to the exact connection generation and never rendered except as `fingerprint_v1` in the privileged local response. |
-| `tls_binding` | The initial binding supplied by the first exact non-error `OutgoingAttemptHandshakeStateUpdate`, after verification of the selected outbound TLS/WebSocket certificate short identifier and exact attempt metadata validation for the candidate's `remote_ski` and `connection_generation`; it is required before any transient registration. |
+| `tls_binding` | The initial binding supplied by the first exact non-error `OutgoingAttemptHandshakeStateUpdate`, after verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation for the candidate's `remote_ski` and `connection_generation`; it is required before any transient registration. |
 | `observed_remote_ship_id` | A non-empty opaque value supplied by tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` at the Access-Methods stage for the same `remote_ski` and `connection_generation`, only after transient registration permits Hello to reach mutual trust-ready; it is absent before that point and is not initial TLS evidence. |
 | `ship_handshake_complete` | `ConnectionStateCompleted`, the facade's same-generation terminal proof of completed protocol setup after mutual trust-ready. It is not inferred from TLS, registration, or a callback from another connection. |
 | `fingerprint_v1` | The normalized, full 40-character lowercase hexadecimal encoding of the bytes in `remote_ski`, with no separators, prefix, surrounding whitespace, truncation, or alternate encoding. |
@@ -99,7 +99,7 @@ which byte differed.
 
 The live-proven ordering used by this candidate is deliberately narrow. The
 first exact non-error `OutgoingAttemptHandshakeStateUpdate` is downstream of
-verification of the selected outbound TLS/WebSocket certificate short identifier
+verification of the selected outbound TLS/WebSocket certificate-derived fingerprint
 and exact attempt metadata validation, and supplies the initial TLS binding. SHIP Access Methods
 and tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` occur only after Hello
 reaches mutual trust-ready. The later event supplies the same-generation
@@ -440,8 +440,8 @@ event. The callback itself cannot modify the store, open a window, compare OOB
 input, or register trust.
 
 The first exact non-error `OutgoingAttemptHandshakeStateUpdate` is translated
-only after verification of the selected outbound TLS/WebSocket certificate short
-identifier and exact attempt metadata validation; it supplies the initial TLS binding. The
+only after verification of the selected outbound TLS/WebSocket certificate-derived fingerprint
+and exact attempt metadata validation; it supplies the initial TLS binding. The
 tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` is translated separately, at
 the later Access-Methods stage after transient trust has let Hello reach mutual
 trust-ready. It supplies the post-authorization remote SHIP ID, not initial TLS

@@ -70,7 +70,7 @@ promote `candidate_ref` into `helianthus-eebusreg` public state.
 
 The action creates no trust by itself. It may request a candidate-bound attempt
 only after exact validation; verification of the selected outbound TLS/WebSocket
-certificate short identifier precedes WebSocket upgrade. The first exact non-error
+certificate-derived fingerprint precedes WebSocket upgrade. The first exact non-error
 `OutgoingAttemptHandshakeStateUpdate`, accepted only after exact attempt
 metadata validation, supplies the initial TLS binding for that generation. The
 exact TLS-bound OOB confirm then checks the complete fingerprint, nonce, expiry,

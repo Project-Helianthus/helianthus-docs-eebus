@@ -43,7 +43,7 @@ state sequence:
 | --- | --- | --- |
 | `visible` | One passive mDNS observation is available for read-only inspection. | The observation owns its opaque `candidate_ref` and revision. |
 | `selected/validated` | The operator selected that exact reference and supplied the expected certificate identity. | Validation accepts only a lowercase 40-hex value equal to the selected observation. No trust record exists. |
-| `connected-untrusted` | The first exact non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of the selected outbound TLS/WebSocket certificate short identifier and exact attempt metadata validation. | It supplies the initial TLS binding before exact TLS-bound OOB confirmation; before that, no SPINE setup, semantic processing, or payload delivery is available. Any SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
+| `connected-untrusted` | The first exact non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation. | It supplies the initial TLS binding before exact TLS-bound OOB confirmation; before that, no SPINE setup, semantic processing, or payload delivery is available. Any SPINE datagram received during that approval hold is rejected and closes the connection fail-closed. |
 | `transient-trust-active` | Exactly one `RegisterRemoteSKI` effect has admitted the selected, same-generation runtime peer after exact OOB confirmation. | This is not persistence. It permits Hello to reach mutual trust-ready, then SHIP Access Methods. The later tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` supplies the same-generation post-authorization remote SHIP ID; it is not initial TLS evidence. |
 | `trusted` | The exact selected association committed durably after same-generation `ConnectionStateCompleted` with non-empty `observed_remote_ship_id`. | It is the only persistent first-trust result. |
 
@@ -73,7 +73,7 @@ selected observation.
 The TLS peer certificate is pinned to that exact SKI before the WebSocket
 upgrade. A pin mismatch aborts before a WebSocket handler runs. The first exact
 non-error `OutgoingAttemptHandshakeStateUpdate` follows verification of that
-selected outbound TLS/WebSocket certificate short identifier and exact attempt
+selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt
 metadata validation; it supplies the initial TLS binding. Passing the pin does not create
 durable trust. Exact OOB confirmation of the TLS-bound fingerprint, nonce,
 expiry, connection generation, and starting store generation may call
