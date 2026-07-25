@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001,EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "An accepted conformance result shows that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`, that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness, that transient registration writes a generation, that durable commit omits same-generation `ship_handshake_complete` and non-empty `observed_remote_ship_id`, or that a terminal path leaves transient trust registered or changes the starting store generation."
+falsifier: "An accepted conformance result shows that `RequireAnyClientCert` alone supplies identity or inbound TLS authority; that custom `Hub.ServeHTTP` accepts inbound initial TLS evidence before WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; that a pending outbound or competing inbound loser emits pairing, SHIP-ID, completion, or close evidence; that a wrong-SKI, unselected, stale-generation, or overlapping inbound/outbound callback supplies or replaces authority; that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`; that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness; that transient registration writes a generation; that durable commit omits same-generation `ship_handshake_complete` and non-empty `observed_remote_ship_id`; that a terminal path leaves transient trust registered or changes the starting store generation; or that any candidate, reservation, TLS, trust, or peer detail persists early or leaks into a public surface."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -39,6 +39,12 @@ published live evidence: an exact TLS-bound connection may report SHIP ID and
 completion before local OOB confirmation when the peer has already accepted the
 local certificate. This page records the required fail-closed handling of that
 ordering; it makes no broader device or protocol claim.
+
+The selected-candidate inbound TLS-binding correction in [docs issue
+60][inbound-docs-issue] and [companion code issue
+64][inbound-code-issue] is candidate derived design. It records the custom
+`helianthus-ship-go` callback boundary used by Helianthus; it does not attribute
+that callback or its ordering to generic SHIP, SPINE, or an external device.
 
 Stable API, navigation, search, sitemap, versioned-bundle, and release-bundle
 outputs intentionally omit this candidate. Publication of this page does not
@@ -85,7 +91,7 @@ evidence state is `handshake_incomplete`, not a reason to write the store.
 | Binding | Constraint |
 | --- | --- |
 | `remote_ski` | Opaque bytes from the pairing callback, bound to the exact connection generation and never rendered except as `fingerprint_v1` in the privileged local response. |
-| `tls_binding` | The initial binding supplied by the first exact non-error `OutgoingAttemptHandshakeStateUpdate`, after verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation for the candidate's `remote_ski` and `connection_generation`; it is required before any transient registration. |
+| `tls_binding` | The initial binding supplied by exactly one verified winning path for the selected candidate and current `connection_generation`: the first exact non-error outbound `OutgoingAttemptHandshakeStateUpdate` after certificate-derived fingerprint and attempt-metadata validation, or inbound `ConnectionStateReceivedPairingRequest` after the custom `Hub.ServeHTTP` has completed WebSocket upgrade, recomputed the certificate short identifier from the presented P-256 public key through `cert.SkiFromCertificate`, matched the recomputed bytes to `SubjectKeyId` in constant time, resolved the exact service/SKI pair, and atomically reserved and internally registered the exact inbound winner. It is required before any transient trust registration. |
 | `observed_remote_ship_id` | A non-empty opaque value supplied by tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` at the Access-Methods stage for the same `remote_ski` and `connection_generation`. It is not initial TLS evidence. Before OOB confirmation it may be latched only as volatile untrusted evidence for an already-certificate-trusting peer; it cannot cause registration, commit, persistence, or public observation. |
 | `ship_handshake_complete` | `ConnectionStateCompleted`, the facade's same-generation terminal proof of completed protocol setup. Before OOB confirmation it may be latched only with the same exact bindings as volatile untrusted evidence; it is not inferred from TLS, registration, or a callback from another connection. |
 | `fingerprint_v1` | The normalized, full 40-character lowercase hexadecimal encoding of the bytes in `remote_ski`, with no separators, prefix, surrounding whitespace, truncation, or alternate encoding. |
@@ -104,11 +110,39 @@ association-key bytes. No prefix, suffix, case-folded, shortened, or display-for
 accepted. Comparison behavior and externally visible outcomes MUST NOT reveal
 which byte differed.
 
-The first exact non-error `OutgoingAttemptHandshakeStateUpdate` is downstream of
-verification of the selected outbound TLS/WebSocket certificate-derived fingerprint
-and exact attempt metadata validation, and supplies the initial TLS binding.
-Published live evidence for the correction issues shows one narrower ordering:
-an already-certificate-trusting peer may send tagged
+Outbound and inbound initial TLS evidence are distinct paths. The first exact
+non-error `OutgoingAttemptHandshakeStateUpdate` is downstream of verification
+of the selected outbound TLS/WebSocket certificate-derived fingerprint and
+exact attempt metadata validation. For a selected candidate, the custom
+`Hub.ServeHTTP` may instead emit
+`ConnectionStateReceivedPairingRequest` only after WebSocket upgrade and the
+complete inbound identity gate. That gate requires a presented P-256 client
+certificate, recomputation of its short identifier from the public key by
+`cert.SkiFromCertificate`, constant-time equality of the recomputed bytes and
+`SubjectKeyId`, and exact resolution of the service/SKI pair.
+`RequireAnyClientCert` proves only certificate presence; by itself it is not
+identity proof and cannot supply TLS binding or trust authority.
+
+Before emitting the callback, an opaque internal reservation keyed by the
+certificate-derived SKI selects and registers the exact winning inbound
+connection atomically. This registration is connection arbitration inside
+`helianthus-ship-go`, not `RegisterRemoteSKI`, trust, or persistence. A pending
+outbound attempt and every competing inbound attempt for the same key are
+losers. They emit no pairing callback, tagged SHIP-ID update,
+`ConnectionStateCompleted`, or close evidence to the facade.
+
+The facade may accept that callback as the initial inbound TLS binding only
+when its certificate-derived SKI and resolved service/SKI equal the selected
+candidate and it is tagged with the exact current connection generation.
+
+The exact reservation winner supplies the candidate's initial TLS binding.
+There is no valid overlapping duplicate from a losing inbound or outbound
+attempt. Any loser evidence, wrong-SKI, unselected-peer, stale-generation, or
+overlapping callback is rejected without replacing the binding, registering
+trust, changing the store, or exposing candidate detail.
+
+Published live evidence for the pre-confirm correction issues shows one
+narrower ordering: an already-certificate-trusting peer may send tagged
 `RemoteSKIConnected`/`ServiceShipIDUpdate` and `ConnectionStateCompleted` on
 that same TLS-bound connection while the candidate is still
 `CANDIDATE_PENDING`. These callbacks are neither initial TLS evidence nor local
@@ -454,10 +488,26 @@ An untrusted-peer callback is translated into one generation-bound coordinator
 event. The callback itself cannot modify the store, open a window, compare OOB
 input, or register trust.
 
-The first exact non-error `OutgoingAttemptHandshakeStateUpdate` is translated
-only after verification of the selected outbound TLS/WebSocket certificate-derived fingerprint
-and exact attempt metadata validation; it supplies the initial TLS binding. The
-tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` and
+The first exact non-error outbound `OutgoingAttemptHandshakeStateUpdate` is
+translated only after verification of the selected outbound TLS/WebSocket
+certificate-derived fingerprint and exact attempt metadata validation. The
+custom inbound `Hub.ServeHTTP` translates
+`ConnectionStateReceivedPairingRequest` only after successful WebSocket
+upgrade; P-256 public-key recomputation by `cert.SkiFromCertificate`;
+constant-time equality with `SubjectKeyId`; exact resolution of the service/SKI
+pair; and atomic selection and internal registration of the exact inbound
+winner in an opaque identity-keyed reservation. `RequireAnyClientCert` alone
+cannot pass this gate. For a selected candidate, either path may supply the
+initial TLS binding only for its exact certificate-derived SKI and current
+connection generation.
+
+If the inbound callback is emitted, a pending outbound and all competing
+inbound attempts have already lost the reservation and emit no pairing,
+SHIP-ID, completion, or close evidence. Wrong-SKI, unselected,
+stale-generation, loser, or overlapping evidence is rejected and cannot
+replace or combine bindings.
+
+The tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` and
 `ConnectionStateCompleted` are translated separately. For the exact
 already-certificate-trusting connection documented by the correction issues,
 they may arrive before confirmation and are then latches only; no other SHIP or
@@ -529,9 +579,10 @@ MSP-04B does not change the active public API contract. Public `Runtime`,
 `Snapshot`, and `PairingState` remain read-only observations. No public
 declaration gains an open, close, confirm, cancel, register, unregister, trust,
 candidate-mutation, allowlist, or endpoint operation. No
-public value exposes candidate presence, remote candidate identity, fingerprint,
-nonce, idempotency key, connection generation, starting store generation,
-expiry, admin path, command history, or allowlist entry.
+public value exposes candidate presence, the inbound winner reservation, remote
+candidate identity, fingerprint, nonce, idempotency key, connection generation,
+starting store generation, expiry, admin path, command history, or allowlist
+entry.
 
 The AF_UNIX command protocol, coordinator, candidate record, and facade
 translation types remain private implementation details. The candidate does
@@ -547,10 +598,10 @@ MSP-045's combined read-only mapping is defined by the
 Orderly restart first unregisters every transiently registered candidate, then
 discards the volatile window, candidate, nonce, active idempotency state, and
 terminal-result cache. Restart discards the volatile window, candidate, nonce,
-active idempotency state, and terminal-result cache even after a crash: a crash
-cannot depend on the unregister callback, and the transient runtime
-registration dies with the process. The next process must not replay or infer
-it.
+active idempotency state, and terminal-result cache even after a crash. It also
+discards the volatile inbound winner reservation. A crash cannot depend on the
+unregister callback, and the transient runtime registration dies with the
+process. The next process must not replay or infer it.
 The new process starts `DISABLED`, opens the store under MSP-04A rules, reloads
 only the selected durable associations, and enters `PAIRING_CLOSED` when safe.
 It never infers an open window, visible service, session, candidate, or observed
@@ -572,11 +623,11 @@ substitute for the deterministic cases below.
 | Gate | Required observation | Falsifier |
 | --- | --- | --- |
 | `G02` | While pairing is closed, an unknown peer is refused and a store spy observes zero store writes. | Falsified if the peer is admitted, a candidate appears, or any persistent write occurs while the window is closed. |
-| `G03` | While the window is open, the coordinator holds exactly one ephemeral RAM candidate and performs no persistent write before exact OOB confirmation. Exact same-connection SHIP ID/completion received before confirmation is volatile untrusted/no-write; confirmation executes transient registration once before the latch may be consumed after all exact revalidation. | Falsified if pre-confirm evidence registers, commits, persists, or becomes public; candidate or transient state is durable; registration occurs without exact bindings; latch consumption omits nonce, fingerprint/SKI, generation, store-generation, or liveness revalidation; or a write occurs before complete post-handshake association binding. |
-| `G04` | Two racing peers yield one candidate and one deterministic `candidate_busy` denial, and wrong fingerprint leaves the store unchanged. | Falsified if both peers win, the loser outcome varies, wrong OOB input clears/replaces the candidate, or any store write occurs for the wrong fingerprint. |
+| `G03` | While the window is open, the coordinator holds exactly one ephemeral RAM candidate and performs no persistent write before exact OOB confirmation. Exact selected-candidate inbound or outbound TLS evidence may bind only the current generation. Inbound evidence additionally follows P-256 public-key recomputation, constant-time `SubjectKeyId` equality, exact service resolution, and atomic winner reservation. Exact same-connection SHIP ID/completion received before confirmation is volatile untrusted/no-write; confirmation executes transient registration once before the latch may be consumed after all exact revalidation. | Falsified if `RequireAnyClientCert` alone supplies identity; wrong-SKI, unselected, stale-generation, loser, or overlap evidence supplies authority; pre-confirm evidence registers, commits, persists, or becomes public; candidate or transient state is durable; registration occurs without exact bindings; latch consumption omits nonce, fingerprint/SKI, generation, store-generation, or liveness revalidation; or a write occurs before complete post-handshake association binding. |
+| `G04` | Two racing peers yield one candidate and one deterministic `candidate_busy` denial; wrong fingerprint leaves the store unchanged; and the opaque reservation emits evidence only for its exact winner. | Falsified if both peers win, the loser outcome varies, a pending outbound or competing inbound loser emits pairing/SHIP-ID/completion/close evidence, an unselected callback or a callback carrying the wrong SKI binds the candidate, stale or overlapping evidence replaces the binding, wrong OOB input clears/replaces the candidate, or any store write occurs for the wrong fingerprint. |
 | `G05` | Allowlist entries and opening a pairing window result in no remote queue, dial, visible service, session, topology, or candidate; the window changes only local `register=true`. | Falsified if any remote effect or observed state follows policy configuration or the window transition. |
 | `G06` | An mDNS callback creates only service visibility, a connection callback creates the session, and a transport-backed pairing callback creates the candidate; exact OOB confirmation creates bounded transient trust, while only exact OOB confirmation plus `commit_durable` create durable trust after executed transient registration and protocol completion. | Falsified if an earlier stage creates a later-stage observation, pre-confirm evidence gains authority, transient trust persists, durable trust lacks same-generation protocol completion, or policy input substitutes for a callback. |
-| `G16` | Public artifact scans contain random per-run labels, outcomes, and counts only, while API-diff tests keep the supported public surface read-only and candidate-free. | Falsified if any forbidden identity/secret category, candidate detail, stable peer history, or public mutation declaration appears in an artifact. |
+| `G16` | Public artifact scans contain random per-run labels, outcomes, and counts only, while API-diff tests keep the supported public surface read-only and candidate-free. | Falsified if any winner-reservation or inbound/outbound TLS-binding detail, forbidden identity/secret category, candidate detail, stable peer history, or public mutation declaration appears in an artifact or stable surface. |
 
 Store-boundary and AF_UNIX proofs remain separate required tests. They support
 the architecture and security contract but are not substitutes for the locked
@@ -631,10 +682,18 @@ values and no live peer dependency:
    gating, buffer clearing, and absence from logs, metrics, traces, captures,
    fixtures, and other shareable outputs.
 5. Facade tests keep auto-accept false, bind callbacks to one connection
-   generation, bind `ServiceShipIDUpdate` and protocol completion to the same
-   TLS-bound pairing key/generation, reject absent/stale/mismatched/disconnected
-   values without writes, call `RegisterRemoteSKI` once after exact OOB
-   confirmation before durable commit, and prove the stale policy to call
+   generation, prove `RequireAnyClientCert` alone is insufficient, and prove
+   the inbound callback follows WebSocket upgrade, P-256 public-key
+   recomputation by `cert.SkiFromCertificate`, constant-time `SubjectKeyId`
+   equality, exact resolution of the service/SKI pair, and atomic reservation
+   of the exact inbound winner. They cover wrong SKI, an unselected peer, stale
+   generation, a pending outbound loser, competing inbound losers, and
+   forbidden inbound/outbound overlap; prove losers emit no
+   pairing/SHIP-ID/completion/close evidence; bind `ServiceShipIDUpdate`
+   and protocol completion to the same TLS-bound pairing key/generation; reject
+   absent/stale/mismatched/disconnected values without writes; call
+   `RegisterRemoteSKI` once after exact OOB confirmation before durable commit;
+   and prove the stale policy to call
    `RegisterRemoteSKI` only after durable commit is rejected. They also
    prove pre-confirm SHIP ID/completion cannot be consumed until registration
    executes and every exact binding is revalidated, while race losers/closed-window
@@ -679,6 +738,8 @@ MSP-04B adds none of the following:
 [code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/26
 [preconfirm-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/58
 [preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
+[inbound-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/60
+[inbound-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/64
 [implementation-commit]: https://github.com/Project-Helianthus/helianthus-eebusreg/tree/18049eef059813c23d0a3385115bfa61fcec635c/
 [projection-contract]: msp-045-trust-admin-projection.md
 [store-contract]: msp-04a-persistent-store.md
