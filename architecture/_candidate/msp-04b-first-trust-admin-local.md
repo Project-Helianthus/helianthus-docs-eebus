@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001,EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "An accepted architecture review or conformance result demonstrates that the merged MSP-04B implementation cannot preserve exact-candidate confirmation, local-admin confinement, store ownership, or public privacy boundaries."
+falsifier: "An accepted conformance result shows that the same TLS-bound candidate can reach SHIP Access Methods or `observed_remote_ship_id` before bounded transient trust, that transient registration writes a generation, that durable commit omits same-generation `ship_handshake_complete` and non-empty `observed_remote_ship_id`, or that a terminal path leaves transient trust registered or changes the starting store generation."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -53,7 +53,7 @@ public admin protocol, or promise a stable wire format.
 | `internal/eebusstore` | policy-free validation, opaque remote associations, atomic generations, and deterministic commit outcomes. | It has no candidate selection, OOB decision, socket, pairing policy, or runtime transition. |
 | `private trust coordinator` | The pairing-window FSM, one candidate slot, OOB comparison, idempotency, expiry, connection/store-generation binding, and commit ordering. | It does not implement filesystem publication, accept unauthenticated commands, or export candidate state. |
 | `AF_UNIX admin transport` | Bounded framing, same-UID peer authentication, command delivery, and owner-only path/socket lifecycle. | It makes no trust, candidate, OOB, store, or runtime decision. |
-| `facade/service adapter` | Translation between eeBUS callbacks and private coordinator events, plus application of a durably confirmed association. | It does not auto-accept, bypass the coordinator, publish before durability, or preserve a race loser. |
+| `facade/service adapter` | Translation between eeBUS callbacks and private coordinator events, plus one bounded transient registration before the later durably confirmed association. | It does not auto-accept, bypass the coordinator, persist transient trust, publish before durability, or preserve a race loser. |
 | `public Runtime/Snapshot/PairingState` | The existing read-only supported observation surface. | MSP-04B adds no public mutation operation or candidate detail. |
 
 The boundaries are directional. The coordinator asks `internal/eebusstore` to
@@ -71,13 +71,16 @@ callback backed by an active transport connection may create it. Configuration,
 an allowlist match, an mDNS observation, and a locally opened pairing window
 cannot create a candidate. An eligible pairing callback captures the pairing
 identity and all immediately available bindings. The candidate may remain
-association-incomplete until the matching service identifier is observed, but
-it still occupies the only slot.
+`association_incomplete` until its TLS binding is available, but it still
+occupies the only slot. Once transient trust is active, the later missing-SHIP-
+evidence state is `handshake_incomplete`, not a reason to write the store.
 
 | Binding | Constraint |
 | --- | --- |
 | `remote_ski` | Opaque bytes from the pairing callback, bound to the exact connection generation and never rendered except as `fingerprint_v1` in the privileged local response. |
-| `observed_remote_ship_id` | A non-empty opaque value supplied by `ServiceShipIDUpdate` for the same `remote_ski` and `connection_generation`; it may be absent while the candidate remains pending. |
+| `tls_binding` | The initial binding supplied by the first exact non-error `OutgoingAttemptHandshakeStateUpdate`, after verification of the selected outbound TLS/WebSocket certificate-derived fingerprint and exact attempt metadata validation for the candidate's `remote_ski` and `connection_generation`; it is required before any transient registration. |
+| `observed_remote_ship_id` | A non-empty opaque value supplied by tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` at the Access-Methods stage for the same `remote_ski` and `connection_generation`, only after transient registration permits Hello to reach mutual trust-ready; it is absent before that point and is not initial TLS evidence. |
+| `ship_handshake_complete` | `ConnectionStateCompleted`, the facade's same-generation terminal proof of completed protocol setup after mutual trust-ready. It is not inferred from TLS, registration, or a callback from another connection. |
 | `fingerprint_v1` | The normalized, full 40-character lowercase hexadecimal encoding of the bytes in `remote_ski`, with no separators, prefix, surrounding whitespace, truncation, or alternate encoding. |
 | `candidate_nonce` | A fresh random candidate nonce generated from the operating-system cryptographic random source for this candidate only. |
 | `idempotency_key` | A bounded opaque request key scoped to this candidate; an active entry moves to the bounded terminal-result cache after a terminal result. |
@@ -94,22 +97,41 @@ association-key bytes. No prefix, suffix, case-folded, shortened, or display-for
 accepted. Comparison behavior and externally visible outcomes MUST NOT reveal
 which byte differed.
 
-The facade obtains `observed_remote_ship_id` only from `ServiceShipIDUpdate`.
-An update that precedes the pairing callback may be attached from bounded
-connection-scoped facade state only when its `remote_ski` and
-`connection_generation` exactly match the winning candidate. An update that
-arrives later completes that same candidate under the same equality rule.
-Empty, stale-generation, differently keyed, ambiguous, or expired updates do
-not complete it. The coordinator and facade MUST NOT invent, default, derive,
-or copy the value from another connection.
+The live-proven ordering used by this candidate is deliberately narrow. The
+first exact non-error `OutgoingAttemptHandshakeStateUpdate` is downstream of
+verification of the selected outbound TLS/WebSocket certificate-derived fingerprint
+and exact attempt metadata validation, and supplies the initial TLS binding. SHIP Access Methods
+and tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` occur only after Hello
+reaches mutual trust-ready. The later event supplies the same-generation
+post-authorization remote SHIP ID, not initial TLS. Therefore
+`observed_remote_ship_id` cannot be a prerequisite for the first local trust
+decision without deadlocking that exchange. This is an
+implementation-architecture correction derived from public SHIP state ordering;
+it does not assert a vendor-specific protocol fact.
 
-A confirm received before `observed_remote_ship_id` is non-empty returns stable
-`association_incomplete`, keeps the candidate pending with no store write, and
-does not consume successful OOB input as a durable approval. The caller may
-retry with the same candidate bindings after the matching update arrives and
-before expiry. After exact OOB success and complete binding validation, the
-proposed association persists `remote_ski` and `observed_remote_ship_id`
-together in one atomic generation. Neither value is persisted earlier.
+The facade obtains `observed_remote_ship_id` only from the tagged
+`RemoteSKIConnected`/`ServiceShipIDUpdate` after that mutual-trust-ready point.
+It binds that Access-Methods-stage update and `ConnectionStateCompleted` to the
+same `remote_ski`, `connection_generation`, and TLS binding as the transient
+registration. Empty, stale-generation, differently keyed, ambiguous, expired,
+or pre-transient updates do not complete anything. The coordinator and facade
+MUST NOT invent, default, derive, cache across a restart, or copy either value
+from another connection.
+
+A confirm needs exact `fingerprint_v1`, nonce, expiry, connection generation,
+starting store generation, and TLS binding, but it does **not** need
+`observed_remote_ship_id` or `ship_handshake_complete`. On that exact confirmation it may
+authorize one bounded transient runtime registration; it performs no store
+write and leaves the selected store generation unchanged. A confirm before the
+TLS binding is present returns `association_incomplete` and makes no runtime or
+durable mutation. A replay of the same complete confirmation returns
+the same transient result and cannot register twice.
+
+Only after the registered connection reaches mutual trust-ready, receives a
+non-empty matching `observed_remote_ship_id`, and reports same-generation
+`ConnectionStateCompleted` may the coordinator propose an association. That later proposal
+persists `remote_ski` and `observed_remote_ship_id` together in one atomic
+generation. Neither value is persisted during transient trust.
 
 The nonce prevents an approval prepared for an earlier candidate from naming a
 new slot. The connection generation prevents a reconnect from inheriting an
@@ -128,6 +150,12 @@ confirmation contract, new binding and normalization rules, and a separate
 review. It MUST NOT be substituted silently for
 `fingerprint_v1`.
 
+## Private Admin State Vocabulary
+
+| State | Meaning | Persistence boundary |
+| --- | --- | --- |
+| `TRANSIENT_TRUSTED` | Exact OOB confirmation has authorized one same-generation `RegisterRemoteSKI` effect after the initial TLS binding, while the candidate awaits its post-authorization remote SHIP ID and `ConnectionStateCompleted`. | Volatile only; it is never a durable association and is revoked exactly once only by a candidate-lifecycle terminal event. |
+
 ## Coordinator State Machine
 
 The private coordinator has exactly these externally testable states. All
@@ -139,8 +167,9 @@ rule in the current state wins.
 | `DISABLED` | Mutation is unavailable because startup has not established a usable store, or a prior outcome requires reopen. | `PAIRING_CLOSED` only after a successful reopen and reload. |
 | `PAIRING_CLOSED` | Default state; no first-trust candidate may be admitted. | `OPEN_EMPTY` when an authenticated admin command opens a bounded window. |
 | `OPEN_EMPTY` | A bounded pairing window is open and the candidate slot is empty. | `CANDIDATE_PENDING` for the first linearized eligible peer; otherwise `PAIRING_CLOSED` on close or window expiry. |
-| `CANDIDATE_PENDING` | Exactly one eligible RAM candidate owns the slot; `observed_remote_ship_id` may still be absent. | Remain pending on `association_incomplete`, enter `COMMITTING` after complete valid confirmation, enter `OPEN_EMPTY` after candidate cancel/expiry while the window remains open, or enter `PAIRING_CLOSED` when the window closes/expires. |
-| `COMMITTING` | The window is already closed and one complete association is being validated and committed. | `PAIRING_CLOSED` after a known terminal result, or `DISABLED` when reopen is required. |
+| `CANDIDATE_PENDING` | Exactly one eligible RAM candidate owns the slot before OOB confirmation has authorized a transient registration. | Enter `TRANSIENT_TRUSTED` only after exact OOB confirmation and same-generation initial TLS binding, enter `OPEN_EMPTY` after candidate cancel/expiry while the window remains open, or enter `PAIRING_CLOSED` when the window closes/expires. |
+| `TRANSIENT_TRUSTED` | The exact candidate owns one volatile transient registration and awaits same-generation protocol evidence. | Remain transient on incomplete evidence, enter `COMMITTING` only after non-empty matching `observed_remote_ship_id` and `ship_handshake_complete` from `ConnectionStateCompleted`, enter `OPEN_EMPTY` after candidate cancel/expiry while the window remains open, or enter `PAIRING_CLOSED` when the window closes/expires. |
+| `COMMITTING` | The window is already closed and one complete post-handshake association is being validated and committed. | `PAIRING_CLOSED` after a known terminal result, or `DISABLED` when reopen is required. |
 
 Startup enters `DISABLED`. A successful store open reloads trust from durable
 remote associations and enters `PAIRING_CLOSED`; it never restores an open
@@ -155,23 +184,41 @@ produce two winners. Ineligible, already trusted, malformed, or stale-generation
 events do not occupy the slot.
 
 Wrong fingerprint, stale nonce, stale connection generation, stale store
-generation, or idempotency conflict leaves the store unchanged and the
-candidate intact until its existing expiry. Cancel or expiry clears the
-candidate. Candidate expiry returns to `OPEN_EMPTY` only while the pairing
-window itself remains valid; window close or expiry enters `PAIRING_CLOSED`.
+generation, or idempotency conflict is a deterministic non-mutating no-op or
+error. It leaves the store unchanged and the candidate intact; it does not revoke
+the legitimate authorized candidate or its active transient registration. In particular, a
+stale admin request is not an exact candidate-lifecycle generation conflict.
+Actual terminal events—candidate expiry (`candidate_expired`), observed
+disconnect/error, exact cancellation/close, exact generation conflict,
+shutdown, or deterministic store failure—unregister the exact transient remote
+once, clear the candidate, and retain the starting store generation. Candidate
+expiry returns to `OPEN_EMPTY` only while the pairing window itself remains
+valid; window close or expiry enters `PAIRING_CLOSED`. Cancel or expiry clears
+the candidate.
 
-Missing `observed_remote_ship_id` follows the same no-write rule but returns
-`association_incomplete`; it is not a fingerprint failure and does not clear
-the candidate. A matching `ServiceShipIDUpdate` may complete the candidate only
-before the candidate and connection generations expire.
+Missing `observed_remote_ship_id` or absent `ConnectionStateCompleted` follows the
+same no-write rule but remains `handshake_incomplete` while the exact transient
+registration is live; the state is candidate pending with no store write, and
+it is not a fingerprint failure. A matching tagged
+`RemoteSKIConnected`/`ServiceShipIDUpdate` and `ConnectionStateCompleted` may
+advance the candidate only before its expiry and only in that connection
+generation.
 
-A valid confirmation is linearized before any filesystem mutation. The
-coordinator MUST Close the pairing window before beginning one commit, enter
-`COMMITTING`, and prevent another candidate or confirmation from being
-admitted. This ordering makes confirm-versus-cancel and confirm-versus-expiry
-races deterministic: whichever event linearizes first determines whether the
-commit may start. A losing confirm cannot reopen, replace, or commit a cleared
-candidate.
+A valid confirmation is linearized before any filesystem mutation and before
+one transient-registration effect is queued. The registration effect runs
+outside the coordinator lock, rechecks liveness and the exact generation, and
+may synchronously re-enter through a callback. The coordinator serializes that
+re-entry by effect token; no callback can register twice, mutate an obsolete
+candidate, or start a Commit.
+
+The coordinator MUST Close the pairing window before beginning one commit only
+after the durable prerequisites are present, enter `COMMITTING`, and prevent
+another candidate or confirmation from
+being admitted. This ordering makes confirm-versus-cancel,
+transient-registration-versus-disconnect, and completion-versus-expiry races
+deterministic: whichever event linearizes first determines the one terminal
+result. A losing callback cannot reopen, replace, register, unregister a newer
+generation, or commit a cleared candidate.
 
 ## Waiting Permission And Commit Ordering
 
@@ -181,53 +228,81 @@ pending protocol exchange to wait; it does not approve a peer, select a candidat
 validate OOB input, or persist trust. It is a transport-liveness control, not
 the security decision.
 
-After complete exact confirmation linearizes, the coordinator logically closes
-the pairing window before Commit and admits no new candidate. `auto-accept`
-remains `false`, every competing peer is cancelled, and a new callback is
-refused even if the library's global waiting permission has not yet changed.
-Logical closure and candidate admission therefore do not depend on that global
-flag.
+After complete exact confirmation linearizes, the coordinator admits no new
+candidate but keeps the winning candidate bounded while it awaits
+same-generation protocol evidence. `auto-accept` remains `false`, every competing
+peer is cancelled, and a new callback is refused even if the library's global
+waiting permission has not yet changed. Candidate admission therefore does not
+depend on that global flag.
 
-To avoid aborting the winning pending handshake before disk publication, the
-adapter may keep `AllowWaitingForTrust` `true` only through the bounded
-`COMMITTING` interval for the winner. A nonzero implementation constant defines
-the monotonic commit-wait bound, and Commit must run under that bound. The flag
-is set `false` before or atomically with the terminal effect. Only
-`RegisterRemoteSKI` after `commit_durable` actually approves the winner; the
-global flag itself never does.
+After same-generation `observed_remote_ship_id` and `ConnectionStateCompleted` are both
+linearized, the coordinator logically closes the pairing window before Commit
+and admits no new candidate. This late closure does not retract already active
+transient trust; its terminal cleanup rules still apply.
 
-If the commit-wait bound expires before a deterministic store result, the
-adapter sets the flag `false`, cancels the winner, performs no
-`RegisterRemoteSKI`, disables mutation, reports the trust outcome unknown, and
-marks reopen required after the in-flight store operation is safely fenced.
-Known store outcomes follow the mapping below. Deterministic tests MUST record
-the ordered events for success, every failure outcome, a blocked Commit, a
-racing peer while the global flag remains true, and terminal cleanup.
+The facade may call `RegisterRemoteSKI` once only after the exact TLS-bound
+confirmation has passed. The call creates transient runtime trust, not durable
+trust: the selected store generation is still unchanged and the candidate must
+continue through Hello, SHIP Access Methods, `observed_remote_ship_id`, and
+`ConnectionStateCompleted`. The former rule that `RegisterRemoteSKI` only after `commit_durable`
+actually approves the winner is rejected by this contract; it would make the
+required protocol evidence unreachable. The exact stale assertion is: Only
+`RegisterRemoteSKI` after `commit_durable` actually approves. It is a
+falsifier. The global flag itself never approves a peer.
+
+The adapter may keep `AllowWaitingForTrust` `true` only through the bounded
+`COMMITTING` interval for the winner and its preceding bounded transient
+interval. A nonzero implementation constant defines the monotonic transient
+and commit-wait bounds. The flag is set
+`false` before or atomically with the terminal effect. A transient-phase
+terminal candidate lifecycle event uses its existing exact deterministic
+outcome: an initial missing TLS binding is `association_incomplete`, and
+transient expiry is `candidate_expired`. It unregisters transient trust when
+present, clears the candidate, performs no durable mutation, and retains the
+starting store generation. An invalid or stale post-transient admin request
+instead remains a non-mutating no-op or error and does not revoke the legitimate
+authorized candidate. Neither class reports the trust outcome unknown.
+
+`trust_outcome_unknown` and mandatory reopen are reserved for ambiguity after
+the durability-affecting recovery publication pipeline has begun, including
+ambiguous `PrepareControl`, anchor staging, finalization, clear, or
+`CommitControl` outcomes. It is never used for a pre-persistence candidate,
+TLS, or handshake terminal event. That path performs no additional
+`RegisterRemoteSKI` effect, performs no `RegisterRemoteSKI` after the unknown
+result, and unregisters the transient registration before recovery; this is the
+only reopen required path here. Known store outcomes follow the mapping below.
+Deterministic tests MUST record the ordered events for success, every failure
+outcome, a blocked Commit, a racing peer while the global flag remains true,
+synchronous callback reentry, and terminal cleanup.
 
 ## SHIP Pairing Registration Advertisement
 
 The SHIP DNS-SD `register` value is a discovery signal, not a trust decision.
 `PAIRING_CLOSED` advertises `register=false`, while `OPEN_EMPTY` advertises
-`register=true`. `CANDIDATE_PENDING` keeps `register=true` within the original
-bounded window so the selected protocol exchange remains discoverable; the
-single-candidate rule still rejects every competing peer deterministically.
+`register=true`. `CANDIDATE_PENDING` and `TRANSIENT_TRUSTED` keep
+`register=true` within the original bounded window so the selected protocol
+exchange remains discoverable; the single-candidate rule still rejects every
+competing peer deterministically.
 
 Opening the window has one network-visible effect: the local advertisement
 changes to `register=true`. It does not queue or report a remote, launch a dial,
 fabricate a service or session observation, or select a candidate. Those states
 require their corresponding discovery, connection, and pairing callbacks.
 
-After exact confirmation, `COMMITTING` may retain `register=true` only during
-the bounded commit-wait interval needed by the winning handshake. Close,
-expiry, cancellation, or any terminal commit effect withdraws or replaces the
-announcement with `register=false`. `DISABLED` also advertises
+After exact confirmation, `TRANSIENT_TRUSTED` and then `COMMITTING` may retain
+`register=true` only during the bounded handshake and commit-wait intervals.
+Close, expiry, cancellation, or any terminal commit effect withdraws or
+replaces the announcement with `register=false`. `DISABLED` also advertises
 `register=false` and requires a successful reopen before another window.
 
 This registration signal is independent from handshake acceptance:
 `auto-accept` remains `false`. It does not approve the selected peer and does
-not persist trust. Only the exact, durably confirmed association reaches
-`RegisterRemoteSKI`. A failed registration update is an explicit degraded
-outcome and cannot be represented as an empty successful window.
+not persist trust. The exact OOB-confirmed candidate may reach
+`RegisterRemoteSKI` only as bounded transient trust; durable association follows
+only after same-generation `ship_handshake_complete` from
+`ConnectionStateCompleted`. A failed registration update is an
+explicit degraded outcome and cannot be represented as an empty successful
+window.
 
 ## Store Commit Outcome Mapping
 
@@ -239,14 +314,15 @@ publication.
 
 | Store result | Coordinator result | Required action |
 | --- | --- | --- |
-| `commit_durable` | `trusted` | Clear the candidate, retain the closed window, and allow the facade to invoke `RegisterRemoteSKI` for this exact connection generation. |
-| `commit_not_published` | `failed_closed_unchanged` | Treat the store as unchanged, clear the candidate, keep pairing closed, and require a new window/candidate for retry. |
-| `validation/provider failure` | `failed_closed_unchanged` | Map deterministic validation, key-provider, or key-material outcomes without mutation; clear the candidate and keep pairing closed. |
-| `commit_applied_maintenance_failed` | `applied_reopen_required` | Do not invoke `RegisterRemoteSKI`; disable mutation, close/cancel live pairing work, and reopen before durable associations may reload trust. |
-| `commit_durability_unknown` | `trust_outcome_unknown` | Do not report success or failure-as-unapplied and do not invoke `RegisterRemoteSKI`; disable mutation and require reopen to determine the selected generation. |
+| `commit_durable` | `trusted` | Clear the candidate, retain the closed window, and retain the already registered live connection as the durable association for this exact generation. |
+| `commit_not_published` | `failed_closed_unchanged` | Unregister transient trust, treat the store as unchanged, clear the candidate, keep pairing closed, and require a new window/candidate for retry. |
+| `validation/provider failure` | `failed_closed_unchanged` | Unregister transient trust; map deterministic validation, key-provider, or key-material outcomes without mutation; clear the candidate and keep pairing closed. |
+| `commit_applied_maintenance_failed` | `applied_reopen_required` | Unregister transient trust, disable mutation, close/cancel live pairing work, and reopen before durable associations may reload trust. |
+| `commit_durability_unknown` | `trust_outcome_unknown` | Unregister transient trust, do not report success or failure-as-unapplied, disable mutation, and require reopen to determine the selected generation. |
 
-Only `commit_durable` may make the current in-process result trusted and invoke
-`RegisterRemoteSKI`. Known-unapplied failures never retry automatically.
+Only `commit_durable` may make the current in-process result durably trusted.
+The stale claim "trusted and invoke `RegisterRemoteSKI`" is an exact falsifier,
+not permitted behavior. Known-unapplied failures never retry automatically.
 `commit_applied_maintenance_failed` means the association was applied, but
 maintenance failed and reopen is required. A durability-unknown result means
 the trust outcome is unknown until Open reselects a generation.
@@ -365,18 +441,42 @@ An untrusted-peer callback is translated into one generation-bound coordinator
 event. The callback itself cannot modify the store, open a window, compare OOB
 input, or register trust.
 
-`ServiceShipIDUpdate` is translated separately and may occur before or after
-the pairing callback. The facade binds its non-empty opaque value to the same
-`remote_ski` and `connection_generation`; a mismatched or absent value never
-completes an association. Confirmation persists both values only after exact
-OOB success. No fallback value is synthesized.
+The first exact non-error `OutgoingAttemptHandshakeStateUpdate` is translated
+only after verification of the selected outbound TLS/WebSocket certificate-derived fingerprint
+and exact attempt metadata validation; it supplies the initial TLS binding. The
+tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` is translated separately, at
+the later Access-Methods stage after transient trust has let Hello reach mutual
+trust-ready. It supplies the post-authorization remote SHIP ID, not initial TLS
+evidence. The facade binds that non-empty opaque value and
+`ConnectionStateCompleted` to the same `remote_ski`, TLS binding, and
+`connection_generation`; a mismatched, absent, stale, or early value never
+completes an association. No fallback value is synthesized.
 
-When the coordinator reports `trusted` after `commit_durable`, the facade may
-invoke `RegisterRemoteSKI` once for the same remote SKI and connection
-generation. It MUST recheck connection liveness and generation immediately
-before the call. A disconnected or replaced connection does not transfer the
-durable association to a stale callback; normal discovery may apply it to a
-later matching peer through a new generation.
+After exact OOB confirmation, the facade may invoke `RegisterRemoteSKI` once
+for the same `remote_ski` and connection generation before any durable commit. It
+MUST recheck connection liveness, TLS binding, and generation immediately
+before the call, and run it outside the coordinator lock so a synchronous
+callback cannot deadlock the linearization point. The effect token makes
+reentrant or concurrent duplicate callbacks no-ops. A disconnected or replaced
+connection does not transfer either transient or durable authority to a stale
+callback; normal discovery may apply a later durable association only through a
+new generation.
+
+The facade starts the one durable proposal only after the registered connection
+has non-empty same-generation `observed_remote_ship_id` and
+`ConnectionStateCompleted`. Any
+code path that attempts to call `RegisterRemoteSKI` only after durable
+confirmation is a stale-ordering falsifier. Before durable commit, terminal
+candidate-lifecycle events call `UnregisterRemoteSKI` once when transient
+registration occurred and keep the store generation unchanged. Invalid or stale
+post-transient admin requests are no-ops/errors and do not revoke the
+legitimate authorized candidate.
+
+The facade serializes callback and event handoff with the coordinator's
+generation check. If the disconnect transition is ordered before the SHIP-ID or
+completed handoff, that evidence is stale and cannot commit. If
+`ConnectionStateCompleted` is ordered first with all exact same-generation
+bindings, the durable commit may proceed.
 
 Competing peers, race losers and a peer arriving after window closure are
 cancelled. A peer is also cancelled when its candidate expires, the admin
@@ -425,8 +525,13 @@ MSP-045's combined read-only mapping is defined by the
 
 ## Restart And Recovery
 
-Restart discards the volatile window, candidate, nonce, active idempotency
-state, and terminal-result cache.
+Orderly restart first unregisters every transiently registered candidate, then
+discards the volatile window, candidate, nonce, active idempotency state, and
+terminal-result cache. Restart discards the volatile window, candidate, nonce,
+active idempotency state, and terminal-result cache even after a crash: a crash
+cannot depend on the unregister callback, and the transient runtime
+registration dies with the process. The next process must not replay or infer
+it.
 The new process starts `DISABLED`, opens the store under MSP-04A rules, reloads
 only the selected durable associations, and enters `PAIRING_CLOSED` when safe.
 It never infers an open window, visible service, session, candidate, or observed
@@ -448,10 +553,10 @@ substitute for the deterministic cases below.
 | Gate | Required observation | Falsifier |
 | --- | --- | --- |
 | `G02` | While pairing is closed, an unknown peer is refused and a store spy observes zero store writes. | Falsified if the peer is admitted, a candidate appears, or any persistent write occurs while the window is closed. |
-| `G03` | While the window is open, the coordinator holds exactly one ephemeral RAM candidate and performs no persistent write before exact OOB confirmation; an incomplete association remains pending/no-write. | Falsified if candidate state is durable, more than one candidate is held, or a write occurs before exact OOB confirmation and complete association binding. |
+| `G03` | While the window is open, the coordinator holds exactly one ephemeral RAM candidate and performs no persistent write before exact OOB confirmation; exact TLS-bound confirmation may register transient runtime trust once, while `observed_remote_ship_id` and `ship_handshake_complete` from `ConnectionStateCompleted` remain pending/no-write. | Falsified if candidate or transient state is durable, more than one candidate is held, registration occurs without exact bindings, or a write occurs before complete post-handshake association binding. |
 | `G04` | Two racing peers yield one candidate and one deterministic `candidate_busy` denial, and wrong fingerprint leaves the store unchanged. | Falsified if both peers win, the loser outcome varies, wrong OOB input clears/replaces the candidate, or any store write occurs for the wrong fingerprint. |
 | `G05` | Allowlist entries and opening a pairing window result in no remote queue, dial, visible service, session, topology, or candidate; the window changes only local `register=true`. | Falsified if any remote effect or observed state follows policy configuration or the window transition. |
-| `G06` | An mDNS callback creates only service visibility, a connection callback creates the session, and a transport-backed pairing callback creates the candidate; only exact OOB confirmation plus `commit_durable` creates trust. | Falsified if an earlier stage creates a later-stage observation or policy input substitutes for a callback. |
+| `G06` | An mDNS callback creates only service visibility, a connection callback creates the session, and a transport-backed pairing callback creates the candidate; exact OOB confirmation creates bounded transient trust, while only exact OOB confirmation plus `commit_durable` creates durable trust after protocol completion. | Falsified if an earlier stage creates a later-stage observation, transient trust persists, durable trust lacks same-generation protocol completion, or policy input substitutes for a callback. |
 | `G16` | Public artifact scans contain random per-run labels, outcomes, and counts only, while API-diff tests keep the supported public surface read-only and candidate-free. | Falsified if any forbidden identity/secret category, candidate detail, stable peer history, or public mutation declaration appears in an artifact. |
 
 Store-boundary and AF_UNIX proofs remain separate required tests. They support
@@ -485,10 +590,11 @@ values and no live peer dependency:
    outcome, no retry, and exact facade ordering after `commit_durable`.
 2. Coordinator table tests cover every state/event pair, first-event wins,
    `candidate_busy`, wrong fingerprint, stale nonce, both generation mismatches,
-   association-incomplete confirmation, both `ServiceShipIDUpdate` orders,
-   idempotent replay/conflict, bounded terminal-cache expiry, candidate/window
-   expiry, cancel, close, and restart. Dedicated cases enforce exact G02, G03,
-   and G04 meanings.
+   transient registration, same-generation `ship_handshake_complete` from
+   `ConnectionStateCompleted`, idempotent
+   replay/conflict, bounded terminal-cache expiry, candidate/window expiry,
+   cancel, close, and restart. Dedicated cases enforce exact G02, G03, and G04
+   meanings.
 3. Deterministic scheduler tests force confirm-versus-cancel and
    confirm-versus-expiry at each linearization boundary and prove at most one
    commit with stable loser outcomes. Fake-clock and blocked-Commit cases prove
@@ -503,10 +609,13 @@ values and no live peer dependency:
    gating, buffer clearing, and absence from logs, metrics, traces, captures,
    fixtures, and other shareable outputs.
 5. Facade tests keep auto-accept false, bind callbacks to one connection
-   generation, bind `ServiceShipIDUpdate` to the same pairing key/generation,
-   reject absent/stale/mismatched values without writes, call
-   `RegisterRemoteSKI` only after durable confirmation, and prove race
-   losers/closed-window peers are cancelled.
+   generation, bind `ServiceShipIDUpdate` and protocol completion to the same
+   TLS-bound pairing key/generation, reject absent/stale/mismatched values
+   without writes, call `RegisterRemoteSKI` once after exact OOB confirmation
+   before durable commit, and prove the stale policy to call
+   `RegisterRemoteSKI` only after durable confirmation is rejected. They also
+   prove race losers/closed-window peers are cancelled and terminal transient
+   trust is unregistered once.
 6. Observation-source tests prove that allowlist entries and opening a
    pairing window create no queue, dial, service, session, topology, or
    candidate; mDNS, connection, and transport-backed pairing callbacks create

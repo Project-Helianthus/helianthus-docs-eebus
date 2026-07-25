@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed API contract promotes candidate_ref or attempt-journal fields into stable eebusreg, MCP, or GraphQL; persists candidate_ref; accepts a non-current selection; or lets RuntimeConfig, static, or root fallback data authorize a dial."
+falsifier: "A reviewed API contract exposes candidate_ref outside the experimental internal dependency boundary; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; or retains transient trust after a terminal event."
 candidate_output: "true"
 stable_navigation: "false"
 search: "false"
@@ -46,10 +46,12 @@ attempt journal, trusted association, snapshot, reconnect record, or consumer
 payload.
 
 The private local surface uses only the following state vocabulary: `visible`,
-`selected/validated`, `connected-untrusted`, and `trusted`. It does not report
-an approval secret, queue implementation, persisted association contents, or
-an in-flight endpoint. A reference disappears when its observation is
-withdrawn, replaced, consumed, or the process restarts.
+`selected/validated`, `connected-untrusted`, `transient-trust-active`, and
+`trusted`. `transient-trust-active` is a bounded runtime fact, never a durable
+pairing result. The surface does not report an approval secret, queue
+implementation, persisted association contents, `observed_remote_ship_id`, or an
+in-flight endpoint. A reference disappears when its observation is withdrawn,
+replaced, consumed, or the process restarts.
 
 ## Experimental/Admin Mutation Boundary
 
@@ -67,10 +69,49 @@ Portal, or Home Assistant surfaces. Their presence in a dependency does not
 promote `candidate_ref` into `helianthus-eebusreg` public state.
 
 The action creates no trust by itself. It may request a candidate-bound attempt
-only after exact validation; TLS pinning precedes WebSocket upgrade; the
-connection remains untrusted until durable trust commit. There is no public
-auto-trust operation, no mutation that persists before that commit, and no
-stable GraphQL, MCP, Portal, Home Assistant, CLI, or network-admin mutation.
+only after exact validation; verification of the selected outbound TLS/WebSocket
+certificate-derived fingerprint precedes WebSocket upgrade. The first exact non-error
+`OutgoingAttemptHandshakeStateUpdate`, accepted only after exact attempt
+metadata validation, supplies the initial TLS binding for that generation. The
+exact TLS-bound OOB confirm then checks the complete fingerprint, nonce, expiry,
+connection generation, and starting store generation. It may call
+`RegisterRemoteSKI` once for that generation as bounded transient runtime
+trust, with no durable generation/store write. It cannot require
+`observed_remote_ship_id` or SHIP Access Methods at that point, because they
+occur only after Hello reaches mutual trust-ready.
+
+The later tagged `RemoteSKIConnected`/`ServiceShipIDUpdate` is an
+Access-Methods-stage event, not initial TLS evidence. It supplies the
+same-generation post-authorization remote SHIP ID. The private coordinator may
+propose durable trust only when that same transient generation remains
+TLS-bound, reports that non-empty `observed_remote_ship_id`, and then receives
+`ConnectionStateCompleted` as its terminal handshake proof. There is no public
+auto-trust operation, no mutation that persists before that post-handshake
+commit, and no stable GraphQL, MCP, Portal, Home Assistant, CLI, or
+network-admin mutation.
+
+An initial request that lacks this TLS binding is
+`association_incomplete`; transient expiry is `candidate_expired`. Other
+deterministic disconnect, cancel, close, generation, and store outcomes retain
+their existing exact names. An invalid or stale post-transient admin request is
+a deterministic non-mutating no-op or error: it does not unregister or revoke
+the legitimate authorized candidate. In contrast, an actual candidate-lifecycle
+terminal event—expiry, observed disconnect/error, exact cancellation/close,
+generation conflict, shutdown, or deterministic store failure—revokes that
+candidate's transient trust exactly once when it was active. No terminal path
+can advance or rewrite the starting store generation. Identical idempotent replay
+returns the cached terminal or active result without a second
+register/unregister/commit effect.
+
+Reentrant and concurrent callbacks are serialized by the private coordinator
+and must revalidate the generation before each external effect. If the
+disconnect transition linearizes before the SHIP-ID or completion handoff,
+those stale handoffs cannot commit; if `ConnectionStateCompleted` linearizes
+first with all exact bindings, the durable commit may proceed. The outcome
+`trust_outcome_unknown` is reserved only after the durability-affecting recovery
+publication pipeline has begun: ambiguity in `PrepareControl`, anchor staging,
+finalization, clear, or `CommitControl` requires reopen. It is never used for a
+pre-persistence candidate, TLS, or handshake terminal event.
 
 The private attempt-gate dependency may journal an opaque reservation and that
 reservation's exact frozen discovered endpoint/path. It must not journal
