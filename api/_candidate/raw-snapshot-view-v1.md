@@ -89,11 +89,11 @@ and retains the existing `PairingState` API.
 | `ServiceV1.Kind` | `ServiceKindV1` | `required` |
 | `ServiceV1.Visible` | `bool` | `required observed state` |
 | `ServiceV1.Paired` | `bool` | `required observed state` |
-| `ServiceV1.Name` | `string` | `required` |
-| `ServiceV1.Identifier` | `string` | `required` |
-| `ServiceV1.Brand` | `string` | `required` |
-| `ServiceV1.Type` | `string` | `required` |
-| `ServiceV1.Model` | `string` | `required` |
+| `ServiceV1.Name` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
+| `ServiceV1.Identifier` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
+| `ServiceV1.Brand` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
+| `ServiceV1.Type` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
+| `ServiceV1.Model` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
 | `ServiceV1.SecondaryDigest` | `*string` | `optional` |
 | `ServiceV1.Opaque` | `*[]OpaqueObservationV1` | `optional; nil differs from an observed empty array` |
 | `DeviceV1.SKI` | `string` | `required` |
