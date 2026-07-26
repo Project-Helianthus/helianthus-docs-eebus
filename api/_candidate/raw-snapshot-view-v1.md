@@ -46,31 +46,109 @@ All newly exported data types are suffixed `V1`. The candidate inventory is:
 
 | Type | Fields |
 | --- | --- |
-| `SnapshotV1` | `Meta`, `Status`, `Pairing`, `Services`, `Sessions`, `Topology`, `Raw` |
+| `SnapshotV1` | `Meta`, `Status`, `Pairing`, `Services`, `Sessions`, `Devices`, `Entities`, `Features`, `UseCases`, `Opaque` |
+| `RedactedSnapshotV1` | `Meta`, `Status`, `Pairing`, `Services`, `Sessions`, `Devices`, `Entities`, `Features`, `UseCases` |
 | `SnapshotMetaV1` | `Contract`, `Runtime`, `LocalSKI`, `MaskTier`, `CapturedAt`, `DataTimestamp`, `DataHash` |
 | `RuntimeObservationV1` | `State`, `Degradation` |
 | `DegradationV1` | `Reason`, `Since` |
-| `PairingObservationV1` | `Remote`, `State`, `Since`, `Raw`, `Unknown` |
-| `ServiceV1` | `ID`, `Kind`, `Visible`, `Paired`, `Raw`, `Unknown` |
-| `SessionV1` | `ID`, `Remote`, `State`, `Since`, `Raw`, `Unknown` |
-| `TopologyV1` | `Devices` |
-| `DeviceV1` | `ID`, `Entities`, `UseCaseClaims`, `Raw`, `Unknown` |
-| `EntityV1` | `ID`, `Features`, `Raw`, `Unknown` |
-| `FeatureV1` | `ID`, `Role`, `Raw`, `Unknown` |
-| `UseCaseClaimV1` | `ID`, `Raw`, `Unknown` |
+| `PairingObservationV1` | `RemoteSKI`, `State`, `Since`, `Opaque` |
+| `ServiceV1` | `SKI`, `SHIPID`, `Name`, `Identifier`, `Brand`, `Type`, `Model`, `SecondaryDigest`, `Opaque` |
+| `SessionV1` | `ID`, `RemoteSKI`, `State`, `Since`, `Opaque` |
+| `DeviceV1` | `SKI`, `SHIPID`, `Address`, `Type`, `Description`, `Metadata`, `SecondaryDigest`, `Opaque` |
+| `EntityV1` | `DeviceAddress`, `EntityAddress`, `Type`, `Description`, `SecondaryDigest`, `Opaque` |
+| `FeatureV1` | `DeviceAddress`, `EntityAddress`, `FeatureAddress`, `Type`, `Role`, `Description`, `SecondaryDigest`, `Opaque` |
+| `UseCaseV1` | `ContextAddress`, `Name`, `Actor`, `ResolvedRole`, `Scenarios`, `Version`, `Availability`, `DocumentSubrevision`, `SecondaryDigest`, `Opaque` |
+| `OpaqueObservationV1` | `Path`, `Source`, `Value` |
+| `OpaqueValueV1` | `Scalar`, `Array`, `Object` |
+| `OpaqueScalarV1` | `Null`, `Boolean`, `Integer`, `String` |
+| `MetadataV1` | `Values` |
+| `MetadataValueV1` | `Null`, `Boolean`, `Integer`, `String` |
+| `RedactedServiceV1` | `ID`, `Kind`, `Visible`, `Paired` |
+| `RedactedSessionV1` | `ID`, `Remote`, `State`, `Since` |
+| `RedactedDeviceV1` | `ID`, `Entities`, `UseCaseClaims` |
+| `RedactedEntityV1` | `ID`, `Features` |
+| `RedactedFeatureV1` | `ID`, `Role` |
+| `RedactedUseCaseV1` | `ID` |
 
-`SnapshotV1` is the eebusreg-owned, secret-free raw source. The immutable
-public snapshot identity fields in the historical API inventory use
-`eebusraw.RedactedID`.
-Opaque raw observations use `eebusevidence.ObjectV1`; unknown values use
-`eebusraw.UnknownField`. The locked public Go inventory therefore contains no
-credential material, unmasked device identity, network endpoint, vendor
-implementation type, or promoted semantic identifier. The issue-68 authorized
-local MCP view is separate from this historical public Go inventory: it retains
-raw operational observations at the authorization boundary. An eebusreg-owned
-public-view builder creates a structurally separate `RedactedSnapshotV1` as an
-irreversible shareable projection. This adds no `RawSnapshotV1`, v2, alias, or
-compatibility surface and retains the existing `PairingState` API.
+`SnapshotV1` is the eebusreg-owned, secret-free raw source. Its first-party
+fields carry raw operational identity and protocol data directly; they use no
+upstream implementation type. An eebusreg-owned public-view builder creates
+the structurally separate `RedactedSnapshotV1` as an irreversible allowlisted
+projection. This adds no `RawSnapshotV1`, v2, alias, or compatibility surface
+and retains the existing `PairingState` API.
+
+## Candidate Field Value Types
+
+| Field | Go candidate type | Availability |
+| --- | --- | --- |
+| `ServiceV1.SKI` | `string` | `required` |
+| `ServiceV1.SHIPID` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
+| `ServiceV1.Name` | `string` | `required` |
+| `ServiceV1.Identifier` | `string` | `required` |
+| `ServiceV1.Brand` | `string` | `required` |
+| `ServiceV1.Type` | `string` | `required` |
+| `ServiceV1.Model` | `string` | `required` |
+| `ServiceV1.SecondaryDigest` | `*string` | `optional` |
+| `ServiceV1.Opaque` | `*[]OpaqueObservationV1` | `optional; nil differs from an observed empty array` |
+| `DeviceV1.SKI` | `string` | `required` |
+| `DeviceV1.SHIPID` | `*string` | `optional; absence differs from observed empty` |
+| `DeviceV1.Address` | `string` | `required` |
+| `DeviceV1.Type` | `string` | `required` |
+| `DeviceV1.Description` | `*string` | `optional; absence differs from observed empty` |
+| `DeviceV1.Metadata` | `*MetadataV1` | `optional; absence differs from an observed empty object` |
+| `DeviceV1.SecondaryDigest` | `*string` | `optional` |
+| `DeviceV1.Opaque` | `*[]OpaqueObservationV1` | `optional; nil differs from an observed empty array` |
+| `EntityV1.DeviceAddress` | `string` | `required` |
+| `EntityV1.EntityAddress` | `string` | `required` |
+| `EntityV1.Type` | `string` | `required` |
+| `EntityV1.Description` | `*string` | `optional; absence differs from observed empty` |
+| `EntityV1.SecondaryDigest` | `*string` | `optional` |
+| `EntityV1.Opaque` | `*[]OpaqueObservationV1` | `optional; nil differs from an observed empty array` |
+| `FeatureV1.DeviceAddress` | `string` | `required` |
+| `FeatureV1.EntityAddress` | `string` | `required` |
+| `FeatureV1.FeatureAddress` | `string` | `required` |
+| `FeatureV1.Type` | `string` | `required` |
+| `FeatureV1.Role` | `string` | `required` |
+| `FeatureV1.Description` | `*string` | `optional; absence differs from observed empty` |
+| `FeatureV1.SecondaryDigest` | `*string` | `optional` |
+| `FeatureV1.Opaque` | `*[]OpaqueObservationV1` | `optional; nil differs from an observed empty array` |
+| `UseCaseV1.ContextAddress` | `string` | `required` |
+| `UseCaseV1.Name` | `string` | `required` |
+| `UseCaseV1.Actor` | `string` | `required` |
+| `UseCaseV1.ResolvedRole` | `*string` | `optional` |
+| `UseCaseV1.Scenarios` | `*[]string` | `optional; nil differs from an observed empty array` |
+| `UseCaseV1.Version` | `*string` | `optional` |
+| `UseCaseV1.Availability` | `*bool` | `optional; nil differs from observed false` |
+| `UseCaseV1.DocumentSubrevision` | `*string` | `optional` |
+| `UseCaseV1.SecondaryDigest` | `*string` | `optional` |
+| `UseCaseV1.Opaque` | `*[]OpaqueObservationV1` | `optional; nil differs from an observed empty array` |
+| `OpaqueObservationV1.Path` | `string` | `required` |
+| `OpaqueObservationV1.Source` | `string` | `required` |
+| `OpaqueObservationV1.Value` | `OpaqueValueV1` | `required bounded JSON value` |
+| `MetadataV1.Values` | `map[string]MetadataValueV1` | `required; empty map is an observed empty object` |
+
+Secondary digest and opaque-observation fields are optional first-party values.
+An absent optional property means unavailable. A present empty string, array,
+object, or false boolean remains an observed value and is not collapsed into
+absence.
+
+`OpaqueValueV1` accepts scalars and nested JSON arrays/objects to maximum depth
+3. Arrays and objects have at most 32 members, strings have at most 4096 UTF-8
+bytes, one canonical JCS value has at most 16384 bytes, and one snapshot has at
+most 256 opaque observations and 262144 aggregate canonical opaque bytes. The
+recursive structured secret denylist is `private_key`, `private_pem`,
+`trust_store_bytes`, `credential_token`, `bearer_token`, `session_token`,
+`authentication_token`, and `cryptographic_secret`.
+
+## Redacted Builder Inventory
+
+| Builder | Input | Output | Contract |
+| --- | --- | --- | --- |
+| `BuildRedactedSnapshotV1` | `SnapshotV1` | `RedactedSnapshotV1` | `irreversible allowlisted projection; raw and opaque fields cannot be reconstructed` |
+
+The builder rejects credential, bearer, session, and authentication tokens,
+private key or PEM material, trust-store bytes, and cryptographic secrets
+before either snapshot is returned.
 
 The exact closed candidate enum inventory is:
 
@@ -92,7 +170,7 @@ MSP-036 may expose only this exact value-oriented operation inventory:
 | Operation | Contract |
 | --- | --- |
 | `NewSnapshotV1` | constructs a detached snapshot |
-| `Validate` | rejects malformed, unredacted, duplicate, inconsistent, or hash-mismatched data |
+| `Validate` | rejects malformed, secret-bearing, duplicate, inconsistent, or hash-mismatched data |
 | `Clone` | returns a complete defensive copy |
 | `ComputeDataHash` | hashes the context-bound canonical payload without `data_hash` |
 | `MarshalJSON` | emits the validated canonical representation |
@@ -100,9 +178,9 @@ MSP-036 may expose only this exact value-oriented operation inventory:
 | `GoString` | returns a redacted display value |
 | `Format` | writes a redacted display value |
 
-The type, field, enum, and operation tables are closed inventories. MSP-036
-permits no additional exported declaration outside those tables and the frozen
-MSP-035 `eebusraw` and `eebusevidence` dependencies.
+The type, field, enum, builder, and operation tables are closed inventories.
+Every listed type is first-party and no declaration depends on an upstream
+implementation type.
 
 There is no public `Runtime`, `View`, `SnapshotSource`, store handle, capture
 set, dereference operation, or update method in this milestone. `Start`,
@@ -112,7 +190,7 @@ remain behind the later admin-local gate.
 
 ## Immutability And Canonicalization
 
-Construction and cloning recursively copy every slice and nested raw or unknown
+Construction and cloning recursively copy every slice and nested raw or opaque
 collection. Mutating constructor inputs, clone outputs, or later runtime state
 cannot change a previously captured value. Go exported fields remain ordinary
 value fields; the contract's immutability guarantee is snapshot detachment and
@@ -121,17 +199,19 @@ defensive-copy behavior, not language-level `const` enforcement.
 Validation and JSON encoding use stable ordering without mutating caller-owned
 storage:
 
-- services, sessions, pairing observations, devices, entities, features, and
-  use-case claims sort by redacted identity kind and digest;
-- raw evidence objects use their frozen `ObjectV1` order;
-- unknown fields use their frozen path/digest/value order; and
+- services sort by SKI, optional SHIP ID, and identifier;
+- devices sort by address, SKI, and optional SHIP ID;
+- entities, features, and use cases sort by their complete address paths and
+  the raw-profile tie breakers;
+- opaque observations sort by path, source, and canonical value; and
 - timestamps are normalized to UTC and must be valid JSON timestamps.
 
 `data_hash` uses the Helianthus canonical `sha256:<64 lowercase hex>` form. Its
 JSON hash view contains `contract`, `runtime`, `local_ski`, `mask_tier`,
-`data_timestamp`, `status`, `pairing`, `services`, `sessions`, `topology`, and
-`raw`; only `captured_at` and `data_hash` are omitted. The identity and mask
-context therefore cannot be substituted while retaining a valid hash.
+`data_timestamp`, `status`, `pairing`, `services`, `sessions`, `devices`,
+`entities`, `features`, `usecases`, and `opaque`; only `captured_at` and
+`data_hash` are omitted. The identity and mask context therefore cannot be
+substituted while retaining a valid hash.
 `Validate` recomputes every non-empty `data_hash` and rejects a mismatch.
 Equivalent input orderings must produce byte-identical JSON and the same hash.
 
@@ -139,11 +219,12 @@ Equivalent input orderings must produce byte-identical JSON and the same hash.
 
 MSP-036 expressly forbids the public types `Runtime`, `RuntimeV1`, `View`,
 `ViewV1`, `SnapshotSource`, `Store`, `CaptureRef`, and `ViewResult`. It also
-forbids public `Start`, `Shutdown`, `Snapshot`, `PairingState`,
+forbids public `Start`, `Shutdown`, `Snapshot`,
 `RegisterRemoteSKI`, `UnregisterRemoteSKI`, `SetPairingWindow`,
 `UpdateSnapshot`, `Capture`, `Drop`, `CapturedSnapshot`, and `Dereference`
 operations. These names may be introduced only by their later owning
-milestones and gates.
+milestones and gates. The existing read-only `PairingState` API remains
+unchanged.
 
 ## Explicit Non-Authority
 

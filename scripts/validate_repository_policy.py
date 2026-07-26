@@ -182,6 +182,26 @@ ISSUE68_REDACTED_SCHEMA_REL = Path(
 ISSUE68_RAW_SCHEMA_REL = Path(
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json"
 )
+ISSUE68_RAW_SNAPSHOT_REL = Path("api/_candidate/raw-snapshot-view-v1.md")
+ISSUE68_OPAQUE_LIMITS = {
+    "maxDepth": 3,
+    "maxCanonicalBytesPerValue": 16384,
+    "maxAggregateCanonicalBytes": 262144,
+    "maxObservations": 256,
+    "maxArrayItems": 32,
+    "maxObjectProperties": 32,
+    "maxStringBytes": 4096,
+}
+ISSUE68_SECRET_DENYLIST = [
+    "private_key",
+    "private_pem",
+    "trust_store_bytes",
+    "credential_token",
+    "bearer_token",
+    "session_token",
+    "authentication_token",
+    "cryptographic_secret",
+]
 ISSUE68_TOOL_NAMES = {
     "eebus.v1.runtime.status.get",
     "eebus.v1.services.list",
@@ -195,16 +215,16 @@ ISSUE68_TOOL_NAMES = {
 }
 ISSUE68_RAW_TYPE_FIELDS = {
     "ServiceV1": {
-        "required": {"ski", "ship_id", "name", "identifier", "brand", "type", "model"},
-        "optional": {"secondary_digest", "opaque"},
+        "required": {"ski", "name", "identifier", "brand", "type", "model"},
+        "optional": {"ship_id", "secondary_digest", "opaque"},
     },
     "DeviceV1": {
-        "required": {"ski", "ship_id", "address", "type", "description"},
-        "optional": {"metadata", "secondary_digest", "opaque"},
+        "required": {"ski", "address", "type"},
+        "optional": {"ship_id", "description", "metadata", "secondary_digest", "opaque"},
     },
     "EntityV1": {
-        "required": {"device_address", "entity_address", "type", "description"},
-        "optional": {"secondary_digest", "opaque"},
+        "required": {"device_address", "entity_address", "type"},
+        "optional": {"description", "secondary_digest", "opaque"},
     },
     "FeatureV1": {
         "required": {
@@ -213,21 +233,24 @@ ISSUE68_RAW_TYPE_FIELDS = {
             "feature_address",
             "type",
             "role",
-            "description",
         },
-        "optional": {"secondary_digest", "opaque"},
+        "optional": {"description", "secondary_digest", "opaque"},
     },
     "UseCaseV1": {
         "required": {
             "context_address",
             "name",
             "actor",
+        },
+        "optional": {
+            "resolved_role",
             "scenarios",
             "version",
             "availability",
             "document_subrevision",
+            "secondary_digest",
+            "opaque",
         },
-        "optional": {"resolved_role", "secondary_digest", "opaque"},
     },
 }
 ISSUE68_REQUIRED_MARKERS = {
@@ -3732,6 +3755,9 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
                 errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw profile {name} binding is not exact")
         canonicalization = raw.get("x-canonicalization")
         hash_rule = raw.get("x-hash")
+        optional_semantics = raw.get("x-optional-field-semantics")
+        opaque_limits = raw.get("x-opaque-limits")
+        secret_denylist = raw.get("x-secret-denylist")
         if (
             not isinstance(canonicalization, dict)
             or canonicalization.get("standard") != "RFC 8785/JCS"
@@ -3748,6 +3774,17 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
             or hash_rule.get("encoding") != "sha256:lowercase-hex"
         ):
             errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw hash projection is not exact")
+        if optional_semantics != {
+            "absent": "unavailable",
+            "presentEmpty": "observed-empty",
+            "presentFalse": "observed-false",
+            "null": "only-where-explicitly-allowed",
+        }:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: absence-versus-empty contract is not exact")
+        if opaque_limits != ISSUE68_OPAQUE_LIMITS:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: opaque limits are not exact")
+        if secret_denylist != ISSUE68_SECRET_DENYLIST:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: structured secret denylist is not exact")
 
         definitions = raw.get("$defs")
         if not isinstance(definitions, dict):
@@ -3773,6 +3810,8 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
                 errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {name} field contract is not exact")
 
         opaque = definitions.get("OpaqueObservationV1")
+        opaque_value = definitions.get("OpaqueValueV1")
+        opaque_scalar = definitions.get("OpaqueScalarV1")
         if (
             not isinstance(opaque, dict)
             or opaque.get("additionalProperties") is not False
@@ -3780,11 +3819,46 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
             or set(opaque.get("properties", {})) != {"path", "source", "value"}
         ):
             errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: opaque path/source/value contract is not exact")
+        if (
+            not isinstance(opaque_value, dict)
+            or opaque_value.get("x-max-depth") != ISSUE68_OPAQUE_LIMITS["maxDepth"]
+            or opaque_value.get("x-max-jcs-bytes")
+            != ISSUE68_OPAQUE_LIMITS["maxCanonicalBytesPerValue"]
+            or len(opaque_value.get("oneOf", [])) != 3
+            or not isinstance(opaque_scalar, dict)
+            or len(opaque_scalar.get("oneOf", [])) != 4
+            or "OpaqueValueDepth2V1" not in definitions
+            or "OpaqueValueDepth3V1" not in definitions
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: bounded nested opaque value contract is not exact")
+        for name in ("OpaqueValueV1", "OpaqueValueDepth2V1", "OpaqueValueDepth3V1"):
+            definition = definitions.get(name)
+            variants = definition.get("oneOf", []) if isinstance(definition, dict) else []
+            arrays = [
+                variant for variant in variants
+                if isinstance(variant, dict) and variant.get("type") == "array"
+            ]
+            objects = [
+                variant for variant in variants
+                if isinstance(variant, dict) and variant.get("type") == "object"
+            ]
+            if (
+                len(arrays) != 1
+                or arrays[0].get("maxItems") != ISSUE68_OPAQUE_LIMITS["maxArrayItems"]
+                or len(objects) != 1
+                or objects[0].get("maxProperties")
+                != ISSUE68_OPAQUE_LIMITS["maxObjectProperties"]
+            ):
+                errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {name} container limits are not exact")
         opaque_list = definitions.get("OpaqueObservationsV1")
         if (
             not isinstance(opaque_list, dict)
             or not isinstance(opaque_list.get("maxItems"), int)
             or opaque_list.get("maxItems", 0) <= 0
+            or opaque_list.get("maxItems")
+            != ISSUE68_OPAQUE_LIMITS["maxObservations"]
+            or opaque_list.get("x-max-aggregate-jcs-bytes")
+            != ISSUE68_OPAQUE_LIMITS["maxAggregateCanonicalBytes"]
             or opaque_list.get("x-order-by") != ["path", "source", "value"]
         ):
             errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: opaque observations are not bounded and ordered")
@@ -3873,6 +3947,38 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
     for name, requirement in connected_requirements.items():
         if requirement not in normalized_msp06:
             errors.append(f"{msp06.relative_to(root)}: issue-68 missing connected {name}")
+
+    raw_snapshot = root / ISSUE68_RAW_SNAPSHOT_REL
+    raw_snapshot_text = (
+        _read(raw_snapshot)
+        if raw_snapshot.is_file() and not raw_snapshot.is_symlink()
+        else ""
+    )
+    normalized_raw_snapshot = " ".join(raw_snapshot_text.split()).casefold()
+    raw_snapshot_requirements = {
+        "raw SnapshotV1 ownership": "`snapshotv1` is the eebusreg-owned, secret-free raw source",
+        "separate redacted type": "`redactedsnapshotv1`",
+        "redacted builder": "`buildredactedsnapshotv1`",
+        "optional SHIP ID pointer": "`servicev1.shipid` | `*string`",
+        "optional description pointer": "`devicev1.description` | `*string`",
+        "optional metadata pointer": "`devicev1.metadata` | `*metadatav1`",
+        "optional use-case boolean": "`usecasev1.availability` | `*bool`",
+        "absence versus empty": "present empty string, array, object, or false boolean remains an observed value",
+        "nested opaque value": "`opaquevaluev1` accepts scalars and nested json arrays/objects",
+        "PairingState retained": "existing read-only `pairingstate` api remains unchanged",
+    }
+    for name, requirement in raw_snapshot_requirements.items():
+        if requirement not in normalized_raw_snapshot:
+            errors.append(f"{ISSUE68_RAW_SNAPSHOT_REL}: issue-68 missing {name}")
+    for stale in (
+        "eebusraw.redactedid",
+        "eebusevidence.objectv1",
+        "eebusraw.unknownfield",
+        "local mcp view is separate from this historical public go inventory",
+        "contains no credential material, unmasked device identity",
+    ):
+        if stale in normalized_raw_snapshot:
+            errors.append(f"{ISSUE68_RAW_SNAPSHOT_REL}: stale redacted compatibility carveout")
 
     amendment_connections = (
         ISSUE68_RAW_SCHEMA_REL.name.casefold(),

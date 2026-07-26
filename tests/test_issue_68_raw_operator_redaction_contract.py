@@ -149,6 +149,20 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
         self.assertEqual(raw["properties"]["public_http_tier"]["const"], "redacted")
         self.assertEqual(raw["properties"]["tier_selector"]["const"], "none")
         self.assertEqual(
+            raw["x-optional-field-semantics"],
+            {
+                "absent": "unavailable",
+                "presentEmpty": "observed-empty",
+                "presentFalse": "observed-false",
+                "null": "only-where-explicitly-allowed",
+            },
+        )
+        self.assertEqual(raw["x-opaque-limits"], repository_policy.ISSUE68_OPAQUE_LIMITS)
+        self.assertEqual(
+            raw["x-secret-denylist"],
+            repository_policy.ISSUE68_SECRET_DENYLIST,
+        )
+        self.assertEqual(
             set(redacted["$defs"]["ToolV1"]["enum"]),
             repository_policy.ISSUE68_TOOL_NAMES,
         )
@@ -167,6 +181,21 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
         opaque = raw["$defs"]["OpaqueObservationV1"]
         self.assertEqual(set(opaque["required"]), {"path", "source", "value"})
         self.assertEqual(set(opaque["properties"]), {"path", "source", "value"})
+        opaque_value = raw["$defs"]["OpaqueValueV1"]
+        self.assertEqual(opaque_value["x-max-depth"], 3)
+        self.assertEqual(opaque_value["x-max-jcs-bytes"], 16384)
+        self.assertEqual(
+            {
+                variant.get("type")
+                for variant in opaque_value["oneOf"]
+                if "type" in variant
+            },
+            {"array", "object"},
+        )
+        self.assertNotIn(
+            "minLength",
+            raw["$defs"]["ObservedOptionalTextV1"],
+        )
 
     def test_disconnected_marker_only_amendment_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -261,6 +290,87 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
             )
             errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
             self.assertTrue(any("ambiguously forbids evidence references" in error for error in errors), errors)
+
+    def test_validator_rejects_required_optional_drift(self) -> None:
+        mutations = (
+            ("ServiceV1", "ship_id"),
+            ("DeviceV1", "description"),
+            ("DeviceV1", "metadata"),
+            ("UseCaseV1", "resolved_role"),
+            ("UseCaseV1", "scenarios"),
+            ("UseCaseV1", "version"),
+            ("UseCaseV1", "availability"),
+            ("UseCaseV1", "document_subrevision"),
+        )
+        for type_name, field in mutations:
+            with self.subTest(type_name=type_name, field=field), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE68_RAW_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                schema["$defs"][type_name]["required"].append(field)
+                path.write_text(json.dumps(schema), encoding="utf-8")
+                errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
+                self.assertTrue(
+                    any(f"{type_name} field contract is not exact" in error for error in errors),
+                    errors,
+                )
+
+    def test_validator_rejects_stale_redacted_carveout_and_missing_builder(self) -> None:
+        for replacement in (
+            "The inventory uses eebusraw.RedactedID.",
+            "The local MCP view is separate from this historical public Go inventory.",
+        ):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE68_RAW_SNAPSHOT_REL
+                path.write_text(
+                    path.read_text(encoding="utf-8") + "\n" + replacement + "\n",
+                    encoding="utf-8",
+                )
+                errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
+                self.assertTrue(any("stale redacted compatibility carveout" in error for error in errors), errors)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            path = repo / repository_policy.ISSUE68_RAW_SNAPSHOT_REL
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    "`BuildRedactedSnapshotV1`",
+                    "`MissingRedactedBuilder`",
+                ),
+                encoding="utf-8",
+            )
+            errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
+            self.assertTrue(any("redacted builder" in error for error in errors), errors)
+
+    def test_validator_rejects_opaque_limit_and_denylist_drift(self) -> None:
+        mutations = (
+            ("depth", lambda schema: schema["x-opaque-limits"].__setitem__("maxDepth", 4)),
+            ("aggregate", lambda schema: schema["$defs"]["OpaqueObservationsV1"].__setitem__("x-max-aggregate-jcs-bytes", 0)),
+            ("denylist", lambda schema: schema["x-secret-denylist"].pop()),
+            ("nested-object", lambda schema: schema["$defs"]["OpaqueValueV1"]["oneOf"].pop()),
+        )
+        for name, mutate in mutations:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE68_RAW_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                mutate(schema)
+                path.write_text(json.dumps(schema), encoding="utf-8")
+                errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
+                self.assertTrue(
+                    any(
+                        marker in error
+                        for error in errors
+                        for marker in (
+                            "opaque limits are not exact",
+                            "opaque observations are not bounded and ordered",
+                            "structured secret denylist is not exact",
+                            "bounded nested opaque value contract is not exact",
+                        )
+                    ),
+                    errors,
+                )
 
     def test_raw_schema_key_exemption_does_not_allow_identifier_values(self) -> None:
         text = (ROOT / repository_policy.ISSUE68_RAW_SCHEMA_REL).read_text(

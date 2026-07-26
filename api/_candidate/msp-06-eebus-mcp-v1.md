@@ -131,21 +131,35 @@ The exact raw operator machine profile is
 It is a second profile of the same contract and the same nine MCP names, not a
 second namespace or API version. It defines only Helianthus first-party wire
 types and imports no upstream implementation type. Its service fields are SKI,
-SHIP ID, name, identifier, brand, type, and model. Its device fields are SKI,
-SHIP ID, address, type, description, and metadata when present. Entity fields
-are device address, entity address, type, and description. Feature fields are
-device address, entity address, feature address, type, role, and description.
-Use-case fields are context address, name, actor, optional resolved role,
-scenarios, version, availability, and document subrevision. A secondary digest
-is optional and cannot replace a raw first-party field.
+optional SHIP ID, name, identifier, brand, type, and model. Its device fields
+are SKI, optional SHIP ID, address, type, optional description, and optional
+metadata. Entity fields are device address, entity address, type, and optional
+description. Feature fields are device address, entity address, feature
+address, type, role, and optional description. Required use-case fields are
+context address, name, and actor; resolved role, scenarios, version,
+availability, and document subrevision are optional when unavailable. A
+secondary digest is optional and cannot replace a raw first-party field.
+
+Optional properties are omitted only when unavailable. A present empty string,
+array, or object and a present false boolean remain observed values distinct
+from absence; null is accepted only where the schema explicitly allows it.
 
 Raw opaque observations are bounded arrays of objects containing exactly
-`path`, `source`, and `value`; collection counts and scalar lengths are closed
-by the raw schema. Raw and redacted profiles both use RFC 8785/JCS, reject
-duplicate collection identities, apply the schema-declared `x-order-by` rules,
-and hash the exact boundary-selected projection. The raw hash therefore covers
-raw first-party and opaque fields; the redacted hash covers only the
-irreversible public projection.
+`path`, `source`, and `value`. Each value may be a scalar or a bounded nested
+JSON array/object. Maximum container depth is 3, maximum array length and
+object property count are 32, maximum string size is 4096 UTF-8 bytes, maximum
+canonical JCS size per value is 16384 bytes, maximum observations are 256, and
+maximum aggregate canonical opaque size is 262144 bytes.
+
+The recursive secret denylist is exactly `private_key`, `private_pem`,
+`trust_store_bytes`, `credential_token`, `bearer_token`, `session_token`,
+`authentication_token`, and `cryptographic_secret`. Matching structured keys
+or classified values fail closed before hashing or projection. Raw and
+redacted profiles both use RFC 8785/JCS, reject duplicate collection
+identities, apply the schema-declared `x-order-by` rules, and hash the exact
+boundary-selected projection. The raw hash therefore covers raw first-party
+and opaque fields; the redacted hash covers only the irreversible public
+projection.
 
 ## Collection Ordering
 

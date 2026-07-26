@@ -15,6 +15,31 @@
     "projection": "boundary-selected-profile",
     "exclude": ["server-generated-evidence-references", "captured_at", "expires_at"]
   },
+  "x-optional-field-semantics": {
+    "absent": "unavailable",
+    "presentEmpty": "observed-empty",
+    "presentFalse": "observed-false",
+    "null": "only-where-explicitly-allowed"
+  },
+  "x-opaque-limits": {
+    "maxDepth": 3,
+    "maxCanonicalBytesPerValue": 16384,
+    "maxAggregateCanonicalBytes": 262144,
+    "maxObservations": 256,
+    "maxArrayItems": 32,
+    "maxObjectProperties": 32,
+    "maxStringBytes": 4096
+  },
+  "x-secret-denylist": [
+    "private_key",
+    "private_pem",
+    "trust_store_bytes",
+    "credential_token",
+    "bearer_token",
+    "session_token",
+    "authentication_token",
+    "cryptographic_secret"
+  ],
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -81,6 +106,10 @@
       "minLength": 1,
       "maxLength": 4096
     },
+    "ObservedOptionalTextV1": {
+      "type": "string",
+      "maxLength": 4096
+    },
     "AddressV1": {
       "type": "string",
       "minLength": 1,
@@ -90,12 +119,62 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
-    "OpaqueValueV1": {
+    "OpaqueScalarV1": {
       "oneOf": [
         {"type": "null"},
         {"type": "boolean"},
         {"type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991},
-        {"type": "string", "maxLength": 4096}
+        {"type": "string", "maxLength": 4096, "x-max-utf8-bytes": 4096}
+      ]
+    },
+    "OpaqueValueDepth3V1": {
+      "oneOf": [
+        {"$ref": "#/$defs/OpaqueScalarV1"},
+        {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/OpaqueScalarV1"}
+        },
+        {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {"maxLength": 128},
+          "additionalProperties": {"$ref": "#/$defs/OpaqueScalarV1"}
+        }
+      ]
+    },
+    "OpaqueValueDepth2V1": {
+      "oneOf": [
+        {"$ref": "#/$defs/OpaqueScalarV1"},
+        {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/OpaqueValueDepth3V1"}
+        },
+        {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {"maxLength": 128},
+          "additionalProperties": {"$ref": "#/$defs/OpaqueValueDepth3V1"}
+        }
+      ]
+    },
+    "OpaqueValueV1": {
+      "x-max-depth": 3,
+      "x-max-jcs-bytes": 16384,
+      "oneOf": [
+        {"$ref": "#/$defs/OpaqueScalarV1"},
+        {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/OpaqueValueDepth2V1"}
+        },
+        {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {"maxLength": 128},
+          "additionalProperties": {"$ref": "#/$defs/OpaqueValueDepth2V1"}
+        }
       ]
     },
     "OpaqueObservationV1": {
@@ -111,6 +190,7 @@
     "OpaqueObservationsV1": {
       "type": "array",
       "maxItems": 256,
+      "x-max-aggregate-jcs-bytes": 262144,
       "uniqueItems": true,
       "items": {"$ref": "#/$defs/OpaqueObservationV1"},
       "x-order-by": ["path", "source", "value"]
@@ -132,10 +212,10 @@
     "ServiceV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ski", "ship_id", "name", "identifier", "brand", "type", "model"],
+      "required": ["ski", "name", "identifier", "brand", "type", "model"],
       "properties": {
         "ski": {"$ref": "#/$defs/BoundedTextV1"},
-        "ship_id": {"$ref": "#/$defs/BoundedTextV1"},
+        "ship_id": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "name": {"$ref": "#/$defs/BoundedTextV1"},
         "identifier": {"$ref": "#/$defs/BoundedTextV1"},
         "brand": {"$ref": "#/$defs/BoundedTextV1"},
@@ -148,13 +228,13 @@
     "DeviceV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ski", "ship_id", "address", "type", "description"],
+      "required": ["ski", "address", "type"],
       "properties": {
         "ski": {"$ref": "#/$defs/BoundedTextV1"},
-        "ship_id": {"$ref": "#/$defs/BoundedTextV1"},
+        "ship_id": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "address": {"$ref": "#/$defs/AddressV1"},
         "type": {"$ref": "#/$defs/BoundedTextV1"},
-        "description": {"$ref": "#/$defs/BoundedTextV1"},
+        "description": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "metadata": {"$ref": "#/$defs/MetadataV1"},
         "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
         "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
@@ -163,12 +243,12 @@
     "EntityV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["device_address", "entity_address", "type", "description"],
+      "required": ["device_address", "entity_address", "type"],
       "properties": {
         "device_address": {"$ref": "#/$defs/AddressV1"},
         "entity_address": {"$ref": "#/$defs/AddressV1"},
         "type": {"$ref": "#/$defs/BoundedTextV1"},
-        "description": {"$ref": "#/$defs/BoundedTextV1"},
+        "description": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
         "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
       }
@@ -181,8 +261,7 @@
         "entity_address",
         "feature_address",
         "type",
-        "role",
-        "description"
+        "role"
       ],
       "properties": {
         "device_address": {"$ref": "#/$defs/AddressV1"},
@@ -190,7 +269,7 @@
         "feature_address": {"$ref": "#/$defs/AddressV1"},
         "type": {"$ref": "#/$defs/BoundedTextV1"},
         "role": {"$ref": "#/$defs/BoundedTextV1"},
-        "description": {"$ref": "#/$defs/BoundedTextV1"},
+        "description": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
         "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
       }
@@ -198,20 +277,12 @@
     "UseCaseV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "context_address",
-        "name",
-        "actor",
-        "scenarios",
-        "version",
-        "availability",
-        "document_subrevision"
-      ],
+      "required": ["context_address", "name", "actor"],
       "properties": {
         "context_address": {"$ref": "#/$defs/AddressV1"},
         "name": {"$ref": "#/$defs/BoundedTextV1"},
         "actor": {"$ref": "#/$defs/BoundedTextV1"},
-        "resolved_role": {"$ref": "#/$defs/BoundedTextV1"},
+        "resolved_role": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "scenarios": {
           "type": "array",
           "maxItems": 128,
@@ -219,9 +290,9 @@
           "items": {"$ref": "#/$defs/BoundedTextV1"},
           "x-order-by": ["value"]
         },
-        "version": {"$ref": "#/$defs/BoundedTextV1"},
+        "version": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "availability": {"type": "boolean"},
-        "document_subrevision": {"$ref": "#/$defs/BoundedTextV1"},
+        "document_subrevision": {"$ref": "#/$defs/ObservedOptionalTextV1"},
         "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
         "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
       }

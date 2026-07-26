@@ -77,20 +77,87 @@ class MSP036RawViewContractTest(unittest.TestCase):
     def test_candidate_locks_the_versioned_raw_value_inventory(self) -> None:
         _, body = read_candidate()
         expected_types = {
-            "SnapshotV1": ["Meta", "Status", "Pairing", "Services", "Sessions", "Topology", "Raw"],
+            "SnapshotV1": ["Meta", "Status", "Pairing", "Services", "Sessions", "Devices", "Entities", "Features", "UseCases", "Opaque"],
+            "RedactedSnapshotV1": ["Meta", "Status", "Pairing", "Services", "Sessions", "Devices", "Entities", "Features", "UseCases"],
             "SnapshotMetaV1": ["Contract", "Runtime", "LocalSKI", "MaskTier", "CapturedAt", "DataTimestamp", "DataHash"],
             "RuntimeObservationV1": ["State", "Degradation"],
             "DegradationV1": ["Reason", "Since"],
-            "PairingObservationV1": ["Remote", "State", "Since", "Raw", "Unknown"],
-            "ServiceV1": ["ID", "Kind", "Visible", "Paired", "Raw", "Unknown"],
-            "SessionV1": ["ID", "Remote", "State", "Since", "Raw", "Unknown"],
-            "TopologyV1": ["Devices"],
-            "DeviceV1": ["ID", "Entities", "UseCaseClaims", "Raw", "Unknown"],
-            "EntityV1": ["ID", "Features", "Raw", "Unknown"],
-            "FeatureV1": ["ID", "Role", "Raw", "Unknown"],
-            "UseCaseClaimV1": ["ID", "Raw", "Unknown"],
+            "PairingObservationV1": ["RemoteSKI", "State", "Since", "Opaque"],
+            "ServiceV1": ["SKI", "SHIPID", "Name", "Identifier", "Brand", "Type", "Model", "SecondaryDigest", "Opaque"],
+            "SessionV1": ["ID", "RemoteSKI", "State", "Since", "Opaque"],
+            "DeviceV1": ["SKI", "SHIPID", "Address", "Type", "Description", "Metadata", "SecondaryDigest", "Opaque"],
+            "EntityV1": ["DeviceAddress", "EntityAddress", "Type", "Description", "SecondaryDigest", "Opaque"],
+            "FeatureV1": ["DeviceAddress", "EntityAddress", "FeatureAddress", "Type", "Role", "Description", "SecondaryDigest", "Opaque"],
+            "UseCaseV1": ["ContextAddress", "Name", "Actor", "ResolvedRole", "Scenarios", "Version", "Availability", "DocumentSubrevision", "SecondaryDigest", "Opaque"],
+            "OpaqueObservationV1": ["Path", "Source", "Value"],
+            "OpaqueValueV1": ["Scalar", "Array", "Object"],
+            "OpaqueScalarV1": ["Null", "Boolean", "Integer", "String"],
+            "MetadataV1": ["Values"],
+            "MetadataValueV1": ["Null", "Boolean", "Integer", "String"],
+            "RedactedServiceV1": ["ID", "Kind", "Visible", "Paired"],
+            "RedactedSessionV1": ["ID", "Remote", "State", "Since"],
+            "RedactedDeviceV1": ["ID", "Entities", "UseCaseClaims"],
+            "RedactedEntityV1": ["ID", "Features"],
+            "RedactedFeatureV1": ["ID", "Role"],
+            "RedactedUseCaseV1": ["ID"],
         }
         self.assertEqual(markdown_table(body, "## Candidate Type Inventory"), expected_types)
+
+        expected_field_types = {
+            "ServiceV1.SKI": ["string"],
+            "ServiceV1.SHIPID": ["*string"],
+            "ServiceV1.Name": ["string"],
+            "ServiceV1.Identifier": ["string"],
+            "ServiceV1.Brand": ["string"],
+            "ServiceV1.Type": ["string"],
+            "ServiceV1.Model": ["string"],
+            "ServiceV1.SecondaryDigest": ["*string"],
+            "ServiceV1.Opaque": ["*[]OpaqueObservationV1"],
+            "DeviceV1.SKI": ["string"],
+            "DeviceV1.SHIPID": ["*string"],
+            "DeviceV1.Address": ["string"],
+            "DeviceV1.Type": ["string"],
+            "DeviceV1.Description": ["*string"],
+            "DeviceV1.Metadata": ["*MetadataV1"],
+            "DeviceV1.SecondaryDigest": ["*string"],
+            "DeviceV1.Opaque": ["*[]OpaqueObservationV1"],
+            "EntityV1.DeviceAddress": ["string"],
+            "EntityV1.EntityAddress": ["string"],
+            "EntityV1.Type": ["string"],
+            "EntityV1.Description": ["*string"],
+            "EntityV1.SecondaryDigest": ["*string"],
+            "EntityV1.Opaque": ["*[]OpaqueObservationV1"],
+            "FeatureV1.DeviceAddress": ["string"],
+            "FeatureV1.EntityAddress": ["string"],
+            "FeatureV1.FeatureAddress": ["string"],
+            "FeatureV1.Type": ["string"],
+            "FeatureV1.Role": ["string"],
+            "FeatureV1.Description": ["*string"],
+            "FeatureV1.SecondaryDigest": ["*string"],
+            "FeatureV1.Opaque": ["*[]OpaqueObservationV1"],
+            "UseCaseV1.ContextAddress": ["string"],
+            "UseCaseV1.Name": ["string"],
+            "UseCaseV1.Actor": ["string"],
+            "UseCaseV1.ResolvedRole": ["*string"],
+            "UseCaseV1.Scenarios": ["*[]string"],
+            "UseCaseV1.Version": ["*string"],
+            "UseCaseV1.Availability": ["*bool"],
+            "UseCaseV1.DocumentSubrevision": ["*string"],
+            "UseCaseV1.SecondaryDigest": ["*string"],
+            "UseCaseV1.Opaque": ["*[]OpaqueObservationV1"],
+            "OpaqueObservationV1.Path": ["string"],
+            "OpaqueObservationV1.Source": ["string"],
+            "OpaqueObservationV1.Value": ["OpaqueValueV1"],
+            "MetadataV1.Values": ["map[string]MetadataValueV1"],
+        }
+        self.assertEqual(
+            markdown_table(body, "## Candidate Field Value Types"),
+            expected_field_types,
+        )
+        self.assertEqual(
+            markdown_table(body, "## Redacted Builder Inventory"),
+            {"BuildRedactedSnapshotV1": ["SnapshotV1"]},
+        )
 
         expected_enums = {
             "SnapshotContractV1": ["helianthus.eebus.runtime.raw-snapshot.v1"],
@@ -117,8 +184,9 @@ class MSP036RawViewContractTest(unittest.TestCase):
             set(markdown_table(body, "## Allowed Operations")), expected_operations
         )
         self.assertIn("helianthus.eebus.runtime.raw-snapshot.v1", body)
-        self.assertIn("eebusraw.RedactedID", body)
-        self.assertIn("eebusevidence.ObjectV1", body)
+        self.assertNotIn("eebusraw.RedactedID", body)
+        self.assertNotIn("eebusevidence.ObjectV1", body)
+        self.assertNotIn("eebusraw.UnknownField", body)
 
     def test_candidate_forbids_premature_authority_surfaces(self) -> None:
         _, body = read_candidate()
@@ -137,7 +205,6 @@ class MSP036RawViewContractTest(unittest.TestCase):
             "Start",
             "Shutdown",
             "Snapshot",
-            "PairingState",
             "RegisterRemoteSKI",
             "UnregisterRemoteSKI",
             "SetPairingWindow",
@@ -155,9 +222,10 @@ class MSP036RawViewContractTest(unittest.TestCase):
             "It also forbids public", 1
         )
         self.assertEqual(set(re.findall(r"`([^`]+)`", type_text)), forbidden_types)
-        self.assertEqual(
-            set(re.findall(r"`([^`]+)`", operation_text)), forbidden_operations
-        )
+        mentioned_operations = set(re.findall(r"`([^`]+)`", operation_text))
+        self.assertIn("PairingState", mentioned_operations)
+        mentioned_operations.remove("PairingState")
+        self.assertEqual(mentioned_operations, forbidden_operations)
 
         required_boundaries = (
             "no semantic device ID",
@@ -166,6 +234,9 @@ class MSP036RawViewContractTest(unittest.TestCase):
             "snapshot detachment and defensive-copy behavior",
             "only `captured_at` and `data_hash` are omitted",
             "`Validate` recomputes every non-empty `data_hash` and rejects a mismatch",
+            "existing read-only `PairingState` API remains unchanged",
+            "`OpaqueValueV1` accepts scalars and nested JSON arrays/objects",
+            "present empty string, array, object, or false boolean remains an observed value",
         )
         for boundary in required_boundaries:
             self.assertIn(boundary, normalized)

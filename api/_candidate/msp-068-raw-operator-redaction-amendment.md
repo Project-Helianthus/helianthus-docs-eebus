@@ -54,7 +54,7 @@ argument, body field, client principal, or other caller input selects a tier.
 The authorized raw view preserves inspectable operational observations without
 promoting them into semantic facts:
 
-| Object | Required raw fields |
+| Object | Raw profile fields |
 | --- | --- |
 | Service | service fields: SKI, SHIP ID, name, identifier, brand, type, model |
 | Device | device fields: SKI, SHIP ID, address, type, description, metadata when present |
@@ -69,6 +69,21 @@ first-party field. Unknown protocol fields remain inspectable raw or opaque
 values in bounded objects with exactly `path`, `source`, and `value`. They are
 not silently deleted, normalized into premature semantics, or inferred from an
 allowlist.
+
+Optional when unavailable: SHIP ID. Device, entity, and feature descriptions
+are optional; device metadata is optional. For a use case, context address,
+name, and actor are required, while resolved role, scenarios, version,
+availability, and document subrevision are optional when unavailable. Omission
+means unavailable; a present empty string, array, or object and a present false
+boolean remain distinct observed values.
+
+Opaque values may contain scalars or bounded nested JSON arrays/objects.
+Maximum depth is 3; each array and object is limited to 32 members; strings are
+limited to 4096 UTF-8 bytes; each value is limited to 16384 canonical JCS
+bytes; the list is limited to 256 observations and 262144 aggregate canonical
+bytes. The recursive structured secret denylist is exactly `private_key`,
+`private_pem`, `trust_store_bytes`, `credential_token`, `bearer_token`,
+`session_token`, `authentication_token`, and `cryptographic_secret`.
 
 The eebusreg-owned `SnapshotV1` is the secret-free raw source and keeps the
 existing `PairingState` API. An eebusreg-owned public-view builder produces a
