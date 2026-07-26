@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:helianthus:eebus:mcp:v1:raw-operator:candidate",
+  "title": "Candidate Helianthus eeBUS MCP v1 raw operator profile",
+  "x-canonicalization": {
+    "standard": "RFC 8785/JCS",
+    "objectKeyOrder": "UTF-16-code-unit",
+    "rejectDuplicateIdentities": true,
+    "rejectNegativeZero": true,
+    "safeIntegerMaximum": 9007199254740991
+  },
+  "x-hash": {
+    "algorithm": "SHA-256",
+    "encoding": "sha256:lowercase-hex",
+    "projection": "boundary-selected-profile",
+    "exclude": ["server-generated-evidence-references", "captured_at", "expires_at"]
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "namespace",
+    "source_type",
+    "redacted_projection_type",
+    "pairing_api",
+    "mask_tier",
+    "auth_scope",
+    "transport",
+    "operator_socket",
+    "parent_mode",
+    "socket_mode",
+    "peer_credentials",
+    "public_http_path",
+    "public_http_tier",
+    "tier_selector",
+    "tools",
+    "snapshot"
+  ],
+  "properties": {
+    "contract": {"const": "helianthus-eebus-mcp"},
+    "namespace": {"const": "eebus.v1"},
+    "source_type": {"const": "SnapshotV1"},
+    "redacted_projection_type": {"const": "RedactedSnapshotV1"},
+    "pairing_api": {"const": "PairingState"},
+    "mask_tier": {"const": "raw"},
+    "auth_scope": {"const": "eebus.raw.read"},
+    "transport": {"const": "owner-only-af-unix"},
+    "operator_socket": {"const": "/data/eebus/operator-mcp.sock"},
+    "parent_mode": {"const": "0700"},
+    "socket_mode": {"const": "0600"},
+    "peer_credentials": {"const": "same-euid-required-where-supported"},
+    "public_http_path": {"const": "/mcp"},
+    "public_http_tier": {"const": "redacted"},
+    "tier_selector": {"const": "none"},
+    "tools": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/ToolV1"},
+      "x-order-by": ["value"]
+    },
+    "snapshot": {"$ref": "#/$defs/OperatorSnapshotProfileV1"}
+  },
+  "$defs": {
+    "ToolV1": {
+      "enum": [
+        "eebus.v1.pairing.status.get",
+        "eebus.v1.runtime.status.get",
+        "eebus.v1.services.get",
+        "eebus.v1.services.list",
+        "eebus.v1.sessions.get",
+        "eebus.v1.sessions.list",
+        "eebus.v1.snapshot.capture",
+        "eebus.v1.snapshot.drop",
+        "eebus.v1.topology.get"
+      ]
+    },
+    "BoundedTextV1": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "AddressV1": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "SecondaryDigestV1": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "OpaqueValueV1": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "boolean"},
+        {"type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991},
+        {"type": "string", "maxLength": 4096}
+      ]
+    },
+    "OpaqueObservationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "source", "value"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "maxLength": 512},
+        "source": {"type": "string", "minLength": 1, "maxLength": 128},
+        "value": {"$ref": "#/$defs/OpaqueValueV1"}
+      }
+    },
+    "OpaqueObservationsV1": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/OpaqueObservationV1"},
+      "x-order-by": ["path", "source", "value"]
+    },
+    "MetadataValueV1": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "boolean"},
+        {"type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991},
+        {"type": "string", "maxLength": 1024}
+      ]
+    },
+    "MetadataV1": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {"minLength": 1, "maxLength": 128},
+      "additionalProperties": {"$ref": "#/$defs/MetadataValueV1"}
+    },
+    "ServiceV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ski", "ship_id", "name", "identifier", "brand", "type", "model"],
+      "properties": {
+        "ski": {"$ref": "#/$defs/BoundedTextV1"},
+        "ship_id": {"$ref": "#/$defs/BoundedTextV1"},
+        "name": {"$ref": "#/$defs/BoundedTextV1"},
+        "identifier": {"$ref": "#/$defs/BoundedTextV1"},
+        "brand": {"$ref": "#/$defs/BoundedTextV1"},
+        "type": {"$ref": "#/$defs/BoundedTextV1"},
+        "model": {"$ref": "#/$defs/BoundedTextV1"},
+        "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
+        "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
+      }
+    },
+    "DeviceV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ski", "ship_id", "address", "type", "description"],
+      "properties": {
+        "ski": {"$ref": "#/$defs/BoundedTextV1"},
+        "ship_id": {"$ref": "#/$defs/BoundedTextV1"},
+        "address": {"$ref": "#/$defs/AddressV1"},
+        "type": {"$ref": "#/$defs/BoundedTextV1"},
+        "description": {"$ref": "#/$defs/BoundedTextV1"},
+        "metadata": {"$ref": "#/$defs/MetadataV1"},
+        "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
+        "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
+      }
+    },
+    "EntityV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device_address", "entity_address", "type", "description"],
+      "properties": {
+        "device_address": {"$ref": "#/$defs/AddressV1"},
+        "entity_address": {"$ref": "#/$defs/AddressV1"},
+        "type": {"$ref": "#/$defs/BoundedTextV1"},
+        "description": {"$ref": "#/$defs/BoundedTextV1"},
+        "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
+        "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
+      }
+    },
+    "FeatureV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_address",
+        "entity_address",
+        "feature_address",
+        "type",
+        "role",
+        "description"
+      ],
+      "properties": {
+        "device_address": {"$ref": "#/$defs/AddressV1"},
+        "entity_address": {"$ref": "#/$defs/AddressV1"},
+        "feature_address": {"$ref": "#/$defs/AddressV1"},
+        "type": {"$ref": "#/$defs/BoundedTextV1"},
+        "role": {"$ref": "#/$defs/BoundedTextV1"},
+        "description": {"$ref": "#/$defs/BoundedTextV1"},
+        "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
+        "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
+      }
+    },
+    "UseCaseV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_address",
+        "name",
+        "actor",
+        "scenarios",
+        "version",
+        "availability",
+        "document_subrevision"
+      ],
+      "properties": {
+        "context_address": {"$ref": "#/$defs/AddressV1"},
+        "name": {"$ref": "#/$defs/BoundedTextV1"},
+        "actor": {"$ref": "#/$defs/BoundedTextV1"},
+        "resolved_role": {"$ref": "#/$defs/BoundedTextV1"},
+        "scenarios": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/BoundedTextV1"},
+          "x-order-by": ["value"]
+        },
+        "version": {"$ref": "#/$defs/BoundedTextV1"},
+        "availability": {"type": "boolean"},
+        "document_subrevision": {"$ref": "#/$defs/BoundedTextV1"},
+        "secondary_digest": {"$ref": "#/$defs/SecondaryDigestV1"},
+        "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
+      }
+    },
+    "OperatorSnapshotProfileV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["services", "devices", "entities", "features", "usecases", "opaque"],
+      "properties": {
+        "services": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/ServiceV1"},
+          "x-order-by": ["ski", "ship_id", "identifier"]
+        },
+        "devices": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/DeviceV1"},
+          "x-order-by": ["address", "ski", "ship_id"]
+        },
+        "entities": {
+          "type": "array",
+          "maxItems": 4096,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/EntityV1"},
+          "x-order-by": ["device_address", "entity_address"]
+        },
+        "features": {
+          "type": "array",
+          "maxItems": 16384,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/FeatureV1"},
+          "x-order-by": ["device_address", "entity_address", "feature_address"]
+        },
+        "usecases": {
+          "type": "array",
+          "maxItems": 4096,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/UseCaseV1"},
+          "x-order-by": ["context_address", "name", "actor", "version", "document_subrevision"]
+        },
+        "opaque": {"$ref": "#/$defs/OpaqueObservationsV1"}
+      }
+    }
+  }
+}

@@ -25,8 +25,8 @@ manifest must either match this candidate or falsify it before publication.
 
 The issue-68 [raw operator and shareable redaction amendment](msp-068-raw-operator-redaction-amendment.md)
 corrects the authorized local MCP boundary without changing this candidate's
-historical public Go API inventory. Both remain within the one initial
-`eebus.v1.*` namespace; the amendment introduces neither a v2 nor an alias.
+historical public Go API inventory. The amendment retains the one initial MCP
+`eebus.v1.*` namespace and introduces neither a v2 nor an alias.
 
 ## Boundary
 
@@ -59,14 +59,18 @@ All newly exported data types are suffixed `V1`. The candidate inventory is:
 | `FeatureV1` | `ID`, `Role`, `Raw`, `Unknown` |
 | `UseCaseClaimV1` | `ID`, `Raw`, `Unknown` |
 
-The immutable public snapshot identity fields use `eebusraw.RedactedID`.
+`SnapshotV1` is the eebusreg-owned, secret-free raw source. The immutable
+public snapshot identity fields in the historical API inventory use
+`eebusraw.RedactedID`.
 Opaque raw observations use `eebusevidence.ObjectV1`; unknown values use
 `eebusraw.UnknownField`. The locked public Go inventory therefore contains no
 credential material, unmasked device identity, network endpoint, vendor
 implementation type, or promoted semantic identifier. The issue-68 authorized
 local MCP view is separate from this historical public Go inventory: it retains
-raw operational observations at the authorization boundary while preserving
-redaction for every shareable export.
+raw operational observations at the authorization boundary. An eebusreg-owned
+public-view builder creates a structurally separate `RedactedSnapshotV1` as an
+irreversible shareable projection. This adds no `RawSnapshotV1`, v2, alias, or
+compatibility surface and retains the existing `PairingState` API.
 
 The exact closed candidate enum inventory is:
 

@@ -26,9 +26,9 @@ protocol, pairing, trust, or consumer-availability claim.
 
 ## Namespace And Boundary
 
-There is one initial `eebus.v1.*` namespace. This amendment corrects that
-unpublished namespace in place: it creates no second namespace, alias, legacy
-surface, or separate API version.
+There is one initial MCP `eebus.v1.*` namespace. This amendment corrects that
+unpublished MCP namespace in place: it creates no second namespace, alias,
+legacy surface, or separate API version.
 
 An authorized local/operator default is `mask_tier=raw`. It is selected by the
 authorization boundary, never by a tool argument, header, query parameter, or
@@ -36,9 +36,18 @@ client-supplied principal. A public/shareable export is explicit
 `mask_tier=redacted`; it is a separate boundary-selected export of the same
 `eebus.v1.*` contract, not a new tool family.
 
-Authorization is enforced fail-closed at the boundary. A request that is not
-authorized for the requested boundary receives no raw result. Tool inputs
-cannot upgrade, downgrade, or otherwise choose the tier.
+Authorization is enforced fail-closed at the boundary. The existing LAN HTTP
+`/mcp` listener is always the explicit redacted boundary. The same nine MCP
+tool names are also mounted on the owner-only AF_UNIX socket
+`/data/eebus/operator-mcp.sock`, where the default is raw.
+
+The AF_UNIX parent directory is mode `0700` and the socket is mode `0600`.
+Where peer credentials are supported, the server proves a same-effective-UID
+peer with the platform credential API before provider access. Startup fails
+closed if the operator listener, file-mode proof, or required peer-credential
+proof is unavailable. SSH or root administration reaches the operator
+endpoint only through a bind-mounted socket. No header, query parameter, tool
+argument, body field, client principal, or other caller input selects a tier.
 
 ## Raw Operator Fields And Opaque Values
 
@@ -47,24 +56,42 @@ promoting them into semantic facts:
 
 | Object | Required raw fields |
 | --- | --- |
-| Device | device fields: identity, useful protocol metadata |
-| Entity | entity fields: type, address, description |
-| Feature | feature fields: type, role, address, description |
-| Use-case claim | use-case fields: name, actor, role, scenario, context, version |
+| Service | service fields: SKI, SHIP ID, name, identifier, brand, type, model |
+| Device | device fields: SKI, SHIP ID, address, type, description, metadata when present |
+| Entity | entity fields: device address, entity address, type, description |
+| Feature | feature fields: device address, entity address, feature address, type, role, description |
+| Use-case claim | use-case fields: context address, name, actor, optional resolved role, scenarios, version, availability, document subrevision |
 
 SKI, SHIP ID, SPINE addresses, and protocol metadata are operational data
-visible to the authorized local operator, not crypto secrets. Unknown protocol
-fields remain inspectable raw or opaque values. They are not silently deleted,
-normalized into premature semantics, or inferred from an allowlist.
+visible to the authorized local operator, not crypto secrets. A secondary
+digest is allowed only as an additional correlator and never replaces the raw
+first-party field. Unknown protocol fields remain inspectable raw or opaque
+values in bounded objects with exactly `path`, `source`, and `value`. They are
+not silently deleted, normalized into premature semantics, or inferred from an
+allowlist.
+
+The eebusreg-owned `SnapshotV1` is the secret-free raw source and keeps the
+existing `PairingState` API. An eebusreg-owned public-view builder produces a
+structurally separate `RedactedSnapshotV1` as the irreversible shareable
+projection. There is no `RawSnapshotV1`, v2, alias, legacy, or compatibility
+surface.
+
+The two connected machine profiles are the
+[`helianthus.eebus.mcp.v1.raw.schema.json`](msp-06/helianthus.eebus.mcp.v1.raw.schema.json)
+raw operator profile and the existing
+[`helianthus.eebus.mcp.v1.schema.json`](msp-06/helianthus.eebus.mcp.v1.schema.json)
+redacted public profile.
 
 ## Reference And Tier Binding
 
-Reference binding includes runtime, contract, tool, scope, mask_tier, and
-auth_scope. A reference is minted only after the boundary selects its effective
-authorization and tier. Dereference rejects a mismatched mask_tier or auth_scope
-with `permission_denied`; a raw reference cannot be used for a redacted export,
-and a redacted reference cannot be used for a raw operator read. The caller
-supplies only the opaque token and cannot override any binding component.
+Reference binding includes runtime, contract, tool, scope, mask_tier, auth_scope,
+and authorization boundary. A shared server and store may serve both
+transports, but a reference is minted only after the transport boundary selects
+its effective authorization and tier. Dereference rejects a mismatched
+mask_tier, auth_scope, or authorization boundary with `permission_denied`; a
+raw reference cannot be used for a redacted export, and a redacted reference
+cannot be used for a raw operator read. The caller supplies only the opaque
+reference and cannot override any binding component.
 
 ## Public Redaction And Secret Exclusion
 
@@ -72,11 +99,14 @@ Public/shareable artifacts redact stable identities. They retain only the
 redacted identity form required by the existing redacted export profile and do
 not expose stable identifiers as correlators.
 
-Private keys, private PEM material, tokens, trust-store bytes, and cryptographic
-secrets are forbidden in every tier. This prohibition applies equally to raw
-operator responses, redacted exports, references, logs, errors, evidence, and
-fixtures. Raw operational visibility is not permission to disclose credentials
-or cryptographic material.
+Private keys, private PEM material, trust-store bytes, credential tokens,
+bearer tokens, session tokens, authentication tokens, and cryptographic secrets
+are forbidden in every tier. This prohibition applies equally to raw operator
+responses, redacted exports, logs, errors, evidence, and fixtures.
+Server-generated opaque evidence references are allowed only in designated direct
+MCP response fields and are never credentials, bearer/session/authentication
+tokens, or cryptographic key material. Raw operational visibility is not
+permission to disclose credentials or cryptographic material.
 
 `candidate_ref` is forbidden from the stable public API. Candidate provenance
 may remain inside a candidate-only artifact when the repository publication
