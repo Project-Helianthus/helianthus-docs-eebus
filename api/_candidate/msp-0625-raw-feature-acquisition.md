@@ -197,6 +197,26 @@ remote frame.
 - structured terminal error when present; and
 - public-safe, transition-linked audit commitments.
 
+`MutationV1.oneOf` discriminates every state. `applied` requires
+`protocol_accepted=true`, a non-null `observed_after`, and a closed
+`ApplyVerificationV1` whose relation is
+`observed_after_equals_requested`; its single equality commitment is the
+RFC 8785/JCS SHA-256 hash recomputed for both values. `rolled_back` requires
+the prior apply verification plus a `RollbackV1` with non-null rollback
+readback and `RollbackVerificationV1` relation
+`rollback_observed_after_equals_before`. The equality commitment is likewise
+recomputed for both the rollback readback and canonical before-image.
+
+`outcome_unknown`, `conflict`, `failed_no_contact`, and `rejected` require
+their closed evidence records and matching structured errors.
+`failed_no_contact` evidence fixes `remote_frames_sent=0`; `rejected` requires
+a correlated rejection plus verified readback equal to `before`; `conflict`
+commits distinct before, requested, and observed hashes; and
+`outcome_unknown` records the last possible-side-effect intent and forbids
+blind retry. Evidence relations are runtime assertions: the boundary
+recomputes every named hash and rejects a false relation rather than trusting
+caller-supplied commitments.
+
 The full state enum is:
 
 ```text
@@ -254,11 +274,17 @@ probe-expiry rollback, and recovery. A different writer receives
 
 ## Error Envelope
 
-Every tool uses the existing v1 success/error exclusivity except the explicit
-bounded `partial_result`, whose data retains completed target results and
-per-target failures. `ErrorV1` has exactly `code`, `message`, `retriable`,
-`source_layer`, and optional public-safe `details`. Backend text, payload
-preimages, and secret-classified values never enter `message` or `details`.
+`EnvelopeV1.oneOf` discriminates on `meta.tool` and fixes `meta.scope`,
+`meta.auth_scope`, the exact closed `request`, and the exact response `data`
+type for that tool. A success has non-null typed `data` and `error=null`; a
+failure has `data=null` and non-null `ErrorV1`. Both-null and ordinary
+data-plus-error envelopes are invalid. The sole data-plus-error variant is
+`eebus.v1.features.data.get` with code `partial_result`, whose data retains
+completed target results and per-target failures.
+
+`ErrorV1` has exactly `code`, `message`, `retriable`, `source_layer`, and
+optional public-safe `details`. Backend text, payload preimages, and
+secret-classified values never enter `message` or `details`.
 
 The closed error vocabulary includes:
 
@@ -304,3 +330,16 @@ authorization and tier. It may expose classifications, aggregate results,
 timestamps, and commitments, but never the raw target, typed preimages, stable
 identity, or secret material. No raw result is copied into `ebus.v1`, a
 semantic registry, or a consumer surface.
+
+Before hashing, reference creation, audit insertion, or error rendering, the
+boundary recursively traverses every typed object, array, and scalar. Field
+names are normalized by Unicode NFKC, insertion of `_` at each ASCII
+lowercase-or-digit to uppercase transition, replacement of every remaining
+run outside `[A-Za-z0-9]` by `_`, ASCII lowercase conversion, underscore
+collapse, and leading/trailing underscore removal. A field is rejected when
+that normalized name, or the same name with underscores removed, equals a
+member of `x-secret-denylist`. String values are Unicode-NFKC normalized and
+trimmed, then rejected when they contain a case-insensitive PEM private-key
+boundary or begin with a case-insensitive bearer scheme followed by a
+non-empty credential. Other bounded unknown names and values remain
+inspectable raw data.

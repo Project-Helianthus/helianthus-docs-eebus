@@ -81,6 +81,26 @@ bytes. Secret scanning happens before canonical hashing, reference storage,
 audit publication, or error rendering. A secret-classified field fails closed
 and cannot be replaced by a digest in a public artifact.
 
+Secret scanning recursively visits every typed object, array, and scalar.
+Field-name normalization is exactly: Unicode NFKC; insert `_` at each ASCII
+lowercase-or-digit to uppercase transition; replace every remaining
+run outside `[A-Za-z0-9]` with `_`; lowercase ASCII; collapse repeated
+underscores; trim leading and trailing underscores. Reject when the
+normalized name, or its underscore-elided form, exactly matches the
+corresponding form of a denylisted name. String-value normalization is
+Unicode NFKC followed by leading/trailing whitespace removal. Reject a value
+containing a case-insensitive PEM private-key boundary or beginning with a
+case-insensitive bearer authorization scheme followed by a non-empty
+credential. Diagnostics identify only structural positions and
+classifications; they never echo the rejected key or value.
+
+The schema applies `propertyNames` and fail-closed `patternProperties` at every
+recursive typed-object level and rejects the directly expressible secret
+string patterns. The boundary traversal applies the same rule after NFKC and
+therefore closes equivalent spellings that JSON Schema regular expressions
+cannot generally normalize. Unknown fields that do not classify as secrets
+remain bounded, typed, and inspectable on the owner-authorized raw surface.
+
 ## Public Evidence Boundary
 
 Public evidence remains explicitly redacted and bound to the authorization

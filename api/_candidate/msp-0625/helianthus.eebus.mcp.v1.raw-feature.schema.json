@@ -109,6 +109,16 @@
     "authentication_token",
     "cryptographic_secret"
   ],
+  "x-secret-boundary": {
+    "keyNormalization": "Unicode NFKC; insert underscore at ASCII lower-or-digit to upper transition; map every run outside [A-Za-z0-9] to underscore; lowercase; collapse and trim underscores",
+    "keyComparison": "exact normalized or underscore-elided match against x-secret-denylist",
+    "valueNormalization": "Unicode NFKC then trim leading and trailing whitespace",
+    "valueRejection": [
+      "case-insensitive PEM private-key boundary",
+      "case-insensitive bearer authorization scheme followed by a non-empty credential"
+    ],
+    "action": "reject-before-hash-reference-audit-or-error-rendering"
+  },
   "x-capacity": {
     "maxReadTargets": 16,
     "maxConcurrentReads": 16,
@@ -495,6 +505,21 @@
         }
       }
     },
+    "SecretFieldNamePatternV1": {
+      "type": "string",
+      "pattern": "^(?:[Pp][Rr][Ii][Vv][Aa][Tt][Ee][ _.-]*(?:[Kk][Ee][Yy]|[Pp][Ee][Mm])|[Tt][Rr][Uu][Ss][Tt][ _.-]*[Ss][Tt][Oo][Rr][Ee][ _.-]*[Bb][Yy][Tt][Ee][Ss]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][ _.-]*[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr][ _.-]*[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][ _.-]*[Tt][Oo][Kk][Ee][Nn]|[Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ii][Oo][Nn][ _.-]*[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Yy][Pp][Tt][Oo][Gg][Rr][Aa][Pp][Hh][Ii][Cc][ _.-]*[Ss][Ee][Cc][Rr][Ee][Tt])$"
+    },
+    "SafeRawFieldNameV1": {
+      "type": "string",
+      "maxLength": 256,
+      "not": {
+        "$ref": "#/$defs/SecretFieldNamePatternV1"
+      }
+    },
+    "SecretScalarPatternV1": {
+      "type": "string",
+      "pattern": "(?:-----[Bb][Ee][Gg][Ii][Nn][ ]+(?:[A-Za-z0-9]+[ ]+)*[Pp][Rr][Ii][Vv][Aa][Tt][Ee][ ]+[Kk][Ee][Yy]-----|^[ \t]*[Bb][Ee][Aa][Rr][Ee][Rr][ \t]+\\S)"
+    },
     "TypedScalarV1": {
       "oneOf": [
         {
@@ -510,7 +535,10 @@
         },
         {
           "type": "string",
-          "maxLength": 16384
+          "maxLength": 16384,
+          "not": {
+            "$ref": "#/$defs/SecretScalarPatternV1"
+          }
         }
       ]
     },
@@ -533,8 +561,10 @@
           "type": "object",
           "maxProperties": 256,
           "propertyNames": {
-            "type": "string",
-            "maxLength": 256
+            "$ref": "#/$defs/SafeRawFieldNameV1"
+          },
+          "patternProperties": {
+            "^(?:[Pp][Rr][Ii][Vv][Aa][Tt][Ee][ _.-]*(?:[Kk][Ee][Yy]|[Pp][Ee][Mm])|[Tt][Rr][Uu][Ss][Tt][Oo][Rr][Ee][Bb][Yy][Tt][Ee][Ss]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr][Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Yy][Pp][Tt][Oo][Gg][Rr][Aa][Pp][Hh][Ii][Cc][Ss][Ee][Cc][Rr][Ee][Tt])$": false
           },
           "additionalProperties": {
             "$ref": "#/$defs/TypedValueDepth4V1"
@@ -558,8 +588,10 @@
           "type": "object",
           "maxProperties": 256,
           "propertyNames": {
-            "type": "string",
-            "maxLength": 256
+            "$ref": "#/$defs/SafeRawFieldNameV1"
+          },
+          "patternProperties": {
+            "^(?:[Pp][Rr][Ii][Vv][Aa][Tt][Ee][ _.-]*(?:[Kk][Ee][Yy]|[Pp][Ee][Mm])|[Tt][Rr][Uu][Ss][Tt][Oo][Rr][Ee][Bb][Yy][Tt][Ee][Ss]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr][Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Yy][Pp][Tt][Oo][Gg][Rr][Aa][Pp][Hh][Ii][Cc][Ss][Ee][Cc][Rr][Ee][Tt])$": false
           },
           "additionalProperties": {
             "$ref": "#/$defs/TypedValueDepth3V1"
@@ -583,8 +615,10 @@
           "type": "object",
           "maxProperties": 256,
           "propertyNames": {
-            "type": "string",
-            "maxLength": 256
+            "$ref": "#/$defs/SafeRawFieldNameV1"
+          },
+          "patternProperties": {
+            "^(?:[Pp][Rr][Ii][Vv][Aa][Tt][Ee][ _.-]*(?:[Kk][Ee][Yy]|[Pp][Ee][Mm])|[Tt][Rr][Uu][Ss][Tt][Oo][Rr][Ee][Bb][Yy][Tt][Ee][Ss]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr][Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Aa][Uu][Tt][Hh][Ee][Nn][Tt][Ii][Cc][Aa][Tt][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Yy][Pp][Tt][Oo][Gg][Rr][Aa][Pp][Hh][Ii][Cc][Ss][Ee][Cc][Rr][Ee][Tt])$": false
           },
           "additionalProperties": {
             "$ref": "#/$defs/TypedValueDepth2V1"
@@ -1057,6 +1091,187 @@
         }
       }
     },
+    "VerifiedTypedValueV1": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        {
+          "not": {
+            "type": "null"
+          }
+        }
+      ]
+    },
+    "ApplyVerificationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation",
+        "verified",
+        "equal_value_hash",
+        "verified_at"
+      ],
+      "properties": {
+        "relation": {
+          "const": "observed_after_equals_requested"
+        },
+        "verified": {
+          "const": true
+        },
+        "equal_value_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
+    "RollbackVerificationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation",
+        "verified",
+        "equal_value_hash",
+        "verified_at"
+      ],
+      "properties": {
+        "relation": {
+          "const": "rollback_observed_after_equals_before"
+        },
+        "verified": {
+          "const": true
+        },
+        "equal_value_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
+    "ConflictEvidenceV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation",
+        "verified",
+        "before_hash",
+        "requested_hash",
+        "observed_after_hash",
+        "verified_at"
+      ],
+      "properties": {
+        "relation": {
+          "const": "observed_after_differs_from_before_and_requested"
+        },
+        "verified": {
+          "const": true
+        },
+        "before_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "requested_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "observed_after_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
+    "NoContactEvidenceV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_frames_sent",
+        "last_completed_phase",
+        "verified_at"
+      ],
+      "properties": {
+        "remote_frames_sent": {
+          "const": 0
+        },
+        "last_completed_phase": {
+          "type": "string",
+          "enum": [
+            "shape_validation",
+            "scope_validation",
+            "authentication",
+            "provider_lookup",
+            "routing",
+            "runtime_selection",
+            "lease",
+            "constraints",
+            "cas",
+            "waiter_registration",
+            "send_setup"
+          ]
+        },
+        "verified_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
+    "RejectionVerificationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation",
+        "verified",
+        "correlated_rejection",
+        "equal_value_hash",
+        "verified_at"
+      ],
+      "properties": {
+        "relation": {
+          "const": "observed_after_equals_before"
+        },
+        "verified": {
+          "const": true
+        },
+        "correlated_rejection": {
+          "const": true
+        },
+        "equal_value_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
+    "OutcomeEvidenceV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "possible_side_effect",
+        "blind_retry_forbidden",
+        "last_durable_state",
+        "recorded_at"
+      ],
+      "properties": {
+        "possible_side_effect": {
+          "const": true
+        },
+        "blind_retry_forbidden": {
+          "const": true
+        },
+        "last_durable_state": {
+          "type": "string",
+          "enum": [
+            "dispatch_intent",
+            "rollback_dispatch_intent"
+          ]
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
     "RollbackV1": {
       "type": "object",
       "additionalProperties": false,
@@ -1086,7 +1301,7 @@
         "observed_after": {
           "oneOf": [
             {
-              "$ref": "#/$defs/TypedValueV1"
+              "$ref": "#/$defs/VerifiedTypedValueV1"
             },
             {
               "type": "null"
@@ -1095,8 +1310,139 @@
         },
         "error": {
           "$ref": "#/$defs/ErrorV1"
+        },
+        "verification": {
+          "$ref": "#/$defs/RollbackVerificationV1"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "state": {
+              "const": "rollback_intent"
+            },
+            "protocol_accepted": {
+              "type": "null"
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "verification"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "const": "rollback_dispatch_intent"
+            },
+            "protocol_accepted": {
+              "type": "null"
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "verification"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "const": "rollback_reply_observed"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "verification"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "const": "rollback_verify_pending"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "verification"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "verification"
+          ],
+          "properties": {
+            "state": {
+              "const": "rolled_back"
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            }
+          },
+          "not": {
+            "required": [
+              "error"
+            ]
+          }
+        }
+      ]
     },
     "MutationV1": {
       "type": "object",
@@ -1148,7 +1494,7 @@
         "observed_after": {
           "oneOf": [
             {
-              "$ref": "#/$defs/TypedValueV1"
+              "$ref": "#/$defs/VerifiedTypedValueV1"
             },
             {
               "type": "null"
@@ -1170,6 +1516,21 @@
         "error": {
           "$ref": "#/$defs/ErrorV1"
         },
+        "apply_verification": {
+          "$ref": "#/$defs/ApplyVerificationV1"
+        },
+        "conflict_evidence": {
+          "$ref": "#/$defs/ConflictEvidenceV1"
+        },
+        "no_contact_evidence": {
+          "$ref": "#/$defs/NoContactEvidenceV1"
+        },
+        "rejection_verification": {
+          "$ref": "#/$defs/RejectionVerificationV1"
+        },
+        "outcome_evidence": {
+          "$ref": "#/$defs/OutcomeEvidenceV1"
+        },
         "audit": {
           "type": "array",
           "minItems": 1,
@@ -1181,7 +1542,678 @@
             "$ref": "#/$defs/AuditTransitionV1"
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "probe"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "probe_deadline"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "probe_deadline"
+              ]
+            }
+          }
+        }
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "state": {
+              "const": "prepared"
+            },
+            "protocol_accepted": {
+              "type": "null"
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "const": "dispatch_intent"
+            },
+            "protocol_accepted": {
+              "type": "null"
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "const": "reply_observed"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "const": "verify_pending"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "apply_verification"
+          ],
+          "properties": {
+            "state": {
+              "const": "applied"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "apply_verification",
+            "probe_deadline"
+          ],
+          "properties": {
+            "state": {
+              "const": "probe_active"
+            },
+            "mode": {
+              "const": "probe"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "apply_verification",
+            "rollback"
+          ],
+          "properties": {
+            "state": {
+              "const": "rollback_intent"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "rollback": {
+              "properties": {
+                "state": {
+                  "const": "rollback_intent"
+                }
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "apply_verification",
+            "rollback"
+          ],
+          "properties": {
+            "state": {
+              "const": "rollback_dispatch_intent"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "rollback": {
+              "properties": {
+                "state": {
+                  "const": "rollback_dispatch_intent"
+                }
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "apply_verification",
+            "rollback"
+          ],
+          "properties": {
+            "state": {
+              "const": "rollback_reply_observed"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "rollback": {
+              "properties": {
+                "state": {
+                  "const": "rollback_reply_observed"
+                }
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "apply_verification",
+            "rollback"
+          ],
+          "properties": {
+            "state": {
+              "const": "rollback_verify_pending"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "rollback": {
+              "properties": {
+                "state": {
+                  "const": "rollback_verify_pending"
+                }
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "apply_verification",
+            "rollback"
+          ],
+          "properties": {
+            "state": {
+              "const": "rolled_back"
+            },
+            "protocol_accepted": {
+              "const": true
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "rollback": {
+              "properties": {
+                "state": {
+                  "const": "rolled_back"
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "error",
+            "outcome_evidence"
+          ],
+          "properties": {
+            "state": {
+              "const": "outcome_unknown"
+            },
+            "observed_after": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1",
+              "properties": {
+                "code": {
+                  "const": "outcome_unknown"
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "error",
+            "conflict_evidence"
+          ],
+          "properties": {
+            "state": {
+              "const": "conflict"
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1",
+              "properties": {
+                "code": {
+                  "const": "conflict"
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "error",
+            "no_contact_evidence"
+          ],
+          "properties": {
+            "state": {
+              "const": "failed_no_contact"
+            },
+            "protocol_accepted": {
+              "type": "null"
+            },
+            "observed_after": {
+              "type": "null"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "error",
+            "rejection_verification"
+          ],
+          "properties": {
+            "state": {
+              "const": "rejected"
+            },
+            "protocol_accepted": {
+              "const": false
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1",
+              "properties": {
+                "code": {
+                  "const": "remote_error"
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
     "MutationGetRequestV1": {
       "type": "object",
@@ -1256,12 +2288,32 @@
       "additionalProperties": false,
       "required": [
         "meta",
+        "request",
         "data",
         "error"
       ],
       "properties": {
         "meta": {
           "$ref": "#/$defs/EnvelopeMetaV1"
+        },
+        "request": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FeaturesGetRequestV1"
+            },
+            {
+              "$ref": "#/$defs/FeatureDataGetRequestV1"
+            },
+            {
+              "$ref": "#/$defs/FeatureDataSetRequestV1"
+            },
+            {
+              "$ref": "#/$defs/MutationGetRequestV1"
+            },
+            {
+              "$ref": "#/$defs/MutationRollbackRequestV1"
+            }
+          ]
         },
         "data": {
           "oneOf": [
@@ -1290,7 +2342,311 @@
           ]
         }
       },
-      "x-invariant": "success has non-null data and null error; failure has null data and non-null error except partial_result, which retains FeatureDataGetDataV1"
+      "oneOf": [
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeaturesGetRequestV1"
+            },
+            "data": {
+              "$ref": "#/$defs/FeaturesGetDataV1"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeaturesGetRequestV1"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.data.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeatureDataGetRequestV1"
+            },
+            "data": {
+              "$ref": "#/$defs/FeatureDataGetDataV1"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.data.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeatureDataGetRequestV1"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.data.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeatureDataGetRequestV1"
+            },
+            "data": {
+              "$ref": "#/$defs/FeatureDataGetDataV1"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1",
+              "properties": {
+                "code": {
+                  "const": "partial_result"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.data.set"
+                },
+                "scope": {
+                  "const": "eebus.raw.write"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.write"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeatureDataSetRequestV1"
+            },
+            "data": {
+              "$ref": "#/$defs/MutationV1"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.features.data.set"
+                },
+                "scope": {
+                  "const": "eebus.raw.write"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.write"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/FeatureDataSetRequestV1"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.mutations.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/MutationGetRequestV1"
+            },
+            "data": {
+              "$ref": "#/$defs/MutationV1"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.mutations.get"
+                },
+                "scope": {
+                  "const": "eebus.raw.read"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.read"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/MutationGetRequestV1"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.mutations.rollback"
+                },
+                "scope": {
+                  "const": "eebus.raw.write"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.write"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/MutationRollbackRequestV1"
+            },
+            "data": {
+              "$ref": "#/$defs/MutationV1"
+            },
+            "error": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "meta": {
+              "$ref": "#/$defs/EnvelopeMetaV1",
+              "properties": {
+                "tool": {
+                  "const": "eebus.v1.mutations.rollback"
+                },
+                "scope": {
+                  "const": "eebus.raw.write"
+                },
+                "auth_scope": {
+                  "const": "eebus.raw.write"
+                }
+              }
+            },
+            "request": {
+              "$ref": "#/$defs/MutationRollbackRequestV1"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1"
+            }
+          }
+        }
+      ],
+      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; partial_result is the only data-plus-error variant"
     }
   }
 }

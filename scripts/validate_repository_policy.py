@@ -338,6 +338,30 @@ ISSUE76_MUTATION_STATES = {
     "rejected",
 }
 ISSUE76_SECRET_DENYLIST = ISSUE68_SECRET_DENYLIST
+ISSUE76_SECRET_BOUNDARY = {
+    "keyNormalization": (
+        "Unicode NFKC; insert underscore at ASCII lower-or-digit to upper transition; "
+        "map every run outside [A-Za-z0-9] to underscore; lowercase; collapse and trim "
+        "underscores"
+    ),
+    "keyComparison": (
+        "exact normalized or underscore-elided match against x-secret-denylist"
+    ),
+    "valueNormalization": "Unicode NFKC then trim leading and trailing whitespace",
+    "valueRejection": [
+        "case-insensitive PEM private-key boundary",
+        "case-insensitive bearer authorization scheme followed by a non-empty credential",
+    ],
+    "action": "reject-before-hash-reference-audit-or-error-rendering",
+}
+ISSUE76_SECRET_KEY_COMPACT_DENYLIST = {
+    value.replace("_", "") for value in ISSUE76_SECRET_DENYLIST
+}
+ISSUE76_PRIVATE_PEM_PATTERN = re.compile(
+    r"-----BEGIN\s+(?:[A-Z0-9]+\s+)*PRIVATE\s+KEY-----",
+    re.IGNORECASE,
+)
+ISSUE76_BEARER_VALUE_PATTERN = re.compile(r"^bearer\s+\S", re.IGNORECASE)
 ISSUE76_M6_LOCKED_ARTIFACTS = {
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"): (
         "6a0b9a2c012cca480586b622691ee2e02"
@@ -4224,6 +4248,61 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
     return errors
 
 
+def _issue_76_normalize_secret_key(name: str) -> str:
+    normalized = unicodedata.normalize("NFKC", name)
+    output: list[str] = []
+    separator_pending = False
+    previous_ascii_lower_or_digit = False
+    for character in normalized:
+        if character.isascii() and character.isalnum():
+            if separator_pending and output and output[-1] != "_":
+                output.append("_")
+            if (
+                character.isupper()
+                and previous_ascii_lower_or_digit
+                and output
+                and output[-1] != "_"
+            ):
+                output.append("_")
+            output.append(character.lower())
+            separator_pending = False
+            previous_ascii_lower_or_digit = character.islower() or character.isdigit()
+        else:
+            separator_pending = True
+            previous_ascii_lower_or_digit = False
+    return re.sub(r"_+", "_", "".join(output)).strip("_")
+
+
+def issue_76_secret_boundary_errors(value: object) -> list[str]:
+    """Reject recursively classified secret keys and string values."""
+
+    errors: list[str] = []
+
+    def visit(candidate: object, path: str) -> None:
+        if isinstance(candidate, dict):
+            for position, (name, item) in enumerate(candidate.items()):
+                normalized = _issue_76_normalize_secret_key(str(name))
+                if (
+                    normalized in ISSUE76_SECRET_DENYLIST
+                    or normalized.replace("_", "")
+                    in ISSUE76_SECRET_KEY_COMPACT_DENYLIST
+                ):
+                    errors.append(f"{path}.field[{position}]: secret-classified field name")
+                visit(item, f"{path}.field[{position}]")
+        elif isinstance(candidate, list):
+            for index, item in enumerate(candidate):
+                visit(item, f"{path}[{index}]")
+        elif isinstance(candidate, str):
+            normalized = unicodedata.normalize("NFKC", candidate).strip()
+            if ISSUE76_PRIVATE_PEM_PATTERN.search(normalized):
+                errors.append(f"{path}: PEM private-key material")
+            elif ISSUE76_BEARER_VALUE_PATTERN.match(normalized):
+                errors.append(f"{path}: bearer credential material")
+
+    visit(value, "$")
+    return errors
+
+
 def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     """Validate the closed M6.25 raw feature machine contract."""
     path = root / ISSUE76_SCHEMA_REL
@@ -4335,6 +4414,46 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 round trip contract is not exact")
     if schema.get("x-secret-denylist") != ISSUE76_SECRET_DENYLIST:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 secret exclusion is not exact")
+    if schema.get("x-secret-boundary") != ISSUE76_SECRET_BOUNDARY:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 secret boundary is not exact")
+
+    typed_scalar = definitions.get("TypedScalarV1")
+    scalar_variants = (
+        typed_scalar.get("oneOf", []) if isinstance(typed_scalar, dict) else []
+    )
+    string_variants = [
+        item
+        for item in scalar_variants
+        if isinstance(item, dict) and item.get("type") == "string"
+    ]
+    if (
+        len(string_variants) != 1
+        or string_variants[0].get("not")
+        != {"$ref": "#/$defs/SecretScalarPatternV1"}
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 recursive secret value rejection is missing"
+        )
+
+    for name in ("TypedValueDepth3V1", "TypedValueDepth2V1", "TypedValueV1"):
+        definition = definitions.get(name)
+        variants = definition.get("oneOf", []) if isinstance(definition, dict) else []
+        object_variants = [
+            item
+            for item in variants
+            if isinstance(item, dict) and item.get("type") == "object"
+        ]
+        if (
+            len(object_variants) != 1
+            or object_variants[0].get("propertyNames")
+            != {"$ref": "#/$defs/SafeRawFieldNameV1"}
+            or not isinstance(object_variants[0].get("patternProperties"), dict)
+            or False not in object_variants[0]["patternProperties"].values()
+        ):
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-76 recursive secret key rejection "
+                f"is missing from {name}"
+            )
 
     target = definitions.get("FeatureTargetV1")
     expected_target_fields = {
@@ -4435,6 +4554,217 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         or set(mutation.get("required", [])) != expected_mutation_required
     ):
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 durable mutation record is not exact")
+
+    mutation_variants = mutation.get("oneOf", []) if isinstance(mutation, dict) else []
+    mutation_by_state: dict[str, dict[str, Any]] = {}
+    for variant in mutation_variants:
+        if not isinstance(variant, dict):
+            continue
+        variant_properties = variant.get("properties")
+        if not isinstance(variant_properties, dict):
+            continue
+        state_schema = variant_properties.get("state")
+        if isinstance(state_schema, dict) and isinstance(state_schema.get("const"), str):
+            mutation_by_state[state_schema["const"]] = variant
+    if (
+        len(mutation_variants) != len(ISSUE76_MUTATION_STATES)
+        or set(mutation_by_state) != ISSUE76_MUTATION_STATES
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 mutation state oneOf is not exact"
+        )
+
+    terminal_evidence = {
+        "applied": {"apply_verification"},
+        "rolled_back": {"apply_verification", "rollback"},
+        "outcome_unknown": {"error", "outcome_evidence"},
+        "conflict": {"error", "conflict_evidence"},
+        "failed_no_contact": {"error", "no_contact_evidence"},
+        "rejected": {"error", "rejection_verification"},
+    }
+    for state, required_evidence in terminal_evidence.items():
+        variant = mutation_by_state.get(state)
+        if not isinstance(variant, dict) or set(variant.get("required", [])) != required_evidence:
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-76 {state} evidence is not exact"
+            )
+
+    evidence_contracts = {
+        "ApplyVerificationV1": {
+            "relation",
+            "verified",
+            "equal_value_hash",
+            "verified_at",
+        },
+        "RollbackVerificationV1": {
+            "relation",
+            "verified",
+            "equal_value_hash",
+            "verified_at",
+        },
+        "ConflictEvidenceV1": {
+            "relation",
+            "verified",
+            "before_hash",
+            "requested_hash",
+            "observed_after_hash",
+            "verified_at",
+        },
+        "NoContactEvidenceV1": {
+            "remote_frames_sent",
+            "last_completed_phase",
+            "verified_at",
+        },
+        "RejectionVerificationV1": {
+            "relation",
+            "verified",
+            "correlated_rejection",
+            "equal_value_hash",
+            "verified_at",
+        },
+        "OutcomeEvidenceV1": {
+            "possible_side_effect",
+            "blind_retry_forbidden",
+            "last_durable_state",
+            "recorded_at",
+        },
+    }
+    for name, required in evidence_contracts.items():
+        definition = definitions.get(name)
+        if (
+            not isinstance(definition, dict)
+            or definition.get("additionalProperties") is not False
+            or set(definition.get("required", [])) != required
+        ):
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-76 {name} is not a closed evidence record"
+            )
+
+    rollback = definitions.get("RollbackV1")
+    rollback_variants = rollback.get("oneOf", []) if isinstance(rollback, dict) else []
+    rollback_states = {
+        state_schema["const"]
+        for variant in rollback_variants
+        if isinstance(variant, dict)
+        and isinstance(variant.get("properties"), dict)
+        and isinstance(
+            state_schema := variant["properties"].get("state"),
+            dict,
+        )
+        and isinstance(state_schema.get("const"), str)
+    }
+    if rollback_states != {
+        "rollback_intent",
+        "rollback_dispatch_intent",
+        "rollback_reply_observed",
+        "rollback_verify_pending",
+        "rolled_back",
+    }:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 rollback state oneOf is not exact"
+        )
+
+    envelope = definitions.get("EnvelopeV1")
+    envelope_variants = envelope.get("oneOf", []) if isinstance(envelope, dict) else []
+    if (
+        not isinstance(envelope, dict)
+        or envelope.get("additionalProperties") is not False
+        or set(envelope.get("required", [])) != {"meta", "request", "data", "error"}
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 envelope shape is not closed"
+        )
+
+    def ref_name(candidate: object) -> str | None:
+        if not isinstance(candidate, dict):
+            return None
+        reference = candidate.get("$ref")
+        prefix = "#/$defs/"
+        if isinstance(reference, str) and reference.startswith(prefix):
+            return reference.removeprefix(prefix)
+        return None
+
+    envelope_signatures: set[tuple[str, str, str, str, str, str]] = set()
+    for variant in envelope_variants:
+        if not isinstance(variant, dict) or not isinstance(
+            variant.get("properties"), dict
+        ):
+            continue
+        variant_properties = variant["properties"]
+        meta = variant_properties.get("meta")
+        meta_properties = meta.get("properties", {}) if isinstance(meta, dict) else {}
+        tool = meta_properties.get("tool", {}).get("const")
+        scope = meta_properties.get("scope", {}).get("const")
+        auth_scope = meta_properties.get("auth_scope", {}).get("const")
+        request_name = ref_name(variant_properties.get("request"))
+        data_schema = variant_properties.get("data")
+        data_name = (
+            "null"
+            if isinstance(data_schema, dict) and data_schema.get("type") == "null"
+            else ref_name(data_schema)
+        )
+        error_schema = variant_properties.get("error")
+        if isinstance(error_schema, dict) and error_schema.get("type") == "null":
+            error_name = "null"
+        elif ref_name(error_schema) == "ErrorV1":
+            error_code = error_schema.get("properties", {}).get("code", {}).get("const")
+            error_name = (
+                f"ErrorV1:{error_code}" if isinstance(error_code, str) else "ErrorV1"
+            )
+        else:
+            error_name = None
+        if all(
+            isinstance(item, str)
+            for item in (
+                tool,
+                scope,
+                auth_scope,
+                request_name,
+                data_name,
+                error_name,
+            )
+        ):
+            envelope_signatures.add(
+                (
+                    tool,
+                    scope,
+                    auth_scope,
+                    request_name,
+                    data_name,
+                    error_name,
+                )
+            )
+
+    expected_envelope_signatures: set[
+        tuple[str, str, str, str, str, str]
+    ] = set()
+    for tool, contract in expected_tool_contracts.items():
+        scope = ISSUE76_TOOL_SCOPES[tool]
+        request_name = contract["request"]
+        data_name = contract["data"]
+        expected_envelope_signatures.add(
+            (tool, scope, scope, request_name, data_name, "null")
+        )
+        expected_envelope_signatures.add(
+            (tool, scope, scope, request_name, "null", "ErrorV1")
+        )
+    expected_envelope_signatures.add(
+        (
+            "eebus.v1.features.data.get",
+            "eebus.raw.read",
+            "eebus.raw.read",
+            "FeatureDataGetRequestV1",
+            "FeatureDataGetDataV1",
+            "ErrorV1:partial_result",
+        )
+    )
+    if (
+        len(envelope_variants) != len(expected_envelope_signatures)
+        or envelope_signatures != expected_envelope_signatures
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 discriminated envelope oneOf is not exact"
+        )
 
     serialized = json.dumps(schema, sort_keys=True).casefold()
     for forbidden in (
