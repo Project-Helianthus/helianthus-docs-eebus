@@ -145,6 +145,35 @@ MSP06_PROVENANCE_MACHINE_FINGERPRINTS = {
         "4ab875e3987cc60dd0fdc382a3d0063b86742bc2349be5831d96e3bf05b7918e",
     },
 }
+ISSUE68_AMENDMENT_REL = Path(
+    "api/_candidate/msp-068-raw-operator-redaction-amendment.md"
+)
+ISSUE68_CURRENT_CONTRACT_RELS = (
+    Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
+    Path("api/_candidate/raw-snapshot-view-v1.md"),
+)
+ISSUE68_M2_LOCKED_ARTIFACTS = {
+    Path("api/eebusruntime-v1/reference.md"): (
+        "a3265bf99558093d7330780921f7d8d5"
+        "822f0bbd23a51f589a9ff7d67ee1e4f1"
+    ),
+    Path("api/eebusruntime-v1/manifest.json"): (
+        "bbabab51cc0a0e833c645f51767e67a3"
+        "4c0361ba61c45b0065ecfda55ed6c32f"
+    ),
+}
+ISSUE68_G16_LOCKED_ARTIFACT = Path(
+    "architecture/_candidate/msp-04b-first-trust-admin-local.md"
+)
+ISSUE68_G16_LOCKED_SHA256 = (
+    "a374c244b7b20eef1caf6d307ec87932"
+    "dfd6a1d83c7f8f1ceba6b04e7b10238e"
+)
+ISSUE68_STABLE_PROTOCOL = Path("protocols/ship-spine-overview.md")
+ISSUE68_STABLE_PROTOCOL_SHA256 = (
+    "734c5668cd1937b088cbb12c7c4dd6b7"
+    "8c0fc76cc76873dc2d49092aded65b3b"
+)
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
         MSP055_RETIRED_SOURCE_COMMIT,
@@ -3553,6 +3582,71 @@ def _repository_lstat_preflight(
     return regular_files, symlinks, errors
 
 
+def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
+    """Enforce the forward-only raw-operator/redacted-public correction."""
+    errors: list[str] = []
+
+    for rel, expected_sha256 in ISSUE68_M2_LOCKED_ARTIFACTS.items():
+        path = root / rel
+        if not path.is_file() or path.is_symlink() or hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest() != expected_sha256:
+            errors.append(f"{rel}: issue-68 historical M2 artifact must remain byte-identical")
+
+    g16 = root / ISSUE68_G16_LOCKED_ARTIFACT
+    if not g16.is_file() or g16.is_symlink() or hashlib.sha256(
+        g16.read_bytes()
+    ).hexdigest() != ISSUE68_G16_LOCKED_SHA256:
+        errors.append(f"{ISSUE68_G16_LOCKED_ARTIFACT}: issue-68 historical G16 artifact must remain byte-identical")
+
+    stable_protocol = root / ISSUE68_STABLE_PROTOCOL
+    if not stable_protocol.is_file() or stable_protocol.is_symlink() or hashlib.sha256(
+        stable_protocol.read_bytes()
+    ).hexdigest() != ISSUE68_STABLE_PROTOCOL_SHA256:
+        errors.append(f"{ISSUE68_STABLE_PROTOCOL}: issue-68 stable protocol must remain byte-identical")
+
+    amendment = root / ISSUE68_AMENDMENT_REL
+    amendment_text = (
+        _read(amendment)
+        if amendment.is_file() and not amendment.is_symlink()
+        else ""
+    )
+    if not amendment_text:
+        errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 forward amendment is missing")
+
+    required_markers = {
+        "single namespace": "one initial `eebus.v1.*` namespace",
+        "authorized raw default": "authorized local/operator default is `mask_tier=raw`",
+        "shareable redacted tier": "public/shareable export is explicit `mask_tier=redacted`",
+        "boundary authorization": "authorization is enforced fail-closed at the boundary",
+        "device fields": "device fields: identity, metadata",
+        "entity fields": "entity fields: address, description",
+        "feature fields": "feature fields: address, description",
+        "use-case fields": "use-case fields: name, actor, role, scenario, context, version",
+        "unknown fields": "unknown protocol fields remain inspectable raw or opaque values",
+        "reference binding": "reference binding includes runtime, contract, tool, scope, mask_tier, and auth_scope",
+        "cross-tier rejection": "dereference rejects a mismatched mask_tier or auth_scope",
+        "secret exclusion": "private keys, private PEM material, tokens, trust-store bytes, and cryptographic secrets are forbidden in every tier",
+        "candidate ref exclusion": "candidate_ref is forbidden from the stable public API",
+        "public identity redaction": "public/shareable artifacts redact stable identities",
+    }
+    for name, marker in required_markers.items():
+        if marker not in amendment_text:
+            errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 missing {name} contract marker")
+
+    amendment_name = ISSUE68_AMENDMENT_REL.name
+    for rel in ISSUE68_CURRENT_CONTRACT_RELS:
+        path = root / rel
+        if not path.is_file() or path.is_symlink() or amendment_name not in _read(path):
+            errors.append(f"{rel}: issue-68 forward amendment binding is missing")
+
+    stable_reference = root / "api/eebusruntime-v1/reference.md"
+    if stable_reference.is_file() and "candidate_ref" in _read(stable_reference):
+        errors.append("api/eebusruntime-v1/reference.md: issue-68 candidate_ref leaked into stable public API")
+
+    return errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -4254,6 +4348,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(ship_identity_corpus_errors(root))
     errors.extend(outbound_pairing_contract_errors(root))
     errors.extend(strict_current_schema_errors(root))
+    errors.extend(issue_68_raw_operator_redaction_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
