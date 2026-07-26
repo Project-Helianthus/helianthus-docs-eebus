@@ -23,6 +23,11 @@ This page is the docs-first candidate for MSP-036. It is not a supported API
 reference and does not assert deployed runtime behavior. A later normalized API
 manifest must either match this candidate or falsify it before publication.
 
+The issue-68 [raw operator and shareable redaction amendment](msp-068-raw-operator-redaction-amendment.md)
+corrects the authorized local MCP boundary without changing this candidate's
+historical public Go API inventory. Both remain within the one initial
+`eebus.v1.*` namespace; the amendment introduces neither a v2 nor an alias.
+
 ## Boundary
 
 MSP-036 may add immutable raw data values to the public `eebusruntime` package.
@@ -54,10 +59,14 @@ All newly exported data types are suffixed `V1`. The candidate inventory is:
 | `FeatureV1` | `ID`, `Role`, `Raw`, `Unknown` |
 | `UseCaseClaimV1` | `ID`, `Raw`, `Unknown` |
 
-Identity fields use `eebusraw.RedactedID`. Opaque raw observations use
-`eebusevidence.ObjectV1`; unknown values use `eebusraw.UnknownField`. No field
-contains credential material, an unmasked device identity, a network endpoint,
-vendor implementation type, or promoted semantic identifier.
+The immutable public snapshot identity fields use `eebusraw.RedactedID`.
+Opaque raw observations use `eebusevidence.ObjectV1`; unknown values use
+`eebusraw.UnknownField`. The locked public Go inventory therefore contains no
+credential material, unmasked device identity, network endpoint, vendor
+implementation type, or promoted semantic identifier. The issue-68 authorized
+local MCP view is separate from this historical public Go inventory: it retains
+raw operational observations at the authorization boundary while preserving
+redaction for every shareable export.
 
 The exact closed candidate enum inventory is:
 

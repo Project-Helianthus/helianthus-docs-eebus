@@ -32,6 +32,11 @@ does not establish consumer availability or authorize any protocol, trust,
 pairing, semantic, or write behavior. All publication channels remain disabled
 until a later promotion gate replaces this candidate.
 
+Issue 68 corrects the initial unpublished contract in place through the
+[raw operator and shareable redaction amendment](msp-068-raw-operator-redaction-amendment.md).
+It retains one `eebus.v1.*` namespace and does not add a v2, alias, legacy
+surface, or second API family.
+
 ## Stable Tool Inventory
 
 | Tool | Scope | Required input | Optional input | Data |
@@ -61,9 +66,12 @@ session tools. A connection callback may then populate the session tools. A
 transport-backed pairing callback may populate pairing status. Each stage is
 independent, and an earlier stage cannot imply a later one.
 
-This identity/discovery contract adds no tool, field, semantic object, GraphQL
-field, Portal model, Home Assistant entity, or write path. Shareable
-output remains raw, redacted, and limited to the closed stable inventory above.
+This identity/discovery contract adds no tool, field, semantic object, GraphQL field,
+Portal model, Home Assistant entity, or write path. The authorized local
+operator boundary defaults to `mask_tier=raw` and preserves the raw fields
+defined by the issue-68 amendment. A public/shareable export is explicitly
+`mask_tier=redacted` and uses the redacted profile below. Neither tier permits
+raw write, command, trust mutation, or pairing mutation.
 
 `id_digest` is a redacted SHA-256 selector represented by the runtime-scoped
 pseudonym defined below. It selects an already redacted ID and never accepts a
@@ -107,7 +115,7 @@ Raw runtime `Unknown` values are never copied to wire DTOs. Public error
 messages are fixed by error code; backend error text is never copied into
 `message`.
 
-The normative candidate schema is
+The normative candidate schema for the explicit redacted shareable export is
 [`api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json`](msp-06/helianthus.eebus.mcp.v1.schema.json).
 It uses JSON Schema Draft 2020-12 and closes every object with
 `additionalProperties=false`. Timestamps are UTC RFC 3339 strings with a
@@ -155,12 +163,15 @@ unexplained empty success.
 | `pairing_status_ref` | `eebus.v1.pairing.status.get` | `pairing-status` | `eebus.v1.pairing.status.get` |
 
 Each reference is bound when minted to runtime identity, MCP contract identity,
-tool identity, scope, the `redacted` mask tier, and the effective
-`eebus.raw.read` authorization scope. Callers supply only the opaque token;
-they cannot supply, override, or request any binding component. Each token has
-32 cryptographically random bytes encoded as unpadded base64url. Its canonical
-wire syntax is exactly 43 ASCII characters matching `[A-Za-z0-9_-]{43}` and it
-decodes to exactly 32 bytes; decoders reject non-canonical re-encodings.
+tool identity, scope, the effective `raw` or `redacted` mask tier, and the
+effective `eebus.raw.read` authorization scope. Callers supply only the opaque
+token; they cannot supply, override, or request any binding component. A
+dereference under a mismatched authorization scope or mask tier fails closed as
+`permission_denied`; no reference converts between raw and redacted tiers.
+Each token has 32 cryptographically random bytes encoded as unpadded base64url.
+Its canonical wire syntax is exactly 43 ASCII characters matching
+`[A-Za-z0-9_-]{43}` and it decodes to exactly 32 bytes; decoders reject
+non-canonical re-encodings.
 
 Evidence references resolve only through the exact tool and scope in the
 table. The internal drop operation is part of the MCP server implementation
@@ -221,17 +232,18 @@ An unknown well-formed evidence reference returns `not_found`.
 
 ## Authorization Policy
 
-The production MCP HTTP route is currently unauthenticated and does not
-authenticate an end user. Therefore v1 uses a fixed redacted-reader policy:
-`mask_tier=redacted` and `auth_scope=eebus.raw.read`. Those values are never
-accepted from tool arguments or headers. HTTP headers cannot alter the fixed
-policy.
+The authorization boundary selects the effective v1 policy after shape and
+syntax and before reference lifecycle. The authorized local/operator policy
+defaults to `mask_tier=raw` with `auth_scope=eebus.raw.read`. The public or
+shareable boundary selects explicit `mask_tier=redacted` with that same read
+scope. Authorization, mask, or principal arguments are never accepted from
+tool arguments or headers; such selectors return `invalid_argument`. HTTP
+headers cannot alter the boundary policy.
 
-Authorization is evaluated after shape and syntax and before reference
-lifecycle. The fail-closed input rule is: authorization, mask, or principal arguments return
-`invalid_argument`. A future authenticated policy may replace that grant, but
-it cannot reinterpret an already minted reference. A binding mismatch remains
-fail-closed under the policy that minted the reference.
+The boundary fails closed before provider access. A future authenticated policy
+may replace the boundary grant, but it cannot reinterpret an already minted
+reference. A binding mismatch remains fail-closed under the policy that minted
+the reference and cannot cross from raw to redacted or from redacted to raw.
 
 ## Exhaustive Error Inventory
 
@@ -288,7 +300,7 @@ cannot change the earlier error.
 | `contract` | contract name and version |
 | `tool` | exact stable tool name |
 | `scope` | exact scope binding |
-| `mask_tier` | fixed redacted tier |
+| `mask_tier` | boundary-selected raw or explicit redacted tier |
 | `auth_scope` | fixed effective read scope |
 | `mode` | live or evidence |
 | `data_timestamp` | observation timestamp |
@@ -352,7 +364,7 @@ consumer authority.
 | `EEBUS-G16` | `wire-log-error-artifact-redaction` |
 
 G12 proves one immutable whole-root capture. G13 proves exact replay after live
-mutation and disconnect. G14 proves reference binding and the fixed policy.
+mutation and disconnect. G14 proves reference binding and the boundary policy.
 G15 proves quota, drop, expiry, tombstone, and eviction behavior. G16 proves
 that PEM, token, full fingerprint, IP, MAC, serial, local identity, stable peer
 id, and pairing history never enter shareable output.
@@ -365,13 +377,15 @@ re-pseudonymize every raw SKI, raw SHIP ID, full fingerprint, or source-side
 redacted identifier; it must never forward a stable source digest. The key is
 never persisted, logged, returned, or reused after process restart.
 
-The positive output allowlist consists only of fields declared in the closed
-candidate JSON schema. Raw identity, certificate or authentication material,
-network coordinates, trust-store content, and pairing history have no wire
-field and must fail closed as `contract_violation` if encountered during DTO
-construction. The fixed reader policy does not establish a trusted network
-boundary: the unauthenticated route remains untrusted ingress, so masking and
-pseudonymization are mandatory even on loopback or a private subnet.
+The redacted export allowlist consists only of fields declared in the closed
+candidate JSON schema. The authorized raw profile is defined by the issue-68
+amendment and remains bound to its local authorization boundary. Certificate or
+authentication material, private keys, private PEM material, tokens,
+trust-store bytes, and cryptographic secrets have no wire field in either tier
+and must fail closed as `contract_violation` if encountered during DTO
+construction. A local boundary does not establish a trusted network boundary;
+raw visibility is limited to the authorized operator and never becomes a
+shareable export.
 
 Reference tokens are permitted only in designated direct MCP response fields.
 The artifact rule is: logs, errors, and publishable gate artifacts contain no

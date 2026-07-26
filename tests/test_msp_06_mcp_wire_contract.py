@@ -380,9 +380,10 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "MCP contract identity",
             "tool identity",
             "scope",
-            "`redacted` mask tier",
+            "effective `raw` or `redacted` mask tier",
             "effective `eebus.raw.read` authorization scope",
             "Callers supply only the opaque token",
+            "no reference converts between raw and redacted tiers",
             "32 cryptographically random bytes",
             "unpadded base64url",
             "does not require a public `ToolDrop` declaration",
@@ -477,14 +478,14 @@ class MSP06MCPWireContractTest(unittest.TestCase):
         )
         normalized = " ".join(body.split())
         for phrase in (
-            "does not authenticate an end user",
-            "production MCP HTTP route is currently unauthenticated",
-            "fixed redacted-reader policy",
-            "never accepted from tool arguments or headers",
-            "A future authenticated policy may replace that grant",
+            "authorized local/operator policy defaults to `mask_tier=raw`",
+            "public or shareable boundary selects explicit `mask_tier=redacted`",
+            "Authorization, mask, or principal arguments are never accepted from tool arguments or headers",
+            "A future authenticated policy may replace the boundary grant",
             "cannot reinterpret an already minted reference",
-            "authorization, mask, or principal arguments return `invalid_argument`",
-            "HTTP headers cannot alter the fixed policy",
+            "such selectors return `invalid_argument`",
+            "HTTP headers cannot alter the boundary policy",
+            "cannot cross from raw to redacted or from redacted to raw",
         ):
             self.assertIn(phrase, normalized)
 
@@ -748,8 +749,8 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "runtime-scoped pseudonym",
             "raw SKI",
             "raw SHIP ID",
-            "certificate or authentication material",
-            "fixed reader policy does not establish a trusted network boundary",
+            "Certificate or authentication material",
+            "local boundary does not establish a trusted network boundary",
         ):
             self.assertIn(phrase, normalized)
 

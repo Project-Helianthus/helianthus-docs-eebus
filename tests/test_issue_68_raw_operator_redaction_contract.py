@@ -35,6 +35,7 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
             "Enforce the forward-only raw-operator/redacted-public correction.",
         )
         self.assertEqual(
+            set(repository_policy.ISSUE68_REQUIRED_MARKERS),
             {
                 "single namespace",
                 "authorized raw default",
@@ -45,16 +46,12 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
                 "feature fields",
                 "use-case fields",
                 "unknown fields",
+                "operational identity metadata",
                 "reference binding",
                 "cross-tier rejection",
                 "secret exclusion",
                 "candidate ref exclusion",
                 "public identity redaction",
-            },
-            {
-                error.removeprefix(str(repository_policy.ISSUE68_AMENDMENT_REL) + ": issue-68 missing ").removesuffix(" contract marker")
-                for error in repository_policy.issue_68_raw_operator_redaction_errors(ROOT)
-                if "contract marker" in error
             },
         )
 
@@ -129,15 +126,16 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
                 "authorized local/operator default is `mask_tier=raw`",
                 "public/shareable export is explicit `mask_tier=redacted`",
                 "authorization is enforced fail-closed at the boundary",
-                "device fields: identity, metadata",
-                "entity fields: address, description",
-                "feature fields: address, description",
+                "device fields: identity, useful protocol metadata",
+                "entity fields: type, address, description",
+                "feature fields: type, role, address, description",
                 "use-case fields: name, actor, role, scenario, context, version",
                 "unknown protocol fields remain inspectable raw or opaque values",
+                "SKI, SHIP ID, SPINE addresses, and protocol metadata are operational data visible to the authorized local operator",
                 "reference binding includes runtime, contract, tool, scope, mask_tier, and auth_scope",
                 "dereference rejects a mismatched mask_tier or auth_scope",
                 "private keys, private PEM material, tokens, trust-store bytes, and cryptographic secrets are forbidden in every tier",
-                "candidate_ref is forbidden from the stable public API",
+                "`candidate_ref` is forbidden from the stable public API",
                 "public/shareable artifacts redact stable identities",
             )
             amendment.write_text("\n".join(required_markers) + "\n", encoding="utf-8")

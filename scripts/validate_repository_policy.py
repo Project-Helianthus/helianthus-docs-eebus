@@ -174,6 +174,23 @@ ISSUE68_STABLE_PROTOCOL_SHA256 = (
     "734c5668cd1937b088cbb12c7c4dd6b7"
     "8c0fc76cc76873dc2d49092aded65b3b"
 )
+ISSUE68_REQUIRED_MARKERS = {
+    "single namespace": "one initial `eebus.v1.*` namespace",
+    "authorized raw default": "authorized local/operator default is `mask_tier=raw`",
+    "shareable redacted tier": "public/shareable export is explicit `mask_tier=redacted`",
+    "boundary authorization": "authorization is enforced fail-closed at the boundary",
+    "device fields": "device fields: identity, useful protocol metadata",
+    "entity fields": "entity fields: type, address, description",
+    "feature fields": "feature fields: type, role, address, description",
+    "use-case fields": "use-case fields: name, actor, role, scenario, context, version",
+    "unknown fields": "unknown protocol fields remain inspectable raw or opaque values",
+    "operational identity metadata": "SKI, SHIP ID, SPINE addresses, and protocol metadata are operational data visible to the authorized local operator",
+    "reference binding": "reference binding includes runtime, contract, tool, scope, mask_tier, and auth_scope",
+    "cross-tier rejection": "dereference rejects a mismatched mask_tier or auth_scope",
+    "secret exclusion": "private keys, private PEM material, tokens, trust-store bytes, and cryptographic secrets are forbidden in every tier",
+    "candidate ref exclusion": "`candidate_ref` is forbidden from the stable public API",
+    "public identity redaction": "public/shareable artifacts redact stable identities",
+}
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
         MSP055_RETIRED_SOURCE_COMMIT,
@@ -3614,24 +3631,9 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
     if not amendment_text:
         errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 forward amendment is missing")
 
-    required_markers = {
-        "single namespace": "one initial `eebus.v1.*` namespace",
-        "authorized raw default": "authorized local/operator default is `mask_tier=raw`",
-        "shareable redacted tier": "public/shareable export is explicit `mask_tier=redacted`",
-        "boundary authorization": "authorization is enforced fail-closed at the boundary",
-        "device fields": "device fields: identity, metadata",
-        "entity fields": "entity fields: address, description",
-        "feature fields": "feature fields: address, description",
-        "use-case fields": "use-case fields: name, actor, role, scenario, context, version",
-        "unknown fields": "unknown protocol fields remain inspectable raw or opaque values",
-        "reference binding": "reference binding includes runtime, contract, tool, scope, mask_tier, and auth_scope",
-        "cross-tier rejection": "dereference rejects a mismatched mask_tier or auth_scope",
-        "secret exclusion": "private keys, private PEM material, tokens, trust-store bytes, and cryptographic secrets are forbidden in every tier",
-        "candidate ref exclusion": "candidate_ref is forbidden from the stable public API",
-        "public identity redaction": "public/shareable artifacts redact stable identities",
-    }
-    for name, marker in required_markers.items():
-        if marker not in amendment_text:
+    normalized_amendment = " ".join(amendment_text.split()).casefold()
+    for name, marker in ISSUE68_REQUIRED_MARKERS.items():
+        if marker.casefold() not in normalized_amendment:
             errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 missing {name} contract marker")
 
     amendment_name = ISSUE68_AMENDMENT_REL.name
