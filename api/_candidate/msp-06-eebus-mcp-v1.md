@@ -131,12 +131,13 @@ The exact raw operator machine profile is
 It is a second profile of the same contract and the same nine MCP names, not a
 second namespace or API version. It defines only Helianthus first-party wire
 types and imports no upstream implementation type. Its service fields are SKI,
-optional SHIP ID, name, identifier, brand, type, and model. Its device fields
-are SKI, optional SHIP ID, address, type, optional description, and optional
-metadata. Entity fields are device address, entity address, type, and optional
-description. Feature fields are device address, entity address, feature
-address, type, role, and optional description. Required use-case fields are
-context address, name, and actor; resolved role, scenarios, version,
+optional SHIP ID, kind, visible, paired, name, identifier, brand, type, and
+model. Kind and the observable visible/paired state are required. Its device
+fields are SKI, optional SHIP ID, address, type, optional description, and
+optional metadata. Entity fields are device address, entity address, type, and
+optional description. Feature fields are device address, entity address,
+feature address, type, role, and optional description. Required use-case fields
+are context address, name, and actor; resolved role, scenarios, version,
 availability, and document subrevision are optional when unavailable. A
 secondary digest is optional and cannot replace a raw first-party field.
 
@@ -158,8 +159,8 @@ or classified values fail closed before hashing or projection. Raw and
 redacted profiles both use RFC 8785/JCS, reject duplicate collection
 identities, apply the schema-declared `x-order-by` rules, and hash the exact
 boundary-selected projection. The raw hash therefore covers raw first-party
-and opaque fields; the redacted hash covers only the irreversible public
-projection.
+and opaque fields, including service kind, visible, and paired state; the
+redacted hash covers only the irreversible public projection.
 
 ## Collection Ordering
 
@@ -178,6 +179,10 @@ All comparisons are bytewise ascending over their serialized UTF-8 scalar
 values. Providers must reject duplicate unique identities as
 `contract_violation`; they must not silently retain one duplicate. These rules
 apply recursively to live and captured responses before hashing.
+
+The raw operator profile orders services by
+`ski,ship_id,identifier,kind,visible,paired`. Kind and observable state are
+therefore deterministic tie breakers and remain part of the raw hash input.
 
 The contract identity is `helianthus-eebus-mcp`, with major `1` and minor `0`.
 The mode is `live` or `evidence`. A valid degraded snapshot is an explained

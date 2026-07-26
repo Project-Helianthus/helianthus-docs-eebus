@@ -215,7 +215,17 @@ ISSUE68_TOOL_NAMES = {
 }
 ISSUE68_RAW_TYPE_FIELDS = {
     "ServiceV1": {
-        "required": {"ski", "name", "identifier", "brand", "type", "model"},
+        "required": {
+            "ski",
+            "kind",
+            "visible",
+            "paired",
+            "name",
+            "identifier",
+            "brand",
+            "type",
+            "model",
+        },
         "optional": {"ship_id", "secondary_digest", "opaque"},
     },
     "DeviceV1": {
@@ -258,6 +268,7 @@ ISSUE68_REQUIRED_MARKERS = {
     "authorized raw default": "authorized local/operator default is `mask_tier=raw`",
     "shareable redacted tier": "public/shareable export is explicit `mask_tier=redacted`",
     "boundary authorization": "authorization is enforced fail-closed at the boundary",
+    "service fields": "service fields: SKI, SHIP ID, kind, visible, paired, name, identifier, brand, type, model",
     "device fields": "device fields: SKI, SHIP ID, address, type, description, metadata when present",
     "entity fields": "entity fields: device address, entity address, type, description",
     "feature fields": "feature fields: device address, entity address, feature address, type, role, description",
@@ -3772,6 +3783,7 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
             or hash_rule.get("algorithm") != "SHA-256"
             or hash_rule.get("projection") != "boundary-selected-profile"
             or hash_rule.get("encoding") != "sha256:lowercase-hex"
+            or hash_rule.get("serviceStateFields") != ["kind", "visible", "paired"]
         ):
             errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw hash projection is not exact")
         if optional_semantics != {
@@ -3808,6 +3820,23 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
                 or set(definition.get("properties", {})) != required | optional
             ):
                 errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {name} field contract is not exact")
+
+        service_kind = definitions.get("ServiceKindV1")
+        service = definitions.get("ServiceV1")
+        service_properties = (
+            service.get("properties", {})
+            if isinstance(service, dict)
+            else {}
+        )
+        if (
+            not isinstance(service_kind, dict)
+            or service_kind.get("enum") != ["local", "remote"]
+            or service_properties.get("kind")
+            != {"$ref": "#/$defs/ServiceKindV1"}
+            or service_properties.get("visible") != {"type": "boolean"}
+            or service_properties.get("paired") != {"type": "boolean"}
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: ServiceV1 observable state contract is not exact")
 
         opaque = definitions.get("OpaqueObservationV1")
         opaque_value = definitions.get("OpaqueValueV1")
@@ -3879,6 +3908,13 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
                 or not schema.get("x-order-by")
             ):
                 errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {collection} is not bounded and ordered")
+        service_collection = collections.get("services")
+        if (
+            not isinstance(service_collection, dict)
+            or service_collection.get("x-order-by")
+            != ["ski", "ship_id", "identifier", "kind", "visible", "paired"]
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: services ordering is not exact")
 
         serialized = json.dumps(raw, sort_keys=True).casefold()
         if "rawsnapshotv1" in serialized:
@@ -3943,6 +3979,7 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
         "http redacted boundary": "lan http `/mcp` endpoint is always explicit `mask_tier=redacted`",
         "raw unknown preservation": "raw operator profile instead carries them as bounded opaque objects",
         "pairing state retention": "retains the existing `pairingstate` api",
+        "raw service state": "including service kind, visible, and paired state",
     }
     for name, requirement in connected_requirements.items():
         if requirement not in normalized_msp06:
@@ -3960,6 +3997,10 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
         "separate redacted type": "`redactedsnapshotv1`",
         "redacted builder": "`buildredactedsnapshotv1`",
         "optional SHIP ID pointer": "`servicev1.shipid` | `*string`",
+        "required service kind": "`servicev1.kind` | `servicekindv1`",
+        "required service visibility": "`servicev1.visible` | `bool`",
+        "required service pairing": "`servicev1.paired` | `bool`",
+        "explicit redacted service projection": "`redactedservicev1` | `id`, `kind`, `visible`, `paired`",
         "optional description pointer": "`devicev1.description` | `*string`",
         "optional metadata pointer": "`devicev1.metadata` | `*metadatav1`",
         "optional use-case boolean": "`usecasev1.availability` | `*bool`",

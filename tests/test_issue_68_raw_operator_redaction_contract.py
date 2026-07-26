@@ -42,6 +42,7 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
                 "authorized raw default",
                 "shareable redacted tier",
                 "boundary authorization",
+                "service fields",
                 "device fields",
                 "entity fields",
                 "feature fields",
@@ -163,6 +164,10 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
             repository_policy.ISSUE68_SECRET_DENYLIST,
         )
         self.assertEqual(
+            raw["x-hash"]["serviceStateFields"],
+            ["kind", "visible", "paired"],
+        )
+        self.assertEqual(
             set(redacted["$defs"]["ToolV1"]["enum"]),
             repository_policy.ISSUE68_TOOL_NAMES,
         )
@@ -196,6 +201,38 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
             "minLength",
             raw["$defs"]["ObservedOptionalTextV1"],
         )
+        self.assertEqual(
+            raw["$defs"]["ServiceKindV1"]["enum"],
+            ["local", "remote"],
+        )
+        self.assertEqual(
+            raw["$defs"]["OperatorSnapshotProfileV1"]["properties"]["services"][
+                "x-order-by"
+            ],
+            ["ski", "ship_id", "identifier", "kind", "visible", "paired"],
+        )
+
+    def test_validator_rejects_each_missing_required_service_state_field(self) -> None:
+        for field in ("kind", "visible", "paired"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE68_RAW_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                service = schema["$defs"]["ServiceV1"]
+                service["required"].remove(field)
+                del service["properties"][field]
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "ServiceV1 field contract is not exact" in error
+                        or "ServiceV1 observable state contract is not exact" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
 
     def test_disconnected_marker_only_amendment_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
