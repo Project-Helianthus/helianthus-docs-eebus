@@ -61,6 +61,7 @@ API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/helianthus-eebusreg-api-surface-v1.json",
     "api/_candidate/msp-055/verification.json",
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json",
     "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
     "api/eebusruntime-v1/attestation.json",
     "api/eebusruntime-v1/manifest.json",
@@ -85,6 +86,7 @@ API_MACHINE_ARTIFACTS = {
 }
 CANDIDATE_API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json",
     "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
 }
 MSP055_RETIRED_MANIFEST_SHA256 = (
@@ -144,6 +146,130 @@ MSP06_PROVENANCE_MACHINE_FINGERPRINTS = {
         "8ddc952deff2bd36eade164c45b2799d0b46851086f40a0acb0116f985c33395",
         "4ab875e3987cc60dd0fdc382a3d0063b86742bc2349be5831d96e3bf05b7918e",
     },
+}
+ISSUE68_AMENDMENT_REL = Path(
+    "api/_candidate/msp-068-raw-operator-redaction-amendment.md"
+)
+ISSUE68_CURRENT_CONTRACT_RELS = (
+    Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
+    Path("api/_candidate/raw-snapshot-view-v1.md"),
+)
+ISSUE68_M2_LOCKED_ARTIFACTS = {
+    Path("api/eebusruntime-v1/reference.md"): (
+        "a3265bf99558093d7330780921f7d8d5"
+        "822f0bbd23a51f589a9ff7d67ee1e4f1"
+    ),
+    Path("api/eebusruntime-v1/manifest.json"): (
+        "bbabab51cc0a0e833c645f51767e67a3"
+        "4c0361ba61c45b0065ecfda55ed6c32f"
+    ),
+}
+ISSUE68_G16_LOCKED_ARTIFACT = Path(
+    "architecture/_candidate/msp-04b-first-trust-admin-local.md"
+)
+ISSUE68_G16_LOCKED_SHA256 = (
+    "a374c244b7b20eef1caf6d307ec87932"
+    "dfd6a1d83c7f8f1ceba6b04e7b10238e"
+)
+ISSUE68_STABLE_PROTOCOL = Path("protocols/ship-spine-overview.md")
+ISSUE68_STABLE_PROTOCOL_SHA256 = (
+    "734c5668cd1937b088cbb12c7c4dd6b7"
+    "8c0fc76cc76873dc2d49092aded65b3b"
+)
+ISSUE68_REDACTED_SCHEMA_REL = Path(
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json"
+)
+ISSUE68_RAW_SCHEMA_REL = Path(
+    "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json"
+)
+ISSUE68_RAW_SNAPSHOT_REL = Path("api/_candidate/raw-snapshot-view-v1.md")
+ISSUE68_OPAQUE_LIMITS = {
+    "maxDepth": 3,
+    "maxCanonicalBytesPerValue": 16384,
+    "maxAggregateCanonicalBytes": 262144,
+    "maxObservations": 256,
+    "maxArrayItems": 32,
+    "maxObjectProperties": 32,
+    "maxStringBytes": 4096,
+}
+ISSUE68_SECRET_DENYLIST = [
+    "private_key",
+    "private_pem",
+    "trust_store_bytes",
+    "credential_token",
+    "bearer_token",
+    "session_token",
+    "authentication_token",
+    "cryptographic_secret",
+]
+ISSUE68_TOOL_NAMES = {
+    "eebus.v1.runtime.status.get",
+    "eebus.v1.services.list",
+    "eebus.v1.services.get",
+    "eebus.v1.sessions.list",
+    "eebus.v1.sessions.get",
+    "eebus.v1.topology.get",
+    "eebus.v1.snapshot.capture",
+    "eebus.v1.snapshot.drop",
+    "eebus.v1.pairing.status.get",
+}
+ISSUE68_RAW_TYPE_FIELDS = {
+    "ServiceV1": {
+        "required": {"ski", "name", "identifier", "brand", "type", "model"},
+        "optional": {"ship_id", "secondary_digest", "opaque"},
+    },
+    "DeviceV1": {
+        "required": {"ski", "address", "type"},
+        "optional": {"ship_id", "description", "metadata", "secondary_digest", "opaque"},
+    },
+    "EntityV1": {
+        "required": {"device_address", "entity_address", "type"},
+        "optional": {"description", "secondary_digest", "opaque"},
+    },
+    "FeatureV1": {
+        "required": {
+            "device_address",
+            "entity_address",
+            "feature_address",
+            "type",
+            "role",
+        },
+        "optional": {"description", "secondary_digest", "opaque"},
+    },
+    "UseCaseV1": {
+        "required": {
+            "context_address",
+            "name",
+            "actor",
+        },
+        "optional": {
+            "resolved_role",
+            "scenarios",
+            "version",
+            "availability",
+            "document_subrevision",
+            "secondary_digest",
+            "opaque",
+        },
+    },
+}
+ISSUE68_REQUIRED_MARKERS = {
+    "single namespace": "one initial MCP `eebus.v1.*` namespace",
+    "authorized raw default": "authorized local/operator default is `mask_tier=raw`",
+    "shareable redacted tier": "public/shareable export is explicit `mask_tier=redacted`",
+    "boundary authorization": "authorization is enforced fail-closed at the boundary",
+    "device fields": "device fields: SKI, SHIP ID, address, type, description, metadata when present",
+    "entity fields": "entity fields: device address, entity address, type, description",
+    "feature fields": "feature fields: device address, entity address, feature address, type, role, description",
+    "use-case fields": "use-case fields: context address, name, actor, optional resolved role, scenarios, version, availability, document subrevision",
+    "unknown fields": "unknown protocol fields remain inspectable raw or opaque values in bounded objects with exactly `path`, `source`, and `value`",
+    "operational identity metadata": "SKI, SHIP ID, SPINE addresses, and protocol metadata are operational data visible to the authorized local operator",
+    "reference binding": "reference binding includes runtime, contract, tool, scope, mask_tier, auth_scope, and authorization boundary",
+    "cross-tier rejection": "dereference rejects a mismatched mask_tier, auth_scope, or authorization boundary",
+    "secret exclusion": "credential tokens, bearer tokens, session tokens, authentication tokens, and cryptographic secrets are forbidden in every tier",
+    "reference exception": "server-generated opaque evidence references are allowed only in designated direct MCP response fields",
+    "candidate ref exclusion": "`candidate_ref` is forbidden from the stable public API",
+    "public identity redaction": "public/shareable artifacts redact stable identities",
 }
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
@@ -3002,6 +3128,18 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     )
     expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
     diagnostics = machine_publication_diagnostics(result)
+    if rel == ISSUE68_RAW_SCHEMA_REL.as_posix():
+        # The candidate schema names operational fields but contains no field
+        # values. Preserve the global identifier scan for every value/example
+        # while exempting only these structurally validated JSON property keys.
+        sanitized = re.sub(
+            r'"(?:ski|ship_id)"(?=\s*:)',
+            '"operational_identity_field"',
+            text,
+        )
+        sanitized_result = decode_machine_json(sanitized.encode("utf-8"))
+        if "private identifier" not in machine_publication_diagnostics(sanitized_result):
+            diagnostics.discard("private identifier")
     allowed_fingerprints = PROVENANCE_MACHINE_FINGERPRINTS.get(rel)
     if allowed_fingerprints is not None:
         actual_fingerprints = set()
@@ -3551,6 +3689,335 @@ def _repository_lstat_preflight(
                 regular_files.append(path)
 
     return regular_files, symlinks, errors
+
+
+def _issue_68_machine_contract_errors(root: Path) -> list[str]:
+    """Validate both issue-68 MCP profiles as connected machine contracts."""
+    errors: list[str] = []
+    schemas: dict[Path, dict[str, object]] = {}
+    for rel in (ISSUE68_REDACTED_SCHEMA_REL, ISSUE68_RAW_SCHEMA_REL):
+        path = root / rel
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"{rel}: issue-68 machine profile is missing")
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            errors.append(f"{rel}: issue-68 machine profile is not valid JSON")
+            continue
+        if not isinstance(value, dict):
+            errors.append(f"{rel}: issue-68 machine profile root must be an object")
+            continue
+        schemas[rel] = value
+
+    redacted = schemas.get(ISSUE68_REDACTED_SCHEMA_REL)
+    if redacted is not None:
+        definitions = redacted.get("$defs")
+        if not isinstance(definitions, dict):
+            errors.append(f"{ISSUE68_REDACTED_SCHEMA_REL}: missing closed definitions")
+        else:
+            mask = definitions.get("MaskTierV1")
+            auth = definitions.get("AuthScopeV1")
+            tools = definitions.get("ToolV1")
+            if not isinstance(mask, dict) or mask.get("const") != "redacted":
+                errors.append(f"{ISSUE68_REDACTED_SCHEMA_REL}: profile must be redacted-only")
+            if not isinstance(auth, dict) or auth.get("const") != "eebus.public.read":
+                errors.append(f"{ISSUE68_REDACTED_SCHEMA_REL}: public authorization scope is not exact")
+            if not isinstance(tools, dict) or set(tools.get("enum", [])) != ISSUE68_TOOL_NAMES:
+                errors.append(f"{ISSUE68_REDACTED_SCHEMA_REL}: MCP tool inventory is not the exact v1 set")
+
+    raw = schemas.get(ISSUE68_RAW_SCHEMA_REL)
+    if raw is not None:
+        expected_root = {
+            "contract": "helianthus-eebus-mcp",
+            "namespace": "eebus.v1",
+            "source_type": "SnapshotV1",
+            "redacted_projection_type": "RedactedSnapshotV1",
+            "pairing_api": "PairingState",
+            "mask_tier": "raw",
+            "auth_scope": "eebus.raw.read",
+            "transport": "owner-only-af-unix",
+            "operator_socket": "/data/eebus/operator-mcp.sock",
+            "parent_mode": "0700",
+            "socket_mode": "0600",
+            "peer_credentials": "same-euid-required-where-supported",
+            "public_http_path": "/mcp",
+            "public_http_tier": "redacted",
+            "tier_selector": "none",
+        }
+        properties = raw.get("properties")
+        if not isinstance(properties, dict):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw profile properties are missing")
+            properties = {}
+        for name, expected in expected_root.items():
+            definition = properties.get(name)
+            if not isinstance(definition, dict) or definition.get("const") != expected:
+                errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw profile {name} binding is not exact")
+        canonicalization = raw.get("x-canonicalization")
+        hash_rule = raw.get("x-hash")
+        optional_semantics = raw.get("x-optional-field-semantics")
+        opaque_limits = raw.get("x-opaque-limits")
+        secret_denylist = raw.get("x-secret-denylist")
+        if (
+            not isinstance(canonicalization, dict)
+            or canonicalization.get("standard") != "RFC 8785/JCS"
+            or canonicalization.get("objectKeyOrder") != "UTF-16-code-unit"
+            or canonicalization.get("rejectDuplicateIdentities") is not True
+            or canonicalization.get("rejectNegativeZero") is not True
+            or canonicalization.get("safeIntegerMaximum") != 9007199254740991
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw JCS contract is not exact")
+        if (
+            not isinstance(hash_rule, dict)
+            or hash_rule.get("algorithm") != "SHA-256"
+            or hash_rule.get("projection") != "boundary-selected-profile"
+            or hash_rule.get("encoding") != "sha256:lowercase-hex"
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: raw hash projection is not exact")
+        if optional_semantics != {
+            "absent": "unavailable",
+            "presentEmpty": "observed-empty",
+            "presentFalse": "observed-false",
+            "null": "only-where-explicitly-allowed",
+        }:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: absence-versus-empty contract is not exact")
+        if opaque_limits != ISSUE68_OPAQUE_LIMITS:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: opaque limits are not exact")
+        if secret_denylist != ISSUE68_SECRET_DENYLIST:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: structured secret denylist is not exact")
+
+        definitions = raw.get("$defs")
+        if not isinstance(definitions, dict):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: missing closed definitions")
+            definitions = {}
+        tools = definitions.get("ToolV1")
+        if not isinstance(tools, dict) or set(tools.get("enum", [])) != ISSUE68_TOOL_NAMES:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: MCP tool inventory is not the exact v1 set")
+
+        for name, field_contract in ISSUE68_RAW_TYPE_FIELDS.items():
+            definition = definitions.get(name)
+            if not isinstance(definition, dict):
+                errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: missing first-party {name}")
+                continue
+            required = field_contract["required"]
+            optional = field_contract["optional"]
+            if (
+                definition.get("type") != "object"
+                or definition.get("additionalProperties") is not False
+                or set(definition.get("required", [])) != required
+                or set(definition.get("properties", {})) != required | optional
+            ):
+                errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {name} field contract is not exact")
+
+        opaque = definitions.get("OpaqueObservationV1")
+        opaque_value = definitions.get("OpaqueValueV1")
+        opaque_scalar = definitions.get("OpaqueScalarV1")
+        if (
+            not isinstance(opaque, dict)
+            or opaque.get("additionalProperties") is not False
+            or set(opaque.get("required", [])) != {"path", "source", "value"}
+            or set(opaque.get("properties", {})) != {"path", "source", "value"}
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: opaque path/source/value contract is not exact")
+        if (
+            not isinstance(opaque_value, dict)
+            or opaque_value.get("x-max-depth") != ISSUE68_OPAQUE_LIMITS["maxDepth"]
+            or opaque_value.get("x-max-jcs-bytes")
+            != ISSUE68_OPAQUE_LIMITS["maxCanonicalBytesPerValue"]
+            or len(opaque_value.get("oneOf", [])) != 3
+            or not isinstance(opaque_scalar, dict)
+            or len(opaque_scalar.get("oneOf", [])) != 4
+            or "OpaqueValueDepth2V1" not in definitions
+            or "OpaqueValueDepth3V1" not in definitions
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: bounded nested opaque value contract is not exact")
+        for name in ("OpaqueValueV1", "OpaqueValueDepth2V1", "OpaqueValueDepth3V1"):
+            definition = definitions.get(name)
+            variants = definition.get("oneOf", []) if isinstance(definition, dict) else []
+            arrays = [
+                variant for variant in variants
+                if isinstance(variant, dict) and variant.get("type") == "array"
+            ]
+            objects = [
+                variant for variant in variants
+                if isinstance(variant, dict) and variant.get("type") == "object"
+            ]
+            if (
+                len(arrays) != 1
+                or arrays[0].get("maxItems") != ISSUE68_OPAQUE_LIMITS["maxArrayItems"]
+                or len(objects) != 1
+                or objects[0].get("maxProperties")
+                != ISSUE68_OPAQUE_LIMITS["maxObjectProperties"]
+            ):
+                errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {name} container limits are not exact")
+        opaque_list = definitions.get("OpaqueObservationsV1")
+        if (
+            not isinstance(opaque_list, dict)
+            or not isinstance(opaque_list.get("maxItems"), int)
+            or opaque_list.get("maxItems", 0) <= 0
+            or opaque_list.get("maxItems")
+            != ISSUE68_OPAQUE_LIMITS["maxObservations"]
+            or opaque_list.get("x-max-aggregate-jcs-bytes")
+            != ISSUE68_OPAQUE_LIMITS["maxAggregateCanonicalBytes"]
+            or opaque_list.get("x-order-by") != ["path", "source", "value"]
+        ):
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: opaque observations are not bounded and ordered")
+
+        snapshot = definitions.get("OperatorSnapshotProfileV1")
+        collections = (
+            snapshot.get("properties", {})
+            if isinstance(snapshot, dict)
+            else {}
+        )
+        for collection in ("services", "devices", "entities", "features", "usecases"):
+            schema = collections.get(collection)
+            if (
+                not isinstance(schema, dict)
+                or not isinstance(schema.get("maxItems"), int)
+                or schema.get("maxItems", 0) <= 0
+                or not schema.get("uniqueItems")
+                or not schema.get("x-order-by")
+            ):
+                errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: {collection} is not bounded and ordered")
+
+        serialized = json.dumps(raw, sort_keys=True).casefold()
+        if "rawsnapshotv1" in serialized:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: RawSnapshotV1 compatibility type is forbidden")
+        if "enbility/eebus-go" in serialized or "github.com/enbility" in serialized:
+            errors.append(f"{ISSUE68_RAW_SCHEMA_REL}: upstream implementation types are forbidden")
+
+    return errors
+
+
+def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
+    """Enforce the forward-only raw-operator/redacted-public correction."""
+    errors: list[str] = []
+
+    for rel, expected_sha256 in ISSUE68_M2_LOCKED_ARTIFACTS.items():
+        path = root / rel
+        if not path.is_file() or path.is_symlink() or hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest() != expected_sha256:
+            errors.append(f"{rel}: issue-68 historical M2 artifact must remain byte-identical")
+
+    g16 = root / ISSUE68_G16_LOCKED_ARTIFACT
+    if not g16.is_file() or g16.is_symlink() or hashlib.sha256(
+        g16.read_bytes()
+    ).hexdigest() != ISSUE68_G16_LOCKED_SHA256:
+        errors.append(f"{ISSUE68_G16_LOCKED_ARTIFACT}: issue-68 historical G16 artifact must remain byte-identical")
+
+    stable_protocol = root / ISSUE68_STABLE_PROTOCOL
+    if not stable_protocol.is_file() or stable_protocol.is_symlink() or hashlib.sha256(
+        stable_protocol.read_bytes()
+    ).hexdigest() != ISSUE68_STABLE_PROTOCOL_SHA256:
+        errors.append(f"{ISSUE68_STABLE_PROTOCOL}: issue-68 stable protocol must remain byte-identical")
+
+    amendment = root / ISSUE68_AMENDMENT_REL
+    amendment_text = (
+        _read(amendment)
+        if amendment.is_file() and not amendment.is_symlink()
+        else ""
+    )
+    if not amendment_text:
+        errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 forward amendment is missing")
+
+    normalized_amendment = " ".join(amendment_text.split()).casefold()
+    for name, marker in ISSUE68_REQUIRED_MARKERS.items():
+        if marker.casefold() not in normalized_amendment:
+            errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 missing {name} contract marker")
+
+    errors.extend(_issue_68_machine_contract_errors(root))
+
+    msp06 = root / "api/_candidate/msp-06-eebus-mcp-v1.md"
+    msp06_text = _read(msp06) if msp06.is_file() and not msp06.is_symlink() else ""
+    normalized_msp06 = " ".join(msp06_text.split()).casefold()
+    connected_requirements = {
+        "raw schema binding": ISSUE68_RAW_SCHEMA_REL.name.casefold(),
+        "redacted schema binding": ISSUE68_REDACTED_SCHEMA_REL.name.casefold(),
+        "raw source ownership": "eebusreg-owned `snapshotv1` is the secret-free raw source",
+        "redacted builder ownership": "eebusreg-owned public-view builder constructs a structurally separate `redactedsnapshotv1`",
+        "operator socket": "`/data/eebus/operator-mcp.sock`",
+        "operator directory mode": "parent directory is `0700`",
+        "operator socket mode": "socket is `0600`",
+        "same-euid proof": "same-effective-uid peer proof",
+        "http redacted boundary": "lan http `/mcp` endpoint is always explicit `mask_tier=redacted`",
+        "raw unknown preservation": "raw operator profile instead carries them as bounded opaque objects",
+        "pairing state retention": "retains the existing `pairingstate` api",
+    }
+    for name, requirement in connected_requirements.items():
+        if requirement not in normalized_msp06:
+            errors.append(f"{msp06.relative_to(root)}: issue-68 missing connected {name}")
+
+    raw_snapshot = root / ISSUE68_RAW_SNAPSHOT_REL
+    raw_snapshot_text = (
+        _read(raw_snapshot)
+        if raw_snapshot.is_file() and not raw_snapshot.is_symlink()
+        else ""
+    )
+    normalized_raw_snapshot = " ".join(raw_snapshot_text.split()).casefold()
+    raw_snapshot_requirements = {
+        "raw SnapshotV1 ownership": "`snapshotv1` is the eebusreg-owned, secret-free raw source",
+        "separate redacted type": "`redactedsnapshotv1`",
+        "redacted builder": "`buildredactedsnapshotv1`",
+        "optional SHIP ID pointer": "`servicev1.shipid` | `*string`",
+        "optional description pointer": "`devicev1.description` | `*string`",
+        "optional metadata pointer": "`devicev1.metadata` | `*metadatav1`",
+        "optional use-case boolean": "`usecasev1.availability` | `*bool`",
+        "absence versus empty": "present empty string, array, object, or false boolean remains an observed value",
+        "nested opaque value": "`opaquevaluev1` accepts scalars and nested json arrays/objects",
+        "PairingState retained": "existing read-only `pairingstate` api remains unchanged",
+    }
+    for name, requirement in raw_snapshot_requirements.items():
+        if requirement not in normalized_raw_snapshot:
+            errors.append(f"{ISSUE68_RAW_SNAPSHOT_REL}: issue-68 missing {name}")
+    for stale in (
+        "eebusraw.redactedid",
+        "eebusevidence.objectv1",
+        "eebusraw.unknownfield",
+        "local mcp view is separate from this historical public go inventory",
+        "contains no credential material, unmasked device identity",
+    ):
+        if stale in normalized_raw_snapshot:
+            errors.append(f"{ISSUE68_RAW_SNAPSHOT_REL}: stale redacted compatibility carveout")
+
+    amendment_connections = (
+        ISSUE68_RAW_SCHEMA_REL.name.casefold(),
+        ISSUE68_REDACTED_SCHEMA_REL.name.casefold(),
+        "`snapshotv1`",
+        "`redactedsnapshotv1`",
+    )
+    for requirement in amendment_connections:
+        if requirement not in normalized_amendment:
+            errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 amendment is disconnected from machine/source contract")
+
+    contradictory_phrases = (
+        "all `eebus.v1.*` output is redacted",
+        "mask tier is always redacted",
+        "fixed-redacted policy",
+        "header selects `mask_tier`",
+        "query parameter selects `mask_tier`",
+        "tool argument selects `mask_tier`",
+        "client principal selects `mask_tier`",
+    )
+    combined = normalized_amendment + "\n" + normalized_msp06
+    for phrase in contradictory_phrases:
+        if phrase in combined:
+            errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 contradictory boundary language")
+
+    if re.search(r"\btokens? (?:are|is) forbidden in every tier\b", combined):
+        errors.append(f"{ISSUE68_AMENDMENT_REL}: issue-68 secret rule ambiguously forbids evidence references")
+
+    amendment_name = ISSUE68_AMENDMENT_REL.name
+    for rel in ISSUE68_CURRENT_CONTRACT_RELS:
+        path = root / rel
+        if not path.is_file() or path.is_symlink() or amendment_name not in _read(path):
+            errors.append(f"{rel}: issue-68 forward amendment binding is missing")
+
+    stable_reference = root / "api/eebusruntime-v1/reference.md"
+    if stable_reference.is_file() and "candidate_ref" in _read(stable_reference):
+        errors.append("api/eebusruntime-v1/reference.md: issue-68 candidate_ref leaked into stable public API")
+
+    return errors
 
 
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
@@ -4254,6 +4721,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(ship_identity_corpus_errors(root))
     errors.extend(outbound_pairing_contract_errors(root))
     errors.extend(strict_current_schema_errors(root))
+    errors.extend(issue_68_raw_operator_redaction_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 

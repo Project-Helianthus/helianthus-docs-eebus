@@ -36,8 +36,10 @@ CONTRACT = ROOT / CONTRACT_REL
 LANDING = ROOT / "api/README.md"
 MACHINE_ROOT_REL = "api/_candidate/msp-06"
 SCHEMA_REL = f"{MACHINE_ROOT_REL}/helianthus.eebus.mcp.v1.schema.json"
+RAW_SCHEMA_REL = f"{MACHINE_ROOT_REL}/helianthus.eebus.mcp.v1.raw.schema.json"
 JCS_FIXTURE_REL = f"{MACHINE_ROOT_REL}/jcs-hash-vectors-v1.json"
 SCHEMA = ROOT / SCHEMA_REL
+RAW_SCHEMA = ROOT / RAW_SCHEMA_REL
 JCS_FIXTURE = ROOT / JCS_FIXTURE_REL
 SOURCE_COMMIT = "7a5852e009bbdcba47f0" + "a34ba866070a4ab35ef8"
 
@@ -312,7 +314,8 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "Success requires non-null `data` and null `error`",
             "failure requires null `data` and non-null `error`",
             "omitted optional field is not serialized as null",
-            "Raw runtime `Unknown` values are never copied to wire DTOs",
+            "Unknown values are never copied into the redacted wire DTOs",
+            "raw operator profile instead carries them as bounded opaque objects",
             "backend error text is never copied into `message`",
             "`id_digest` is a redacted SHA-256 selector",
         ):
@@ -380,9 +383,11 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "MCP contract identity",
             "tool identity",
             "scope",
-            "`redacted` mask tier",
-            "effective `eebus.raw.read` authorization scope",
+            "effective `raw` or `redacted` mask tier",
+            "effective authorization scope",
+            "exact HTTP-public or AF_UNIX-operator authorization boundary",
             "Callers supply only the opaque token",
+            "no reference converts between raw and redacted tiers",
             "32 cryptographically random bytes",
             "unpadded base64url",
             "does not require a public `ToolDrop` declaration",
@@ -477,14 +482,18 @@ class MSP06MCPWireContractTest(unittest.TestCase):
         )
         normalized = " ".join(body.split())
         for phrase in (
-            "does not authenticate an end user",
-            "production MCP HTTP route is currently unauthenticated",
-            "fixed redacted-reader policy",
-            "never accepted from tool arguments or headers",
-            "A future authenticated policy may replace that grant",
+            "LAN HTTP `/mcp` endpoint is always explicit `mask_tier=redacted`",
+            "`/data/eebus/operator-mcp.sock` default to `mask_tier=raw`",
+            "parent directory is `0700`",
+            "socket is `0600`",
+            "same-effective-UID peer proof",
+            "SSH or root administration accesses a bind-mounted socket",
+            "never accepted from tool arguments, request bodies, headers, or query parameters",
+            "client-supplied principal cannot alter either boundary",
+            "A future authenticated policy may replace the boundary grant",
             "cannot reinterpret an already minted reference",
-            "authorization, mask, or principal arguments return `invalid_argument`",
-            "HTTP headers cannot alter the fixed policy",
+            "such selectors return `invalid_argument`",
+            "cannot cross from raw to redacted or from redacted to raw",
         ):
             self.assertIn(phrase, normalized)
 
@@ -558,7 +567,7 @@ class MSP06MCPWireContractTest(unittest.TestCase):
         )
 
     def test_candidate_machine_artifacts_and_wire_schema_are_closed(self) -> None:
-        expected_artifacts = {SCHEMA_REL, JCS_FIXTURE_REL}
+        expected_artifacts = {SCHEMA_REL, RAW_SCHEMA_REL, JCS_FIXTURE_REL}
         self.assertEqual(CANDIDATE_API_MACHINE_ARTIFACTS, expected_artifacts)
         self.assertTrue(expected_artifacts <= API_MACHINE_ARTIFACTS)
         self.assertTrue(all(path.startswith(MACHINE_ROOT_REL + "/") for path in expected_artifacts))
@@ -568,6 +577,7 @@ class MSP06MCPWireContractTest(unittest.TestCase):
         )
 
         self.assertTrue(SCHEMA.is_file(), f"missing wire schema: {SCHEMA_REL}")
+        self.assertTrue(RAW_SCHEMA.is_file(), f"missing raw schema: {RAW_SCHEMA_REL}")
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertEqual(schema["$id"], "urn:helianthus:eebus:mcp:v1:candidate")
@@ -590,7 +600,7 @@ class MSP06MCPWireContractTest(unittest.TestCase):
         self.assertEqual(definitions["HashV1"]["pattern"], "^sha256:[0-9a-f]{64}$")
         self.assertEqual(definitions["OpaqueTokenV1"]["pattern"], "^[A-Za-z0-9_-]{43}$")
         self.assertEqual(definitions["MaskTierV1"]["const"], "redacted")
-        self.assertEqual(definitions["AuthScopeV1"]["const"], "eebus.raw.read")
+        self.assertEqual(definitions["AuthScopeV1"]["const"], "eebus.public.read")
         self.assertNotIn("unknown", definitions["RuntimeStateV1"]["enum"])
         for name in (
             "ServicesListDataV1",
@@ -690,8 +700,11 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "live call returns `backend_unavailable`",
             "previously captured roots remain readable",
             "later live calls recover without re-registering tools",
-            "one detached `SnapshotV1` per live tool call",
-            "no stale-live fallback",
+            "`SnapshotV1` is the secret-free raw source",
+            "structurally separate `RedactedSnapshotV1`",
+            "There is no `RawSnapshotV1`, v2, alias, compatibility surface",
+            "retains the existing `PairingState` API",
+            "or stale-live fallback",
             "does not modify `ebus.v1.*`",
             "does not modify GraphQL",
             "does not modify Portal",
@@ -748,8 +761,8 @@ class MSP06MCPWireContractTest(unittest.TestCase):
             "runtime-scoped pseudonym",
             "raw SKI",
             "raw SHIP ID",
-            "certificate or authentication material",
-            "fixed reader policy does not establish a trusted network boundary",
+            "Certificate or authentication material",
+            "local boundary does not establish a trusted network boundary",
         ):
             self.assertIn(phrase, normalized)
 

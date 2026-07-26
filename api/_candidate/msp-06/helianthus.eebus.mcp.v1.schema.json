@@ -25,7 +25,7 @@
       "const": "redacted"
     },
     "AuthScopeV1": {
-      "const": "eebus.raw.read"
+      "const": "eebus.public.read"
     },
     "ModeV1": {
       "enum": ["live", "evidence"]

@@ -32,6 +32,11 @@ does not establish consumer availability or authorize any protocol, trust,
 pairing, semantic, or write behavior. All publication channels remain disabled
 until a later promotion gate replaces this candidate.
 
+Issue 68 corrects the initial unpublished contract in place through the
+[raw operator and shareable redaction amendment](msp-068-raw-operator-redaction-amendment.md).
+It retains one MCP `eebus.v1.*` namespace and does not add a v2, alias, legacy
+surface, or second MCP API family.
+
 ## Stable Tool Inventory
 
 | Tool | Scope | Required input | Optional input | Data |
@@ -61,9 +66,12 @@ session tools. A connection callback may then populate the session tools. A
 transport-backed pairing callback may populate pairing status. Each stage is
 independent, and an earlier stage cannot imply a later one.
 
-This identity/discovery contract adds no tool, field, semantic object, GraphQL
-field, Portal model, Home Assistant entity, or write path. Shareable
-output remains raw, redacted, and limited to the closed stable inventory above.
+This identity/discovery contract adds no tool, field, semantic object, GraphQL field,
+Portal model, Home Assistant entity, or write path. The authorized local
+operator boundary defaults to `mask_tier=raw` and preserves the raw fields
+defined by the issue-68 amendment. A public/shareable export is explicitly
+`mask_tier=redacted` and uses the redacted profile below. Neither tier permits
+raw write, command, trust mutation, or pairing mutation.
 
 `id_digest` is a redacted SHA-256 selector represented by the runtime-scoped
 pseudonym defined below. It selects an already redacted ID and never accepts a
@@ -103,11 +111,12 @@ authorization, mask, or principal selector, is rejected before provider access.
 Every response is one `EnvelopeV1` containing `meta`, `data`, and `error`.
 Success requires non-null `data` and null `error`; failure requires null `data`
 and non-null `error`. An omitted optional field is not serialized as null.
-Raw runtime `Unknown` values are never copied to wire DTOs. Public error
-messages are fixed by error code; backend error text is never copied into
-`message`.
+Unknown values are never copied into the redacted wire DTOs. The raw operator
+profile instead carries them as bounded opaque objects with exactly
+`path`, `source`, and `value`. Public error messages are fixed by error code;
+backend error text is never copied into `message`.
 
-The normative candidate schema is
+The normative candidate schema for the explicit redacted shareable export is
 [`api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json`](msp-06/helianthus.eebus.mcp.v1.schema.json).
 It uses JSON Schema Draft 2020-12 and closes every object with
 `additionalProperties=false`. Timestamps are UTC RFC 3339 strings with a
@@ -116,6 +125,41 @@ identity pseudonyms are 43-character unpadded base64url strings. Integers on
 the wire are restricted to the portable JSON safe-integer range. The schema's
 closed enum values are normative. In particular, runtime, session, pairing,
 and feature-role `unknown` values are rejected instead of serialized.
+
+The exact raw operator machine profile is
+[`api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json`](msp-06/helianthus.eebus.mcp.v1.raw.schema.json).
+It is a second profile of the same contract and the same nine MCP names, not a
+second namespace or API version. It defines only Helianthus first-party wire
+types and imports no upstream implementation type. Its service fields are SKI,
+optional SHIP ID, name, identifier, brand, type, and model. Its device fields
+are SKI, optional SHIP ID, address, type, optional description, and optional
+metadata. Entity fields are device address, entity address, type, and optional
+description. Feature fields are device address, entity address, feature
+address, type, role, and optional description. Required use-case fields are
+context address, name, and actor; resolved role, scenarios, version,
+availability, and document subrevision are optional when unavailable. A
+secondary digest is optional and cannot replace a raw first-party field.
+
+Optional properties are omitted only when unavailable. A present empty string,
+array, or object and a present false boolean remain observed values distinct
+from absence; null is accepted only where the schema explicitly allows it.
+
+Raw opaque observations are bounded arrays of objects containing exactly
+`path`, `source`, and `value`. Each value may be a scalar or a bounded nested
+JSON array/object. Maximum container depth is 3, maximum array length and
+object property count are 32, maximum string size is 4096 UTF-8 bytes, maximum
+canonical JCS size per value is 16384 bytes, maximum observations are 256, and
+maximum aggregate canonical opaque size is 262144 bytes.
+
+The recursive secret denylist is exactly `private_key`, `private_pem`,
+`trust_store_bytes`, `credential_token`, `bearer_token`, `session_token`,
+`authentication_token`, and `cryptographic_secret`. Matching structured keys
+or classified values fail closed before hashing or projection. Raw and
+redacted profiles both use RFC 8785/JCS, reject duplicate collection
+identities, apply the schema-declared `x-order-by` rules, and hash the exact
+boundary-selected projection. The raw hash therefore covers raw first-party
+and opaque fields; the redacted hash covers only the irreversible public
+projection.
 
 ## Collection Ordering
 
@@ -155,12 +199,17 @@ unexplained empty success.
 | `pairing_status_ref` | `eebus.v1.pairing.status.get` | `pairing-status` | `eebus.v1.pairing.status.get` |
 
 Each reference is bound when minted to runtime identity, MCP contract identity,
-tool identity, scope, the `redacted` mask tier, and the effective
-`eebus.raw.read` authorization scope. Callers supply only the opaque token;
-they cannot supply, override, or request any binding component. Each token has
-32 cryptographically random bytes encoded as unpadded base64url. Its canonical
-wire syntax is exactly 43 ASCII characters matching `[A-Za-z0-9_-]{43}` and it
-decodes to exactly 32 bytes; decoders reject non-canonical re-encodings.
+tool identity, scope, the effective `raw` or `redacted` mask tier, the
+effective authorization scope, and the exact HTTP-public or AF_UNIX-operator
+authorization boundary. Callers supply only the opaque token; they cannot
+supply, override, or request any binding component. A dereference under a
+mismatched authorization scope, mask tier, or authorization boundary fails
+closed as `permission_denied`; no reference converts between raw and redacted
+tiers.
+Each token has 32 cryptographically random bytes encoded as unpadded base64url.
+Its canonical wire syntax is exactly 43 ASCII characters matching
+`[A-Za-z0-9_-]{43}` and it decodes to exactly 32 bytes; decoders reject
+non-canonical re-encodings.
 
 Evidence references resolve only through the exact tool and scope in the
 table. The internal drop operation is part of the MCP server implementation
@@ -221,17 +270,26 @@ An unknown well-formed evidence reference returns `not_found`.
 
 ## Authorization Policy
 
-The production MCP HTTP route is currently unauthenticated and does not
-authenticate an end user. Therefore v1 uses a fixed redacted-reader policy:
-`mask_tier=redacted` and `auth_scope=eebus.raw.read`. Those values are never
-accepted from tool arguments or headers. HTTP headers cannot alter the fixed
-policy.
+The authorization boundary selects the effective v1 policy after shape and
+syntax and before reference lifecycle. The existing LAN HTTP `/mcp` endpoint
+is always explicit `mask_tier=redacted` with
+`auth_scope=eebus.public.read`. The same nine tool names on owner-only AF_UNIX
+`/data/eebus/operator-mcp.sock` default to `mask_tier=raw` with
+`auth_scope=eebus.raw.read`.
 
-Authorization is evaluated after shape and syntax and before reference
-lifecycle. The fail-closed input rule is: authorization, mask, or principal arguments return
-`invalid_argument`. A future authenticated policy may replace that grant, but
-it cannot reinterpret an already minted reference. A binding mismatch remains
-fail-closed under the policy that minted the reference.
+The AF_UNIX parent directory is `0700` and the socket is `0600`. On platforms
+with peer credentials, the listener requires a same-effective-UID peer proof.
+Startup fails closed when the operator socket, required modes, or required peer
+credential proof cannot be established. SSH or root administration accesses a
+bind-mounted socket. Authorization, mask, tier, or principal selectors are
+never accepted from tool arguments, request bodies, headers, or query
+parameters; such selectors return `invalid_argument`. A client-supplied
+principal cannot alter either boundary.
+
+The boundary fails closed before provider access. A future authenticated policy
+may replace the boundary grant, but it cannot reinterpret an already minted
+reference. A binding mismatch remains fail-closed under the policy that minted
+the reference and cannot cross from raw to redacted or from redacted to raw.
 
 ## Exhaustive Error Inventory
 
@@ -288,7 +346,7 @@ cannot change the earlier error.
 | `contract` | contract name and version |
 | `tool` | exact stable tool name |
 | `scope` | exact scope binding |
-| `mask_tier` | fixed redacted tier |
+| `mask_tier` | boundary-selected raw or explicit redacted tier |
 | `auth_scope` | fixed effective read scope |
 | `mode` | live or evidence |
 | `data_timestamp` | observation timestamp |
@@ -328,9 +386,12 @@ MCP handler is mounted.
 Registration happens once and is never removed during a transient disconnect;
 a second registration is rejected.
 
-There is exactly one `Snapshot()` call for each live read or capture, which
-constructs one detached `SnapshotV1` per live tool call. There is no stale-live
-fallback.
+There is exactly one `Snapshot()` call for each live read or capture. The
+eebusreg-owned `SnapshotV1` is the secret-free raw source and retains the
+existing `PairingState` API. The eebusreg-owned public-view builder constructs
+a structurally separate `RedactedSnapshotV1` as the irreversible shareable
+projection. There is no `RawSnapshotV1`, v2, alias, compatibility surface, or
+stale-live fallback.
 On disconnect, a live call returns `backend_unavailable`, previously captured
 roots remain readable, and later live calls recover without re-registering
 tools. There are zero provider calls for evidence reads and drop. Captured envelopes are
@@ -352,10 +413,11 @@ consumer authority.
 | `EEBUS-G16` | `wire-log-error-artifact-redaction` |
 
 G12 proves one immutable whole-root capture. G13 proves exact replay after live
-mutation and disconnect. G14 proves reference binding and the fixed policy.
+mutation and disconnect. G14 proves reference binding and the boundary policy.
 G15 proves quota, drop, expiry, tombstone, and eviction behavior. G16 proves
-that PEM, token, full fingerprint, IP, MAC, serial, local identity, stable peer
-id, and pairing history never enter shareable output.
+that PEM, credential/bearer/session/authentication tokens, full fingerprint,
+IP, MAC, serial, local identity, stable peer id, and pairing history never
+enter shareable output.
 
 Every `IdentityDigestV1.digest` is produced with a process-ephemeral
 HMAC-SHA-256 key and encoded as an unpadded 43-character base64url
@@ -365,13 +427,16 @@ re-pseudonymize every raw SKI, raw SHIP ID, full fingerprint, or source-side
 redacted identifier; it must never forward a stable source digest. The key is
 never persisted, logged, returned, or reused after process restart.
 
-The positive output allowlist consists only of fields declared in the closed
-candidate JSON schema. Raw identity, certificate or authentication material,
-network coordinates, trust-store content, and pairing history have no wire
-field and must fail closed as `contract_violation` if encountered during DTO
-construction. The fixed reader policy does not establish a trusted network
-boundary: the unauthenticated route remains untrusted ingress, so masking and
-pseudonymization are mandatory even on loopback or a private subnet.
+The redacted export allowlist consists only of fields declared in the closed
+candidate JSON schema. The authorized raw profile is defined by the issue-68
+amendment and its machine schema and remains bound to the owner-only AF_UNIX
+authorization boundary. Certificate or authentication material, private keys,
+private PEM material, credential tokens, bearer tokens, session tokens,
+authentication tokens, trust-store bytes, and cryptographic secrets have no
+wire field in either tier and must fail closed as `contract_violation` if
+encountered during DTO construction. A local boundary does not establish a
+trusted network boundary; raw visibility is limited to the authorized operator
+and never becomes a shareable export.
 
 Reference tokens are permitted only in designated direct MCP response fields.
 The artifact rule is: logs, errors, and publishable gate artifacts contain no
