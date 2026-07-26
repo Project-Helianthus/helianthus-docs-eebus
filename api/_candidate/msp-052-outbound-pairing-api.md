@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed API contract exposes candidate_ref, the opaque winner reservation, or inbound/outbound TLS-binding detail outside the experimental internal dependency boundary; treats `RequireAnyClientCert` alone as identity; accepts inbound initial TLS evidence before custom `Hub.ServeHTTP` completes WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; lets a pending outbound or competing inbound loser emit pairing, SHIP-ID, completion, or close evidence; lets a wrong-SKI, unselected, stale-generation, or overlapping callback supply or replace authority; consumes pre-confirm same-connection SHIP ID/completion before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI` and revalidated candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, and connection liveness; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; retains transient trust after a terminal event; or persists or publicly exposes candidate, reservation, TLS, trust, peer, or endpoint detail."
+falsifier: "A reviewed API contract exposes candidate_ref, `PairingCandidateQueuer`, `CandidateRef`, a post-success marker, the opaque winner reservation, or inbound/outbound TLS-binding detail outside the experimental internal dependency boundary; treats `RequireAnyClientCert` alone as identity; accepts inbound initial TLS evidence before custom `Hub.ServeHTTP` completes WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; lets a pending outbound or competing inbound loser emit pairing, SHIP-ID, completion, or close evidence; lets a wrong-SKI, unselected, stale-generation, or overlapping callback supply or replace authority; consumes pre-confirm same-connection SHIP ID/completion before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI` and revalidated candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, and connection liveness; lets transient RegisterRemoteSKI mutate a durable generation; permits durable commit without same-generation TLS binding, non-empty `observed_remote_ship_id`, and `ship_handshake_complete`; treats exact outbound `SmeStateComplete` as a public event or session close, cancels the live context, retains the authorized attempt, charges retry after success, or allows duplicate, stale, error, lease, or close callbacks to mutate the retired attempt or a newer generation; retains transient trust after another terminal event; or persists or publicly exposes candidate, reservation, TLS, trust, peer, endpoint, retry, or post-success detail."
 candidate_output: "true"
 stable_navigation: "false"
 search: "false"
@@ -40,6 +40,12 @@ The selected-candidate inbound TLS-binding correction from [docs issue
 64][inbound-code-issue] is also candidate-only. It records a private custom
 dependency callback and does not add a stable declaration, field, endpoint,
 event, or consumer surface.
+
+The successful-attempt correction from [docs issue
+66][success-docs-issue] and [companion code issue
+75][success-code-issue] is likewise private. It changes internal callback and
+attempt-journal ownership only; it adds no stable eebusreg, MCP, GraphQL, or
+consumer API.
 
 ## Private Owner-Only Candidate Inspection
 
@@ -75,10 +81,15 @@ caller-supplied or static endpoint, and it has no hostname, path, or address
 fallback.
 
 The dependency-fork names `PairingCandidateQueuer` and `CandidateRef` are
-private experimental process-local dependency capabilities only. They are not
-members of the public Helianthus `eebusruntime` v1 API, stable MCP, GraphQL,
-Portal, or Home Assistant surfaces. Their presence in a dependency does not
-promote `candidate_ref` into `helianthus-eebusreg` public state.
+private experimental process-local dependency capabilities only. They remain
+internal even when their dependency spelling is exported; that spelling does
+not make either symbol a supported Helianthus API. They are not members of the
+public Helianthus `eebusruntime` v1 API, stable MCP, GraphQL, Portal, or Home
+Assistant surfaces. Their presence in a dependency does not promote
+`candidate_ref` into `helianthus-eebusreg` public state. It also does not promote
+that reference into stable eebusreg state or establish a future promotion path.
+Specifically, it does not promote `candidate_ref` into stable
+`helianthus-eebusreg` state.
 
 The action creates no trust by itself. It may request a candidate-bound attempt
 only after exact validation; verification of the selected outbound TLS/WebSocket
@@ -169,6 +180,40 @@ volatile inbound winner reservation. The winner reservation is discarded on
 connection termination or restart and is never journaled, persisted, exposed,
 or reconstructed.
 
+## Internal Successful-Attempt Handoff
+
+Exact outbound `SmeStateComplete` is an internal dependency callback and the
+successful attempt linearization point, not a public event and not session
+close. Under the existing serialized lane for the exact peer, the private facade
+revalidates the exact remote, attempt, attempt generation, connection
+generation, and authorization; publishes the existing private
+`ConnectionStateCompleted` handoff; then resnapshots the current control/store
+generation, revalidates exact success ownership, and durably retires only that
+attempt while preserving any trust generation advanced by the handoff. It then
+resets that attempt's retry state. A known-unapplied retirement retries from a
+fresh snapshot; an ambiguous result fails closed as `DURABILITY_UNKNOWN` and
+cannot authorize launch, retry, or synthetic failure. Success does not call the
+attempt cancel function or cancel the connection owner's live context.
+
+The facade may retain one bounded volatile post-success marker per live
+connection, with the collection capped by the existing live outbound connection
+owner bound. Duplicate and stale callbacks cannot allocate one. The marker is
+keyed only to exact internal attempt/connection ownership and is consumed by
+the exact later close after disablement of the close `context.AfterFunc`.
+Consumption cancels the live permit once, performs ordinary exact candidate
+cleanup including one matching transient unregister when still active, and
+publishes the existing disconnect handoff once without retry or durable-trust
+mutation. Duplicate, stale, error, lease, and non-matching close callbacks are
+non-mutating no-ops against the retired attempt and every newer generation.
+Exact revocation or shutdown also consumes the marker and releases retained
+permit ownership once under its existing private lifecycle contract.
+
+The marker, callback ordering, attempt token, retry state, permit context, and
+close ownership are implementation-private. They add no declaration or field to
+stable eebusreg, MCP, GraphQL, `Runtime`, `Snapshot`, or `PairingState`; they are
+not persisted, inspected through admin, logged, measured, traced, or accepted as
+consumer input.
+
 ## Stable Public Freeze
 
 No stable or public value exposes candidate presence, `candidate_ref`, remote
@@ -193,4 +238,6 @@ selected, connected, or trusted peer.
 [preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
 [inbound-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/60
 [inbound-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/64
+[success-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/66
+[success-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/75
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15

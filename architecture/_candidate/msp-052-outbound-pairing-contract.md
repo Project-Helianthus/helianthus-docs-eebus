@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001,EV-20260726-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed implementation or conformance result shows that `RequireAnyClientCert` alone supplies identity or inbound TLS authority; that custom `Hub.ServeHTTP` accepts inbound initial TLS evidence before WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; that a pending outbound or competing inbound loser emits pairing, SHIP-ID, completion, or close evidence; that a wrong-SKI, unselected, stale-generation, or overlapping inbound/outbound callback supplies or replaces authority; that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`; that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness; that transient registration writes durable state; that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`; that any terminal path retains transient trust or changes the starting generation; that endpoint planning precedes SHIP Hub eligibility for a persisted-trusted service or actively authorized queued pairing candidate, permits a configured service address to replace or supplement observation addresses, mutates the shared mDNS observation, changes in-family order, places a hostname before a concrete address, or lets one endpoint/path authorization cover another attempt; or that candidate, reservation, TLS, trust, peer, or endpoint detail persists early or becomes public."
+falsifier: "A reviewed implementation or conformance result shows that `RequireAnyClientCert` alone supplies identity or inbound TLS authority; that custom `Hub.ServeHTTP` accepts inbound initial TLS evidence before WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; that a pending outbound or competing inbound loser emits pairing, SHIP-ID, completion, or close evidence; that a wrong-SKI, unselected, stale-generation, or overlapping inbound/outbound callback supplies or replaces authority; that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`; that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness; that transient registration writes durable state; that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`; that exact outbound `SmeStateComplete` is treated as session close, leaves its authorized attempt durable, fails to reset retry state, cancels the live connection context, or permits a duplicate, stale, error, or lease callback to mutate the retired attempt or a newer generation; that a close after successful attempt retirement charges retry, misses exact live-context cleanup, or publishes disconnect more than once; that any other terminal path retains transient trust or changes the starting generation; that endpoint planning precedes SHIP Hub eligibility for a persisted-trusted service or actively authorized queued pairing candidate, permits a configured service address to replace or supplement observation addresses, mutates the shared mDNS observation, changes in-family order, places a hostname before a concrete address, or lets one endpoint/path authorization cover another attempt; or that candidate, reservation, TLS, trust, peer, or endpoint detail persists early or becomes public."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -49,6 +49,12 @@ The outbound endpoint-order correction is tracked by [docs issue
 21][endpoint-ship-pr]. The redacted runtime input is bounded to endpoint
 selection and connection readiness. It establishes no generic device behavior,
 supported runtime, semantic projection, or promoted API.
+
+The successful-attempt and retry-projection correction is tracked by [docs
+issue 66][success-docs-issue] and [companion code issue
+75][success-code-issue]. It separates outbound attempt settlement from live
+session lifetime and durable trust from transport retry control. It adds no
+protocol claim, stable API, consumer surface, or private deployment evidence.
 
 ## Candidate Lifecycle
 
@@ -199,11 +205,15 @@ deterministic non-mutating no-ops or errors and do not revoke the legitimate
 authorized candidate. Actual candidate-lifecycle terminal events—expiry,
 observed disconnect/error, exact cancellation/close, generation conflict,
 shutdown, or deterministic store failure—issue the matching
-`UnregisterRemoteSKI` exactly once when registration occurred, discard the
-candidate and every pre-confirm latch, and leave the selected store generation
-unchanged. A process crash cannot rely on a final callback; recovery starts
-without any transient registration, candidate, latch, or replay record and
-never reconstructs one from durable state.
+`UnregisterRemoteSKI` exactly once when transient registration remains active,
+discard the candidate and every pre-confirm latch, and leave the selected store
+generation unchanged. This cleanup remains required when an outbound attempt
+has already retired successfully but its candidate has not committed durably.
+After durable commit, the same disconnect handoff preserves the durable
+association and performs no transient-candidate unregister. A process crash
+cannot rely on a final callback; recovery starts without any transient
+registration, candidate, latch, or replay record and never reconstructs one
+from durable state.
 
 Callback and event handoffs are serialized with the candidate generation. If a
 disconnect transition is ordered before the SHIP-ID or completed handoff, that
@@ -234,17 +244,108 @@ recognize a newly observed matching peer; it never restores a candidate referenc
 attempt, previous endpoint, or in-flight handshake. An unresolved journal
 reservation is settled as a synthetic failure before runtime effects are
 enabled; the stored endpoint/path is removed and is never used to reconnect.
+The successful-retirement durability-unknown case below is the sole exception:
+reopen/reconciliation owns it and may not reinterpret it as synthetic failure.
+
+## Successful Attempt And Session Close
+
+Within the existing serialized lane for the exact peer, acceptance of
+`SmeStateComplete` for the exact authorized outbound attempt is the successful
+outbound-attempt linearization point. Before accepting it, the coordinator
+revalidates the exact remote identity,
+attempt token, attempt generation, connection generation, and current launch
+authorization. It then publishes `ConnectionStateCompleted` first. That
+synchronous handoff may re-enter the coordinator and durably advance trust or
+the shared control/store generation, but its effect token queues every
+duplicate, close, error, and lease callback behind the same lane.
+
+After publication, the coordinator resnapshots the latest control/store
+generation and revalidates the exact remote identity, attempt token, attempt
+generation, connection generation, and success ownership. Only after that
+post-publication revalidation may it durably retire the exact authorized attempt
+reservation and reset that attempt's retry/backoff state. It merges those exact
+changes onto the current snapshot, preserving any durable association or
+generation advanced by the handoff. A retirement target captured before
+publication is never written afterward. Publication, post-publication
+revalidation, durable retirement, and retry reset complete in this order before
+successful settlement releases the lane.
+
+Only a proven durable retirement completes normal successful settlement. A
+known-unapplied write is retried from a fresh current snapshot while exact
+success ownership remains. An ambiguous retirement result enters existing
+`DURABILITY_UNKNOWN`, disables new launch and retry authority for that scope,
+and requires reopen/reconciliation; it does not cancel the live connection,
+charge retry, or let lease/error callbacks reinterpret the attempt as failure.
+Reconciliation may only confirm the exact reservation absent or retire it as
+success while preserving newer trust state. It must never synthesize failure
+from a reservation whose successful-retirement outcome was durability-unknown.
+
+`SmeStateComplete` closes the attempt, not the live connection or session. The
+success handler MUST NOT invoke attempt cancellation, call the permit cancel
+function, or cancel the live connection context. The connection owner retains
+that context while the connection remains live.
+
+Before either normal success or fail-closed `DURABILITY_UNKNOWN` releases the
+lane, the handler replaces active-attempt callback ownership with one bounded
+volatile post-success marker for the exact remote identity, attempt token,
+attempt generation, and connection generation. At most one marker exists per
+live connection, and the marker collection cannot exceed the existing bound on
+live outbound connection owners. Duplicate or stale callbacks cannot allocate a
+marker. It grants no launch, retry, trust, candidate, endpoint, persistence, or
+public authority and is discarded on restart. It exists only to bridge
+successful attempt linearization to exact later connection cleanup.
+
+The matching later close is serialized in the same per-SKI lane. After SHIP has
+disabled its close `context.AfterFunc`, that close consumes the exact marker and
+cancels the live permit context once. It then performs the ordinary exact
+MSP-04B candidate-terminal handoff: a pending or transient candidate is cleared,
+every latch is discarded, and an active transient `RegisterRemoteSKI` is matched
+by one `UnregisterRemoteSKI`. It then publishes disconnect once. If the candidate
+already committed durably, no transient unregister occurs and the durable
+association remains trusted. Marker consumption itself neither recreates nor
+fails the retired attempt, increments retry/backoff, nor mutates durable trust.
+A duplicate close or a close for any other attempt or connection generation is
+a no-op.
+
+Exact revocation or shutdown consumes the same marker under the lane and
+cancels the retained live context once. Revocation then follows its separate
+durable trust-withdrawal contract; shutdown performs no retry settlement. Both
+release the marker and retained permit ownership, and a later close is a no-op
+against that consumed marker.
+
+Success and terminal races are first-linearized-event wins. If exact
+`SmeStateComplete` wins before lease expiry, the durable reservation is absent,
+retry state is reset, the live context remains uncancelled, and every duplicate,
+delayed, stale, error, or lease callback is a no-op against that attempt. If
+lease expiry or another authorized failure wins first, it settles failure once
+under the existing rule and later completion is stale. Neither ordering may
+mutate a newer attempt generation.
+
+## Successful Attempt Falsifiers
+
+| Falsifier | Required result | Contract is falsified if |
+| --- | --- | --- |
+| `A66-SUCCESS-BEFORE-LEASE` | Exact `SmeStateComplete` publishes `ConnectionStateCompleted`, then durably removes the exact reservation and resets retry state while the live context remains uncancelled. Advancing beyond the retired lease has no effect. | The attempt remains authorized or durable, retry is charged, the live context is cancelled, ordering differs, or the old lease mutates any state. |
+| `A66-LEASE-BEFORE-SUCCESS` | Exact lease expiry settles failure once; later `SmeStateComplete` and duplicate error/lease callbacks are stale no-ops. | Completion resurrects or succeeds the expired attempt, a terminal effect repeats, or a newer generation changes. |
+| `A66-HANDOFF-GENERATION` | A synchronous `ConnectionStateCompleted` handoff advances durable trust/control generation; post-publication resnapshot retires only the exact successful reservation on that latest generation and preserves the trust commit. | Retirement uses a pre-publication snapshot, conflicts with or overwrites the trust commit, leaves the exact attempt authorized, or charges retry. |
+| `A66-RETIREMENT-DURABILITY` | Known-unapplied retirement is retried from a fresh snapshot; ambiguous retirement enters `DURABILITY_UNKNOWN`, blocks launch/retry, preserves the live context and newer trust, and reconciles the exact attempt only as success. | An unproven retirement reports normal settlement, enables another launch, charges failure, cancels the live context, or overwrites newer trust. |
+| `A66-CLOSE-AFTER-SUCCESS` | Exact later close consumes one bounded post-success marker after the SHIP close `context.AfterFunc` is disabled, cancels the live permit once, performs exact candidate-terminal cleanup, and publishes one disconnect without retry or durable-trust mutation. | Success closes the session, close is lost, cleanup or disconnect repeats, retry increments, or the durable association degrades. |
+| `A66-PRECONF-CLOSE-AFTER-SUCCESS` | Pre-confirm completion retires the attempt; if exact OOB later activates transient trust but close wins before durable commit, marker consumption clears the candidate/latches and invokes one matching `UnregisterRemoteSKI`. | Transient trust or a candidate latch survives close, unregister repeats, the retired attempt is failed, or durable state changes. |
+| `A66-STALE-GENERATION` | Duplicate, stale, error, lease, and close callbacks for the retired attempt cannot mutate a newer attempt or connection generation. | Any stale callback cancels, retires, resets, charges, publishes for, or otherwise changes a newer generation. |
 
 ## Reservation Settlement And Shutdown
 
-Every durable reservation has one terminal settlement owner. `AbortPrepared`,
-attempt-lease expiry, a protected attempt-helper panic, and restart recovery of
-an unresolved reservation each synthesize exactly one failure. That settlement
-removes the reservation and charges its retry/backoff scope exactly once;
-duplicate, delayed, or stale terminal paths are no-ops. A matching revocation is
-the only non-failure cancellation: it clears the exact reservation and in-flight
-context without a retry charge, while a non-matching revocation cannot mutate
-the attempt.
+Every durable reservation has one terminal settlement owner. Exact
+`SmeStateComplete` owns successful settlement under the ordering above.
+`AbortPrepared`, attempt-lease expiry, a protected attempt-helper panic, and
+restart recovery of an unresolved reservation each synthesize exactly one
+failure when they linearize first. Failure settlement removes the reservation
+and charges its retry/backoff scope exactly once; duplicate, delayed, stale, or
+post-success terminal paths are no-ops. A matching revocation is the only
+non-failure cancellation: it clears the exact reservation and in-flight context
+without a retry charge, while a non-matching revocation cannot mutate the
+attempt. Successful settlement is neither failure nor cancellation and does not
+cancel the live connection context.
 
 Shutdown is ordered. The transport/service stops first, then the attempt gate
 and callback sink settle terminal callbacks and synthetic failures, and only
@@ -295,4 +396,6 @@ copied into the trusted association.
 [inbound-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/64
 [endpoint-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/64
 [endpoint-ship-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/21
+[success-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/66
+[success-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/75
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15
