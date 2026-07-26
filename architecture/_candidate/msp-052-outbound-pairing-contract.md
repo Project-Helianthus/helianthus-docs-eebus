@@ -5,9 +5,9 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260720-001"
+evidence_ids: "EV-20260720-001,EV-20260726-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed implementation or conformance result shows that `RequireAnyClientCert` alone supplies identity or inbound TLS authority; that custom `Hub.ServeHTTP` accepts inbound initial TLS evidence before WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; that a pending outbound or competing inbound loser emits pairing, SHIP-ID, completion, or close evidence; that a wrong-SKI, unselected, stale-generation, or overlapping inbound/outbound callback supplies or replaces authority; that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`; that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness; that transient registration writes durable state; that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`; that any terminal path retains transient trust or changes the starting generation; or that candidate, reservation, TLS, trust, peer, or endpoint detail persists early or becomes public."
+falsifier: "A reviewed implementation or conformance result shows that `RequireAnyClientCert` alone supplies identity or inbound TLS authority; that custom `Hub.ServeHTTP` accepts inbound initial TLS evidence before WebSocket upgrade, recomputation of the certificate short identifier from the P-256 public key by `cert.SkiFromCertificate`, constant-time equality with `SubjectKeyId`, exact resolution of the service/SKI pair, or atomic selection and internal registration of the exact winning inbound connection; that a pending outbound or competing inbound loser emits pairing, SHIP-ID, completion, or close evidence; that a wrong-SKI, unselected, stale-generation, or overlapping inbound/outbound callback supplies or replaces authority; that pre-confirm same-connection SHIP ID/completion is consumed before exact TLS-bound OOB confirmation has executed transient `RegisterRemoteSKI`; that its consumption omits revalidation of candidate nonce, remote fingerprint/SKI, connection generation, selected store generation, or connection liveness; that transient registration writes durable state; that commit omits same-generation `ship_handshake_complete` or non-empty `observed_remote_ship_id`; that any terminal path retains transient trust or changes the starting generation; that endpoint planning precedes SHIP Hub eligibility for a persisted-trusted service or actively authorized queued pairing candidate, permits a configured service address to replace or supplement observation addresses, mutates the shared mDNS observation, changes in-family order, places a hostname before a concrete address, or lets one endpoint/path authorization cover another attempt; or that candidate, reservation, TLS, trust, peer, or endpoint detail persists early or becomes public."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -44,6 +44,12 @@ The selected-candidate inbound TLS-binding correction is tracked by [docs issue
 boundary as candidate derived design; it does not establish generic SHIP,
 SPINE, or external-device behavior.
 
+The outbound endpoint-order correction is tracked by [docs issue
+64][endpoint-docs-issue] and [companion SHIP pull request
+21][endpoint-ship-pr]. The redacted runtime input is bounded to endpoint
+selection and connection readiness. It establishes no generic device behavior,
+supported runtime, semantic projection, or promoted API.
+
 ## Candidate Lifecycle
 
 Passive `_ship._tcp` discovery and allowlist evaluation alone never initiate a
@@ -75,12 +81,56 @@ selected SKI and fail closed if selection or window authority has expired.
 
 ## Endpoint And Trust Boundaries
 
-Selection resolves the endpoint only from the bound observation and freezes one
-deterministic concrete address from it for that attempt. There is no
-caller-supplied or static endpoint, and no hostname, path, or address fallback.
-The expected identity uses the certificate short-identifier representation. It is compared strictly:
-exactly lowercase hexadecimal, exactly 40 characters, and exactly equal to the
-selected observation.
+SHIP Hub establishes the eligible authority before endpoint planning.
+
+The current remote service must be either persisted-trusted for reconnect or
+an actively authorized queued pairing candidate. A passive mDNS callback
+grants no authority and cannot create either eligibility state.
+
+When either eligibility state already exists, that callback may trigger or
+schedule connection initiation from the current snapshot. Every resulting dial
+must pass its own independent launch gate.
+
+After eligibility, selection copies endpoint material only from the exact bound
+observation into an immutable attempt-local mDNS snapshot: host, concrete
+addresses, port, and path. It does not reorder or mutate the shared discovery
+observation. Planning still happens before the per-attempt launch gate so that
+the gate receives the actual endpoint and path proposed for that dial.
+The selected mDNS observation is the sole endpoint-address input. No configured
+or cached service address may replace, prepend, or supplement its addresses.
+
+The attempt-local plan ignores nil or malformed addresses. It canonicalizes
+IPv4 to 4 bytes and IPv6 to 16 bytes, treats equivalent 4-byte and 16-byte IPv4
+representations as one address, and removes canonical IPv4 and IPv6 duplicates
+first-seen before family ordering. It then orders every unique IPv4 address
+before every unique IPv6 address while preserving first-seen order within each
+family. The observed hostname is last unless it parses as an IP equal to an
+already planned address, in which case that duplicate hostname endpoint is
+omitted. If every concrete address fails, a distinct hostname remains the
+final endpoint; if no valid concrete address was observed, it is the only
+endpoint.
+
+Every endpoint uses the observed port. Its observed path is attempted first;
+after an ordinary failure, the empty path (root URL) is a second, independent
+attempt for that same endpoint. The empty path does not rewrite the
+observed path or mutate the frozen snapshot. There is no caller-supplied or
+static endpoint, device-specific address, identity-specific route, or
+configured path.
+
+Before every dial, the outbound attempt gate revalidates the current Hub
+authority and authorizes the exact endpoint and exact path from that frozen
+snapshot or the explicit empty path. Authorization and permit for
+the observed path do not transfer to the empty path, and authorization for one
+endpoint cannot authorize the next address or the hostname. On a
+persisted-trusted reconnect, authority comes from the current trusted service.
+On a queued first-trust attempt, the gate must also retain the exact currently
+selected candidate SKI and stricter eebusreg trust/admin authorization.
+Endpoint order does not weaken that first-trust boundary or let mDNS discovery
+queue a candidate.
+
+The expected identity uses the certificate short-identifier representation. It
+is compared strictly: exactly lowercase hexadecimal, exactly 40 characters,
+and exactly equal to the selected observation.
 
 Outbound and inbound initial TLS evidence are distinct, generation-bound paths.
 For outbound, the TLS peer certificate is pinned to the selected candidate's
@@ -173,10 +223,10 @@ bind the exact frozen discovered endpoint and path for one reservation before
 transport launch. That journal is dependency-internal control state, not a
 candidate inventory or reconnect route: it never contains `candidate_ref`, and
 its endpoint/path fields cannot become `RuntimeConfig`, static configuration,
-root-path default, or fallback authority. Every candidate-derived primary or
-fallback dial is bound to the exact currently selected candidate SKI, and
-requires its own fresh reservation and launch authorization for the concrete
-endpoint/path supplied by that same frozen discovery attempt.
+root-path default, or fallback authority. Every candidate-derived dial is bound
+to the exact currently selected candidate SKI and requires its own fresh
+reservation and launch authorization for the endpoint/path supplied by that
+same frozen discovery attempt.
 
 After restart, a trusted reconnect starts with fresh mDNS discovery. It may use
 only the persisted identity anchors (`persisted_ski` and `persisted_ship_id`) to
@@ -243,4 +293,6 @@ copied into the trusted association.
 [preconfirm-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/62
 [inbound-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/60
 [inbound-code-issue]: https://github.com/Project-Helianthus/helianthus-eebusreg/issues/64
+[endpoint-docs-issue]: https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/64
+[endpoint-ship-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/21
 [ship-go-pr]: https://github.com/Project-Helianthus/helianthus-ship-go/pull/15
