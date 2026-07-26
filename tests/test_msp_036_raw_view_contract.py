@@ -80,6 +80,7 @@ class MSP036RawViewContractTest(unittest.TestCase):
             "SnapshotV1": ["Meta", "Status", "Pairing", "Services", "Sessions", "Devices", "Entities", "Features", "UseCases", "Opaque"],
             "RedactedSnapshotV1": ["Meta", "Status", "Pairing", "Services", "Sessions", "Devices", "Entities", "Features", "UseCases"],
             "SnapshotMetaV1": ["Contract", "Runtime", "LocalSKI", "MaskTier", "CapturedAt", "DataTimestamp", "DataHash"],
+            "RedactedSnapshotMetaV1": ["Contract", "Runtime", "LocalSKI", "MaskTier", "CapturedAt", "DataTimestamp", "DataHash"],
             "RuntimeObservationV1": ["State", "Degradation"],
             "DegradationV1": ["Reason", "Since"],
             "PairingObservationV1": ["RemoteSKI", "State", "Since", "Opaque"],
@@ -104,6 +105,8 @@ class MSP036RawViewContractTest(unittest.TestCase):
         self.assertEqual(markdown_table(body, "## Candidate Type Inventory"), expected_types)
 
         expected_field_types = {
+            "SnapshotMetaV1.LocalSKI": ["string"],
+            "RedactedSnapshotMetaV1.LocalSKI": ["RedactedID"],
             "ServiceV1.SKI": ["string"],
             "ServiceV1.SHIPID": ["*string"],
             "ServiceV1.Kind": ["ServiceKindV1"],

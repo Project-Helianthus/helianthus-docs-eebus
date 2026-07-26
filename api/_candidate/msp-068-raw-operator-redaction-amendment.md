@@ -62,8 +62,12 @@ promoting them into semantic facts:
 | Feature | feature fields: device address, entity address, feature address, type, role, description |
 | Use-case claim | use-case fields: context address, name, actor, optional resolved role, scenarios, version, availability, document subrevision |
 
-SKI, SHIP ID, SPINE addresses, and protocol metadata are operational data
-visible to the authorized local operator, not crypto secrets. A secondary
+The runtime's own normalized 40-character lowercase
+`SnapshotMetaV1.local_ski` is included in the authorized raw view. SKI, SHIP
+ID, SPINE addresses, and protocol metadata are operational data visible to the
+authorized local operator, not crypto secrets.
+The public/shareable view uses a distinct `RedactedSnapshotMetaV1` whose
+`local_ski` is a masked `RedactedID`; the raw local SKI is absent. A secondary
 digest is allowed only as an additional correlator and never replaces the raw
 first-party field. Unknown protocol fields remain inspectable raw or opaque
 values in bounded objects with exactly `path`, `source`, and `value`. They are
