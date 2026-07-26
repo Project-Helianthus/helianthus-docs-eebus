@@ -52,7 +52,7 @@ All newly exported data types are suffixed `V1`. The candidate inventory is:
 | `RuntimeObservationV1` | `State`, `Degradation` |
 | `DegradationV1` | `Reason`, `Since` |
 | `PairingObservationV1` | `RemoteSKI`, `State`, `Since`, `Opaque` |
-| `ServiceV1` | `SKI`, `SHIPID`, `Name`, `Identifier`, `Brand`, `Type`, `Model`, `SecondaryDigest`, `Opaque` |
+| `ServiceV1` | `SKI`, `SHIPID`, `Kind`, `Visible`, `Paired`, `Name`, `Identifier`, `Brand`, `Type`, `Model`, `SecondaryDigest`, `Opaque` |
 | `SessionV1` | `ID`, `RemoteSKI`, `State`, `Since`, `Opaque` |
 | `DeviceV1` | `SKI`, `SHIPID`, `Address`, `Type`, `Description`, `Metadata`, `SecondaryDigest`, `Opaque` |
 | `EntityV1` | `DeviceAddress`, `EntityAddress`, `Type`, `Description`, `SecondaryDigest`, `Opaque` |
@@ -83,6 +83,9 @@ and retains the existing `PairingState` API.
 | --- | --- | --- |
 | `ServiceV1.SKI` | `string` | `required` |
 | `ServiceV1.SHIPID` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
+| `ServiceV1.Kind` | `ServiceKindV1` | `required` |
+| `ServiceV1.Visible` | `bool` | `required observed state` |
+| `ServiceV1.Paired` | `bool` | `required observed state` |
 | `ServiceV1.Name` | `string` | `required` |
 | `ServiceV1.Identifier` | `string` | `required` |
 | `ServiceV1.Brand` | `string` | `required` |
@@ -199,7 +202,7 @@ defensive-copy behavior, not language-level `const` enforcement.
 Validation and JSON encoding use stable ordering without mutating caller-owned
 storage:
 
-- services sort by SKI, optional SHIP ID, and identifier;
+- services sort by SKI, optional SHIP ID, identifier, kind, visible, and paired;
 - devices sort by address, SKI, and optional SHIP ID;
 - entities, features, and use cases sort by their complete address paths and
   the raw-profile tie breakers;
@@ -211,7 +214,8 @@ JSON hash view contains `contract`, `runtime`, `local_ski`, `mask_tier`,
 `data_timestamp`, `status`, `pairing`, `services`, `sessions`, `devices`,
 `entities`, `features`, `usecases`, and `opaque`; only `captured_at` and
 `data_hash` are omitted. The identity and mask context therefore cannot be
-substituted while retaining a valid hash.
+substituted while retaining a valid hash. Service kind, visible, and paired are
+part of each service value and therefore part of that hash view.
 `Validate` recomputes every non-empty `data_hash` and rejects a mismatch.
 Equivalent input orderings must produce byte-identical JSON and the same hash.
 

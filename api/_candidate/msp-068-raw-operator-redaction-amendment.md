@@ -56,7 +56,7 @@ promoting them into semantic facts:
 
 | Object | Raw profile fields |
 | --- | --- |
-| Service | service fields: SKI, SHIP ID, name, identifier, brand, type, model |
+| Service | service fields: SKI, SHIP ID, kind, visible, paired, name, identifier, brand, type, model |
 | Device | device fields: SKI, SHIP ID, address, type, description, metadata when present |
 | Entity | entity fields: device address, entity address, type, description |
 | Feature | feature fields: device address, entity address, feature address, type, role, description |
@@ -70,12 +70,13 @@ values in bounded objects with exactly `path`, `source`, and `value`. They are
 not silently deleted, normalized into premature semantics, or inferred from an
 allowlist.
 
-Optional when unavailable: SHIP ID. Device, entity, and feature descriptions
-are optional; device metadata is optional. For a use case, context address,
-name, and actor are required, while resolved role, scenarios, version,
-availability, and document subrevision are optional when unavailable. Omission
-means unavailable; a present empty string, array, or object and a present false
-boolean remain distinct observed values.
+Service kind, visible, and paired are required observed state. Optional when
+unavailable: SHIP ID. Device, entity, and feature descriptions are optional;
+device metadata is optional. For a use case, context address, name, and actor
+are required, while resolved role, scenarios, version, availability, and
+document subrevision are optional when unavailable. Omission means unavailable;
+a present empty string, array, or object and a present false boolean remain
+distinct observed values.
 
 Opaque values may contain scalars or bounded nested JSON arrays/objects.
 Maximum depth is 3; each array and object is limited to 32 members; strings are
@@ -88,8 +89,12 @@ bytes. The recursive structured secret denylist is exactly `private_key`,
 The eebusreg-owned `SnapshotV1` is the secret-free raw source and keeps the
 existing `PairingState` API. An eebusreg-owned public-view builder produces a
 structurally separate `RedactedSnapshotV1` as the irreversible shareable
-projection. There is no `RawSnapshotV1`, v2, alias, legacy, or compatibility
-surface.
+projection, with `RedactedServiceV1` retaining exactly ID, kind, visible, and
+paired. There is no `RawSnapshotV1`, v2, alias, legacy, or compatibility surface.
+
+Raw services order by SKI, optional SHIP ID, identifier, kind, visible, and
+paired. All three service-state fields remain in the boundary-selected canonical
+hash projection.
 
 The two connected machine profiles are the
 [`helianthus.eebus.mcp.v1.raw.schema.json`](msp-06/helianthus.eebus.mcp.v1.raw.schema.json)

@@ -83,7 +83,7 @@ class MSP036RawViewContractTest(unittest.TestCase):
             "RuntimeObservationV1": ["State", "Degradation"],
             "DegradationV1": ["Reason", "Since"],
             "PairingObservationV1": ["RemoteSKI", "State", "Since", "Opaque"],
-            "ServiceV1": ["SKI", "SHIPID", "Name", "Identifier", "Brand", "Type", "Model", "SecondaryDigest", "Opaque"],
+            "ServiceV1": ["SKI", "SHIPID", "Kind", "Visible", "Paired", "Name", "Identifier", "Brand", "Type", "Model", "SecondaryDigest", "Opaque"],
             "SessionV1": ["ID", "RemoteSKI", "State", "Since", "Opaque"],
             "DeviceV1": ["SKI", "SHIPID", "Address", "Type", "Description", "Metadata", "SecondaryDigest", "Opaque"],
             "EntityV1": ["DeviceAddress", "EntityAddress", "Type", "Description", "SecondaryDigest", "Opaque"],
@@ -106,6 +106,9 @@ class MSP036RawViewContractTest(unittest.TestCase):
         expected_field_types = {
             "ServiceV1.SKI": ["string"],
             "ServiceV1.SHIPID": ["*string"],
+            "ServiceV1.Kind": ["ServiceKindV1"],
+            "ServiceV1.Visible": ["bool"],
+            "ServiceV1.Paired": ["bool"],
             "ServiceV1.Name": ["string"],
             "ServiceV1.Identifier": ["string"],
             "ServiceV1.Brand": ["string"],

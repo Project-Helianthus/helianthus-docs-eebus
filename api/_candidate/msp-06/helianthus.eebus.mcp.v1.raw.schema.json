@@ -13,7 +13,8 @@
     "algorithm": "SHA-256",
     "encoding": "sha256:lowercase-hex",
     "projection": "boundary-selected-profile",
-    "exclude": ["server-generated-evidence-references", "captured_at", "expires_at"]
+    "exclude": ["server-generated-evidence-references", "captured_at", "expires_at"],
+    "serviceStateFields": ["kind", "visible", "paired"]
   },
   "x-optional-field-semantics": {
     "absent": "unavailable",
@@ -115,6 +116,9 @@
       "minLength": 1,
       "maxLength": 512
     },
+    "ServiceKindV1": {
+      "enum": ["local", "remote"]
+    },
     "SecondaryDigestV1": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
@@ -212,10 +216,13 @@
     "ServiceV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ski", "name", "identifier", "brand", "type", "model"],
+      "required": ["ski", "kind", "visible", "paired", "name", "identifier", "brand", "type", "model"],
       "properties": {
         "ski": {"$ref": "#/$defs/BoundedTextV1"},
         "ship_id": {"$ref": "#/$defs/ObservedOptionalTextV1"},
+        "kind": {"$ref": "#/$defs/ServiceKindV1"},
+        "visible": {"type": "boolean"},
+        "paired": {"type": "boolean"},
         "name": {"$ref": "#/$defs/BoundedTextV1"},
         "identifier": {"$ref": "#/$defs/BoundedTextV1"},
         "brand": {"$ref": "#/$defs/BoundedTextV1"},
@@ -307,7 +314,7 @@
           "maxItems": 256,
           "uniqueItems": true,
           "items": {"$ref": "#/$defs/ServiceV1"},
-          "x-order-by": ["ski", "ship_id", "identifier"]
+          "x-order-by": ["ski", "ship_id", "identifier", "kind", "visible", "paired"]
         },
         "devices": {
           "type": "array",
