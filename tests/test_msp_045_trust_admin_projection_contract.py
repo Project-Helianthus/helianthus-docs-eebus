@@ -30,6 +30,7 @@ NORMATIVE_TABLES = (
     "## Contract Identity And Ownership",
     "## Combined State Product",
     "## Closed Projection Precedence",
+    "## Retry And Trust Cross-Product",
     "## Existing Public Field Mapping",
     "### Runtime Degradation Precedence",
     "## Candidate Absence Rule",
@@ -154,8 +155,9 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                 "public_api_sha256": (PUBLIC_API_SHA256,),
                 "disk_schema": ("MSP-04C-R2_control_schema_v3_unchanged",),
                 "persistence": ("derived_never_persisted",),
+                "initial_freeze": ("issue_66_preimplementation_correction",),
                 "semantic_change": (
-                    "new_contract_version+separate_review",
+                    "after-initial-freeze:new_contract_version+separate_review",
                 ),
             },
         )
@@ -171,6 +173,14 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
+        self.assertIn(
+            "Contract v1 remains unpublished and unimplemented",
+            normalized,
+        )
+        self.assertIn(
+            "Issue 66 is the separate pre-implementation corrective review",
+            normalized,
+        )
 
     def test_closed_projection_precedence_is_exact(self) -> None:
         _, body = self.contract()
@@ -189,13 +199,13 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
             rows,
             {
                 "1": (
-                    "CORRUPT_STORE|DURABILITY_UNKNOWN|HOST_BINDING_MISMATCH|CLONE_DETECTED|MANIFEST_GENERATION_ROLLBACK|CONTROL_EPOCH_ROLLBACK|REOPEN_IN_PROGRESS|RECONCILIATION_IN_PROGRESS|REPAIR_IN_PROGRESS|UNKNOWN_ENUM",
+                    "CORRUPT_STORE|DURABILITY_UNKNOWN|HOST_BINDING_MISMATCH|CLONE_DETECTED|MANIFEST_GENERATION_ROLLBACK|CONTROL_EPOCH_ROLLBACK|REOPEN_IN_PROGRESS|RECONCILIATION_IN_PROGRESS|REPAIR_IN_PROGRESS|MALFORMED_STATE_PRODUCT|UNKNOWN_ENUM",
                     "unknown",
                     "false",
                     "denied-trust",
                 ),
                 "2": (
-                    "REVOKED|TOMBSTONED|QUARANTINED|ADMIN_HOLD|BACKOFF_ACTIVE",
+                    "REVOKED|TOMBSTONED|ADMIN_HOLD|terminal_security_quarantine",
                     "denied",
                     "false",
                     "denied-trust",
@@ -207,13 +217,13 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                     "certificate-unavailable",
                 ),
                 "4": (
-                    "PAIRED_TRUSTED+store-and-protected-anchor-finalized+same-lineage+active+trusted+allowlisted+reconnectable+non-tombstoned",
+                    "no-row-1-through-3-condition+usable-current-lineage-durable-association+(retry-control=IDLE|BACKOFF_ACTIVE|RETRY_READY)",
                     "paired",
                     "true",
                     "evaluate-liveness",
                 ),
                 "5": (
-                    "UNPAIRED_LOCKED|PAIRING_CLOSED|OPEN_EMPTY|association_incomplete|CANDIDATE_PENDING|COMMITTING-before-store-and-anchor-durable",
+                    "no-row-1-through-3-condition+(UNPAIRED_LOCKED|PAIRING_CLOSED|OPEN_EMPTY|association_incomplete|CANDIDATE_PENDING|COMMITTING-before-store-and-anchor-durable|BACKOFF_ACTIVE-without-usable-durable-association|RETRY_READY-without-usable-durable-association)",
                     "unpaired",
                     "false",
                     "evaluate-liveness",
@@ -238,6 +248,91 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
         self.assertNotIn("Any incomplete", body)
+        self.assertIn(
+            "`BACKOFF_ACTIVE` and `RETRY_READY` describe outbound attempt scheduling only",
+            normalized,
+        )
+        self.assertIn(
+            "either retry state with that association remains `paired`",
+            normalized,
+        )
+        self.assertIn(
+            "Without a usable durable association, either retry state enters row 5 and remains `unpaired`",
+            normalized,
+        )
+        self.assertIn(
+            "classifies a recognized persistent quarantine reason as exactly one of `terminal_security_quarantine` or `retry_control_quarantine`",
+            normalized,
+        )
+        self.assertIn(
+            "any other overlapping or malformed product enters `MALFORMED_STATE_PRODUCT`",
+            normalized,
+        )
+
+        cross_product = table_rows(body, "## Retry And Trust Cross-Product")
+        self.assertEqual(
+            [
+                tuple(code_value(row[column]) for column in (
+                    "Fail-closed fact",
+                    "Usable current-lineage durable association",
+                    "Retry control",
+                    "Projection",
+                    "Trust degradation",
+                ))
+                for row in cross_product
+            ],
+            [
+                (
+                    "structural_indeterminate",
+                    "either",
+                    "IDLE|BACKOFF_ACTIVE|RETRY_READY",
+                    "unknown+paired_false",
+                    "denied-trust",
+                ),
+                (
+                    "terminal_denial",
+                    "either",
+                    "IDLE|BACKOFF_ACTIVE|RETRY_READY",
+                    "denied+paired_false",
+                    "denied-trust",
+                ),
+                (
+                    "missing-protected-identity",
+                    "either",
+                    "IDLE|BACKOFF_ACTIVE|RETRY_READY",
+                    "unknown+paired_false",
+                    "certificate-unavailable",
+                ),
+                (
+                    "none",
+                    "yes",
+                    "IDLE",
+                    "paired+paired_true",
+                    "evaluate-liveness",
+                ),
+                (
+                    "none",
+                    "yes",
+                    "BACKOFF_ACTIVE",
+                    "paired+paired_true",
+                    "evaluate-liveness",
+                ),
+                (
+                    "none",
+                    "yes",
+                    "RETRY_READY",
+                    "paired+paired_true",
+                    "evaluate-liveness",
+                ),
+                (
+                    "none",
+                    "no",
+                    "IDLE|BACKOFF_ACTIVE|RETRY_READY",
+                    "unpaired+paired_false",
+                    "evaluate-liveness",
+                ),
+            ],
+        )
 
     def test_candidate_state_is_absent_from_every_public_collection(self) -> None:
         _, body = self.contract()
@@ -358,8 +453,16 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                     "unknown+paired-false+denied-trust-on-current-observed-row",
                     "current-observation-required-for-row",
                 ),
-                "REVOKED|TOMBSTONED|QUARANTINED|ADMIN_HOLD|BACKOFF_ACTIVE": (
+                "REVOKED|TOMBSTONED|ADMIN_HOLD|terminal_security_quarantine": (
                     "denied-on-current-observed-row",
+                    "current-observation-required-for-row",
+                ),
+                "BACKOFF_ACTIVE-or-RETRY_READY+usable-durable-association": (
+                    "paired-on-current-observed-row; liveness-only",
+                    "current-observation-required-for-row",
+                ),
+                "BACKOFF_ACTIVE-or-RETRY_READY+no-usable-durable-association": (
+                    "unpaired-on-current-observed-row",
                     "current-observation-required-for-row",
                 ),
                 "disconnect|reconnect-callback": ("liveness-only", "callback-is-event"),
@@ -394,6 +497,14 @@ class MSP045TrustAdminProjectionContractTest(unittest.TestCase):
                 "revocation|tombstone-terminal": (
                     "denied-on-current-observed-row",
                     "callback-cannot-resurrect-or-create",
+                ),
+                "retry-control+usable-durable-association": (
+                    "paired-on-current-observed-row",
+                    "retry-cannot-degrade-trust",
+                ),
+                "retry-control+no-usable-durable-association": (
+                    "unpaired-on-current-observed-row",
+                    "retry-cannot-invent-trust",
                 ),
             },
         )
