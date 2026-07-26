@@ -2272,6 +2272,12 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             Path("api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json"),
             Path("api/_candidate/msp-06/jcs-hash-vectors-v1.json"),
         }
+        msp_0625_candidate_artifacts = {
+            Path(
+                "api/_candidate/msp-0625/"
+                "helianthus.eebus.mcp.v1.raw-feature.schema.json"
+            ),
+        }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
             for path in list(positive_paths()) + list(NEGATIVE_FIXTURES.glob("*.json"))
@@ -2280,6 +2286,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             | msp_055_candidate_artifacts
             | msp_055_active_artifacts
             | msp_06_candidate_artifacts
+            | msp_0625_candidate_artifacts
         )
         actual = {
             path.relative_to(REPO)

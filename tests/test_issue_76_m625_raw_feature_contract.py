@@ -17,11 +17,16 @@ import validate_repository_policy as repository_policy  # noqa: E402
 
 def copy_repo(tmp_path: Path) -> Path:
     destination = tmp_path / "repo"
-    shutil.copytree(
-        ROOT,
-        destination,
-        ignore=shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__"),
-    )
+    required = {
+        *repository_policy.ISSUE76_DOCUMENT_RELS,
+        repository_policy.ISSUE76_SCHEMA_REL,
+        *repository_policy.ISSUE76_M6_LOCKED_ARTIFACTS,
+    }
+    for relative in required:
+        source = ROOT / relative
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
     return destination
 
 

@@ -63,6 +63,7 @@ API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json",
     "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
+    "api/_candidate/msp-0625/helianthus.eebus.mcp.v1.raw-feature.schema.json",
     "api/eebusruntime-v1/attestation.json",
     "api/eebusruntime-v1/manifest.json",
     "api/eebusruntime-v1/predicate.json",
@@ -285,6 +286,129 @@ ISSUE68_REQUIRED_MARKERS = {
     "reference exception": "server-generated opaque evidence references are allowed only in designated direct MCP response fields",
     "candidate ref exclusion": "`candidate_ref` is forbidden from the stable public API",
     "public identity redaction": "public/shareable artifacts redact stable identities",
+}
+ISSUE76_PROTOCOL_REL = Path(
+    "protocols/_candidate/msp-0625-feature-data-acquisition.md"
+)
+ISSUE76_ARCHITECTURE_REL = Path(
+    "architecture/_candidate/msp-0625-raw-feature-command-path.md"
+)
+ISSUE76_API_REL = Path(
+    "api/_candidate/msp-0625-raw-feature-acquisition.md"
+)
+ISSUE76_POLICY_REL = Path("development/msp-0625-provenance-policy.md")
+ISSUE76_DOCUMENT_RELS = (
+    ISSUE76_PROTOCOL_REL,
+    ISSUE76_ARCHITECTURE_REL,
+    ISSUE76_API_REL,
+    ISSUE76_POLICY_REL,
+)
+ISSUE76_SCHEMA_REL = Path(
+    "api/_candidate/msp-0625/helianthus.eebus.mcp.v1.raw-feature.schema.json"
+)
+ISSUE76_TOOL_NAMES = {
+    "eebus.v1.features.get",
+    "eebus.v1.features.data.get",
+    "eebus.v1.features.data.set",
+    "eebus.v1.mutations.get",
+    "eebus.v1.mutations.rollback",
+}
+ISSUE76_TOOL_SCOPES = {
+    "eebus.v1.features.get": "eebus.raw.read",
+    "eebus.v1.features.data.get": "eebus.raw.read",
+    "eebus.v1.features.data.set": "eebus.raw.write",
+    "eebus.v1.mutations.get": "eebus.raw.read",
+    "eebus.v1.mutations.rollback": "eebus.raw.write",
+}
+ISSUE76_MUTATION_STATES = {
+    "prepared",
+    "dispatch_intent",
+    "reply_observed",
+    "verify_pending",
+    "applied",
+    "probe_active",
+    "rollback_intent",
+    "rollback_dispatch_intent",
+    "rollback_reply_observed",
+    "rollback_verify_pending",
+    "rolled_back",
+    "outcome_unknown",
+    "conflict",
+    "failed_no_contact",
+    "rejected",
+}
+ISSUE76_SECRET_DENYLIST = ISSUE68_SECRET_DENYLIST
+ISSUE76_M6_LOCKED_ARTIFACTS = {
+    Path("api/_candidate/msp-06-eebus-mcp-v1.md"): (
+        "6a0b9a2c012cca480586b622691ee2e02"
+        "3096e4aa2e23877f074a16311f4247c"
+    ),
+    Path("api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json"): (
+        "a5f696d4c41cf78407bb13ac4a3e91cc"
+        "2eadbd785d64f9436f81419bd5bd4fbd"
+    ),
+    Path("api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json"): (
+        "e7fc213ad2b8d8ef426f426e486f8dba4"
+        "035183bc5ceea2d1b6717b6adad986f"
+    ),
+    Path("api/_candidate/raw-snapshot-view-v1.md"): (
+        "0ddf41bb9dca47c90f50f09b6c0be7be"
+        "f3d664aa7575ace3f81faef82c59f954"
+    ),
+    Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"): (
+        "f1ae2a676ec688c44f330911682e12b70"
+        "8271ddf4022561ac8e7fd13d1b13a34"
+    ),
+    Path("protocols/ship-spine-overview.md"): (
+        "734c5668cd1937b088cbb12c7c4dd6b7"
+        "8c0fc76cc76873dc2d49092aded65b3b"
+    ),
+}
+ISSUE76_REQUIRED_MARKERS = {
+    ISSUE76_PROTOCOL_REL: (
+        "topology says which feature functions and possible operations",
+        "full `read` and full `write` only",
+        "remote ski and ship id",
+        "register the waiter before send",
+        "late response cannot complete an aba successor",
+        "constraints_unknown",
+        "partial_result",
+        "no ship-go change is authorized",
+    ),
+    ISSUE76_ARCHITECTURE_REL: (
+        "gateway `eebuscommandrouter`",
+        "eebusreg `rawfeatureruntimev1`",
+        "register the waiter before send",
+        "`runtime_epoch`",
+        "`connection_generation`",
+        "one global eebusreg runtime writer lease",
+        "idempotency identity is",
+        "`outcome_unknown`",
+        "`conflict` globally disables new writes",
+        "ship-go therefore remains unchanged",
+    ),
+    ISSUE76_API_REL: (
+        '["features.get","features.data.get","features.data.set","mutations.get","mutations.rollback"]',
+        "public/lan mcp boundary exposes none of the five tools",
+        "before provider lookup",
+        "`read_token`",
+        "`idempotency_key`",
+        "`mode=probe`",
+        "a correlated no-error response sets `protocol_accepted=true` but cannot set state `applied`",
+        "`partial_result`",
+        "`candidate_ref`, partial operations, selectors, `filterdelete`, invoke, graphql, portal, home assistant, semantic promotion, v2, aliases, and legacy compatibility are out of scope",
+    ),
+    ISSUE76_POLICY_REL: (
+        "every protocol statement must satisfy one of these paths",
+        "non-public vendor specifications may be consulted privately",
+        "may not be copied, closely paraphrased",
+        "owner-authorized local raw surface may show real ship/spine operational data",
+        "no tier may expose private keys, pem private material",
+        "public evidence remains explicitly redacted",
+        "raw references cannot be dereferenced through a public/redacted boundary",
+        "m6 remains complete and byte-locked",
+        "must not add substantive `docs/` trees",
+    ),
 }
 MSP055_PROVENANCE_MACHINE_FINGERPRINTS = {
     "api/_candidate/msp-055/candidate-record.json": {
@@ -3143,12 +3267,15 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     )
     expected_status = MALFORMED_SENTINEL if allow_sentinel else COMPLETE
     diagnostics = machine_publication_diagnostics(result)
-    if rel == ISSUE68_RAW_SCHEMA_REL.as_posix():
+    if rel in {
+        ISSUE68_RAW_SCHEMA_REL.as_posix(),
+        ISSUE76_SCHEMA_REL.as_posix(),
+    }:
         # The candidate schema names operational fields but contains no field
         # values. Preserve the global identifier scan for every value/example
         # while exempting only these structurally validated JSON property keys.
         sanitized = re.sub(
-            r'"(?:ski|ship_id)"(?=\s*:)',
+            r'"(?:ski|remote_ski|ship_id)"(?=\s*:)',
             '"operational_identity_field"',
             text,
         )
@@ -4097,6 +4224,293 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
     return errors
 
 
+def _issue_76_machine_contract_errors(root: Path) -> list[str]:
+    """Validate the closed M6.25 raw feature machine contract."""
+    path = root / ISSUE76_SCHEMA_REL
+    if not path.is_file() or path.is_symlink():
+        return [f"{ISSUE76_SCHEMA_REL}: issue-76 machine contract is missing"]
+    try:
+        schema = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return [f"{ISSUE76_SCHEMA_REL}: issue-76 machine contract is not valid JSON"]
+    if not isinstance(schema, dict):
+        return [f"{ISSUE76_SCHEMA_REL}: issue-76 machine contract root must be an object"]
+
+    errors: list[str] = []
+    properties = schema.get("properties")
+    expected_root = {
+        "contract": "helianthus.eebus.raw-feature-runtime.v1",
+        "namespace": "eebus.v1",
+        "mask_tier": "raw",
+        "transport": "owner-only-af-unix",
+        "public_contact_policy": "deny-before-provider-router-runtime-contact",
+        "read_auth_scope": "eebus.raw.read",
+        "write_auth_scope": "eebus.raw.write",
+    }
+    if (
+        schema.get("type") != "object"
+        or schema.get("additionalProperties") is not False
+        or set(schema.get("required", [])) != set(expected_root)
+        or not isinstance(properties, dict)
+        or set(properties) != set(expected_root)
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 root contract is not closed")
+        properties = properties if isinstance(properties, dict) else {}
+    for name, expected in expected_root.items():
+        definition = properties.get(name)
+        if not isinstance(definition, dict) or definition.get("const") != expected:
+            label = "public contact" if name == "public_contact_policy" else name
+            errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 {label} binding is not exact")
+
+    definitions = schema.get("$defs")
+    if not isinstance(definitions, dict):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 closed definitions are missing")
+        definitions = {}
+
+    tools = definitions.get("ToolV1")
+    if not isinstance(tools, dict) or set(tools.get("enum", [])) != ISSUE76_TOOL_NAMES:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 exact tool inventory is not closed")
+    if schema.get("x-tool-scopes") != ISSUE76_TOOL_SCOPES:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 tool scope map is not exact")
+
+    expected_tool_contracts = {
+        "eebus.v1.features.get": {
+            "request": "FeaturesGetRequestV1",
+            "data": "FeaturesGetDataV1",
+            "remoteContact": False,
+        },
+        "eebus.v1.features.data.get": {
+            "request": "FeatureDataGetRequestV1",
+            "data": "FeatureDataGetDataV1",
+            "remoteContact": True,
+        },
+        "eebus.v1.features.data.set": {
+            "request": "FeatureDataSetRequestV1",
+            "data": "MutationV1",
+            "remoteContact": True,
+        },
+        "eebus.v1.mutations.get": {
+            "request": "MutationGetRequestV1",
+            "data": "MutationV1",
+            "remoteContact": False,
+        },
+        "eebus.v1.mutations.rollback": {
+            "request": "MutationRollbackRequestV1",
+            "data": "MutationV1",
+            "remoteContact": True,
+        },
+    }
+    if schema.get("x-tool-contracts") != expected_tool_contracts:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 tool request/data map is not exact")
+
+    states = definitions.get("MutationStateV1")
+    if not isinstance(states, dict) or set(states.get("enum", [])) != ISSUE76_MUTATION_STATES:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 mutation state set is not exact")
+    mode = definitions.get("ModeV1")
+    if not isinstance(mode, dict) or mode.get("enum") != ["apply", "probe"]:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 mutation mode set is not exact")
+
+    expected_command_path = [
+        "MCP",
+        "gateway EEBusCommandRouter",
+        "eebusreg RawFeatureRuntimeV1",
+        "eebusreg durable mutation coordinator",
+        "eebus-go exact feature executor",
+        "spine-go atomic correlated round trip",
+        "existing SHIP session",
+    ]
+    if schema.get("x-command-path") != expected_command_path:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 command path is not exact")
+
+    expected_round_trip = {
+        "registerWaiterBeforeSend": True,
+        "completeExactlyOnce": True,
+        "cleanupOnEveryTerminalPath": True,
+        "generationBoundMonotonicKey": True,
+        "retainGenerationTombstone": True,
+        "rejectRetiredKeyReuse": True,
+        "lateReplyCannotCompleteSuccessor": True,
+    }
+    if schema.get("x-round-trip") != expected_round_trip:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 round trip contract is not exact")
+    if schema.get("x-secret-denylist") != ISSUE76_SECRET_DENYLIST:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 secret exclusion is not exact")
+
+    target = definitions.get("FeatureTargetV1")
+    expected_target_fields = {
+        "remote_ski",
+        "ship_id",
+        "device_address",
+        "entity_address",
+        "feature_address",
+        "feature_type",
+        "feature_role",
+        "function",
+        "operation",
+    }
+    if (
+        not isinstance(target, dict)
+        or target.get("additionalProperties") is not False
+        or set(target.get("required", [])) != expected_target_fields
+        or set(target.get("properties", {})) != expected_target_fields
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 exact target binding is not closed")
+
+    operations = definitions.get("FullOperationsV1")
+    if (
+        not isinstance(operations, dict)
+        or operations.get("additionalProperties") is not False
+        or set(operations.get("required", [])) != {"read", "write"}
+        or set(operations.get("properties", {})) != {"read", "write"}
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 full operation set is not exact")
+
+    runtime = definitions.get("RuntimeBindingV1")
+    if (
+        not isinstance(runtime, dict)
+        or runtime.get("additionalProperties") is not False
+        or set(runtime.get("required", []))
+        != {"runtime_epoch", "connection_generation"}
+        or set(runtime.get("properties", {}))
+        != {"runtime_epoch", "connection_generation"}
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 epoch/generation binding is not exact")
+
+    request_contracts = {
+        "FeaturesGetRequestV1": {"target"},
+        "FeatureDataGetRequestV1": {"targets"},
+        "FeatureDataSetRequestV1": {
+            "target",
+            "value",
+            "read_token",
+            "idempotency_key",
+            "mode",
+        },
+        "MutationGetRequestV1": {"mutation_ref"},
+        "MutationRollbackRequestV1": {"mutation_ref", "idempotency_key"},
+    }
+    for name, required in request_contracts.items():
+        definition = definitions.get(name)
+        if (
+            not isinstance(definition, dict)
+            or definition.get("additionalProperties") is not False
+            or set(definition.get("required", [])) != required
+        ):
+            label = "write token" if name == "FeatureDataSetRequestV1" else name
+            errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 {label} request is not exact")
+
+    set_request = definitions.get("FeatureDataSetRequestV1")
+    expected_set_properties = {
+        "target",
+        "value",
+        "read_token",
+        "expected_current",
+        "idempotency_key",
+        "mode",
+        "probe_ttl_seconds",
+        "constraints_override",
+    }
+    if (
+        not isinstance(set_request, dict)
+        or set(set_request.get("properties", {})) != expected_set_properties
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 write token/CAS shape is not closed")
+
+    mutation = definitions.get("MutationV1")
+    expected_mutation_required = {
+        "mutation_ref",
+        "state",
+        "mode",
+        "target",
+        "runtime",
+        "before",
+        "requested",
+        "protocol_accepted",
+        "observed_after",
+        "audit",
+    }
+    if (
+        not isinstance(mutation, dict)
+        or mutation.get("additionalProperties") is not False
+        or set(mutation.get("required", [])) != expected_mutation_required
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 durable mutation record is not exact")
+
+    serialized = json.dumps(schema, sort_keys=True).casefold()
+    for forbidden in (
+        "eebus.v2",
+        "features.data.invoke",
+        "candidate_ref",
+        "filterdelete",
+        "partialselector",
+        "graphql",
+        "portal",
+        "home assistant",
+    ):
+        if forbidden in serialized:
+            errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 forbidden machine surface {forbidden!r}")
+    return errors
+
+
+def issue_76_m625_raw_feature_errors(root: Path) -> list[str]:
+    """Enforce the additive M6.25 raw feature acquisition contract."""
+    errors: list[str] = []
+
+    for rel, expected_sha256 in ISSUE76_M6_LOCKED_ARTIFACTS.items():
+        path = root / rel
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256
+        ):
+            errors.append(
+                f"{rel}: issue-76 prior M6 artifact must remain byte-identical"
+            )
+
+    document_texts: dict[Path, str] = {}
+    for rel in ISSUE76_DOCUMENT_RELS:
+        path = root / rel
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"{rel}: issue-76 canonical document is missing")
+            continue
+        document_texts[rel] = _read(path)
+
+    for rel, markers in ISSUE76_REQUIRED_MARKERS.items():
+        text = document_texts.get(rel, "")
+        normalized = " ".join(text.split()).casefold()
+        for marker in markers:
+            if marker.casefold() not in normalized:
+                errors.append(f"{rel}: issue-76 required contract marker is missing")
+
+    for rel, text in document_texts.items():
+        for peer in ISSUE76_DOCUMENT_RELS:
+            if peer != rel and peer.name not in text:
+                errors.append(
+                    f"{rel}: issue-76 cross-domain link to {peer.name} is missing"
+                )
+
+    protocol = document_texts.get(ISSUE76_PROTOCOL_REL, "")
+    for source_commit in (
+        "7383c108f72309c3636d" "896948d7a8de6d001708",
+        "0134afee59535d927d63b" "78070f828f0f6fb553d",
+    ):
+        if source_commit not in protocol:
+            errors.append(
+                f"{ISSUE76_PROTOCOL_REL}: issue-76 publishable source pin is missing"
+            )
+    architecture = document_texts.get(ISSUE76_ARCHITECTURE_REL, "")
+    if "fb384ab57d79f0020c54" "d2c66416e8a7666f0ceb" not in architecture:
+        errors.append(
+            f"{ISSUE76_ARCHITECTURE_REL}: issue-76 locked plan source pin is missing"
+        )
+    api = document_texts.get(ISSUE76_API_REL, "")
+    if ISSUE76_SCHEMA_REL.name not in api:
+        errors.append(f"{ISSUE76_API_REL}: issue-76 machine schema binding is missing")
+
+    errors.extend(_issue_76_machine_contract_errors(root))
+    return errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -4799,6 +5213,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(outbound_pairing_contract_errors(root))
     errors.extend(strict_current_schema_errors(root))
     errors.extend(issue_68_raw_operator_redaction_errors(root))
+    errors.extend(issue_76_m625_raw_feature_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 

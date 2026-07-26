@@ -1,0 +1,1296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Project-Helianthus/helianthus-docs-eebus/raw/main/api/_candidate/msp-0625/helianthus.eebus.mcp.v1.raw-feature.schema.json",
+  "title": "Helianthus eeBUS MCP v1 raw feature acquisition profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "namespace",
+    "mask_tier",
+    "transport",
+    "public_contact_policy",
+    "read_auth_scope",
+    "write_auth_scope"
+  ],
+  "properties": {
+    "contract": {
+      "const": "helianthus.eebus.raw-feature-runtime.v1"
+    },
+    "namespace": {
+      "const": "eebus.v1"
+    },
+    "mask_tier": {
+      "const": "raw"
+    },
+    "transport": {
+      "const": "owner-only-af-unix"
+    },
+    "public_contact_policy": {
+      "const": "deny-before-provider-router-runtime-contact"
+    },
+    "read_auth_scope": {
+      "const": "eebus.raw.read"
+    },
+    "write_auth_scope": {
+      "const": "eebus.raw.write"
+    }
+  },
+  "x-tool-scopes": {
+    "eebus.v1.features.get": "eebus.raw.read",
+    "eebus.v1.features.data.get": "eebus.raw.read",
+    "eebus.v1.features.data.set": "eebus.raw.write",
+    "eebus.v1.mutations.get": "eebus.raw.read",
+    "eebus.v1.mutations.rollback": "eebus.raw.write"
+  },
+  "x-tool-contracts": {
+    "eebus.v1.features.get": {
+      "request": "FeaturesGetRequestV1",
+      "data": "FeaturesGetDataV1",
+      "remoteContact": false
+    },
+    "eebus.v1.features.data.get": {
+      "request": "FeatureDataGetRequestV1",
+      "data": "FeatureDataGetDataV1",
+      "remoteContact": true
+    },
+    "eebus.v1.features.data.set": {
+      "request": "FeatureDataSetRequestV1",
+      "data": "MutationV1",
+      "remoteContact": true
+    },
+    "eebus.v1.mutations.get": {
+      "request": "MutationGetRequestV1",
+      "data": "MutationV1",
+      "remoteContact": false
+    },
+    "eebus.v1.mutations.rollback": {
+      "request": "MutationRollbackRequestV1",
+      "data": "MutationV1",
+      "remoteContact": true
+    }
+  },
+  "x-command-path": [
+    "MCP",
+    "gateway EEBusCommandRouter",
+    "eebusreg RawFeatureRuntimeV1",
+    "eebusreg durable mutation coordinator",
+    "eebus-go exact feature executor",
+    "spine-go atomic correlated round trip",
+    "existing SHIP session"
+  ],
+  "x-round-trip": {
+    "registerWaiterBeforeSend": true,
+    "completeExactlyOnce": true,
+    "cleanupOnEveryTerminalPath": true,
+    "generationBoundMonotonicKey": true,
+    "retainGenerationTombstone": true,
+    "rejectRetiredKeyReuse": true,
+    "lateReplyCannotCompleteSuccessor": true
+  },
+  "x-canonicalization": {
+    "standard": "RFC 8785/JCS",
+    "hash": "SHA-256",
+    "encoding": "sha256:lowercase-hex",
+    "rejectDuplicateKeys": true,
+    "rejectNegativeZero": true,
+    "rejectNonFiniteNumbers": true,
+    "safeIntegerMaximum": 9007199254740991,
+    "exactDecimalsAsStrings": true,
+    "unsafeIntegersAsStrings": true
+  },
+  "x-secret-denylist": [
+    "private_key",
+    "private_pem",
+    "trust_store_bytes",
+    "credential_token",
+    "bearer_token",
+    "session_token",
+    "authentication_token",
+    "cryptographic_secret"
+  ],
+  "x-capacity": {
+    "maxReadTargets": 16,
+    "maxConcurrentReads": 16,
+    "maxConcurrentWriters": 1,
+    "maxTimeoutMs": 30000,
+    "maxProbeTtlSeconds": 900,
+    "maxUnknownObservations": 256,
+    "maxTypedValueDepth": 4
+  },
+  "$defs": {
+    "ToolV1": {
+      "type": "string",
+      "enum": [
+        "eebus.v1.features.get",
+        "eebus.v1.features.data.get",
+        "eebus.v1.features.data.set",
+        "eebus.v1.mutations.get",
+        "eebus.v1.mutations.rollback"
+      ]
+    },
+    "AuthScopeV1": {
+      "type": "string",
+      "enum": [
+        "eebus.raw.read",
+        "eebus.raw.write"
+      ]
+    },
+    "MaskTierV1": {
+      "const": "raw"
+    },
+    "ModeV1": {
+      "type": "string",
+      "enum": [
+        "apply",
+        "probe"
+      ]
+    },
+    "MutationStateV1": {
+      "type": "string",
+      "enum": [
+        "prepared",
+        "dispatch_intent",
+        "reply_observed",
+        "verify_pending",
+        "applied",
+        "probe_active",
+        "rollback_intent",
+        "rollback_dispatch_intent",
+        "rollback_reply_observed",
+        "rollback_verify_pending",
+        "rolled_back",
+        "outcome_unknown",
+        "conflict",
+        "failed_no_contact",
+        "rejected"
+      ]
+    },
+    "ErrorCodeV1": {
+      "type": "string",
+      "enum": [
+        "invalid_argument",
+        "permission_denied",
+        "unsupported_operation",
+        "partial_operation_forbidden",
+        "constraints_unknown",
+        "constraint_failure",
+        "stale_read_token",
+        "cas_mismatch",
+        "runtime_epoch_mismatch",
+        "connection_generation_mismatch",
+        "idempotency_conflict",
+        "writer_busy",
+        "timeout",
+        "cancelled",
+        "disconnected",
+        "remote_error",
+        "decode_error",
+        "partial_result",
+        "outcome_unknown",
+        "conflict",
+        "rollback_failed",
+        "not_found",
+        "secret_detected",
+        "internal"
+      ]
+    },
+    "SourceLayerV1": {
+      "type": "string",
+      "enum": [
+        "mcp",
+        "gateway-router",
+        "eebusreg-runtime",
+        "eebusreg-coordinator",
+        "eebus-go-executor",
+        "spine-go-round-trip",
+        "ship-session",
+        "remote"
+      ]
+    },
+    "FeatureRoleV1": {
+      "type": "string",
+      "enum": [
+        "client",
+        "server",
+        "special"
+      ]
+    },
+    "OperationV1": {
+      "type": "string",
+      "enum": [
+        "READ",
+        "WRITE"
+      ]
+    },
+    "ObservationSourceV1": {
+      "type": "string",
+      "enum": [
+        "live",
+        "cache"
+      ]
+    },
+    "TimestampV1": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "HashV1": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "OpaqueReferenceV1": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "IdempotencyKeyV1": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._~-]+$"
+    },
+    "RuntimeBindingV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_epoch",
+        "connection_generation"
+      ],
+      "properties": {
+        "runtime_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "connection_generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "FeatureLocatorV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_ski",
+        "ship_id",
+        "device_address",
+        "entity_address",
+        "feature_address",
+        "feature_type",
+        "feature_role"
+      ],
+      "properties": {
+        "remote_ski": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ship_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "device_address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "entity_address": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "feature_address": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "feature_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "feature_role": {
+          "$ref": "#/$defs/FeatureRoleV1"
+        }
+      }
+    },
+    "FeatureTargetV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_ski",
+        "ship_id",
+        "device_address",
+        "entity_address",
+        "feature_address",
+        "feature_type",
+        "feature_role",
+        "function",
+        "operation"
+      ],
+      "properties": {
+        "remote_ski": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ship_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "device_address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "entity_address": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "feature_address": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "feature_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "feature_role": {
+          "$ref": "#/$defs/FeatureRoleV1"
+        },
+        "function": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationV1"
+        }
+      }
+    },
+    "FullOperationsV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "write"
+      ],
+      "properties": {
+        "read": {
+          "type": "boolean"
+        },
+        "write": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ConstraintStatusV1": {
+      "type": "string",
+      "enum": [
+        "known",
+        "unknown"
+      ]
+    },
+    "ConstraintSetV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/ConstraintStatusV1"
+        },
+        "enum_values": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/TypedValueV1"
+          }
+        },
+        "minimum": {
+          "$ref": "#/$defs/TypedScalarV1"
+        },
+        "maximum": {
+          "$ref": "#/$defs/TypedScalarV1"
+        },
+        "step": {
+          "$ref": "#/$defs/TypedScalarV1"
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "min_cardinality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "max_cardinality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cross_field_rules": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "FunctionDescriptorV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "function",
+        "possible_operations",
+        "changeable",
+        "constraints"
+      ],
+      "properties": {
+        "function": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "possible_operations": {
+          "$ref": "#/$defs/FullOperationsV1"
+        },
+        "changeable": {
+          "type": "string",
+          "enum": [
+            "true",
+            "false",
+            "unknown"
+          ]
+        },
+        "constraints": {
+          "$ref": "#/$defs/ConstraintSetV1"
+        }
+      }
+    },
+    "TypedScalarV1": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "maxLength": 16384
+        }
+      ]
+    },
+    "TypedValueDepth4V1": {
+      "$ref": "#/$defs/TypedScalarV1"
+    },
+    "TypedValueDepth3V1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TypedScalarV1"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/TypedValueDepth4V1"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedValueDepth4V1"
+          }
+        }
+      ]
+    },
+    "TypedValueDepth2V1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TypedScalarV1"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/TypedValueDepth3V1"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedValueDepth3V1"
+          }
+        }
+      ]
+    },
+    "TypedValueV1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TypedScalarV1"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/TypedValueDepth2V1"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedValueDepth2V1"
+          }
+        }
+      ],
+      "x-max-depth": 4,
+      "x-max-jcs-bytes": 1048576
+    },
+    "OpaqueObservationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "value": {
+          "$ref": "#/$defs/TypedValueV1"
+        }
+      }
+    },
+    "OpaqueObservationsV1": {
+      "type": "array",
+      "maxItems": 256,
+      "x-order-by": [
+        "path",
+        "source",
+        "value"
+      ],
+      "items": {
+        "$ref": "#/$defs/OpaqueObservationV1"
+      }
+    },
+    "ProtocolMessageV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classifier",
+        "correlation_key",
+        "function"
+      ],
+      "properties": {
+        "classifier": {
+          "type": "string",
+          "enum": [
+            "READ",
+            "WRITE",
+            "REPLY",
+            "RESULT"
+          ]
+        },
+        "correlation_key": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "function": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "data": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "error_number": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "unknown": {
+          "$ref": "#/$defs/OpaqueObservationsV1"
+        }
+      }
+    },
+    "ReadTokenV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_token",
+        "reusable",
+        "expires_at",
+        "binding_hash"
+      ],
+      "properties": {
+        "read_token": {
+          "$ref": "#/$defs/OpaqueReferenceV1"
+        },
+        "reusable": {
+          "type": "boolean"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "binding_hash": {
+          "$ref": "#/$defs/HashV1"
+        }
+      }
+    },
+    "FeaturesGetRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/FeatureLocatorV1"
+        }
+      }
+    },
+    "FeaturesGetDataV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "feature",
+        "functions",
+        "source",
+        "data_timestamp",
+        "runtime",
+        "data_hash"
+      ],
+      "properties": {
+        "feature": {
+          "$ref": "#/$defs/FeatureLocatorV1"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "functions": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "x-order-by": [
+            "function"
+          ],
+          "items": {
+            "$ref": "#/$defs/FunctionDescriptorV1"
+          }
+        },
+        "source": {
+          "$ref": "#/$defs/ObservationSourceV1"
+        },
+        "data_timestamp": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeBindingV1"
+        },
+        "data_hash": {
+          "$ref": "#/$defs/HashV1"
+        }
+      }
+    },
+    "FeatureDataGetRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targets"
+      ],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/FeatureTargetV1"
+          }
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        }
+      }
+    },
+    "ReadObservationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "runtime",
+        "raw_request",
+        "raw_response",
+        "value",
+        "requested_at",
+        "received_at",
+        "data_timestamp",
+        "source",
+        "read_token",
+        "data_hash"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/FeatureTargetV1"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeBindingV1"
+        },
+        "raw_request": {
+          "$ref": "#/$defs/ProtocolMessageV1"
+        },
+        "raw_response": {
+          "$ref": "#/$defs/ProtocolMessageV1"
+        },
+        "value": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "unknown": {
+          "$ref": "#/$defs/OpaqueObservationsV1"
+        },
+        "requested_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "received_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "data_timestamp": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "source": {
+          "const": "live"
+        },
+        "read_token": {
+          "$ref": "#/$defs/ReadTokenV1"
+        },
+        "data_hash": {
+          "$ref": "#/$defs/HashV1"
+        }
+      }
+    },
+    "ErrorDetailsV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "mutation_ref": {
+          "$ref": "#/$defs/OpaqueReferenceV1"
+        },
+        "classification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "ErrorV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retriable",
+        "source_layer"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCodeV1"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "retriable": {
+          "type": "boolean"
+        },
+        "source_layer": {
+          "$ref": "#/$defs/SourceLayerV1"
+        },
+        "details": {
+          "$ref": "#/$defs/ErrorDetailsV1"
+        }
+      }
+    },
+    "ReadFailureV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_index",
+        "target",
+        "error"
+      ],
+      "properties": {
+        "target_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15
+        },
+        "target": {
+          "$ref": "#/$defs/FeatureTargetV1"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorV1"
+        }
+      }
+    },
+    "FeatureDataGetDataV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "results",
+        "failures",
+        "complete"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/ReadObservationV1"
+          }
+        },
+        "failures": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/ReadFailureV1"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        }
+      },
+      "x-invariant": "complete is true exactly when failures is empty and every requested target has one result"
+    },
+    "ConstraintOverrideV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "justification",
+        "expires_at"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "justification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "expires_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
+    "FeatureDataSetRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "value",
+        "read_token",
+        "idempotency_key",
+        "mode"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/FeatureTargetV1"
+        },
+        "value": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "read_token": {
+          "$ref": "#/$defs/OpaqueReferenceV1"
+        },
+        "expected_current": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/IdempotencyKeyV1"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModeV1"
+        },
+        "probe_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 900
+        },
+        "constraints_override": {
+          "$ref": "#/$defs/ConstraintOverrideV1"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "probe"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "probe_ttl_seconds"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "probe_ttl_seconds"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "AuditTransitionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "state",
+        "transitioned_at",
+        "previous_hash",
+        "transition_hash"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "$ref": "#/$defs/MutationStateV1"
+        },
+        "transitioned_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "classification": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "previous_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/HashV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transition_hash": {
+          "$ref": "#/$defs/HashV1"
+        }
+      }
+    },
+    "RollbackV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "before",
+        "protocol_accepted",
+        "observed_after"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/MutationStateV1"
+        },
+        "before": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "protocol_accepted": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_after": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TypedValueV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorV1"
+        }
+      }
+    },
+    "MutationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mutation_ref",
+        "state",
+        "mode",
+        "target",
+        "runtime",
+        "before",
+        "requested",
+        "protocol_accepted",
+        "observed_after",
+        "audit"
+      ],
+      "properties": {
+        "mutation_ref": {
+          "$ref": "#/$defs/OpaqueReferenceV1"
+        },
+        "state": {
+          "$ref": "#/$defs/MutationStateV1"
+        },
+        "mode": {
+          "$ref": "#/$defs/ModeV1"
+        },
+        "target": {
+          "$ref": "#/$defs/FeatureTargetV1"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeBindingV1"
+        },
+        "before": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "requested": {
+          "$ref": "#/$defs/TypedValueV1"
+        },
+        "protocol_accepted": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_after": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TypedValueV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rollback": {
+          "$ref": "#/$defs/RollbackV1"
+        },
+        "probe_deadline": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "created_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorV1"
+        },
+        "audit": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "x-order-by": [
+            "sequence"
+          ],
+          "items": {
+            "$ref": "#/$defs/AuditTransitionV1"
+          }
+        }
+      }
+    },
+    "MutationGetRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mutation_ref"
+      ],
+      "properties": {
+        "mutation_ref": {
+          "$ref": "#/$defs/OpaqueReferenceV1"
+        }
+      }
+    },
+    "MutationRollbackRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mutation_ref",
+        "idempotency_key"
+      ],
+      "properties": {
+        "mutation_ref": {
+          "$ref": "#/$defs/OpaqueReferenceV1"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/IdempotencyKeyV1"
+        }
+      }
+    },
+    "EnvelopeMetaV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "tool",
+        "scope",
+        "mask_tier",
+        "auth_scope",
+        "data_timestamp",
+        "data_hash",
+        "runtime"
+      ],
+      "properties": {
+        "contract": {
+          "const": "helianthus.eebus.raw-feature-runtime.v1"
+        },
+        "tool": {
+          "$ref": "#/$defs/ToolV1"
+        },
+        "scope": {
+          "$ref": "#/$defs/AuthScopeV1"
+        },
+        "mask_tier": {
+          "$ref": "#/$defs/MaskTierV1"
+        },
+        "auth_scope": {
+          "$ref": "#/$defs/AuthScopeV1"
+        },
+        "data_timestamp": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "data_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RuntimeBindingV1"
+        }
+      }
+    },
+    "EnvelopeV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meta",
+        "data",
+        "error"
+      ],
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/EnvelopeMetaV1"
+        },
+        "data": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FeaturesGetDataV1"
+            },
+            {
+              "$ref": "#/$defs/FeatureDataGetDataV1"
+            },
+            {
+              "$ref": "#/$defs/MutationV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ErrorV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "x-invariant": "success has non-null data and null error; failure has null data and non-null error except partial_result, which retains FeatureDataGetDataV1"
+    }
+  }
+}
