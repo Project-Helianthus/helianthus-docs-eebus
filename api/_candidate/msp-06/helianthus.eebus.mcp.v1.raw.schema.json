@@ -123,6 +123,41 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
+    "LocalSKIV1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "RuntimeIDV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "masked", "digest"],
+      "properties": {
+        "kind": {"$ref": "#/$defs/BoundedTextV1"},
+        "masked": {"const": "[redacted]"},
+        "digest": {"$ref": "#/$defs/SecondaryDigestV1"}
+      }
+    },
+    "SnapshotMetaV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "runtime",
+        "local_ski",
+        "mask_tier",
+        "captured_at",
+        "data_timestamp"
+      ],
+      "properties": {
+        "contract": {"const": "helianthus.eebus.runtime.raw-snapshot.v1"},
+        "runtime": {"$ref": "#/$defs/RuntimeIDV1"},
+        "local_ski": {"$ref": "#/$defs/LocalSKIV1"},
+        "mask_tier": {"const": "raw"},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "data_timestamp": {"type": "string", "format": "date-time"},
+        "data_hash": {"$ref": "#/$defs/SecondaryDigestV1"}
+      }
+    },
     "OpaqueScalarV1": {
       "oneOf": [
         {"type": "null"},
@@ -216,7 +251,7 @@
     "ServiceV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ski", "kind", "visible", "paired", "name", "identifier", "brand", "type", "model"],
+      "required": ["ski", "kind", "visible", "paired"],
       "properties": {
         "ski": {"$ref": "#/$defs/BoundedTextV1"},
         "ship_id": {"$ref": "#/$defs/ObservedOptionalTextV1"},
@@ -307,8 +342,9 @@
     "OperatorSnapshotProfileV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["services", "devices", "entities", "features", "usecases", "opaque"],
+      "required": ["meta", "services", "devices", "entities", "features", "usecases", "opaque"],
       "properties": {
+        "meta": {"$ref": "#/$defs/SnapshotMetaV1"},
         "services": {
           "type": "array",
           "maxItems": 256,

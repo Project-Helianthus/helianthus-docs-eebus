@@ -132,7 +132,9 @@ It is a second profile of the same contract and the same nine MCP names, not a
 second namespace or API version. It defines only Helianthus first-party wire
 types and imports no upstream implementation type. Its service fields are SKI,
 optional SHIP ID, kind, visible, paired, name, identifier, brand, type, and
-model. Kind and the observable visible/paired state are required. Its device
+model. SKI, kind, and the observable visible/paired state are required; the
+remaining service identity metadata is optional when discovery has not exposed
+it. Its device
 fields are SKI, optional SHIP ID, address, type, optional description, and
 optional metadata. Entity fields are device address, entity address, type, and
 optional description. Feature fields are device address, entity address,

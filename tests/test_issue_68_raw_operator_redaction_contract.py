@@ -234,6 +234,23 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
                     errors,
                 )
 
+    def test_validator_rejects_missing_raw_snapshot_local_ski(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            path = repo / repository_policy.ISSUE68_RAW_SCHEMA_REL
+            schema = json.loads(path.read_text(encoding="utf-8"))
+            meta = schema["$defs"]["SnapshotMetaV1"]
+            meta["required"].remove("local_ski")
+            del meta["properties"]["local_ski"]
+            path.write_text(json.dumps(schema), encoding="utf-8")
+
+            errors = repository_policy.issue_68_raw_operator_redaction_errors(repo)
+
+            self.assertTrue(
+                any("raw SnapshotMetaV1 local_ski contract is not exact" in error for error in errors),
+                errors,
+            )
+
     def test_disconnected_marker_only_amendment_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -331,6 +348,11 @@ class Issue68RawOperatorRedactionContractTests(unittest.TestCase):
     def test_validator_rejects_required_optional_drift(self) -> None:
         mutations = (
             ("ServiceV1", "ship_id"),
+            ("ServiceV1", "name"),
+            ("ServiceV1", "identifier"),
+            ("ServiceV1", "brand"),
+            ("ServiceV1", "type"),
+            ("ServiceV1", "model"),
             ("DeviceV1", "description"),
             ("DeviceV1", "metadata"),
             ("UseCaseV1", "resolved_role"),

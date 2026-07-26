@@ -220,13 +220,17 @@ ISSUE68_RAW_TYPE_FIELDS = {
             "kind",
             "visible",
             "paired",
+        },
+        "optional": {
+            "ship_id",
             "name",
             "identifier",
             "brand",
             "type",
             "model",
+            "secondary_digest",
+            "opaque",
         },
-        "optional": {"ship_id", "secondary_digest", "opaque"},
     },
     "DeviceV1": {
         "required": {"ski", "address", "type"},
@@ -3898,6 +3902,38 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
             if isinstance(snapshot, dict)
             else {}
         )
+        snapshot_meta = definitions.get("SnapshotMetaV1")
+        if (
+            not isinstance(snapshot_meta, dict)
+            or snapshot_meta.get("type") != "object"
+            or snapshot_meta.get("additionalProperties") is not False
+            or set(snapshot_meta.get("required", []))
+            != {
+                "contract",
+                "runtime",
+                "local_ski",
+                "mask_tier",
+                "captured_at",
+                "data_timestamp",
+            }
+            or set(snapshot_meta.get("properties", {}))
+            != {
+                "contract",
+                "runtime",
+                "local_ski",
+                "mask_tier",
+                "captured_at",
+                "data_timestamp",
+                "data_hash",
+            }
+            or snapshot_meta.get("properties", {}).get("local_ski")
+            != {"$ref": "#/$defs/LocalSKIV1"}
+            or collections.get("meta") != {"$ref": "#/$defs/SnapshotMetaV1"}
+            or "meta" not in snapshot.get("required", [])
+        ):
+            errors.append(
+                f"{ISSUE68_RAW_SCHEMA_REL}: raw SnapshotMetaV1 local_ski contract is not exact"
+            )
         for collection in ("services", "devices", "entities", "features", "usecases"):
             schema = collections.get(collection)
             if (
