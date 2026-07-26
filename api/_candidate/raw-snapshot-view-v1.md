@@ -49,6 +49,7 @@ All newly exported data types are suffixed `V1`. The candidate inventory is:
 | `SnapshotV1` | `Meta`, `Status`, `Pairing`, `Services`, `Sessions`, `Devices`, `Entities`, `Features`, `UseCases`, `Opaque` |
 | `RedactedSnapshotV1` | `Meta`, `Status`, `Pairing`, `Services`, `Sessions`, `Devices`, `Entities`, `Features`, `UseCases` |
 | `SnapshotMetaV1` | `Contract`, `Runtime`, `LocalSKI`, `MaskTier`, `CapturedAt`, `DataTimestamp`, `DataHash` |
+| `RedactedSnapshotMetaV1` | `Contract`, `Runtime`, `LocalSKI`, `MaskTier`, `CapturedAt`, `DataTimestamp`, `DataHash` |
 | `RuntimeObservationV1` | `State`, `Degradation` |
 | `DegradationV1` | `Reason`, `Since` |
 | `PairingObservationV1` | `RemoteSKI`, `State`, `Since`, `Opaque` |
@@ -81,6 +82,8 @@ and retains the existing `PairingState` API.
 
 | Field | Go candidate type | Availability |
 | --- | --- | --- |
+| `SnapshotMetaV1.LocalSKI` | `string` | `required; normalized 40-character lowercase hexadecimal SKI visible only through the authorized raw/operator boundary` |
+| `RedactedSnapshotMetaV1.LocalSKI` | `RedactedID` | `required masked identity for public/shareable output; the raw SKI is absent` |
 | `ServiceV1.SKI` | `string` | `required` |
 | `ServiceV1.SHIPID` | `*string` | `optional; nil means unavailable; pointer to empty string means observed empty` |
 | `ServiceV1.Kind` | `ServiceKindV1` | `required` |
@@ -209,13 +212,16 @@ storage:
 - opaque observations sort by path, source, and canonical value; and
 - timestamps are normalized to UTC and must be valid JSON timestamps.
 
-`data_hash` uses the Helianthus canonical `sha256:<64 lowercase hex>` form. Its
-JSON hash view contains `contract`, `runtime`, `local_ski`, `mask_tier`,
-`data_timestamp`, `status`, `pairing`, `services`, `sessions`, `devices`,
-`entities`, `features`, `usecases`, and `opaque`; only `captured_at` and
-`data_hash` are omitted. The identity and mask context therefore cannot be
-substituted while retaining a valid hash. Service kind, visible, and paired are
-part of each service value and therefore part of that hash view.
+`data_hash` uses the Helianthus canonical `sha256:<64 lowercase hex>` form. The
+raw JSON hash view includes the inspectable `SnapshotMetaV1.local_ski` string
+alongside `contract`, `runtime`, `mask_tier`, `data_timestamp`, `status`,
+`pairing`, `services`, `sessions`, `devices`, `entities`, `features`,
+`usecases`, and `opaque`; only `captured_at` and `data_hash` are omitted. The
+redacted hash view instead includes the independently derived
+`RedactedSnapshotMetaV1.local_ski` masked identity. Raw and redacted snapshots
+therefore have separate deterministic hashes, and neither identity nor tier can
+be substituted while retaining a valid hash. Service kind, visible, and paired
+are part of each service value and therefore part of that hash view.
 `Validate` recomputes every non-empty `data_hash` and rejects a mismatch.
 Equivalent input orderings must produce byte-identical JSON and the same hash.
 
