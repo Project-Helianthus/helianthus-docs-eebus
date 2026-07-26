@@ -318,6 +318,24 @@ def mutation_record(state: str) -> dict:
     return record
 
 
+def rollback_intermediate_record(state: str) -> dict:
+    record = mutation_record("applied")
+    record["state"] = state
+    record["audit"][0]["state"] = state
+    rollback_protocol_accepted = (
+        True
+        if state in {"rollback_reply_observed", "rollback_verify_pending"}
+        else None
+    )
+    record["rollback"] = {
+        "state": state,
+        "before": 18,
+        "protocol_accepted": rollback_protocol_accepted,
+        "observed_after": None,
+    }
+    return record
+
+
 def copy_repo(tmp_path: Path) -> Path:
     destination = tmp_path / "repo"
     required = {
@@ -630,6 +648,27 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         for name, instance in invalid.items():
             with self.subTest(name=name):
                 self.assertFalse(schema_accepts(schema, "MutationV1", instance))
+
+    def test_rollback_intermediate_states_reject_top_level_terminal_error(self) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        states = (
+            "rollback_intent",
+            "rollback_dispatch_intent",
+            "rollback_reply_observed",
+            "rollback_verify_pending",
+        )
+        for state in states:
+            with self.subTest(state=state):
+                valid = rollback_intermediate_record(state)
+                self.assertTrue(schema_accepts(schema, "MutationV1", valid))
+
+                contradictory = deepcopy(valid)
+                contradictory["error"] = error_payload("rollback_failed")
+                self.assertFalse(
+                    schema_accepts(schema, "MutationV1", contradictory)
+                )
 
     def test_typed_values_reject_recursive_secret_keys_and_values(self) -> None:
         schema = json.loads(

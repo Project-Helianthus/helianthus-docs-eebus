@@ -4589,6 +4589,37 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
                 f"{ISSUE76_SCHEMA_REL}: issue-76 {state} evidence is not exact"
             )
 
+    rollback_intermediate_states = {
+        "rollback_intent",
+        "rollback_dispatch_intent",
+        "rollback_reply_observed",
+        "rollback_verify_pending",
+    }
+    forbidden_terminal_evidence = {
+        "error",
+        "conflict_evidence",
+        "no_contact_evidence",
+        "rejection_verification",
+        "outcome_evidence",
+    }
+    for state in rollback_intermediate_states:
+        variant = mutation_by_state.get(state)
+        exclusion = variant.get("not") if isinstance(variant, dict) else None
+        alternatives = (
+            exclusion.get("anyOf", []) if isinstance(exclusion, dict) else []
+        )
+        excluded_fields = {
+            next(iter(required))
+            for candidate in alternatives
+            if isinstance(candidate, dict)
+            and len(required := set(candidate.get("required", []))) == 1
+        }
+        if excluded_fields != forbidden_terminal_evidence:
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-76 {state} terminal evidence "
+                "exclusion is not exact"
+            )
+
     evidence_contracts = {
         "ApplyVerificationV1": {
             "relation",

@@ -1904,6 +1904,35 @@
                 }
               }
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
           }
         },
         {
@@ -1928,6 +1957,35 @@
                 }
               }
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
           }
         },
         {
@@ -1952,6 +2010,35 @@
                 }
               }
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
           }
         },
         {
@@ -1976,6 +2063,35 @@
                 }
               }
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "error"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
+                ]
+              },
+              {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            ]
           }
         },
         {
