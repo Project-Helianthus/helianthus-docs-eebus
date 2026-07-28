@@ -120,6 +120,37 @@ read-only purpose; no alias or rename is introduced. The public
 `ValidateWriteAuthorizationV1`. `FeaturesDataSet` and `MutationsRollback`
 require it. `MutationsGet` remains read-authorized.
 
+## Canonical DTO Validation Ownership
+
+The six additive canonical validators are exported by
+`Project-Helianthus/helianthus-eebusreg/eebusraw`:
+
+```go
+func ValidateFeatureDataSetRequestV1(request FeatureDataSetRequestV1) *ErrorV1
+func ValidateMutationGetRequestV1(request MutationGetRequestV1) *ErrorV1
+func ValidateMutationRollbackRequestV1(request MutationRollbackRequestV1) *ErrorV1
+func ValidateFeaturesGetDataV1(request FeaturesGetRequestV1, data FeaturesGetDataV1) *ErrorV1
+func ValidateFeatureDataGetDataV1(request FeatureDataGetRequestV1, data FeatureDataGetDataV1, terminal *ErrorV1) *ErrorV1
+func ValidateMutationV1(mutation MutationV1) *ErrorV1
+```
+
+Those validators are the single authority for the closed request bounds,
+operation affinity, recursive secret rejection, positive result runtime
+bindings, hash integrity, partial-result relations, and mutation-state evidence.
+The gateway invokes the applicable request validator before command-router
+contact and the applicable result validator after return. It does not
+reimplement those DTO semantics.
+
+The gateway retains duplicate-key rejection before typed decoding,
+boundary-derived authorization, public denial before provider/router/runtime
+contact, undecodable-input request nulling without raw-input echo, canonical
+validator invocation, runtime-bound envelope construction, and public-safe error
+rendering. Each router call receives the exact immutable authorization snapshot
+selected at the transport boundary: `principal_class`, fixed scope, exact tool,
+and `mask_tier=raw`. The envelope scope, authorization scope, tool, and tier
+come from that same snapshot, not from request data. Public evidence remains a
+separate redacted projection and never reuses the local raw response.
+
 Owner authorization permits real local SHIP/SPINE identity, addresses,
 feature/function metadata, typed values, and bounded unknown fields. It never
 permits private keys, PEM private material, credential/bearer/session/
@@ -147,6 +178,26 @@ designated fields.
 `RuntimeBindingV1` requires positive `runtime_epoch` and
 `connection_generation`. The server supplies this binding in results and
 tokens. A caller cannot override a current binding.
+
+`EnvelopeMetaV1.runtime` contains that positive binding whenever the command
+path has admitted a runtime generation. It is `null` only for a failure that
+occurs before any runtime binding is known, including malformed-input
+rejection, public-boundary denial before provider/router/runtime contact, or
+an unavailable command router. A server must not synthesize epoch or
+generation values for those failures. Success and `partial_result` envelopes
+always carry a positive binding.
+
+The only codes compatible with `meta.runtime=null` are `invalid_argument`,
+`permission_denied`, `unsupported_operation`, `partial_operation_forbidden`,
+`secret_detected`, and `internal`, and only when `source_layer` is `mcp` or
+`gateway-router` and the failure actually precedes runtime admission. The same
+codes carry a positive binding when detected after admission. Every
+`constraints_unknown`, `constraint_failure`, `stale_read_token`,
+`cas_mismatch`, `runtime_epoch_mismatch`, `connection_generation_mismatch`,
+`idempotency_conflict`, `writer_busy`, `timeout`, `cancelled`, `disconnected`,
+`remote_error`, `decode_error`, `partial_result`, `no_effect`,
+`outcome_unknown`, `conflict`, `rollback_failed`, and `not_found` error is
+post-binding and requires a positive runtime.
 
 ## `features.get`
 
@@ -218,9 +269,11 @@ containing exact profile id, justification, and expiry. The coordinator must
 already hold the profile's exact target/value bounds, safety predicates,
 rollback shape, and maximum TTL; request data cannot create or widen a profile.
 
-The response is the durable `MutationV1`. A correlated no-error response sets
-`protocol_accepted=true` but cannot set state `applied`. A full readback equal
-to `requested` is required.
+The response is the durable `MutationV1`. A correlated reply records
+`protocol_accepted` as a boolean, including `false`, in `reply_observed` and
+`verify_pending`; neither state is `applied`. A full readback equal to
+`requested` is required before a positively accepted write can become
+`applied`.
 
 ## Operation-Scoped Transport-Handoff Evidence
 
@@ -316,6 +369,23 @@ blind retry. Evidence relations are runtime assertions: the boundary
 recomputes every named hash and rejects a false relation rather than trusting
 caller-supplied commitments.
 
+For an original correlated reply, `reply_observed` and `verify_pending` require
+the non-null correlated `protocol_accepted` boolean and permit either `true` or
+`false`; they carry no readback or terminal evidence yet. Trustworthy full
+readback then resolves as follows:
+
+| Correlated acceptance | Readback | Resolution |
+| --- | --- | --- |
+| `true` | `requested` | `applied`, or `probe_active` while a probe remains governed |
+| `true` | `before` | `outcome_unknown`; the correlated acceptance contradicts readback |
+| `false` | `before` | `rejected` with verified correlated rejection |
+| `false` | `requested` | `outcome_unknown`; negative acceptance cannot become `applied` |
+| either boolean | a third value | `conflict` and global write quarantine |
+
+Missing or untrustworthy readback resolves to `outcome_unknown`. Recovery after
+restart from either durable pending state performs this readback; it does not
+redispatch the original WRITE.
+
 Possible-send recovery with a trustworthy full READ equal to `before` is
 terminal `no_effect`. It requires `protocol_accepted=null`,
 `observed_after=before`, retained `OutcomeEvidenceV1` with
@@ -372,6 +442,16 @@ performs a full READ-after-rollback. An already restored before-image converges
 to `rolled_back` without another WRITE. The requested value permits rollback
 dispatch. Any third value enters `conflict` and quarantines writes.
 
+`rollback_reply_observed` and `rollback_verify_pending` require the nested
+rollback `protocol_accepted` to be a non-null correlated boolean and permit
+both `true` and `false`; readback and rollback verification remain absent at
+those checkpoints. Recovery after restart performs a full READ rather than
+redispatching rollback. A trustworthy `before` readback converges to
+`rolled_back` and preserves the correlated boolean, including `false`;
+`requested` with `false` remains `outcome_unknown` with `rollback_failed`;
+`requested` with `true` or any third value is `conflict` and restores global
+write quarantine. Missing or untrustworthy readback remains `outcome_unknown`.
+
 ## Mutation Durability And Idempotency
 
 The durable coordinator writes and syncs the WAL before each possible remote
@@ -384,6 +464,18 @@ side effect. Idempotency identity is:
 The record also binds the canonical request JCS hash. Same identity and same
 hash return the original mutation and emit no second frame. Same identity and
 different hash returns `idempotency_conflict`.
+
+Restore validates every WAL mutation with `ValidateMutationV1` before making a
+coordinator addressable. A precontract
+`mutation:v1:<64-lowercase-hex>` reference or any semantically invalid WAL
+record is rejected fail-closed: coordinator construction fails, mutation
+service remains unavailable as the operational quarantine, and the invalid WAL
+bytes are preserved without silent migration or rewrite. This does not
+translate the old reference into the canonical 43-character raw-base64url
+reference. Only a semantically valid durable conflict/quarantine state may be
+restored into an addressable coordinator with global writes quarantined. There
+is no legacy stable API support, compatibility alias, v2 surface, WAL migration,
+or fallback decoder for these records.
 
 One global runtime writer lease covers new writes, explicit rollback,
 probe-expiry rollback, and recovery. A different writer receives
@@ -398,6 +490,12 @@ failure has `data=null` and non-null `ErrorV1`. Both-null and ordinary
 data-plus-error envelopes are invalid. The sole data-plus-error variant is
 `eebus.v1.features.data.get` with code `partial_result`, whose data retains
 completed target results and per-target failures.
+
+The envelope echoes the typed closed request after successful decoding. If
+the input cannot be decoded into that closed request, `request` is `null` and
+the error code is `invalid_argument`; arbitrary malformed input is never
+reflected into the raw response. An error envelope may use
+`meta.runtime=null` only under the pre-binding rule above.
 
 `ErrorV1` has exactly `code`, `message`, `retriable`, `source_layer`, and
 optional public-safe `details`. Backend text, payload preimages, and

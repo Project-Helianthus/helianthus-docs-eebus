@@ -137,6 +137,51 @@
       ]
     }
   },
+  "x-canonical-dto-validation": {
+    "owner": "Project-Helianthus/helianthus-eebusreg/eebusraw",
+    "requestValidators": [
+      "ValidateFeatureDataSetRequestV1",
+      "ValidateMutationGetRequestV1",
+      "ValidateMutationRollbackRequestV1"
+    ],
+    "resultValidators": [
+      "ValidateFeaturesGetDataV1",
+      "ValidateFeatureDataGetDataV1",
+      "ValidateMutationV1"
+    ],
+    "signatures": {
+      "ValidateFeatureDataSetRequestV1": "func ValidateFeatureDataSetRequestV1(request FeatureDataSetRequestV1) *ErrorV1",
+      "ValidateMutationGetRequestV1": "func ValidateMutationGetRequestV1(request MutationGetRequestV1) *ErrorV1",
+      "ValidateMutationRollbackRequestV1": "func ValidateMutationRollbackRequestV1(request MutationRollbackRequestV1) *ErrorV1",
+      "ValidateFeaturesGetDataV1": "func ValidateFeaturesGetDataV1(request FeaturesGetRequestV1, data FeaturesGetDataV1) *ErrorV1",
+      "ValidateFeatureDataGetDataV1": "func ValidateFeatureDataGetDataV1(request FeatureDataGetRequestV1, data FeatureDataGetDataV1, terminal *ErrorV1) *ErrorV1",
+      "ValidateMutationV1": "func ValidateMutationV1(mutation MutationV1) *ErrorV1"
+    },
+    "gatewayResidualResponsibilities": [
+      "duplicate-key rejection before typed decoding",
+      "boundary-derived authorization snapshot with exact principal_class, scope, tool, and raw mask tier",
+      "public denial before provider, router, or runtime contact",
+      "undecodable-input request nulling without raw-input echo",
+      "canonical validator invocation and runtime-bound envelope construction",
+      "public-safe error rendering and separate redacted evidence projection"
+    ],
+    "gatewayMustNotReimplement": "closed DTO semantics"
+  },
+  "x-wal-restore-policy": {
+    "recordValidator": "ValidateMutationV1",
+    "recordValidation": "every-record-before-addressable",
+    "precontractReference": "mutation:v1:<64-lowercase-hex>",
+    "precontractReferenceAction": "reject",
+    "semanticallyInvalidRecordAction": "reject",
+    "restoreFailureAction": "reject-record-and-leave-coordinator-unavailable",
+    "invalidWalBytes": "preserve-without-rewrite-or-migration",
+    "validConflictStateAction": "restore-global-write-quarantine",
+    "compatibility": {
+      "legacyStableApi": false,
+      "aliases": false,
+      "v2": false
+    }
+  },
   "x-round-trip": {
     "registerWaiterBeforeSend": true,
     "completeExactlyOnce": true,
@@ -341,6 +386,41 @@
         "spine-go-round-trip",
         "ship-session",
         "remote"
+      ]
+    },
+    "PreBindingErrorCodeV1": {
+      "type": "string",
+      "enum": [
+        "invalid_argument",
+        "permission_denied",
+        "unsupported_operation",
+        "partial_operation_forbidden",
+        "secret_detected",
+        "internal"
+      ]
+    },
+    "PostBindingErrorCodeV1": {
+      "type": "string",
+      "enum": [
+        "constraints_unknown",
+        "constraint_failure",
+        "stale_read_token",
+        "cas_mismatch",
+        "runtime_epoch_mismatch",
+        "connection_generation_mismatch",
+        "idempotency_conflict",
+        "writer_busy",
+        "timeout",
+        "cancelled",
+        "disconnected",
+        "remote_error",
+        "decode_error",
+        "partial_result",
+        "no_effect",
+        "outcome_unknown",
+        "conflict",
+        "rollback_failed",
+        "not_found"
       ]
     },
     "FeatureRoleV1": {
@@ -1525,7 +1605,7 @@
               "const": "rollback_reply_observed"
             },
             "protocol_accepted": {
-              "const": true
+              "type": "boolean"
             },
             "observed_after": {
               "type": "null"
@@ -1552,7 +1632,7 @@
               "const": "rollback_verify_pending"
             },
             "protocol_accepted": {
-              "const": true
+              "type": "boolean"
             },
             "observed_after": {
               "type": "null"
@@ -1846,7 +1926,7 @@
               "const": "reply_observed"
             },
             "protocol_accepted": {
-              "const": true
+              "type": "boolean"
             },
             "observed_after": {
               "type": "null"
@@ -1898,7 +1978,7 @@
               "const": "verify_pending"
             },
             "protocol_accepted": {
-              "const": true
+              "type": "boolean"
             },
             "observed_after": {
               "type": "null"
@@ -2704,7 +2784,14 @@
           "$ref": "#/$defs/HashV1"
         },
         "runtime": {
-          "$ref": "#/$defs/RuntimeBindingV1"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RuntimeBindingV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -2737,6 +2824,9 @@
             },
             {
               "$ref": "#/$defs/MutationRollbackRequestV1"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -2785,7 +2875,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeaturesGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeaturesGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "$ref": "#/$defs/FeaturesGetDataV1"
@@ -2812,7 +2909,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeaturesGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeaturesGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "type": "null"
@@ -2839,7 +2943,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeatureDataGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeatureDataGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "$ref": "#/$defs/FeatureDataGetDataV1"
@@ -2866,7 +2977,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeatureDataGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeatureDataGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "type": "null"
@@ -2893,7 +3011,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeatureDataGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeatureDataGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "$ref": "#/$defs/FeatureDataGetDataV1"
@@ -2925,7 +3050,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeatureDataSetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeatureDataSetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "$ref": "#/$defs/MutationV1"
@@ -2952,7 +3084,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/FeatureDataSetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeatureDataSetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "type": "null"
@@ -2979,7 +3118,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/MutationGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MutationGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "$ref": "#/$defs/MutationV1"
@@ -3006,7 +3152,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/MutationGetRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MutationGetRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "type": "null"
@@ -3033,7 +3186,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/MutationRollbackRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MutationRollbackRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "$ref": "#/$defs/MutationV1"
@@ -3060,7 +3220,14 @@
               }
             },
             "request": {
-              "$ref": "#/$defs/MutationRollbackRequestV1"
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MutationRollbackRequestV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "data": {
               "type": "null"
@@ -3071,7 +3238,180 @@
           }
         }
       ],
-      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; partial_result is the only data-plus-error variant"
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "error"
+            ]
+          },
+          "then": {
+            "properties": {
+              "meta": {
+                "properties": {
+                  "runtime": {
+                    "$ref": "#/$defs/RuntimeBindingV1"
+                  }
+                }
+              },
+              "request": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "const": "partial_result"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            },
+            "required": [
+              "error"
+            ]
+          },
+          "then": {
+            "properties": {
+              "meta": {
+                "properties": {
+                  "runtime": {
+                    "$ref": "#/$defs/RuntimeBindingV1"
+                  }
+                }
+              },
+              "request": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "request": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "request"
+            ]
+          },
+          "then": {
+            "properties": {
+              "meta": {
+                "properties": {
+                  "runtime": {
+                    "type": "null"
+                  }
+                }
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "const": "invalid_argument"
+                  },
+                  "source_layer": {
+                    "const": "mcp"
+                  }
+                },
+                "required": [
+                  "code",
+                  "source_layer"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "meta": {
+                "type": "object",
+                "properties": {
+                  "runtime": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "runtime"
+                ]
+              }
+            },
+            "required": [
+              "meta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "$ref": "#/$defs/ErrorV1",
+                "properties": {
+                  "code": {
+                    "$ref": "#/$defs/PreBindingErrorCodeV1"
+                  },
+                  "source_layer": {
+                    "enum": [
+                      "mcp",
+                      "gateway-router"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/$defs/PostBindingErrorCodeV1"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            },
+            "required": [
+              "error"
+            ]
+          },
+          "then": {
+            "properties": {
+              "meta": {
+                "properties": {
+                  "runtime": {
+                    "$ref": "#/$defs/RuntimeBindingV1"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; malformed undecodable input alone uses request=null with invalid_argument from mcp; runtime=null is limited to pre-binding-compatible MCP or gateway-router errors; every post-binding error, success, and partial_result is runtime-bound"
     }
   }
 }

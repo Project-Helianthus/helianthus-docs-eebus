@@ -194,6 +194,29 @@ def features_get_envelope() -> dict:
     }
 
 
+def feature_data_get_partial_envelope() -> dict:
+    target = feature_target()
+    return {
+        "meta": envelope_meta(
+            "eebus.v1.features.data.get",
+            "eebus.raw.read",
+        ),
+        "request": {"targets": [target]},
+        "data": {
+            "results": [],
+            "failures": [
+                {
+                    "target_index": 0,
+                    "target": target,
+                    "error": error_payload("remote_error"),
+                }
+            ],
+            "complete": False,
+        },
+        "error": error_payload("partial_result"),
+    }
+
+
 def error_payload(code: str = "internal") -> dict:
     return {
         "code": code,
@@ -344,12 +367,21 @@ def mutation_record(state: str) -> dict:
     return record
 
 
-def rollback_intermediate_record(state: str) -> dict:
+def mutation_intermediate_record(state: str, protocol_accepted: bool) -> dict:
+    record = mutation_record(state)
+    record["protocol_accepted"] = protocol_accepted
+    return record
+
+
+def rollback_intermediate_record(
+    state: str,
+    protocol_accepted: bool = True,
+) -> dict:
     record = mutation_record("applied")
     record["state"] = state
     record["audit"][0]["state"] = state
     rollback_protocol_accepted = (
-        True
+        protocol_accepted
         if state in {"rollback_reply_observed", "rollback_verify_pending"}
         else None
     )
@@ -537,6 +569,37 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             {"const": "eebus.raw.write"},
         )
         self.assertEqual(
+            schema["x-canonical-dto-validation"],
+            {
+                "owner": "Project-Helianthus/helianthus-eebusreg/eebusraw",
+                "requestValidators": list(
+                    repository_policy.ISSUE82_CANONICAL_DTO_VALIDATORS[:3]
+                ),
+                "resultValidators": list(
+                    repository_policy.ISSUE82_CANONICAL_DTO_VALIDATORS[3:]
+                ),
+                "signatures": (
+                    repository_policy.ISSUE82_CANONICAL_DTO_VALIDATOR_SIGNATURES
+                ),
+                "gatewayResidualResponsibilities": list(
+                    repository_policy.ISSUE82_GATEWAY_RESIDUAL_RESPONSIBILITIES
+                ),
+                "gatewayMustNotReimplement": "closed DTO semantics",
+            },
+        )
+        self.assertEqual(
+            schema["x-wal-restore-policy"],
+            repository_policy.ISSUE87_WAL_RESTORE_POLICY,
+        )
+        self.assertEqual(
+            schema["$defs"]["PreBindingErrorCodeV1"]["enum"],
+            list(repository_policy.ISSUE82_PRE_BINDING_ERROR_CODES),
+        )
+        self.assertEqual(
+            schema["$defs"]["PostBindingErrorCodeV1"]["enum"],
+            list(repository_policy.ISSUE82_POST_BINDING_ERROR_CODES),
+        )
+        self.assertEqual(
             set(schema["$defs"]["FeatureDataSetRequestV1"]["required"]),
             {
                 "target",
@@ -641,6 +704,92 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         error_envelope["data"] = None
         error_envelope["error"] = error_payload()
         self.assertTrue(schema_accepts(schema, "EnvelopeV1", error_envelope))
+
+        for code in repository_policy.ISSUE82_PRE_BINDING_ERROR_CODES:
+            with self.subTest(pre_binding_code=code):
+                pre_runtime_error = deepcopy(error_envelope)
+                pre_runtime_error["meta"]["runtime"] = None
+                pre_runtime_error["error"] = error_payload(code)
+                self.assertTrue(
+                    schema_accepts(schema, "EnvelopeV1", pre_runtime_error)
+                )
+
+        pre_runtime_router_error = deepcopy(error_envelope)
+        pre_runtime_router_error["meta"]["runtime"] = None
+        pre_runtime_router_error["error"]["source_layer"] = "gateway-router"
+        self.assertTrue(
+            schema_accepts(schema, "EnvelopeV1", pre_runtime_router_error)
+        )
+
+        pre_runtime_wrong_layer = deepcopy(pre_runtime_router_error)
+        pre_runtime_wrong_layer["error"]["source_layer"] = "eebusreg-runtime"
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", pre_runtime_wrong_layer)
+        )
+
+        for code in repository_policy.ISSUE82_POST_BINDING_ERROR_CODES:
+            with self.subTest(post_binding_code=code):
+                post_binding_without_runtime = deepcopy(error_envelope)
+                post_binding_without_runtime["meta"]["runtime"] = None
+                post_binding_without_runtime["error"] = error_payload(code)
+                self.assertFalse(
+                    schema_accepts(
+                        schema,
+                        "EnvelopeV1",
+                        post_binding_without_runtime,
+                    )
+                )
+
+        success_without_runtime = deepcopy(valid)
+        success_without_runtime["meta"]["runtime"] = None
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", success_without_runtime)
+        )
+
+        partial = feature_data_get_partial_envelope()
+        self.assertTrue(schema_accepts(schema, "EnvelopeV1", partial))
+
+        partial_without_runtime = deepcopy(partial)
+        partial_without_runtime["meta"]["runtime"] = None
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", partial_without_runtime)
+        )
+
+        partial_without_request = deepcopy(partial)
+        partial_without_request["request"] = None
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", partial_without_request)
+        )
+
+        malformed = deepcopy(error_envelope)
+        malformed["meta"]["runtime"] = None
+        malformed["request"] = None
+        malformed["error"] = error_payload("invalid_argument")
+        self.assertTrue(schema_accepts(schema, "EnvelopeV1", malformed))
+
+        malformed_with_fabricated_runtime = deepcopy(malformed)
+        malformed_with_fabricated_runtime["meta"]["runtime"] = runtime_binding()
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", malformed_with_fabricated_runtime)
+        )
+
+        untyped_non_validation_error = deepcopy(malformed)
+        untyped_non_validation_error["error"] = error_payload("internal")
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", untyped_non_validation_error)
+        )
+
+        malformed_from_router = deepcopy(malformed)
+        malformed_from_router["error"]["source_layer"] = "gateway-router"
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", malformed_from_router)
+        )
+
+        malformed_echo = deepcopy(malformed)
+        malformed_echo["error"]["details"] = {"raw_input": "not echoed"}
+        self.assertFalse(
+            schema_accepts(schema, "EnvelopeV1", malformed_echo)
+        )
 
     def test_mutation_schema_rejects_incoherent_terminal_evidence(self) -> None:
         schema = json.loads(
@@ -758,6 +907,56 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                     "outcome_evidence"
                 ]
                 self.assertFalse(schema_accepts(schema, "MutationV1", contradictory))
+
+    def test_correlated_pending_states_require_and_preserve_boolean_reply(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        for state in ("reply_observed", "verify_pending"):
+            for accepted in (True, False):
+                with self.subTest(state=state, accepted=accepted):
+                    self.assertTrue(
+                        schema_accepts(
+                            schema,
+                            "MutationV1",
+                            mutation_intermediate_record(state, accepted),
+                        )
+                    )
+            for invalid in (None, 0, "false"):
+                with self.subTest(state=state, invalid=invalid):
+                    record = mutation_intermediate_record(state, True)
+                    record["protocol_accepted"] = invalid
+                    self.assertFalse(schema_accepts(schema, "MutationV1", record))
+
+    def test_rollback_pending_and_terminal_states_preserve_correlated_reply(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        for state in ("rollback_reply_observed", "rollback_verify_pending"):
+            for accepted in (True, False):
+                with self.subTest(state=state, accepted=accepted):
+                    self.assertTrue(
+                        schema_accepts(
+                            schema,
+                            "MutationV1",
+                            rollback_intermediate_record(state, accepted),
+                        )
+                    )
+            for invalid in (None, 0, "false"):
+                with self.subTest(state=state, invalid=invalid):
+                    record = rollback_intermediate_record(state)
+                    record["rollback"]["protocol_accepted"] = invalid
+                    self.assertFalse(schema_accepts(schema, "MutationV1", record))
+
+        for accepted in (True, False, None):
+            with self.subTest(rolled_back=accepted):
+                rolled_back = mutation_record("rolled_back")
+                rolled_back["rollback"]["protocol_accepted"] = accepted
+                self.assertTrue(schema_accepts(schema, "MutationV1", rolled_back))
 
     def test_uncertain_send_requested_readback_requires_uncertainty_evidence(self) -> None:
         schema = json.loads(
@@ -901,6 +1100,286 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
 
                 self.assertTrue(
                     any(relative.as_posix() in error and "byte-identical" in error for error in errors),
+                    errors,
+                )
+
+    def test_validator_rejects_each_issue_82_envelope_implication_removal(
+        self,
+    ) -> None:
+        for index in range(5):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                schema["$defs"]["EnvelopeV1"]["allOf"].pop(index)
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "issue-82 envelope implications are not exact" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_validator_rejects_issue_82_error_partition_weakening(self) -> None:
+        definitions = (
+            (
+                "PreBindingErrorCodeV1",
+                repository_policy.ISSUE82_PRE_BINDING_ERROR_CODES,
+            ),
+            (
+                "PostBindingErrorCodeV1",
+                repository_policy.ISSUE82_POST_BINDING_ERROR_CODES,
+            ),
+        )
+        for definition, codes in definitions:
+            for index, code in enumerate(codes):
+                with (
+                    self.subTest(definition=definition, code=code),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    repo = copy_repo(Path(tmp))
+                    path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                    schema = json.loads(path.read_text(encoding="utf-8"))
+                    schema["$defs"][definition]["enum"].pop(index)
+                    path.write_text(json.dumps(schema), encoding="utf-8")
+
+                    errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                    self.assertTrue(
+                        any(
+                            f"issue-82 {definition} is not exact" in error
+                            for error in errors
+                        ),
+                        errors,
+                    )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            path = repo / repository_policy.ISSUE76_SCHEMA_REL
+            schema = json.loads(path.read_text(encoding="utf-8"))
+            schema["$defs"]["ErrorCodeV1"]["enum"].append("unclassified")
+            path.write_text(json.dumps(schema), encoding="utf-8")
+
+            errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+            self.assertTrue(
+                any(
+                    "issue-82 error binding partition is not exact" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_validator_rejects_issue_82_dto_inventory_weakening(self) -> None:
+        mutations = [
+            ("owner", lambda contract: contract.update({"owner": "gateway"})),
+            (
+                "duplicate validation",
+                lambda contract: contract.update(
+                    {"gatewayMustNotReimplement": "allowed"}
+                ),
+            ),
+        ]
+        validator_groups = (
+            (
+                "requestValidators",
+                repository_policy.ISSUE82_CANONICAL_DTO_VALIDATORS[:3],
+            ),
+            (
+                "resultValidators",
+                repository_policy.ISSUE82_CANONICAL_DTO_VALIDATORS[3:],
+            ),
+        )
+        for group, validators in validator_groups:
+            mutations.extend(
+                (
+                    f"validator {validator}",
+                    lambda contract, group=group, index=index: contract[
+                        group
+                    ].pop(index),
+                )
+                for index, validator in enumerate(validators)
+            )
+        mutations.extend(
+            (
+                f"gateway responsibility {responsibility}",
+                lambda contract, index=index: contract[
+                    "gatewayResidualResponsibilities"
+                ].pop(index),
+            )
+            for index, responsibility in enumerate(
+                repository_policy.ISSUE82_GATEWAY_RESIDUAL_RESPONSIBILITIES
+            )
+        )
+        mutations.extend(
+            (
+                f"validator signature {validator}",
+                lambda contract, validator=validator: contract["signatures"].pop(
+                    validator
+                ),
+            )
+            for validator in repository_policy.ISSUE82_CANONICAL_DTO_VALIDATORS
+        )
+        for name, mutate in mutations:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                mutate(schema["x-canonical-dto-validation"])
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "issue-82 canonical DTO validator inventory is not exact"
+                        in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_validator_rejects_issue_82_prose_removal(self) -> None:
+        def remove_section(text: str, start: str, end: str) -> str:
+            section_start = text.index(start)
+            section_end = text.index(end, section_start)
+            return text[:section_start] + text[section_end:]
+
+        mutations = {
+            "validator ownership": lambda text: remove_section(
+                text,
+                "## Canonical DTO Validation Ownership",
+                "Owner authorization permits",
+            ),
+            "runtime binding": lambda text: remove_section(
+                text,
+                "`EnvelopeMetaV1.runtime` contains",
+                "## `features.get`",
+            ),
+            "malformed no echo": lambda text: remove_section(
+                text,
+                "The envelope echoes the typed closed request",
+                "`ErrorV1` has exactly",
+            ),
+            "correlated recovery": lambda text: remove_section(
+                text,
+                "For an original correlated reply",
+                "Possible-send recovery with a trustworthy full READ",
+            ),
+            "rollback recovery": lambda text: remove_section(
+                text,
+                "`rollback_reply_observed` and `rollback_verify_pending` require",
+                "## Mutation Durability And Idempotency",
+            ),
+            "wal rejection": lambda text: remove_section(
+                text,
+                "Restore validates every WAL mutation",
+                "One global runtime writer lease",
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_API_REL
+                path.write_text(
+                    mutate(path.read_text(encoding="utf-8")),
+                    encoding="utf-8",
+                )
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "required contract marker is missing" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_validator_rejects_issue_87_boolean_checkpoint_weakening(self) -> None:
+        definitions_and_states = {
+            "MutationV1": ("reply_observed", "verify_pending"),
+            "RollbackV1": (
+                "rollback_reply_observed",
+                "rollback_verify_pending",
+            ),
+        }
+        for definition, states in definitions_and_states.items():
+            for state in states:
+                with (
+                    self.subTest(definition=definition, state=state),
+                    tempfile.TemporaryDirectory() as tmp,
+                ):
+                    repo = copy_repo(Path(tmp))
+                    path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                    schema = json.loads(path.read_text(encoding="utf-8"))
+                    variant = next(
+                        candidate
+                        for candidate in schema["$defs"][definition]["oneOf"]
+                        if candidate["properties"]["state"].get("const") == state
+                    )
+                    variant["properties"]["protocol_accepted"] = {"const": True}
+                    path.write_text(json.dumps(schema), encoding="utf-8")
+
+                    errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                    self.assertTrue(
+                        any(
+                            f"correlated {state} boolean checkpoint is not exact"
+                            in error
+                            for error in errors
+                        ),
+                        errors,
+                    )
+
+    def test_validator_rejects_each_issue_87_wal_policy_weakening(self) -> None:
+        mutations = {
+            "record validator": lambda policy: policy.update(
+                {"recordValidator": "gateway"}
+            ),
+            "record validation scope": lambda policy: policy.update(
+                {"recordValidation": "selected-records"}
+            ),
+            "precontract reference": lambda policy: policy.update(
+                {"precontractReference": "accepted"}
+            ),
+            "precontract action": lambda policy: policy.update(
+                {"precontractReferenceAction": "migrate"}
+            ),
+            "semantic invalid action": lambda policy: policy.update(
+                {"semanticallyInvalidRecordAction": "skip"}
+            ),
+            "restore failure": lambda policy: policy.update(
+                {"restoreFailureAction": "continue"}
+            ),
+            "wal rewrite": lambda policy: policy.update(
+                {"invalidWalBytes": "rewrite"}
+            ),
+            "conflict quarantine": lambda policy: policy.update(
+                {"validConflictStateAction": "admit-writes"}
+            ),
+            "legacy stable api": lambda policy: policy["compatibility"].update(
+                {"legacyStableApi": True}
+            ),
+            "alias": lambda policy: policy["compatibility"].update({"aliases": True}),
+            "v2": lambda policy: policy["compatibility"].update({"v2": True}),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                mutate(schema["x-wal-restore-policy"])
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any("issue-87 WAL restore policy is not exact" in error for error in errors),
                     errors,
                 )
 
