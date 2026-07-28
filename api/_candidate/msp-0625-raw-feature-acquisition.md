@@ -25,6 +25,8 @@ This candidate is tracked by
 [issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76)
 and corrected before release by
 [issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78).
+The additive SPINE dependency evidence is tracked by
+[issue 80](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/80).
 It adds raw typed feature-data acquisition to the unreleased `eebus.v1`
 namespace. It does not modify or reclassify the nine M6 read-only tools or
 their raw/redacted profiles.
@@ -219,6 +221,55 @@ rollback shape, and maximum TTL; request data cannot create or widen a profile.
 The response is the durable `MutationV1`. A correlated no-error response sets
 `protocol_accepted=true` but cannot set state `applied`. A full readback equal
 to `requested` is required.
+
+## Operation-Scoped Transport-Handoff Evidence
+
+The additive spine-go dependency API defines exactly two dispositions:
+
+```go
+type DispatchDisposition uint8
+
+const (
+    NoTransportHandoff       DispatchDisposition = 1
+    TransportHandoffPossible DispatchDisposition = 2
+)
+
+type CorrelatedRoundTripError struct {
+    Cause       error
+    Disposition DispatchDisposition
+}
+
+func (e *CorrelatedRoundTripError) Error() string
+func (e *CorrelatedRoundTripError) Unwrap() error
+```
+
+Every terminal error from one correlated operation is a non-nil
+`*CorrelatedRoundTripError` with a non-nil `Cause` and one of the two
+dispositions. `Unwrap` returns `Cause`, so existing checks such as
+`errors.Is(err, context.Canceled)`,
+`errors.Is(err, ErrCorrelatedRoundTripClosed)`, and `errors.As` for existing
+typed causes continue to work. `errors.As(err, &roundTripError)` exposes the
+operation's disposition without string or sentinel inference.
+
+The existing interface method remains unchanged:
+
+```go
+RoundTrip(ctx context.Context, request CorrelatedRequest) (CorrelatedResponse, error)
+```
+
+`NoTransportHandoff` means the SHIP writer was not invoked for that operation.
+`TransportHandoffPossible` means writer invocation began or the operation was
+already awaiting correlation. It does not prove bytes reached the wire, a
+remote peer received data, or the protocol accepted or applied a value. The
+SHIP writer method returns no delivery result, so SPINE cannot make any
+stronger transport claim after invocation.
+
+The coordinator may use `NoTransportHandoff` as zero-contact evidence only for
+that exact original or rollback dispatch. An untyped error, a missing typed
+error, or an unknown disposition is always classified conservatively as
+`TransportHandoffPossible`. This dependency evidence is internal input to the
+existing mutation FSM; it adds no field, enum, tool, or envelope variant to the
+candidate MCP machine contract.
 
 ## `mutations.get`
 

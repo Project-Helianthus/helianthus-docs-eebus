@@ -22,7 +22,9 @@ release_bundle: "false"
 This candidate implements the docs gate for
 [issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76)
 as corrected before release by
-[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78)
+[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78),
+with additive SPINE transport-handoff evidence tracked by
+[issue 80](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/80),
 and the locked
 [M6.25 plan](https://github.com/Project-Helianthus/helianthus-execution-plans/blob/fb384ab57d79f0020c54d2c66416e8a7666f0ceb/multi-runtime-semantic-platform.locked/118-w30-26-m625-raw-spine-feature-acquisition.md).
 It is forward-only. M6 topology, snapshots, local/raw access, public/redacted
@@ -160,6 +162,72 @@ The current public stack sends before a caller can register a response callback
 [callback path](https://github.com/Project-Helianthus/helianthus-spine-go/blob/7383c108f72309c3636d896948d7a8de6d001708/spine/feature_local.go#L107-L140)).
 M6.25 therefore requires a new atomic spine-go primitive rather than wrapping
 those two calls at a higher layer.
+
+### SPINE-To-SHIP/Transport Evidence Contract
+
+The round-trip API adds a bounded operation-scoped disposition without changing
+its existing method:
+
+```go
+type DispatchDisposition uint8
+
+const (
+    NoTransportHandoff       DispatchDisposition = 1
+    TransportHandoffPossible DispatchDisposition = 2
+)
+
+type CorrelatedRoundTripError struct {
+    Cause       error
+    Disposition DispatchDisposition
+}
+
+func (e *CorrelatedRoundTripError) Error() string
+func (e *CorrelatedRoundTripError) Unwrap() error
+
+RoundTrip(ctx context.Context, request CorrelatedRequest) (CorrelatedResponse, error)
+```
+
+Every terminal `RoundTrip` failure carries a non-nil cause and exactly one
+disposition. `Unwrap` returns the cause. Existing sentinel checks with
+`errors.Is`, existing typed-cause checks with `errors.As`, and direct
+`errors.As` extraction of `*CorrelatedRoundTripError` therefore remain
+compatible. Neither the response type nor the `RoundTrip` signature changes.
+
+The classification boundary is writer entry for that exact operation:
+
+| Operation phase at terminal failure | Required disposition |
+| --- | --- |
+| Context already done, request invalid, capacity/counter/key admission failed, marshaling failed, writer missing, sender closed, or any other failure before calling the SHIP writer | `NoTransportHandoff` |
+| SHIP writer invocation began, or the operation was awaiting a correlated reply/result when cancellation, timeout, close, disconnect, remote rejection, malformed response, or another failure occurred | `TransportHandoffPossible` |
+
+The distinction is evidence about one SPINE-to-SHIP handoff attempt, not the
+connection, session, device, or mutation as a whole. The current SHIP writer is
+`WriteShipMessageWithPayload(message []byte)` and has no return value
+([writer call](https://github.com/Project-Helianthus/helianthus-spine-go/blob/b21400335be90ea95a6cad5f512d1c8e22f2cdeb/spine/send.go#L69-L112),
+[transport interface](https://github.com/Project-Helianthus/helianthus-ship-go/blob/3abd41d19f419de907bc1bdf2a126ca19c930626/api/shipconnection.go#L195-L200)).
+`TransportHandoffPossible` therefore proves only that writer invocation began.
+It is not proof that bytes were queued, written on the wire, received by the
+peer, accepted by SPINE, or applied by the remote feature.
+
+The selected M6.25 executor path through eebus-go must preserve
+`*CorrelatedRoundTripError` in the `errors.Is`/`errors.As` chain. Any dependency
+path that stringifies or recreates the error destroys `NoTransportHandoff`
+evidence and must be rejected or repaired. eebusreg must use `errors.As`, never
+message text or cause identity, to obtain the disposition. If downstream still
+receives an untyped error, missing wrapper, nil cause, zero value, or
+unrecognized disposition, it treats the loss conservatively as
+`TransportHandoffPossible`. Only an explicit valid `NoTransportHandoff` may
+support a zero-contact assertion.
+
+The rule is symmetric across mutation phases. For the original WRITE,
+`NoTransportHandoff` may support `failed_no_contact`; possible handoff records
+`outcome_unknown` from `dispatch_intent`. For the rollback WRITE,
+`NoTransportHandoff` proves only that the rollback writer was not invoked: it
+does not erase the original effect or prove `rolled_back`. A later rollback
+attempt still requires the lease, fresh READ, exact binding, and durable
+recovery decision. Possible rollback handoff records `outcome_unknown` from
+`rollback_dispatch_intent`. Neither path permits blind retry after possible
+handoff.
 
 ## Read Token And CAS
 
