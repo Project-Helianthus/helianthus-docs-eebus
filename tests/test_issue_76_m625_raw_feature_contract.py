@@ -274,11 +274,37 @@ def mutation_record(state: str) -> dict:
                 },
             }
         )
+    elif state == "no_effect":
+        record.update(
+            {
+                "protocol_accepted": None,
+                "observed_after": 18,
+                "error": error_payload("no_effect"),
+                "outcome_evidence": {
+                    "possible_side_effect": True,
+                    "blind_retry_forbidden": True,
+                    "last_durable_state": "dispatch_intent",
+                    "recorded_at": "2026-07-27T00:00:00Z",
+                },
+                "no_effect_verification": {
+                    "relation": "observed_after_equals_before",
+                    "verified": True,
+                    "equal_value_hash": f"sha256:{'5' * 64}",
+                    "verified_at": "2026-07-27T00:00:00Z",
+                },
+            }
+        )
     elif state == "conflict":
         record.update(
             {
                 "observed_after": 19,
                 "error": error_payload("conflict"),
+                "outcome_evidence": {
+                    "possible_side_effect": True,
+                    "blind_retry_forbidden": True,
+                    "last_durable_state": "dispatch_intent",
+                    "recorded_at": "2026-07-27T00:00:00Z",
+                },
                 "conflict_evidence": {
                     "relation": "observed_after_differs_from_before_and_requested",
                     "verified": True,
@@ -393,6 +419,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                 "rollback_reply_observed",
                 "rollback_verify_pending",
                 "rolled_back",
+                "no_effect",
                 "outcome_unknown",
                 "conflict",
                 "failed_no_contact",
@@ -447,8 +474,8 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             [
                 "MCP",
                 "gateway EEBusCommandRouter",
-                "eebusreg RawFeatureRuntimeV1",
-                "eebusreg durable mutation coordinator",
+                "eebusreg RawFeatureRuntimeV1 or RawMutationRuntimeV1",
+                "eebusreg internal durable mutation coordinator for mutation methods",
                 "eebus-go exact feature executor",
                 "spine-go atomic correlated round trip",
                 "existing SHIP session",
@@ -469,6 +496,45 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         self.assertEqual(
             schema["x-secret-denylist"],
             repository_policy.ISSUE76_SECRET_DENYLIST,
+        )
+        self.assertTrue(
+            schema["x-public-runtime-api"]["RawFeatureRuntimeV1"]["readOnly"]
+        )
+        self.assertEqual(
+            schema["x-public-runtime-api"]["RawFeatureRuntimeV1"]["compatibility"],
+            "unchanged",
+        )
+        self.assertEqual(
+            schema["x-public-runtime-api"]["Runtime"]["methodSet"],
+            "unchanged",
+        )
+        self.assertEqual(
+            schema["x-public-runtime-api"]["Runtime"]["methods"],
+            [
+                "Start(context.Context) error",
+                "Shutdown() error",
+                "Snapshot() (SnapshotV1, error)",
+                "PairingState() ([]PairingObservationV1, error)",
+            ],
+        )
+        self.assertEqual(
+            schema["x-public-runtime-api"]["Runtime"]["doesNotEmbed"],
+            ["RawMutationRuntimeV1"],
+        )
+        self.assertEqual(
+            schema["x-authorization-validators"]["ValidateWriteAuthorizationV1"],
+            {
+                "authorization": "WriteAuthorizationV1",
+                "scope": "AuthScopeV1RawWrite",
+                "tools": [
+                    "eebus.v1.features.data.set",
+                    "eebus.v1.mutations.rollback",
+                ],
+            },
+        )
+        self.assertEqual(
+            schema["$defs"]["AuthScopeV1RawWrite"],
+            {"const": "eebus.raw.write"},
         )
         self.assertEqual(
             set(schema["$defs"]["FeatureDataSetRequestV1"]["required"]),
@@ -583,6 +649,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         terminal_states = (
             "applied",
             "rolled_back",
+            "no_effect",
             "outcome_unknown",
             "conflict",
             "failed_no_contact",
@@ -621,6 +688,32 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         del outcome_without_evidence["outcome_evidence"]
         invalid["outcome unknown evidence"] = outcome_without_evidence
 
+        no_effect_without_uncertainty = mutation_record("no_effect")
+        del no_effect_without_uncertainty["outcome_evidence"]
+        invalid["no effect uncertainty evidence"] = no_effect_without_uncertainty
+
+        no_effect_without_verification = mutation_record("no_effect")
+        del no_effect_without_verification["no_effect_verification"]
+        invalid["no effect verification"] = no_effect_without_verification
+
+        no_effect_with_acceptance = mutation_record("no_effect")
+        no_effect_with_acceptance["protocol_accepted"] = True
+        invalid["no effect protocol acceptance"] = no_effect_with_acceptance
+
+        no_effect_without_readback = mutation_record("no_effect")
+        no_effect_without_readback["observed_after"] = None
+        invalid["no effect readback"] = no_effect_without_readback
+
+        no_effect_retriable = mutation_record("no_effect")
+        no_effect_retriable["error"]["retriable"] = True
+        invalid["no effect retriable"] = no_effect_retriable
+
+        no_effect_from_rollback = mutation_record("no_effect")
+        no_effect_from_rollback["outcome_evidence"][
+            "last_durable_state"
+        ] = "rollback_dispatch_intent"
+        invalid["no effect rollback evidence"] = no_effect_from_rollback
+
         conflict_without_evidence = mutation_record("conflict")
         del conflict_without_evidence["conflict_evidence"]
         invalid["conflict evidence"] = conflict_without_evidence
@@ -628,6 +721,10 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         conflict_without_observation = mutation_record("conflict")
         conflict_without_observation["observed_after"] = None
         invalid["conflict observation"] = conflict_without_observation
+
+        uncertain_conflict_without_outcome = mutation_record("conflict")
+        del uncertain_conflict_without_outcome["outcome_evidence"]
+        invalid["conflict uncertainty evidence"] = uncertain_conflict_without_outcome
 
         contact_without_evidence = mutation_record("failed_no_contact")
         del contact_without_evidence["no_contact_evidence"]
@@ -648,6 +745,50 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         for name, instance in invalid.items():
             with self.subTest(name=name):
                 self.assertFalse(schema_accepts(schema, "MutationV1", instance))
+
+        for accepted in (True, False):
+            with self.subTest(correlated_conflict=accepted):
+                correlated = mutation_record("conflict")
+                correlated["protocol_accepted"] = accepted
+                del correlated["outcome_evidence"]
+                self.assertTrue(schema_accepts(schema, "MutationV1", correlated))
+
+                contradictory = deepcopy(correlated)
+                contradictory["outcome_evidence"] = mutation_record("conflict")[
+                    "outcome_evidence"
+                ]
+                self.assertFalse(schema_accepts(schema, "MutationV1", contradictory))
+
+    def test_uncertain_send_requested_readback_requires_uncertainty_evidence(self) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        for state, mode in (("applied", "apply"), ("probe_active", "probe")):
+            with self.subTest(state=state):
+                recovered = mutation_record("applied")
+                recovered["state"] = state
+                recovered["mode"] = mode
+                recovered["audit"][0]["state"] = state
+                if state == "probe_active":
+                    recovered["probe_deadline"] = "2026-07-27T00:01:00Z"
+                recovered["protocol_accepted"] = None
+                recovered["outcome_evidence"] = {
+                    "possible_side_effect": True,
+                    "blind_retry_forbidden": True,
+                    "last_durable_state": "dispatch_intent",
+                    "recorded_at": "2026-07-27T00:00:00Z",
+                }
+                self.assertTrue(schema_accepts(schema, "MutationV1", recovered))
+
+                missing_uncertainty = deepcopy(recovered)
+                del missing_uncertainty["outcome_evidence"]
+                self.assertFalse(
+                    schema_accepts(schema, "MutationV1", missing_uncertainty)
+                )
+
+                false_acceptance = deepcopy(recovered)
+                false_acceptance["protocol_accepted"] = False
+                self.assertFalse(schema_accepts(schema, "MutationV1", false_acceptance))
 
     def test_rollback_intermediate_states_reject_top_level_terminal_error(self) -> None:
         schema = json.loads(
@@ -773,7 +914,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             ),
             "mutation state": lambda schema: schema["$defs"]["MutationStateV1"][
                 "enum"
-            ].remove("outcome_unknown"),
+            ].remove("no_effect"),
             "round trip": lambda schema: schema["x-round-trip"].update(
                 {"registerWaiterBeforeSend": False}
             ),
@@ -786,6 +927,12 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             "applied evidence": lambda schema: schema["$defs"]["MutationV1"][
                 "oneOf"
             ][4]["required"].remove("apply_verification"),
+            "runtime interface split": lambda schema: schema[
+                "x-public-runtime-api"
+            ]["Runtime"].update({"methodSet": "expanded"}),
+            "authorization split": lambda schema: schema[
+                "x-authorization-validators"
+            ].pop("ValidateWriteAuthorizationV1"),
             "recursive secret key rejection": lambda schema: schema["$defs"][
                 "TypedValueV1"
             ]["oneOf"][2].update({"propertyNames": {"type": "string"}}),

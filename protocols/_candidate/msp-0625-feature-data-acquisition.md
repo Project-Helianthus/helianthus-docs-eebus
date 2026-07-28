@@ -20,7 +20,9 @@ release_bundle: "false"
 ## Status And Source Boundary
 
 This page is the protocol owner for
-[issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76).
+[issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76)
+as corrected before release by
+[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78).
 It distinguishes completed M6 feature topology from M6.25 feature-data
 acquisition. Topology says which feature functions and possible operations a
 remote reports; it does not contain a fresh value and is not proof that a
@@ -142,6 +144,13 @@ READ returns a canonical value equal to the requested value. The same rule
 applies to rollback: a no-error result does not prove restoration, and
 `rolled_back` requires a full READ equal to the recorded before-image.
 
+When a crash, timeout, cancellation, or disconnect leaves send uncertain,
+there is no correlated acceptance fact and `protocol_accepted` remains
+`null`. A trustworthy recovery READ equal to the requested value may still
+prove `applied`, or `probe_active` for a governed probe, only when the record
+retains possible-side-effect/blind-retry-forbidden uncertainty evidence and
+verified equality with the requested value.
+
 The acquisition record distinguishes:
 
 - `before`;
@@ -210,15 +219,36 @@ The contract represents at least these outcomes explicitly:
 | Invalid target/shape, unsupported operation, stale binding, CAS mismatch, scope denial, lease conflict, or constraint failure before send | `failed_no_contact` and zero WRITE frames |
 | Remote correlated rejection with no changed readback | `rejected` |
 | Send may have occurred but cancellation, timeout, disconnect, or restart prevents trustworthy observation | `outcome_unknown` |
+| Trustworthy recovery READ after possible send equals the verified before-image | `no_effect`, with `protocol_accepted=null`, retained uncertainty evidence, and non-retriable `no_effect` error |
+| Trustworthy recovery READ after possible send equals the requested value | `applied` or governed `probe_active`, with `protocol_accepted=null`, retained uncertainty evidence, and verified requested-value equality |
 | Readback differs from both expected values | `conflict` and global write quarantine |
 | Some bounded READ targets fail | `partial_result` with per-target structured errors |
 | Decode failure or malformed correlated response | `decode_error`; never empty success |
 | Rollback cannot be verified | `rollback_failed`, `outcome_unknown`, or `conflict`; never `rolled_back` |
 
-`outcome_unknown` is resolved by a fresh full READ after identity and
-generation rebind. Blind resend is forbidden. Any third value enters
-`conflict` and quarantines all writes while preserving reads and mutation
-status.
+`outcome_unknown` is resolved only by a trustworthy fresh full READ after
+identity and generation rebind. Blind resend is forbidden. Before-image
+equality produces `NoEffectVerificationV1` with relation
+`observed_after_equals_before`, `verified=true`, one recomputed
+`equal_value_hash`, and `verified_at`. `no_effect` proves that the requested
+state did not persist through verification time; it does not prove the WRITE
+never transiently executed.
+
+Requested-value equality uses `ApplyVerificationV1` and retains uncertainty
+evidence. Any third value enters `conflict` and quarantines all writes while
+preserving reads and mutation status. Missing, malformed, stale,
+cache-derived, identity-mismatched, or otherwise untrustworthy readback
+remains `outcome_unknown`. A correlated rejection remains `rejected` and is
+not reclassified by the possible-send recovery rules.
+
+Authorization is also operation-specific above the protocol executor:
+`FeaturesDataSet` and `MutationsRollback` require the distinct public
+`WriteAuthorizationV1` validated by `ValidateWriteAuthorizationV1` with
+`AuthScopeV1RawWrite`; `MutationsGet` remains under the unchanged
+`ReadAuthorizationV1` path. The public read-only `RawFeatureRuntimeV1` and
+existing `Runtime` method set remain unchanged; mutation methods live on the
+separate public `RawMutationRuntimeV1`, while the coordinator remains
+internal.
 
 ## Scope Exclusions
 
