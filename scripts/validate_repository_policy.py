@@ -429,6 +429,78 @@ ISSUE82_POST_BINDING_ERROR_CODES = (
     "rollback_failed",
     "not_found",
 )
+ISSUE84_ALWAYS_BOUND_ERROR_CODES = tuple(
+    code for code in ISSUE82_POST_BINDING_ERROR_CODES if code != "not_found"
+)
+ISSUE84_RUNTIME_ADMISSION = {
+    "definition": "complete-only-after-all-ordered-checks",
+    "precedence": [
+        {
+            "order": 1,
+            "check": "exact-current-topology-target",
+            "failureCode": "not_found",
+        },
+        {
+            "order": 2,
+            "check": "compatible-local-protocol-source",
+            "failureCode": "unsupported_operation",
+        },
+        {
+            "order": 3,
+            "check": "declared-full-operation",
+            "failureCode": "unsupported_operation",
+        },
+        {
+            "order": 4,
+            "check": "current-runtime-epoch",
+            "failureCode": "runtime_epoch_mismatch",
+        },
+        {
+            "order": 5,
+            "check": "current-connection-generation",
+            "failureCode": "connection_generation_mismatch",
+        },
+    ],
+    "zeroDataUnboundNotFound": [
+        "inventory-miss",
+        "status-miss",
+        "target-resolution-miss",
+        "unknown-mutation-reference",
+    ],
+    "positiveBindingRequiredFor": [
+        "success",
+        "partial-result",
+        "MutationV1",
+        "error-with-bound-data",
+    ],
+}
+ISSUE84_LOCAL_PROTOCOL_SOURCE = {
+    "count": 1,
+    "featureType": "Generic",
+    "featureRole": "client",
+    "entity": "existing CEM",
+    "provisionAfter": "service Setup",
+    "provisionBefore": "network Start",
+    "purpose": "SHIP/SPINE protocol-plane source only",
+    "createsEntity": False,
+    "createsUseCase": False,
+    "createsPublicMethod": False,
+    "rawRemoteTopology": False,
+    "semanticProjection": False,
+    "publicRedactedEvidence": False,
+}
+ISSUE84_NATIVE_FEATURE_TYPE = {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 128,
+    "pattern": "^[A-Z][A-Za-z0-9]*$",
+    "examples": ["Measurement"],
+    "x-topologyMatch": "exact-current-topology-value-no-alias",
+}
+ISSUE84_UNBOUND_NOT_FOUND_SOURCE_LAYERS = (
+    "eebusreg-runtime",
+    "eebusreg-coordinator",
+)
 ISSUE87_WAL_RESTORE_POLICY = {
     "recordValidator": "ValidateMutationV1",
     "recordValidation": "every-record-before-addressable",
@@ -481,12 +553,6 @@ ISSUE82_REQUIRED_API_MARKERS = (
     "The gateway retains duplicate-key rejection before typed decoding",
     "exact immutable authorization snapshot",
     "Public evidence remains a separate redacted projection",
-    (
-        "`EnvelopeMetaV1.runtime` contains that positive binding whenever "
-        "the command path has admitted a runtime generation"
-    ),
-    "The only codes compatible with `meta.runtime=null` are",
-    "Every `constraints_unknown`",
     "arbitrary malformed input is never reflected into the raw response",
     (
         "`reply_observed` and `verify_pending` require the non-null correlated "
@@ -502,6 +568,32 @@ ISSUE82_REQUIRED_API_MARKERS = (
     (
         "There is no legacy stable API support, compatibility alias, v2 surface, "
         "WAL migration, or fallback decoder"
+    ),
+)
+ISSUE84_REQUIRED_API_MARKERS = (
+    "`Measurement` remains `Measurement`",
+    "lowercase `measurement` is invalid and is not an alias",
+    "Runtime admission is complete only after all five checks below succeed",
+    "The rows are exhaustive and use first-failure precedence",
+    "A well-formed zero-data inventory, status, or target-resolution miss",
+    "unknown well-formed mutation reference",
+    "may terminate as `not_found` with `data=null` and `meta.runtime=null`",
+    "The other codes compatible with `meta.runtime=null` are",
+    "Every `constraints_unknown`",
+    (
+        "Every success, partial result, returned `MutationV1`, and error "
+        "envelope that accompanies bound data requires a positive runtime binding"
+    ),
+    "After service Setup completes and before network Start is invoked",
+    (
+        "exactly one local feature of type `Generic` and role `client` on "
+        "the existing CEM"
+    ),
+    "solely the SHIP/SPINE protocol-plane source",
+    "creates no second entity, no use case, and no public method",
+    (
+        "must not enter raw remote topology, semantic projection, GraphQL, "
+        "or public/redacted evidence"
     ),
 )
 ISSUE76_REQUIRED_MARKERS = {
@@ -543,6 +635,7 @@ ISSUE76_REQUIRED_MARKERS = {
         "`rawmutationruntimev1`",
         "authscopev1rawwrite",
         *ISSUE82_REQUIRED_API_MARKERS,
+        *ISSUE84_REQUIRED_API_MARKERS,
         "noeffectverificationv1",
         "a correlated reply records `protocol_accepted` as a boolean, including `false`",
         "`partial_result`",
@@ -4526,6 +4619,14 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     ]
     if schema.get("x-command-path") != expected_command_path:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 command path is not exact")
+    if schema.get("x-runtime-admission") != ISSUE84_RUNTIME_ADMISSION:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-84 runtime admission precedence is not exact"
+        )
+    if schema.get("x-local-protocol-source") != ISSUE84_LOCAL_PROTOCOL_SOURCE:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-84 local protocol source is not exact"
+        )
 
     expected_runtime_api = {
         "RawFeatureRuntimeV1": {
@@ -4696,6 +4797,7 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             )
 
     target = definitions.get("FeatureTargetV1")
+    locator = definitions.get("FeatureLocatorV1")
     expected_target_fields = {
         "remote_ski",
         "ship_id",
@@ -4714,6 +4816,24 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         or set(target.get("properties", {})) != expected_target_fields
     ):
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 exact target binding is not closed")
+    if definitions.get("NativeFeatureTypeV1") != ISSUE84_NATIVE_FEATURE_TYPE:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-84 native feature type is not exact"
+        )
+    for name, definition in (
+        ("FeatureLocatorV1", locator),
+        ("FeatureTargetV1", target),
+    ):
+        feature_type = (
+            definition.get("properties", {}).get("feature_type")
+            if isinstance(definition, dict)
+            else None
+        )
+        if feature_type != {"$ref": "#/$defs/NativeFeatureTypeV1"}:
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-84 {name} feature_type "
+                "does not preserve native topology casing"
+            )
 
     operations = definitions.get("FullOperationsV1")
     if (
@@ -5156,7 +5276,7 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
 
     expected_error_code_definitions = {
         "PreBindingErrorCodeV1": list(ISSUE82_PRE_BINDING_ERROR_CODES),
-        "PostBindingErrorCodeV1": list(ISSUE82_POST_BINDING_ERROR_CODES),
+        "PostBindingErrorCodeV1": list(ISSUE84_ALWAYS_BOUND_ERROR_CODES),
     }
     for definition_name, expected_codes in expected_error_code_definitions.items():
         if definitions.get(definition_name) != {
@@ -5170,17 +5290,18 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     error_code_definition = definitions.get("ErrorCodeV1")
     classified_error_codes = {
         *ISSUE82_PRE_BINDING_ERROR_CODES,
-        *ISSUE82_POST_BINDING_ERROR_CODES,
+        *ISSUE84_ALWAYS_BOUND_ERROR_CODES,
+        "not_found",
     }
     if (
         not isinstance(error_code_definition, dict)
         or error_code_definition.get("type") != "string"
         or set(error_code_definition.get("enum", [])) != classified_error_codes
         or set(ISSUE82_PRE_BINDING_ERROR_CODES)
-        & set(ISSUE82_POST_BINDING_ERROR_CODES)
+        & set(ISSUE84_ALWAYS_BOUND_ERROR_CODES)
     ):
         errors.append(
-            f"{ISSUE76_SCHEMA_REL}: issue-82 error binding partition is not exact"
+            f"{ISSUE76_SCHEMA_REL}: issue-84 error binding classification is not exact"
         )
 
     expected_envelope_implications = [
@@ -5255,13 +5376,30 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             "then": {
                 "properties": {
                     "error": {
-                        "$ref": "#/$defs/ErrorV1",
-                        "properties": {
-                            "code": {"$ref": "#/$defs/PreBindingErrorCodeV1"},
-                            "source_layer": {
-                                "enum": ["mcp", "gateway-router"]
+                        "anyOf": [
+                            {
+                                "$ref": "#/$defs/ErrorV1",
+                                "properties": {
+                                    "code": {
+                                        "$ref": "#/$defs/PreBindingErrorCodeV1"
+                                    },
+                                    "source_layer": {
+                                        "enum": ["mcp", "gateway-router"]
+                                    },
+                                },
                             },
-                        },
+                            {
+                                "$ref": "#/$defs/ErrorV1",
+                                "properties": {
+                                    "code": {"const": "not_found"},
+                                    "source_layer": {
+                                        "enum": list(
+                                            ISSUE84_UNBOUND_NOT_FOUND_SOURCE_LAYERS
+                                        )
+                                    },
+                                },
+                            },
+                        ]
                     }
                 }
             },
@@ -5295,7 +5433,7 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         or envelope.get("allOf") != expected_envelope_implications
     ):
         errors.append(
-            f"{ISSUE76_SCHEMA_REL}: issue-82 envelope implications are not exact"
+            f"{ISSUE76_SCHEMA_REL}: issue-84 envelope implications are not exact"
         )
 
     envelope_signatures: set[tuple[str, str, str, str, str, str]] = set()
