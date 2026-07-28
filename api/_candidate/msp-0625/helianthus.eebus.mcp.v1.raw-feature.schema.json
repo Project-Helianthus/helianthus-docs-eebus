@@ -79,6 +79,63 @@
     "spine-go atomic correlated round trip",
     "existing SHIP session"
   ],
+  "x-runtime-admission": {
+    "definition": "complete-only-after-all-ordered-checks",
+    "precedence": [
+      {
+        "order": 1,
+        "check": "exact-current-topology-target",
+        "failureCode": "not_found"
+      },
+      {
+        "order": 2,
+        "check": "compatible-local-protocol-source",
+        "failureCode": "unsupported_operation"
+      },
+      {
+        "order": 3,
+        "check": "declared-full-operation",
+        "failureCode": "unsupported_operation"
+      },
+      {
+        "order": 4,
+        "check": "current-runtime-epoch",
+        "failureCode": "runtime_epoch_mismatch"
+      },
+      {
+        "order": 5,
+        "check": "current-connection-generation",
+        "failureCode": "connection_generation_mismatch"
+      }
+    ],
+    "zeroDataUnboundNotFound": [
+      "inventory-miss",
+      "status-miss",
+      "target-resolution-miss",
+      "unknown-mutation-reference"
+    ],
+    "positiveBindingRequiredFor": [
+      "success",
+      "partial-result",
+      "MutationV1",
+      "error-with-bound-data"
+    ]
+  },
+  "x-local-protocol-source": {
+    "count": 1,
+    "featureType": "Generic",
+    "featureRole": "client",
+    "entity": "existing CEM",
+    "provisionAfter": "service Setup",
+    "provisionBefore": "network Start",
+    "purpose": "SHIP/SPINE protocol-plane source only",
+    "createsEntity": false,
+    "createsUseCase": false,
+    "createsPublicMethod": false,
+    "rawRemoteTopology": false,
+    "semanticProjection": false,
+    "publicRedactedEvidence": false
+  },
   "x-public-runtime-api": {
     "RawFeatureRuntimeV1": {
       "readOnly": true,
@@ -419,8 +476,7 @@
         "no_effect",
         "outcome_unknown",
         "conflict",
-        "rollback_failed",
-        "not_found"
+        "rollback_failed"
       ]
     },
     "FeatureRoleV1": {
@@ -484,6 +540,16 @@
         }
       }
     },
+    "NativeFeatureTypeV1": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Za-z0-9]*$",
+      "examples": [
+        "Measurement"
+      ],
+      "x-topologyMatch": "exact-current-topology-value-no-alias"
+    },
     "FeatureLocatorV1": {
       "type": "object",
       "additionalProperties": false,
@@ -528,9 +594,7 @@
           "maximum": 9007199254740991
         },
         "feature_type": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+          "$ref": "#/$defs/NativeFeatureTypeV1"
         },
         "feature_role": {
           "$ref": "#/$defs/FeatureRoleV1"
@@ -583,9 +647,7 @@
           "maximum": 9007199254740991
         },
         "feature_type": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+          "$ref": "#/$defs/NativeFeatureTypeV1"
         },
         "feature_role": {
           "$ref": "#/$defs/FeatureRoleV1"
@@ -3363,18 +3425,36 @@
           "then": {
             "properties": {
               "error": {
-                "$ref": "#/$defs/ErrorV1",
-                "properties": {
-                  "code": {
-                    "$ref": "#/$defs/PreBindingErrorCodeV1"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ErrorV1",
+                    "properties": {
+                      "code": {
+                        "$ref": "#/$defs/PreBindingErrorCodeV1"
+                      },
+                      "source_layer": {
+                        "enum": [
+                          "mcp",
+                          "gateway-router"
+                        ]
+                      }
+                    }
                   },
-                  "source_layer": {
-                    "enum": [
-                      "mcp",
-                      "gateway-router"
-                    ]
+                  {
+                    "$ref": "#/$defs/ErrorV1",
+                    "properties": {
+                      "code": {
+                        "const": "not_found"
+                      },
+                      "source_layer": {
+                        "enum": [
+                          "eebusreg-runtime",
+                          "eebusreg-coordinator"
+                        ]
+                      }
+                    }
                   }
-                }
+                ]
               }
             }
           }
@@ -3411,7 +3491,7 @@
           }
         }
       ],
-      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; malformed undecodable input alone uses request=null with invalid_argument from mcp; runtime=null is limited to pre-binding-compatible MCP or gateway-router errors; every post-binding error, success, and partial_result is runtime-bound"
+      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; malformed undecodable input alone uses request=null with invalid_argument from mcp; runtime=null is limited to pre-binding-compatible MCP or gateway-router errors and typed zero-data not_found from the runtime or coordinator; every success, partial_result, MutationV1, and error accompanying bound data is runtime-bound"
     }
   }
 }

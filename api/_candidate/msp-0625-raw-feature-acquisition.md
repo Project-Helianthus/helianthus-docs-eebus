@@ -27,6 +27,10 @@ and corrected before release by
 [issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78).
 The additive SPINE dependency evidence is tracked by
 [issue 80](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/80).
+The validator/envelope baseline merged by
+[issue 82 and PR 83](https://github.com/Project-Helianthus/helianthus-docs-eebus/pull/83)
+is corrected for native targets and final runtime admission by
+[issue 84](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/84).
 It adds raw typed feature-data acquisition to the unreleased `eebus.v1`
 namespace. It does not modify or reclassify the nine M6 read-only tools or
 their raw/redacted profiles.
@@ -170,7 +174,7 @@ designated fields.
 | `device_address` | non-empty string | Exact SPINE device address. |
 | `entity_address` | array of safe non-negative integers | Exact complete entity path. |
 | `feature_address` | safe non-negative integer | Exact feature address. |
-| `feature_type` | non-empty string | Must match current topology. |
+| `feature_type` | native SPINE feature type | Exact value copied unchanged from current topology, including casing. `Measurement` remains `Measurement`; lowercase `measurement` is invalid and is not an alias. |
 | `feature_role` | `client`, `server`, or `special` | Native role; no lossy substitution. |
 | `function` | non-empty string | Exact typed function name. |
 | `operation` | `READ` or `WRITE` | Must match the tool and possible-operation gate. |
@@ -179,15 +183,31 @@ designated fields.
 `connection_generation`. The server supplies this binding in results and
 tokens. A caller cannot override a current binding.
 
-`EnvelopeMetaV1.runtime` contains that positive binding whenever the command
-path has admitted a runtime generation. It is `null` only for a failure that
-occurs before any runtime binding is known, including malformed-input
-rejection, public-boundary denial before provider/router/runtime contact, or
-an unavailable command router. A server must not synthesize epoch or
-generation values for those failures. Success and `partial_result` envelopes
-always carry a positive binding.
+Runtime admission is complete only after all five checks below succeed for the
+selected operation. The rows are exhaustive and use first-failure precedence:
+a failed row terminates admission and no later row is evaluated. Closed request
+decoding, secret rejection, and boundary authorization retain their earlier
+precedence; dispatch and result processing occur only after row 5.
 
-The only codes compatible with `meta.runtime=null` are `invalid_argument`,
+| Precedence | Exact admission check | Failure |
+| --- | --- | --- |
+| 1 | Target identity and complete address resolve exactly in current topology, including native `feature_type` casing and role. | `not_found` |
+| 2 | One compatible local protocol-plane source exists for that target and operation. | `unsupported_operation` |
+| 3 | The exact full `READ` or `WRITE` operation is declared possible. | `unsupported_operation` |
+| 4 | The selected positive runtime epoch is still current. | `runtime_epoch_mismatch` |
+| 5 | The selected positive connection generation is still current. | `connection_generation_mismatch` |
+
+`EnvelopeMetaV1.runtime` contains the admitted positive binding. A server must
+not synthesize epoch or generation values when admission did not complete.
+A well-formed zero-data inventory, status, or target-resolution miss, and an
+unknown well-formed mutation reference, may terminate as `not_found` with
+`data=null` and `meta.runtime=null`. Such an envelope retains its exact typed
+request and comes from the runtime or durable coordinator source layer; it does
+not claim that runtime admission occurred. `not_found` is therefore not
+globally classified as either pre-binding or post-binding: it may instead carry
+a positive binding when that binding was established.
+
+The other codes compatible with `meta.runtime=null` are `invalid_argument`,
 `permission_denied`, `unsupported_operation`, `partial_operation_forbidden`,
 `secret_detected`, and `internal`, and only when `source_layer` is `mcp` or
 `gateway-router` and the failure actually precedes runtime admission. The same
@@ -196,8 +216,24 @@ codes carry a positive binding when detected after admission. Every
 `cas_mismatch`, `runtime_epoch_mismatch`, `connection_generation_mismatch`,
 `idempotency_conflict`, `writer_busy`, `timeout`, `cancelled`, `disconnected`,
 `remote_error`, `decode_error`, `partial_result`, `no_effect`,
-`outcome_unknown`, `conflict`, `rollback_failed`, and `not_found` error is
-post-binding and requires a positive runtime.
+`outcome_unknown`, `conflict`, and `rollback_failed` error requires a positive
+runtime.
+
+Every success, partial result, returned `MutationV1`, and error envelope that
+accompanies bound data requires a positive runtime binding. In particular,
+`partial_result` cannot use the zero-data `not_found` exception.
+
+## Local SPINE Protocol Source
+
+After service Setup completes and before network Start is invoked, the runtime
+provisions exactly one local feature of type `Generic` and role `client` on the
+existing CEM. That feature is solely the SHIP/SPINE protocol-plane source used
+to issue the exact remote feature operations admitted above.
+
+Provisioning this source creates no second entity, no use case, and no public
+method. The local source is not a remote target and must not enter raw remote
+topology, semantic projection, GraphQL, or public/redacted evidence. It changes
+no candidate tool inventory or envelope field.
 
 ## `features.get`
 
@@ -495,7 +531,8 @@ The envelope echoes the typed closed request after successful decoding. If
 the input cannot be decoded into that closed request, `request` is `null` and
 the error code is `invalid_argument`; arbitrary malformed input is never
 reflected into the raw response. An error envelope may use
-`meta.runtime=null` only under the pre-binding rule above.
+`meta.runtime=null` only under the pre-binding or zero-data `not_found` rules
+above.
 
 `ErrorV1` has exactly `code`, `message`, `retriable`, `source_layer`, and
 optional public-safe `details`. Backend text, payload preimages, and
@@ -525,7 +562,7 @@ The closed error vocabulary includes:
 | `outcome_unknown` | A side effect may have occurred; blind retry forbidden. |
 | `conflict` | Readback matches neither allowed convergence value; writes quarantined. |
 | `rollback_failed` | Restoration could not be verified. |
-| `not_found` | Well-formed mutation reference is unknown after binding checks. |
+| `not_found` | Exact zero-data inventory, status, target resolution, or mutation-reference lookup found no result; runtime is positive only when admission established it. |
 | `secret_detected` | A secret-classified field/value failed closed before output or hashing. |
 | `internal` | Fixed public-safe internal failure. |
 
