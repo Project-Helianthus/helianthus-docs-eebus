@@ -332,6 +332,7 @@ ISSUE76_MUTATION_STATES = {
     "rollback_reply_observed",
     "rollback_verify_pending",
     "rolled_back",
+    "no_effect",
     "outcome_unknown",
     "conflict",
     "failed_no_contact",
@@ -402,12 +403,18 @@ ISSUE76_REQUIRED_MARKERS = {
     ISSUE76_ARCHITECTURE_REL: (
         "gateway `eebuscommandrouter`",
         "eebusreg `rawfeatureruntimev1`",
+        "eebusreg `rawmutationruntimev1`",
+        "the existing public `runtime` method set is unchanged",
+        "`writeauthorizationv1`",
+        "`validatewriteauthorizationv1`",
         "register the waiter before send",
         "`runtime_epoch`",
         "`connection_generation`",
         "one global eebusreg runtime writer lease",
         "idempotency identity is",
         "`outcome_unknown`",
+        "noeffectverificationv1",
+        "does not prove that the write never transiently executed",
         "`conflict` globally disables new writes",
         "ship-go therefore remains unchanged",
     ),
@@ -418,6 +425,9 @@ ISSUE76_REQUIRED_MARKERS = {
         "`read_token`",
         "`idempotency_key`",
         "`mode=probe`",
+        "`rawmutationruntimev1`",
+        "authscopev1rawwrite",
+        "noeffectverificationv1",
         "a correlated no-error response sets `protocol_accepted=true` but cannot set state `applied`",
         "`partial_result`",
         "`candidate_ref`, partial operations, selectors, `filterdelete`, invoke, graphql, portal, home assistant, semantic promotion, v2, aliases, and legacy compatibility are out of scope",
@@ -4392,14 +4402,128 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     expected_command_path = [
         "MCP",
         "gateway EEBusCommandRouter",
-        "eebusreg RawFeatureRuntimeV1",
-        "eebusreg durable mutation coordinator",
+        "eebusreg RawFeatureRuntimeV1 or RawMutationRuntimeV1",
+        "eebusreg internal durable mutation coordinator for mutation methods",
         "eebus-go exact feature executor",
         "spine-go atomic correlated round trip",
         "existing SHIP session",
     ]
     if schema.get("x-command-path") != expected_command_path:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 command path is not exact")
+
+    expected_runtime_api = {
+        "RawFeatureRuntimeV1": {
+            "readOnly": True,
+            "compatibility": "unchanged",
+            "methods": [
+                "FeaturesGet(context.Context, eebusraw.ReadAuthorizationV1, "
+                "eebusraw.FeaturesGetRequestV1) (eebusraw.FeaturesGetDataV1, "
+                "*eebusraw.ErrorV1)",
+                "FeaturesDataGet(context.Context, eebusraw.ReadAuthorizationV1, "
+                "eebusraw.FeatureDataGetRequestV1) "
+                "(eebusraw.FeatureDataGetDataV1, *eebusraw.ErrorV1)",
+            ],
+        },
+        "RawMutationRuntimeV1": {
+            "methods": [
+                "FeaturesDataSet(context.Context, eebusraw.WriteAuthorizationV1, "
+                "eebusraw.FeatureDataSetRequestV1) (eebusraw.MutationV1, "
+                "*eebusraw.ErrorV1)",
+                "MutationsGet(context.Context, eebusraw.ReadAuthorizationV1, "
+                "eebusraw.MutationGetRequestV1) (eebusraw.MutationV1, "
+                "*eebusraw.ErrorV1)",
+                "MutationsRollback(context.Context, eebusraw.WriteAuthorizationV1, "
+                "eebusraw.MutationRollbackRequestV1) (eebusraw.MutationV1, "
+                "*eebusraw.ErrorV1)",
+            ],
+            "coordinator": "internal",
+            "gatewayCapabilityAssertion": "required-fail-closed",
+        },
+        "Runtime": {
+            "methodSet": "unchanged",
+            "embeds": ["RawFeatureRuntimeV1"],
+            "methods": [
+                "Start(context.Context) error",
+                "Shutdown() error",
+                "Snapshot() (SnapshotV1, error)",
+                "PairingState() ([]PairingObservationV1, error)",
+            ],
+            "doesNotEmbed": ["RawMutationRuntimeV1"],
+            "concreteImplementationMaySatisfy": [
+                "RawFeatureRuntimeV1",
+                "RawMutationRuntimeV1",
+            ],
+        },
+    }
+    if schema.get("x-public-runtime-api") != expected_runtime_api:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-78 runtime interface split is not exact")
+
+    expected_authorization_validators = {
+        "ValidateReadAuthorizationV1": {
+            "authorization": "ReadAuthorizationV1",
+            "scope": "AuthScopeV1RawRead",
+            "tools": [
+                "eebus.v1.features.get",
+                "eebus.v1.features.data.get",
+                "eebus.v1.mutations.get",
+            ],
+            "compatibility": "unchanged",
+        },
+        "ValidateWriteAuthorizationV1": {
+            "authorization": "WriteAuthorizationV1",
+            "scope": "AuthScopeV1RawWrite",
+            "tools": [
+                "eebus.v1.features.data.set",
+                "eebus.v1.mutations.rollback",
+            ],
+        },
+    }
+    if schema.get("x-authorization-validators") != expected_authorization_validators:
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-78 authorization split is not exact")
+
+    expected_authorizations = {
+        "ReadAuthorizationV1": {
+            "scope": "AuthScopeV1RawRead",
+            "tools": {
+                "eebus.v1.features.get",
+                "eebus.v1.features.data.get",
+                "eebus.v1.mutations.get",
+            },
+        },
+        "WriteAuthorizationV1": {
+            "scope": "AuthScopeV1RawWrite",
+            "tools": {
+                "eebus.v1.features.data.set",
+                "eebus.v1.mutations.rollback",
+            },
+        },
+    }
+    for name, expected in expected_authorizations.items():
+        authorization = definitions.get(name)
+        authorization_properties = (
+            authorization.get("properties", {})
+            if isinstance(authorization, dict)
+            else {}
+        )
+        if (
+            not isinstance(authorization, dict)
+            or authorization.get("additionalProperties") is not False
+            or set(authorization.get("required", []))
+            != {"principal_class", "scope", "tool", "mask_tier"}
+            or authorization_properties.get("scope")
+            != {"$ref": f"#/$defs/{expected['scope']}"}
+            or set(authorization_properties.get("tool", {}).get("enum", []))
+            != expected["tools"]
+        ):
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-78 {name} is not exact and distinct"
+            )
+    for name, value in {
+        "AuthScopeV1RawRead": "eebus.raw.read",
+        "AuthScopeV1RawWrite": "eebus.raw.write",
+    }.items():
+        if definitions.get(name) != {"const": value}:
+            errors.append(f"{ISSUE76_SCHEMA_REL}: issue-78 {name} is not exact")
 
     expected_round_trip = {
         "registerWaiterBeforeSend": True,
@@ -4577,6 +4701,7 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     terminal_evidence = {
         "applied": {"apply_verification"},
         "rolled_back": {"apply_verification", "rollback"},
+        "no_effect": {"error", "outcome_evidence", "no_effect_verification"},
         "outcome_unknown": {"error", "outcome_evidence"},
         "conflict": {"error", "conflict_evidence"},
         "failed_no_contact": {"error", "no_contact_evidence"},
@@ -4588,6 +4713,43 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             errors.append(
                 f"{ISSUE76_SCHEMA_REL}: issue-76 {state} evidence is not exact"
             )
+    no_effect_variant = mutation_by_state.get("no_effect", {})
+    expected_no_effect_outcome = {
+        "allOf": [
+            {"$ref": "#/$defs/OutcomeEvidenceV1"},
+            {
+                "properties": {
+                    "last_durable_state": {"const": "dispatch_intent"},
+                }
+            },
+        ]
+    }
+    if (
+        not isinstance(no_effect_variant, dict)
+        or no_effect_variant.get("properties", {}).get("outcome_evidence")
+        != expected_no_effect_outcome
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 no_effect original-write evidence is not exact"
+        )
+    conflict_variant = mutation_by_state.get("conflict", {})
+    expected_conflict_acceptance = [
+        {
+            "required": ["outcome_evidence"],
+            "properties": {"protocol_accepted": {"type": "null"}},
+        },
+        {
+            "properties": {"protocol_accepted": {"type": "boolean"}},
+            "not": {"required": ["outcome_evidence"]},
+        },
+    ]
+    if (
+        not isinstance(conflict_variant, dict)
+        or conflict_variant.get("anyOf") != expected_conflict_acceptance
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-76 conflict uncertainty evidence is not exact"
+        )
 
     rollback_intermediate_states = {
         "rollback_intent",
@@ -4653,6 +4815,12 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             "equal_value_hash",
             "verified_at",
         },
+        "NoEffectVerificationV1": {
+            "relation",
+            "verified",
+            "equal_value_hash",
+            "verified_at",
+        },
         "OutcomeEvidenceV1": {
             "possible_side_effect",
             "blind_retry_forbidden",
@@ -4669,6 +4837,39 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         ):
             errors.append(
                 f"{ISSUE76_SCHEMA_REL}: issue-76 {name} is not a closed evidence record"
+            )
+
+    no_effect = mutation_by_state.get("no_effect")
+    no_effect_properties = (
+        no_effect.get("properties", {}) if isinstance(no_effect, dict) else {}
+    )
+    no_effect_error = no_effect_properties.get("error", {})
+    no_effect_error_properties = (
+        no_effect_error.get("properties", {})
+        if isinstance(no_effect_error, dict)
+        else {}
+    )
+    if (
+        no_effect_properties.get("protocol_accepted") != {"type": "null"}
+        or no_effect_properties.get("observed_after")
+        != {"$ref": "#/$defs/VerifiedTypedValueV1"}
+        or no_effect_error_properties.get("code") != {"const": "no_effect"}
+        or no_effect_error_properties.get("retriable") != {"const": False}
+    ):
+        errors.append(f"{ISSUE76_SCHEMA_REL}: issue-78 no_effect terminal shape is not exact")
+
+    for state in ("applied", "probe_active"):
+        recovered = mutation_by_state.get(state)
+        alternatives = recovered.get("anyOf", []) if isinstance(recovered, dict) else []
+        if len(alternatives) != 2 or not any(
+            isinstance(candidate, dict)
+            and set(candidate.get("required", [])) == {"outcome_evidence"}
+            and candidate.get("properties", {}).get("protocol_accepted")
+            == {"type": "null"}
+            for candidate in alternatives
+        ):
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-78 uncertain {state} recovery is not exact"
             )
 
     rollback = definitions.get("RollbackV1")

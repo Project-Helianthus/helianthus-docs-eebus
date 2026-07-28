@@ -22,7 +22,9 @@ candidate_output_path: "api/_candidate/msp-0625-raw-feature-acquisition.md"
 ## Additive API Boundary
 
 This candidate is tracked by
-[issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76).
+[issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76)
+and corrected before release by
+[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78).
 It adds raw typed feature-data acquisition to the unreleased `eebus.v1`
 namespace. It does not modify or reclassify the nine M6 read-only tools or
 their raw/redacted profiles.
@@ -69,9 +71,52 @@ payload.
 The public/LAN MCP boundary exposes none of the five tools. A public call using
 one of the names fails as `permission_denied` after JSON-RPC/tool shape and
 boundary/scope checks but before provider lookup, `EEBusCommandRouter`,
-`RawFeatureRuntimeV1`, the durable coordinator, connection lookup, or remote
-contact. Contract tests require zero calls at each downstream boundary and
-zero frames.
+the selected raw runtime interface, the internal durable coordinator,
+connection lookup, or remote contact. Contract tests require zero calls at
+each downstream boundary and zero frames.
+
+The existing public `RawFeatureRuntimeV1` remains read-only and byte-compatible
+at the Go method-set level:
+
+```go
+type RawFeatureRuntimeV1 interface {
+    FeaturesGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.FeaturesGetRequestV1) (eebusraw.FeaturesGetDataV1, *eebusraw.ErrorV1)
+    FeaturesDataGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.FeatureDataGetRequestV1) (eebusraw.FeatureDataGetDataV1, *eebusraw.ErrorV1)
+}
+```
+
+M6.25 adds a separate public mutation capability:
+
+```go
+type RawMutationRuntimeV1 interface {
+    FeaturesDataSet(context.Context, eebusraw.WriteAuthorizationV1, eebusraw.FeatureDataSetRequestV1) (eebusraw.MutationV1, *eebusraw.ErrorV1)
+    MutationsGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.MutationGetRequestV1) (eebusraw.MutationV1, *eebusraw.ErrorV1)
+    MutationsRollback(context.Context, eebusraw.WriteAuthorizationV1, eebusraw.MutationRollbackRequestV1) (eebusraw.MutationV1, *eebusraw.ErrorV1)
+}
+```
+
+The existing public `Runtime` method set remains unchanged and does not embed
+`RawMutationRuntimeV1`. Concrete runtime implementations may satisfy both.
+The gateway later capability-asserts `RawMutationRuntimeV1` and fails closed
+when absent. The durable coordinator remains internal.
+
+```go
+type Runtime interface {
+    RawFeatureRuntimeV1
+    Start(context.Context) error
+    Shutdown() error
+    Snapshot() (SnapshotV1, error)
+    PairingState() ([]PairingObservationV1, error)
+}
+```
+
+`ReadAuthorizationV1`, `AuthScopeV1RawRead`, and
+`ValidateReadAuthorizationV1` retain their existing names, identity, and
+read-only purpose; no alias or rename is introduced. The public
+`WriteAuthorizationV1` is a distinct type, uses
+`AuthScopeV1RawWrite = "eebus.raw.write"`, and is validated by
+`ValidateWriteAuthorizationV1`. `FeaturesDataSet` and `MutationsRollback`
+require it. `MutationsGet` remains read-authorized.
 
 Owner authorization permits real local SHIP/SPINE identity, addresses,
 feature/function metadata, typed values, and bounded unknown fields. It never
@@ -197,18 +242,21 @@ remote frame.
 - structured terminal error when present; and
 - public-safe, transition-linked audit commitments.
 
-`MutationV1.oneOf` discriminates every state. `applied` requires
-`protocol_accepted=true`, a non-null `observed_after`, and a closed
-`ApplyVerificationV1` whose relation is
-`observed_after_equals_requested`; its single equality commitment is the
-RFC 8785/JCS SHA-256 hash recomputed for both values. `rolled_back` requires
-the prior apply verification plus a `RollbackV1` with non-null rollback
-readback and `RollbackVerificationV1` relation
+`MutationV1.oneOf` discriminates every state. In the ordinary correlated
+acceptance path, `applied` requires `protocol_accepted=true`; possible-send
+recovery uses `protocol_accepted=null` only with retained uncertainty evidence.
+Both paths require a non-null `observed_after` and a closed
+`ApplyVerificationV1` whose relation is `observed_after_equals_requested`;
+its single equality commitment is the RFC 8785/JCS SHA-256 hash recomputed for
+both values. `rolled_back` requires the prior apply verification plus a
+`RollbackV1` with non-null rollback readback and `RollbackVerificationV1`
+relation
 `rollback_observed_after_equals_before`. The equality commitment is likewise
 recomputed for both the rollback readback and canonical before-image.
 
-`outcome_unknown`, `conflict`, `failed_no_contact`, and `rejected` require
-their closed evidence records and matching structured errors.
+`no_effect`, `outcome_unknown`, `conflict`, `failed_no_contact`, and
+`rejected` require their closed evidence records and matching structured
+errors.
 `failed_no_contact` evidence fixes `remote_frames_sent=0`; `rejected` requires
 a correlated rejection plus verified readback equal to `before`; `conflict`
 commits distinct before, requested, and observed hashes; and
@@ -216,6 +264,23 @@ commits distinct before, requested, and observed hashes; and
 blind retry. Evidence relations are runtime assertions: the boundary
 recomputes every named hash and rejects a false relation rather than trusting
 caller-supplied commitments.
+
+Possible-send recovery with a trustworthy full READ equal to `before` is
+terminal `no_effect`. It requires `protocol_accepted=null`,
+`observed_after=before`, retained `OutcomeEvidenceV1` with
+`possible_side_effect=true` and `blind_retry_forbidden=true`, and closed
+`NoEffectVerificationV1 { relation:
+"observed_after_equals_before", verified: true, equal_value_hash,
+verified_at }`. Its terminal `ErrorV1` has `code=no_effect` and
+`retriable=false`. This proves no lasting requested state at verification
+time, not that the WRITE never transiently executed.
+
+Possible-send recovery with trustworthy readback equal to `requested`
+converges to `applied`, or `probe_active` for a still-governed probe, with
+`protocol_accepted=null`, retained `OutcomeEvidenceV1`, and verified
+`ApplyVerificationV1`. A third value is `conflict`. Missing or untrustworthy
+readback remains `outcome_unknown`. A correlated rejection remains
+`rejected`, with `protocol_accepted=false`; it is not `no_effect`.
 
 The full state enum is:
 
@@ -231,6 +296,7 @@ rollback_dispatch_intent
 rollback_reply_observed
 rollback_verify_pending
 rolled_back
+no_effect
 outcome_unknown
 conflict
 failed_no_contact
@@ -306,6 +372,7 @@ The closed error vocabulary includes:
 | `remote_error` | Correlated remote rejection/error. |
 | `decode_error` | Correlated response is malformed or cannot produce typed data. |
 | `partial_result` | Some bounded READ targets failed. |
+| `no_effect` | Possible-send recovery verified the before-image; non-retriable because blind resend remains forbidden. |
 | `outcome_unknown` | A side effect may have occurred; blind retry forbidden. |
 | `conflict` | Readback matches neither allowed convergence value; writes quarantined. |
 | `rollback_failed` | Restoration could not be verified. |

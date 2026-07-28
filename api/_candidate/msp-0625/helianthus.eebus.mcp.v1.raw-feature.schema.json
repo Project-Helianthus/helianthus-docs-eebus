@@ -73,12 +73,70 @@
   "x-command-path": [
     "MCP",
     "gateway EEBusCommandRouter",
-    "eebusreg RawFeatureRuntimeV1",
-    "eebusreg durable mutation coordinator",
+    "eebusreg RawFeatureRuntimeV1 or RawMutationRuntimeV1",
+    "eebusreg internal durable mutation coordinator for mutation methods",
     "eebus-go exact feature executor",
     "spine-go atomic correlated round trip",
     "existing SHIP session"
   ],
+  "x-public-runtime-api": {
+    "RawFeatureRuntimeV1": {
+      "readOnly": true,
+      "compatibility": "unchanged",
+      "methods": [
+        "FeaturesGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.FeaturesGetRequestV1) (eebusraw.FeaturesGetDataV1, *eebusraw.ErrorV1)",
+        "FeaturesDataGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.FeatureDataGetRequestV1) (eebusraw.FeatureDataGetDataV1, *eebusraw.ErrorV1)"
+      ]
+    },
+    "RawMutationRuntimeV1": {
+      "methods": [
+        "FeaturesDataSet(context.Context, eebusraw.WriteAuthorizationV1, eebusraw.FeatureDataSetRequestV1) (eebusraw.MutationV1, *eebusraw.ErrorV1)",
+        "MutationsGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.MutationGetRequestV1) (eebusraw.MutationV1, *eebusraw.ErrorV1)",
+        "MutationsRollback(context.Context, eebusraw.WriteAuthorizationV1, eebusraw.MutationRollbackRequestV1) (eebusraw.MutationV1, *eebusraw.ErrorV1)"
+      ],
+      "coordinator": "internal",
+      "gatewayCapabilityAssertion": "required-fail-closed"
+    },
+    "Runtime": {
+      "methodSet": "unchanged",
+      "embeds": [
+        "RawFeatureRuntimeV1"
+      ],
+      "methods": [
+        "Start(context.Context) error",
+        "Shutdown() error",
+        "Snapshot() (SnapshotV1, error)",
+        "PairingState() ([]PairingObservationV1, error)"
+      ],
+      "doesNotEmbed": [
+        "RawMutationRuntimeV1"
+      ],
+      "concreteImplementationMaySatisfy": [
+        "RawFeatureRuntimeV1",
+        "RawMutationRuntimeV1"
+      ]
+    }
+  },
+  "x-authorization-validators": {
+    "ValidateReadAuthorizationV1": {
+      "authorization": "ReadAuthorizationV1",
+      "scope": "AuthScopeV1RawRead",
+      "tools": [
+        "eebus.v1.features.get",
+        "eebus.v1.features.data.get",
+        "eebus.v1.mutations.get"
+      ],
+      "compatibility": "unchanged"
+    },
+    "ValidateWriteAuthorizationV1": {
+      "authorization": "WriteAuthorizationV1",
+      "scope": "AuthScopeV1RawWrite",
+      "tools": [
+        "eebus.v1.features.data.set",
+        "eebus.v1.mutations.rollback"
+      ]
+    }
+  },
   "x-round-trip": {
     "registerWaiterBeforeSend": true,
     "completeExactlyOnce": true,
@@ -146,8 +204,73 @@
         "eebus.raw.write"
       ]
     },
+    "AuthScopeV1RawRead": {
+      "const": "eebus.raw.read"
+    },
+    "AuthScopeV1RawWrite": {
+      "const": "eebus.raw.write"
+    },
     "MaskTierV1": {
       "const": "raw"
+    },
+    "ReadAuthorizationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_class",
+        "scope",
+        "tool",
+        "mask_tier"
+      ],
+      "properties": {
+        "principal_class": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "scope": {
+          "$ref": "#/$defs/AuthScopeV1RawRead"
+        },
+        "tool": {
+          "enum": [
+            "eebus.v1.features.get",
+            "eebus.v1.features.data.get",
+            "eebus.v1.mutations.get"
+          ]
+        },
+        "mask_tier": {
+          "$ref": "#/$defs/MaskTierV1"
+        }
+      }
+    },
+    "WriteAuthorizationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_class",
+        "scope",
+        "tool",
+        "mask_tier"
+      ],
+      "properties": {
+        "principal_class": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "scope": {
+          "$ref": "#/$defs/AuthScopeV1RawWrite"
+        },
+        "tool": {
+          "enum": [
+            "eebus.v1.features.data.set",
+            "eebus.v1.mutations.rollback"
+          ]
+        },
+        "mask_tier": {
+          "$ref": "#/$defs/MaskTierV1"
+        }
+      }
     },
     "ModeV1": {
       "type": "string",
@@ -170,6 +293,7 @@
         "rollback_reply_observed",
         "rollback_verify_pending",
         "rolled_back",
+        "no_effect",
         "outcome_unknown",
         "conflict",
         "failed_no_contact",
@@ -197,6 +321,7 @@
         "remote_error",
         "decode_error",
         "partial_result",
+        "no_effect",
         "outcome_unknown",
         "conflict",
         "rollback_failed",
@@ -1244,6 +1369,30 @@
         }
       }
     },
+    "NoEffectVerificationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relation",
+        "verified",
+        "equal_value_hash",
+        "verified_at"
+      ],
+      "properties": {
+        "relation": {
+          "const": "observed_after_equals_before"
+        },
+        "verified": {
+          "const": true
+        },
+        "equal_value_hash": {
+          "$ref": "#/$defs/HashV1"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/TimestampV1"
+        }
+      }
+    },
     "OutcomeEvidenceV1": {
       "type": "object",
       "additionalProperties": false,
@@ -1528,6 +1677,9 @@
         "rejection_verification": {
           "$ref": "#/$defs/RejectionVerificationV1"
         },
+        "no_effect_verification": {
+          "$ref": "#/$defs/NoEffectVerificationV1"
+        },
         "outcome_evidence": {
           "$ref": "#/$defs/OutcomeEvidenceV1"
         },
@@ -1565,6 +1717,20 @@
               "required": [
                 "probe_deadline"
               ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "no_effect_verification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "no_effect"
+              }
             }
           }
         }
@@ -1787,12 +1953,43 @@
               "const": "applied"
             },
             "protocol_accepted": {
-              "const": true
+              "oneOf": [
+                {
+                  "const": true
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "observed_after": {
               "$ref": "#/$defs/VerifiedTypedValueV1"
             }
           },
+          "anyOf": [
+            {
+              "properties": {
+                "protocol_accepted": {
+                  "const": true
+                }
+              },
+              "not": {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            },
+            {
+              "required": [
+                "outcome_evidence"
+              ],
+              "properties": {
+                "protocol_accepted": {
+                  "type": "null"
+                }
+              }
+            }
+          ],
           "not": {
             "anyOf": [
               {
@@ -1818,11 +2015,6 @@
               {
                 "required": [
                   "rejection_verification"
-                ]
-              },
-              {
-                "required": [
-                  "outcome_evidence"
                 ]
               }
             ]
@@ -1841,12 +2033,43 @@
               "const": "probe"
             },
             "protocol_accepted": {
-              "const": true
+              "oneOf": [
+                {
+                  "const": true
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "observed_after": {
               "$ref": "#/$defs/VerifiedTypedValueV1"
             }
           },
+          "anyOf": [
+            {
+              "properties": {
+                "protocol_accepted": {
+                  "const": true
+                }
+              },
+              "not": {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            },
+            {
+              "required": [
+                "outcome_evidence"
+              ],
+              "properties": {
+                "protocol_accepted": {
+                  "type": "null"
+                }
+              }
+            }
+          ],
           "not": {
             "anyOf": [
               {
@@ -1872,11 +2095,6 @@
               {
                 "required": [
                   "rejection_verification"
-                ]
-              },
-              {
-                "required": [
-                  "outcome_evidence"
                 ]
               }
             ]
@@ -2209,6 +2427,30 @@
               }
             }
           },
+          "anyOf": [
+            {
+              "required": [
+                "outcome_evidence"
+              ],
+              "properties": {
+                "protocol_accepted": {
+                  "type": "null"
+                }
+              }
+            },
+            {
+              "properties": {
+                "protocol_accepted": {
+                  "type": "boolean"
+                }
+              },
+              "not": {
+                "required": [
+                  "outcome_evidence"
+                ]
+              }
+            }
+          ],
           "not": {
             "anyOf": [
               {
@@ -2219,11 +2461,6 @@
               {
                 "required": [
                   "rejection_verification"
-                ]
-              },
-              {
-                "required": [
-                  "outcome_evidence"
                 ]
               }
             ]
@@ -2324,6 +2561,78 @@
               {
                 "required": [
                   "outcome_evidence"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "error",
+            "outcome_evidence",
+            "no_effect_verification"
+          ],
+          "properties": {
+            "state": {
+              "const": "no_effect"
+            },
+            "protocol_accepted": {
+              "type": "null"
+            },
+            "observed_after": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            },
+            "outcome_evidence": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/OutcomeEvidenceV1"
+                },
+                {
+                  "properties": {
+                    "last_durable_state": {
+                      "const": "dispatch_intent"
+                    }
+                  }
+                }
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorV1",
+              "properties": {
+                "code": {
+                  "const": "no_effect"
+                },
+                "retriable": {
+                  "const": false
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "rollback"
+                ]
+              },
+              {
+                "required": [
+                  "apply_verification"
+                ]
+              },
+              {
+                "required": [
+                  "conflict_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "no_contact_evidence"
+                ]
+              },
+              {
+                "required": [
+                  "rejection_verification"
                 ]
               }
             ]

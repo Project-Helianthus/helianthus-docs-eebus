@@ -21,6 +21,8 @@ release_bundle: "false"
 
 This candidate implements the docs gate for
 [issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76)
+as corrected before release by
+[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78)
 and the locked
 [M6.25 plan](https://github.com/Project-Helianthus/helianthus-execution-plans/blob/fb384ab57d79f0020c54d2c66416e8a7666f0ceb/multi-runtime-semantic-platform.locked/118-w30-26-m625-raw-spine-feature-acquisition.md).
 It is forward-only. M6 topology, snapshots, local/raw access, public/redacted
@@ -44,8 +46,8 @@ The only permitted path is:
 ```text
 MCP
   -> gateway EEBusCommandRouter
-  -> eebusreg RawFeatureRuntimeV1
-  -> eebusreg durable mutation coordinator
+  -> eebusreg RawFeatureRuntimeV1 or RawMutationRuntimeV1
+  -> eebusreg internal durable mutation coordinator for mutation methods
   -> eebus-go exact feature executor
   -> spine-go atomic correlated round trip
   -> existing SHIP session
@@ -55,8 +57,9 @@ MCP
 | --- | --- |
 | MCP | Parse a closed tool shape, authenticate, select fixed scope/tier policy, and deny public contact. |
 | Gateway `EEBusCommandRouter` | Provide one reusable command entry point, select one runtime, and hand policy to eebusreg. |
-| eebusreg `RawFeatureRuntimeV1` | Own versioned first-party DTOs for exact typed feature/function operations. |
-| eebusreg durable coordinator | Own runtime epoch, connection generation, read tokens, CAS, WAL/FSM, idempotency, lease, constraints, probe TTL, audit, recovery, and quarantine. |
+| eebusreg `RawFeatureRuntimeV1` | Preserve the existing public read-only `FeaturesGet` and `FeaturesDataGet` method set unchanged. |
+| eebusreg `RawMutationRuntimeV1` | Own the separate public `FeaturesDataSet`, `MutationsGet`, and `MutationsRollback` mutation capability. |
+| eebusreg internal durable coordinator | Own runtime epoch, connection generation, read tokens, CAS, WAL/FSM, idempotency, lease, constraints, probe TTL, audit, recovery, and quarantine without becoming public. |
 | eebus-go exact executor | Resolve the exact local/remote feature pair and build one full typed READ or WRITE. |
 | spine-go round trip | Atomically register, send, correlate, cancel, clean up, and tombstone one request. |
 | Existing SHIP | Carry the existing encrypted session payload without an M6.25 API or framing change. |
@@ -64,6 +67,20 @@ MCP
 No MCP handler may call an Enbility feature, sender, adapter, or SHIP object
 directly. Future semantic command callers, if separately authorized, must
 reuse `EEBusCommandRouter`; M6.25 creates no such caller.
+
+`RawFeatureRuntimeV1` remains exactly:
+
+```go
+type RawFeatureRuntimeV1 interface {
+    FeaturesGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.FeaturesGetRequestV1) (eebusraw.FeaturesGetDataV1, *eebusraw.ErrorV1)
+    FeaturesDataGet(context.Context, eebusraw.ReadAuthorizationV1, eebusraw.FeatureDataGetRequestV1) (eebusraw.FeatureDataGetDataV1, *eebusraw.ErrorV1)
+}
+```
+
+The existing public `Runtime` method set is unchanged and does not embed
+`RawMutationRuntimeV1`. A concrete runtime implementation may satisfy both
+interfaces. The gateway later capability-asserts `RawMutationRuntimeV1` and
+fails closed when it is unavailable; no mutation method is added to `Runtime`.
 
 The public source shows that approved transport completion already hands an
 existing writer to SPINE setup
@@ -92,6 +109,14 @@ A public request, wrong scope, caller-supplied tier selector, or malformed
 request fails before provider, router, runtime, connection, or remote contact.
 Tests instrument each boundary and require zero downstream calls and zero
 frames. Authorization cannot be deferred to the provider or runtime.
+
+The existing public `ReadAuthorizationV1`,
+`AuthScopeV1RawRead`, and `ValidateReadAuthorizationV1` remain unchanged and
+are not aliases for write authority. M6.25 adds the distinct public
+`WriteAuthorizationV1`, `AuthScopeV1RawWrite`, and
+`ValidateWriteAuthorizationV1`. `FeaturesDataSet` and `MutationsRollback`
+require validated write authorization. `MutationsGet` remains status-only and
+requires validated read authorization.
 
 ## Runtime Epoch And Connection Generation
 
@@ -207,6 +232,7 @@ synced before its associated remote side effect:
 | `rollback_reply_observed` | Correlated rollback result observed; restoration is not proven. |
 | `rollback_verify_pending` | Full READ-after-rollback required. |
 | `rolled_back` | Readback equals the canonical before-image. |
+| `no_effect` | Possible-send recovery obtained a trustworthy full READ equal to the verified before-image; no lasting requested state exists at verification time. |
 | `outcome_unknown` | Send may have occurred but no trustworthy final observation exists. |
 | `conflict` | Current value matches neither permitted convergence value; all writes quarantined. |
 | `failed_no_contact` | Failure occurred before any side-effect frame. |
@@ -223,18 +249,34 @@ Crash injection is required after every transition. Recovery rules are:
 | Recovered state | Action |
 | --- | --- |
 | `prepared`, `failed_no_contact` | Send nothing; require fresh binding and lease checks for any new attempt. |
-| `dispatch_intent`, `rollback_dispatch_intent`, or possible-send timeout/cancel/disconnect | Enter `outcome_unknown`; never resend blindly. |
+| `dispatch_intent`, `rollback_dispatch_intent`, or possible-send timeout/cancel/disconnect | Enter `outcome_unknown`; never resend blindly; recover only through a trustworthy full READ. |
 | `reply_observed`, `verify_pending` | Perform full readback. |
 | `applied`, `probe_active` | Re-arm persisted probe deadline when present. |
 | expired `probe_active` | Rebind, acquire lease, read current value, then start rollback. |
 | `rollback_intent` | Rebind, acquire lease, and READ before any rollback dispatch. |
 | `rollback_reply_observed`, `rollback_verify_pending` | Verify restoration by full READ. |
-| `rolled_back`, `rejected`, `failed_no_contact` | Remain terminal. |
+| `rolled_back`, `no_effect`, `rejected`, `failed_no_contact` | Remain terminal. |
 
-After reconnect, a before-image means no effect; a requested value resumes
-verification or rollback; any third value enters `conflict`. If a probe cannot
-be restored and verified before its recovery deadline, the runtime remains
-quarantined and reports `outcome_unknown`, `rollback_failed`, or `conflict`.
+After reconnect, a trustworthy full READ equal to the verified before-image
+converges a possible-send original WRITE to terminal `no_effect`. Its
+`protocol_accepted` remains `null`; `observed_after` is the before-image; its
+`OutcomeEvidenceV1` retains `possible_side_effect=true` and
+`blind_retry_forbidden=true`; `NoEffectVerificationV1` verifies
+`observed_after_equals_before`; and terminal `ErrorV1` is `no_effect` with
+`retriable=false`. This proves no lasting requested state at verification
+time. It does not prove that the WRITE never transiently executed.
+
+A trustworthy full READ equal to the requested value after an uncertain send
+converges to `applied`, or `probe_active` when the persisted probe deadline
+still governs it. In that recovery path `protocol_accepted` remains `null`,
+`OutcomeEvidenceV1` is retained, and `ApplyVerificationV1` verifies equality
+with the requested value. A third value enters `conflict`. Missing,
+malformed, stale, cache-derived, identity-mismatched, or otherwise
+untrustworthy readback remains `outcome_unknown`.
+
+A correlated protocol rejection remains `rejected` with
+`protocol_accepted=false` and `RejectionVerificationV1`; it is never
+reclassified as `no_effect`.
 
 ## Conflict Quarantine
 
