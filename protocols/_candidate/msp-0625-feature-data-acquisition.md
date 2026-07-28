@@ -22,7 +22,9 @@ release_bundle: "false"
 This page is the protocol owner for
 [issue 76](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/76)
 as corrected before release by
-[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78).
+[issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78),
+with additive SPINE transport-handoff evidence tracked by
+[issue 80](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/80).
 It distinguishes completed M6 feature topology from M6.25 feature-data
 acquisition. Topology says which feature functions and possible operations a
 remote reports; it does not contain a fresh value and is not proof that a
@@ -45,7 +47,12 @@ The public source observations used here are:
 - the public eeBUS client checks the remote READ operation before issuing a
   request, while existing feature-specific writers can emit WRITE requests
   ([READ gate](https://github.com/Project-Helianthus/helianthus-eebus-go/blob/0134afee59535d927d63b78070f828f0f6fb553d/features/client/feature.go#L125-L155),
-  [WRITE example](https://github.com/Project-Helianthus/helianthus-eebus-go/blob/0134afee59535d927d63b78070f828f0f6fb553d/features/client/deviceconfiguration.go#L55-L89)).
+  [WRITE example](https://github.com/Project-Helianthus/helianthus-eebus-go/blob/0134afee59535d927d63b78070f828f0f6fb553d/features/client/deviceconfiguration.go#L55-L89)); and
+- the SPINE sender calls
+  `WriteShipMessageWithPayload(message []byte)`, whose writer interface returns
+  no delivery result
+  ([writer call](https://github.com/Project-Helianthus/helianthus-spine-go/blob/b21400335be90ea95a6cad5f512d1c8e22f2cdeb/spine/send.go#L69-L112),
+  [transport interface](https://github.com/Project-Helianthus/helianthus-ship-go/blob/3abd41d19f419de907bc1bdf2a126ca19c930626/api/shipconnection.go#L195-L200)).
 
 These source observations establish available public primitives, not the
 unimplemented Helianthus M6.25 guarantees. Every requirement below is a
@@ -181,6 +188,35 @@ generation can neither satisfy nor cancel a current request. Correlated
 application results preserve dispatch order at the coordinator boundary even
 when independent reads execute concurrently.
 
+Every terminal round-trip error carries one operation-scoped
+`DispatchDisposition`:
+
+| Disposition | Protocol evidence |
+| --- | --- |
+| `NoTransportHandoff` | The SHIP writer was not invoked for this correlated operation. |
+| `TransportHandoffPossible` | Writer invocation began, or the operation had entered correlation wait. |
+
+The exported `CorrelatedRoundTripError` carries the original `Cause` and the
+disposition, and its `Unwrap` returns that cause. Existing `errors.Is` checks
+for sentinels or context errors and `errors.As` checks for existing typed
+causes remain compatible. Callers use `errors.As` to read the disposition; the
+existing signature remains
+`RoundTrip(ctx context.Context, request CorrelatedRequest)
+(CorrelatedResponse, error)`.
+
+Pre-cancel, invalid request, capacity/counter/key admission, marshal,
+missing-writer, and all other failures before writer invocation are
+`NoTransportHandoff`. Cancellation, timeout, close, disconnect, remote
+rejection, malformed response, and every other failure after writer entry are
+`TransportHandoffPossible`. An untyped error, absent wrapper, nil cause, zero
+value, or unknown disposition is conservatively
+`TransportHandoffPossible`.
+
+Because the SHIP writer returns no result, `TransportHandoffPossible` is not
+proof of bytes on the wire. It also does not prove peer receipt, a correlated
+acceptance, or a remote state change. Only later protocol correlation and
+verified full readback can establish those stronger facts.
+
 The current public stack exposes separate send and callback-registration
 operations
 ([send surface](https://github.com/Project-Helianthus/helianthus-spine-go/blob/7383c108f72309c3636d896948d7a8de6d001708/api/sender.go#L12-L35),
@@ -216,9 +252,11 @@ The contract represents at least these outcomes explicitly:
 
 | Class | Required result |
 | --- | --- |
-| Invalid target/shape, unsupported operation, stale binding, CAS mismatch, scope denial, lease conflict, or constraint failure before send | `failed_no_contact` and zero WRITE frames |
+| Invalid target/shape, unsupported operation, stale binding, CAS mismatch, scope denial, lease conflict, constraint failure, or explicit original-WRITE `NoTransportHandoff` | `failed_no_contact` and zero WRITE frames for that operation |
+| Original-WRITE `TransportHandoffPossible`, unknown/untyped dispatch error, or loss of trustworthy observation after writer entry | `outcome_unknown` from `dispatch_intent`; blind retry forbidden |
+| Rollback-WRITE `NoTransportHandoff` | Zero rollback handoff for that attempt; preserve the original effect, do not claim `rolled_back`, and require fresh guarded recovery before another rollback dispatch |
+| Rollback-WRITE `TransportHandoffPossible` or unknown/untyped rollback dispatch error | `outcome_unknown` from `rollback_dispatch_intent`; blind retry forbidden |
 | Remote correlated rejection with no changed readback | `rejected` |
-| Send may have occurred but cancellation, timeout, disconnect, or restart prevents trustworthy observation | `outcome_unknown` |
 | Trustworthy recovery READ after possible send equals the verified before-image | `no_effect`, with `protocol_accepted=null`, retained uncertainty evidence, and non-retriable `no_effect` error |
 | Trustworthy recovery READ after possible send equals the requested value | `applied` or governed `probe_active`, with `protocol_accepted=null`, retained uncertainty evidence, and verified requested-value equality |
 | Readback differs from both expected values | `conflict` and global write quarantine |
