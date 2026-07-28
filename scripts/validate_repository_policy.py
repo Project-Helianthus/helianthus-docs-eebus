@@ -501,6 +501,30 @@ ISSUE84_UNBOUND_NOT_FOUND_SOURCE_LAYERS = (
     "eebusreg-runtime",
     "eebusreg-coordinator",
 )
+ISSUE84_LOCAL_SOURCE_HEADING = "## Local SPINE Protocol Source"
+ISSUE84_LOCAL_SOURCE_END_HEADING = "## `features.get`"
+ISSUE84_SOURCE_MULTIPLICITY_ACTIONS = frozenset(
+    {"add", "advertise", "allow", "create", "permit", "provision", "register", "use"}
+)
+ISSUE84_SOURCE_PROJECTION_ACTIONS = frozenset(
+    {
+        "allow",
+        "copy",
+        "emit",
+        "enter",
+        "export",
+        "expose",
+        "include",
+        "permit",
+        "project",
+        "publish",
+        "route",
+        "surface",
+    }
+)
+ISSUE84_SOURCE_LIFECYCLE_ACTIONS = frozenset(
+    {"allow", "move", "permit", "provision"}
+)
 ISSUE87_WAL_RESTORE_POLICY = {
     "recordValidator": "ValidateMutationV1",
     "recordValidation": "every-record-before-addressable",
@@ -4522,6 +4546,103 @@ def issue_76_secret_boundary_errors(value: object) -> list[str]:
     return errors
 
 
+def _issue_84_local_source_contradiction_errors(text: str) -> list[str]:
+    """Reject permissive contradictions inside the local-source contract window."""
+
+    if (
+        text.count(ISSUE84_LOCAL_SOURCE_HEADING) != 1
+        or text.count(ISSUE84_LOCAL_SOURCE_END_HEADING) != 1
+    ):
+        return [
+            f"{ISSUE76_API_REL}: issue-84 local source contract window is not unique"
+        ]
+
+    start = text.index(ISSUE84_LOCAL_SOURCE_HEADING)
+    end = text.find(ISSUE84_LOCAL_SOURCE_END_HEADING, start)
+    if end <= start:
+        return [
+            f"{ISSUE76_API_REL}: issue-84 local source contract window is malformed"
+        ]
+
+    violations: set[str] = set()
+    for _, unit in _semantic_units(text[start:end]):
+        tokens = _semantic_tokens(unit)
+        if not tokens:
+            continue
+
+        multiplicity = (
+            any(
+                token in {"additional", "another", "multiple", "second", "two"}
+                for token in tokens
+            )
+            or _contains_phrase(tokens, ("more", "than", "one"))
+        )
+        multiplicity_actions = _action_indices(
+            tokens,
+            ISSUE84_SOURCE_MULTIPLICITY_ACTIONS,
+        )
+        if (
+            multiplicity
+            and "generic" in tokens
+            and "client" in tokens
+            and any(token in {"feature", "source"} for token in tokens)
+            and multiplicity_actions
+            and _has_unnegated_action(tokens, multiplicity_actions)
+        ):
+            violations.add(
+                "issue-84 permits more than one local Generic/client source"
+            )
+
+        projection_surface = (
+            "graphql" in tokens
+            or ("semantic" in tokens and "projection" in tokens)
+            or (
+                "public" in tokens
+                and "redacted" in tokens
+                and "evidence" in tokens
+            )
+        )
+        projection_actions = _action_indices(
+            tokens,
+            ISSUE84_SOURCE_PROJECTION_ACTIONS,
+        )
+        if (
+            projection_surface
+            and any(token in {"feature", "local", "source"} for token in tokens)
+            and projection_actions
+            and _has_unnegated_action(tokens, projection_actions)
+        ):
+            violations.add(
+                "issue-84 permits local source projection into an excluded surface"
+            )
+
+        outside_lifecycle = (
+            _contains_phrase(tokens, ("before", "service", "setup"))
+            or _contains_phrase(tokens, ("prior", "to", "service", "setup"))
+            or _contains_phrase(tokens, ("after", "network", "start"))
+            or _contains_phrase(tokens, ("following", "network", "start"))
+            or (
+                "outside" in tokens
+                and "setup" in tokens
+                and "start" in tokens
+            )
+        )
+        lifecycle_actions = _action_indices(
+            tokens,
+            ISSUE84_SOURCE_LIFECYCLE_ACTIONS,
+        )
+        if (
+            outside_lifecycle
+            and lifecycle_actions
+            and _has_unnegated_action(tokens, lifecycle_actions)
+        ):
+            violations.add(
+                "issue-84 permits provisioning outside post-Setup/pre-Start"
+            )
+
+    return [f"{ISSUE76_API_REL}: {violation}" for violation in sorted(violations)]
+
+
 def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     """Validate the closed M6.25 raw feature machine contract."""
     path = root / ISSUE76_SCHEMA_REL
@@ -5588,6 +5709,7 @@ def issue_76_m625_raw_feature_errors(root: Path) -> list[str]:
     api = document_texts.get(ISSUE76_API_REL, "")
     if ISSUE76_SCHEMA_REL.name not in api:
         errors.append(f"{ISSUE76_API_REL}: issue-76 machine schema binding is missing")
+    errors.extend(_issue_84_local_source_contradiction_errors(api))
 
     errors.extend(_issue_76_machine_contract_errors(root))
     return errors

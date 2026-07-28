@@ -1550,6 +1550,107 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                     errors,
                 )
 
+    def test_validator_rejects_issue_84_local_source_contradictions(self) -> None:
+        def inject_projection(text: str, statement: str) -> str:
+            return text.replace(
+                (
+                    "topology, semantic projection, GraphQL, or "
+                    "public/redacted evidence. It changes"
+                ),
+                (
+                    "topology, semantic projection, GraphQL, or "
+                    f"public/redacted evidence. {statement} It changes"
+                ),
+                1,
+            )
+
+        projection_error = (
+            "issue-84 permits local source projection into an excluded surface"
+        )
+        mutations = {
+            "second Generic/client source": (
+                lambda text: text.replace(
+                    "\n## `features.get`",
+                    (
+                        "\nA second Generic/client source may be provisioned.\n\n"
+                        "## `features.get`"
+                    ),
+                    1,
+                ),
+                "issue-84 permits more than one local Generic/client source",
+            ),
+            "GraphQL projection": (
+                lambda text: inject_projection(
+                    text,
+                    "The local source may enter GraphQL.",
+                ),
+                projection_error,
+            ),
+            "semantic projection": (
+                lambda text: inject_projection(
+                    text,
+                    "The local source may enter semantic projection.",
+                ),
+                projection_error,
+            ),
+            "public-redacted evidence projection": (
+                lambda text: inject_projection(
+                    text,
+                    "The local source may enter public/redacted evidence.",
+                ),
+                projection_error,
+            ),
+            "outside lifecycle window": (
+                lambda text: text.replace(
+                    "existing CEM. That feature",
+                    (
+                        "existing CEM. Provisioning may occur before service "
+                        "Setup or after network Start. That feature"
+                    ),
+                    1,
+                ),
+                (
+                    "issue-84 permits provisioning outside "
+                    "post-Setup/pre-Start"
+                ),
+            ),
+        }
+        for name, (mutate, expected) in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_API_REL
+                original = path.read_text(encoding="utf-8")
+                mutated = mutate(original)
+                self.assertNotEqual(mutated, original)
+                path.write_text(mutated, encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(any(expected in error for error in errors), errors)
+
+    def test_validator_allows_valid_adjacent_issue_84_prohibitions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            path = repo / repository_policy.ISSUE76_API_REL
+            text = path.read_text(encoding="utf-8")
+            text = text.replace(
+                "\n## `features.get`",
+                (
+                    "\nNo second Generic/client source may be provisioned. "
+                    "The local source must not enter GraphQL, semantic "
+                    "projection, or public/redacted evidence. Provisioning "
+                    "must not occur before service Setup or after network "
+                    "Start.\n\n## `features.get`"
+                ),
+                1,
+            )
+            path.write_text(text, encoding="utf-8")
+
+            self.assertEqual(
+                repository_policy.issue_76_m625_raw_feature_errors(repo),
+                [],
+            )
+
     def test_validator_rejects_issue_87_boolean_checkpoint_weakening(self) -> None:
         definitions_and_states = {
             "MutationV1": ("reply_observed", "verify_pending"),
