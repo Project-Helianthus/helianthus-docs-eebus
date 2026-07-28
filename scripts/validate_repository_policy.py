@@ -358,6 +358,92 @@ ISSUE76_SECRET_BOUNDARY = {
 ISSUE76_SECRET_KEY_COMPACT_DENYLIST = {
     value.replace("_", "") for value in ISSUE76_SECRET_DENYLIST
 }
+ISSUE82_CANONICAL_DTO_VALIDATORS = (
+    "ValidateFeatureDataSetRequestV1",
+    "ValidateMutationGetRequestV1",
+    "ValidateMutationRollbackRequestV1",
+    "ValidateFeaturesGetDataV1",
+    "ValidateFeatureDataGetDataV1",
+    "ValidateMutationV1",
+)
+ISSUE82_CANONICAL_DTO_VALIDATOR_SIGNATURES = {
+    "ValidateFeatureDataSetRequestV1": (
+        "func ValidateFeatureDataSetRequestV1"
+        "(request FeatureDataSetRequestV1) *ErrorV1"
+    ),
+    "ValidateMutationGetRequestV1": (
+        "func ValidateMutationGetRequestV1(request MutationGetRequestV1) *ErrorV1"
+    ),
+    "ValidateMutationRollbackRequestV1": (
+        "func ValidateMutationRollbackRequestV1"
+        "(request MutationRollbackRequestV1) *ErrorV1"
+    ),
+    "ValidateFeaturesGetDataV1": (
+        "func ValidateFeaturesGetDataV1"
+        "(request FeaturesGetRequestV1, data FeaturesGetDataV1) *ErrorV1"
+    ),
+    "ValidateFeatureDataGetDataV1": (
+        "func ValidateFeatureDataGetDataV1"
+        "(request FeatureDataGetRequestV1, data FeatureDataGetDataV1, "
+        "terminal *ErrorV1) *ErrorV1"
+    ),
+    "ValidateMutationV1": "func ValidateMutationV1(mutation MutationV1) *ErrorV1",
+}
+ISSUE82_GATEWAY_RESIDUAL_RESPONSIBILITIES = (
+    "duplicate-key rejection before typed decoding",
+    (
+        "boundary-derived authorization snapshot with exact principal_class, "
+        "scope, tool, and raw mask tier"
+    ),
+    "public denial before provider, router, or runtime contact",
+    "undecodable-input request nulling without raw-input echo",
+    "canonical validator invocation and runtime-bound envelope construction",
+    "public-safe error rendering and separate redacted evidence projection",
+)
+ISSUE82_PRE_BINDING_ERROR_CODES = (
+    "invalid_argument",
+    "permission_denied",
+    "unsupported_operation",
+    "partial_operation_forbidden",
+    "secret_detected",
+    "internal",
+)
+ISSUE82_POST_BINDING_ERROR_CODES = (
+    "constraints_unknown",
+    "constraint_failure",
+    "stale_read_token",
+    "cas_mismatch",
+    "runtime_epoch_mismatch",
+    "connection_generation_mismatch",
+    "idempotency_conflict",
+    "writer_busy",
+    "timeout",
+    "cancelled",
+    "disconnected",
+    "remote_error",
+    "decode_error",
+    "partial_result",
+    "no_effect",
+    "outcome_unknown",
+    "conflict",
+    "rollback_failed",
+    "not_found",
+)
+ISSUE87_WAL_RESTORE_POLICY = {
+    "recordValidator": "ValidateMutationV1",
+    "recordValidation": "every-record-before-addressable",
+    "precontractReference": "mutation:v1:<64-lowercase-hex>",
+    "precontractReferenceAction": "reject",
+    "semanticallyInvalidRecordAction": "reject",
+    "restoreFailureAction": "reject-record-and-leave-coordinator-unavailable",
+    "invalidWalBytes": "preserve-without-rewrite-or-migration",
+    "validConflictStateAction": "restore-global-write-quarantine",
+    "compatibility": {
+        "legacyStableApi": False,
+        "aliases": False,
+        "v2": False,
+    },
+}
 ISSUE76_PRIVATE_PEM_PATTERN = re.compile(
     r"-----BEGIN\s+(?:[A-Z0-9]+\s+)*PRIVATE\s+KEY-----",
     re.IGNORECASE,
@@ -389,6 +475,35 @@ ISSUE76_M6_LOCKED_ARTIFACTS = {
         "8c0fc76cc76873dc2d49092aded65b3b"
     ),
 }
+ISSUE82_REQUIRED_API_MARKERS = (
+    "The six additive canonical validators are exported by",
+    *ISSUE82_CANONICAL_DTO_VALIDATOR_SIGNATURES.values(),
+    "The gateway retains duplicate-key rejection before typed decoding",
+    "exact immutable authorization snapshot",
+    "Public evidence remains a separate redacted projection",
+    (
+        "`EnvelopeMetaV1.runtime` contains that positive binding whenever "
+        "the command path has admitted a runtime generation"
+    ),
+    "The only codes compatible with `meta.runtime=null` are",
+    "Every `constraints_unknown`",
+    "arbitrary malformed input is never reflected into the raw response",
+    (
+        "`reply_observed` and `verify_pending` require the non-null correlated "
+        "`protocol_accepted` boolean and permit either `true` or `false`"
+    ),
+    (
+        "`rollback_reply_observed` and `rollback_verify_pending` require the "
+        "nested rollback `protocol_accepted` to be a non-null correlated boolean"
+    ),
+    "Recovery after restart from either durable pending state performs this readback",
+    "`mutation:v1:<64-lowercase-hex>` reference or any semantically invalid WAL record",
+    "invalid WAL bytes are preserved without silent migration or rewrite",
+    (
+        "There is no legacy stable API support, compatibility alias, v2 surface, "
+        "WAL migration, or fallback decoder"
+    ),
+)
 ISSUE76_REQUIRED_MARKERS = {
     ISSUE76_PROTOCOL_REL: (
         "topology says which feature functions and possible operations",
@@ -427,8 +542,9 @@ ISSUE76_REQUIRED_MARKERS = {
         "`mode=probe`",
         "`rawmutationruntimev1`",
         "authscopev1rawwrite",
+        *ISSUE82_REQUIRED_API_MARKERS,
         "noeffectverificationv1",
-        "a correlated no-error response sets `protocol_accepted=true` but cannot set state `applied`",
+        "a correlated reply records `protocol_accepted` as a boolean, including `false`",
         "`partial_result`",
         "`candidate_ref`, partial operations, selectors, `filterdelete`, invoke, graphql, portal, home assistant, semantic promotion, v2, aliases, and legacy compatibility are out of scope",
     ),
@@ -4698,6 +4814,40 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             f"{ISSUE76_SCHEMA_REL}: issue-76 mutation state oneOf is not exact"
         )
 
+    pending_evidence = {
+        "rollback",
+        "error",
+        "apply_verification",
+        "conflict_evidence",
+        "no_contact_evidence",
+        "rejection_verification",
+        "outcome_evidence",
+    }
+    for state in ("reply_observed", "verify_pending"):
+        variant = mutation_by_state.get(state)
+        variant_properties = (
+            variant.get("properties", {}) if isinstance(variant, dict) else {}
+        )
+        exclusion = variant.get("not") if isinstance(variant, dict) else None
+        alternatives = (
+            exclusion.get("anyOf", []) if isinstance(exclusion, dict) else []
+        )
+        excluded_fields = {
+            next(iter(required))
+            for candidate in alternatives
+            if isinstance(candidate, dict)
+            and len(required := set(candidate.get("required", []))) == 1
+        }
+        if (
+            variant_properties.get("protocol_accepted") != {"type": "boolean"}
+            or variant_properties.get("observed_after") != {"type": "null"}
+            or excluded_fields != pending_evidence
+        ):
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-87 correlated {state} "
+                "boolean checkpoint is not exact"
+            )
+
     terminal_evidence = {
         "applied": {"apply_verification"},
         "rolled_back": {"apply_verification", "rollback"},
@@ -4874,8 +5024,8 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
 
     rollback = definitions.get("RollbackV1")
     rollback_variants = rollback.get("oneOf", []) if isinstance(rollback, dict) else []
-    rollback_states = {
-        state_schema["const"]
+    rollback_by_state = {
+        state_schema["const"]: variant
         for variant in rollback_variants
         if isinstance(variant, dict)
         and isinstance(variant.get("properties"), dict)
@@ -4885,15 +5035,54 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         )
         and isinstance(state_schema.get("const"), str)
     }
-    if rollback_states != {
-        "rollback_intent",
-        "rollback_dispatch_intent",
-        "rollback_reply_observed",
-        "rollback_verify_pending",
-        "rolled_back",
-    }:
+    if (
+        len(rollback_variants) != 5
+        or set(rollback_by_state)
+        != {
+            "rollback_intent",
+            "rollback_dispatch_intent",
+            "rollback_reply_observed",
+            "rollback_verify_pending",
+            "rolled_back",
+        }
+    ):
         errors.append(
             f"{ISSUE76_SCHEMA_REL}: issue-76 rollback state oneOf is not exact"
+        )
+    for state in ("rollback_reply_observed", "rollback_verify_pending"):
+        variant = rollback_by_state.get(state)
+        variant_properties = (
+            variant.get("properties", {}) if isinstance(variant, dict) else {}
+        )
+        exclusion = variant.get("not") if isinstance(variant, dict) else None
+        alternatives = (
+            exclusion.get("anyOf", []) if isinstance(exclusion, dict) else []
+        )
+        excluded_fields = {
+            next(iter(required))
+            for candidate in alternatives
+            if isinstance(candidate, dict)
+            and len(required := set(candidate.get("required", []))) == 1
+        }
+        if (
+            variant_properties.get("protocol_accepted") != {"type": "boolean"}
+            or variant_properties.get("observed_after") != {"type": "null"}
+            or excluded_fields != {"verification", "error"}
+        ):
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-87 correlated {state} "
+                "boolean checkpoint is not exact"
+            )
+    rolled_back_rollback = rollback_by_state.get("rolled_back")
+    rolled_back_rollback_properties = (
+        rolled_back_rollback.get("properties", {})
+        if isinstance(rolled_back_rollback, dict)
+        else {}
+    )
+    if "protocol_accepted" in rolled_back_rollback_properties:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-87 rolled_back must preserve nullable "
+            "correlated acceptance"
         )
 
     envelope = definitions.get("EnvelopeV1")
@@ -4916,6 +5105,199 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             return reference.removeprefix(prefix)
         return None
 
+    def nullable_ref_name(candidate: object) -> str | None:
+        direct = ref_name(candidate)
+        if direct is not None:
+            return direct
+        if not isinstance(candidate, dict) or not isinstance(
+            variants := candidate.get("oneOf"), list
+        ):
+            return None
+        references = {
+            name for variant in variants if (name := ref_name(variant)) is not None
+        }
+        null_count = sum(
+            isinstance(variant, dict) and variant.get("type") == "null"
+            for variant in variants
+        )
+        if len(variants) != 2 or len(references) != 1 or null_count != 1:
+            return None
+        return f"{references.pop()}|null"
+
+    meta_runtime = (
+        definitions.get("EnvelopeMetaV1", {})
+        .get("properties", {})
+        .get("runtime", {})
+    )
+    if nullable_ref_name(meta_runtime) != "RuntimeBindingV1|null":
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-82 pre-runtime binding is not exact"
+        )
+
+    expected_dto_validation = {
+        "owner": "Project-Helianthus/helianthus-eebusreg/eebusraw",
+        "requestValidators": list(ISSUE82_CANONICAL_DTO_VALIDATORS[:3]),
+        "resultValidators": list(ISSUE82_CANONICAL_DTO_VALIDATORS[3:]),
+        "signatures": ISSUE82_CANONICAL_DTO_VALIDATOR_SIGNATURES,
+        "gatewayResidualResponsibilities": list(
+            ISSUE82_GATEWAY_RESIDUAL_RESPONSIBILITIES
+        ),
+        "gatewayMustNotReimplement": "closed DTO semantics",
+    }
+    if schema.get("x-canonical-dto-validation") != expected_dto_validation:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-82 canonical DTO validator inventory is not exact"
+        )
+
+    if schema.get("x-wal-restore-policy") != ISSUE87_WAL_RESTORE_POLICY:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-87 WAL restore policy is not exact"
+        )
+
+    expected_error_code_definitions = {
+        "PreBindingErrorCodeV1": list(ISSUE82_PRE_BINDING_ERROR_CODES),
+        "PostBindingErrorCodeV1": list(ISSUE82_POST_BINDING_ERROR_CODES),
+    }
+    for definition_name, expected_codes in expected_error_code_definitions.items():
+        if definitions.get(definition_name) != {
+            "type": "string",
+            "enum": expected_codes,
+        }:
+            errors.append(
+                f"{ISSUE76_SCHEMA_REL}: issue-82 {definition_name} is not exact"
+            )
+
+    error_code_definition = definitions.get("ErrorCodeV1")
+    classified_error_codes = {
+        *ISSUE82_PRE_BINDING_ERROR_CODES,
+        *ISSUE82_POST_BINDING_ERROR_CODES,
+    }
+    if (
+        not isinstance(error_code_definition, dict)
+        or error_code_definition.get("type") != "string"
+        or set(error_code_definition.get("enum", [])) != classified_error_codes
+        or set(ISSUE82_PRE_BINDING_ERROR_CODES)
+        & set(ISSUE82_POST_BINDING_ERROR_CODES)
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-82 error binding partition is not exact"
+        )
+
+    expected_envelope_implications = [
+        {
+            "if": {
+                "properties": {"error": {"type": "null"}},
+                "required": ["error"],
+            },
+            "then": {
+                "properties": {
+                    "meta": {
+                        "properties": {
+                            "runtime": {"$ref": "#/$defs/RuntimeBindingV1"}
+                        }
+                    },
+                    "request": {"not": {"type": "null"}},
+                }
+            },
+        },
+        {
+            "if": {
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {"code": {"const": "partial_result"}},
+                        "required": ["code"],
+                    }
+                },
+                "required": ["error"],
+            },
+            "then": {
+                "properties": {
+                    "meta": {
+                        "properties": {
+                            "runtime": {"$ref": "#/$defs/RuntimeBindingV1"}
+                        }
+                    },
+                    "request": {"not": {"type": "null"}},
+                }
+            },
+        },
+        {
+            "if": {
+                "properties": {"request": {"type": "null"}},
+                "required": ["request"],
+            },
+            "then": {
+                "properties": {
+                    "meta": {"properties": {"runtime": {"type": "null"}}},
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "code": {"const": "invalid_argument"},
+                            "source_layer": {"const": "mcp"},
+                        },
+                        "required": ["code", "source_layer"],
+                    },
+                }
+            },
+        },
+        {
+            "if": {
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "properties": {"runtime": {"type": "null"}},
+                        "required": ["runtime"],
+                    }
+                },
+                "required": ["meta"],
+            },
+            "then": {
+                "properties": {
+                    "error": {
+                        "$ref": "#/$defs/ErrorV1",
+                        "properties": {
+                            "code": {"$ref": "#/$defs/PreBindingErrorCodeV1"},
+                            "source_layer": {
+                                "enum": ["mcp", "gateway-router"]
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        {
+            "if": {
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "code": {"$ref": "#/$defs/PostBindingErrorCodeV1"}
+                        },
+                        "required": ["code"],
+                    }
+                },
+                "required": ["error"],
+            },
+            "then": {
+                "properties": {
+                    "meta": {
+                        "properties": {
+                            "runtime": {"$ref": "#/$defs/RuntimeBindingV1"}
+                        }
+                    }
+                }
+            },
+        },
+    ]
+    if (
+        not isinstance(envelope, dict)
+        or envelope.get("allOf") != expected_envelope_implications
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-82 envelope implications are not exact"
+        )
+
     envelope_signatures: set[tuple[str, str, str, str, str, str]] = set()
     for variant in envelope_variants:
         if not isinstance(variant, dict) or not isinstance(
@@ -4928,7 +5310,7 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         tool = meta_properties.get("tool", {}).get("const")
         scope = meta_properties.get("scope", {}).get("const")
         auth_scope = meta_properties.get("auth_scope", {}).get("const")
-        request_name = ref_name(variant_properties.get("request"))
+        request_name = nullable_ref_name(variant_properties.get("request"))
         data_schema = variant_properties.get("data")
         data_name = (
             "null"
@@ -4975,17 +5357,17 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         request_name = contract["request"]
         data_name = contract["data"]
         expected_envelope_signatures.add(
-            (tool, scope, scope, request_name, data_name, "null")
+            (tool, scope, scope, f"{request_name}|null", data_name, "null")
         )
         expected_envelope_signatures.add(
-            (tool, scope, scope, request_name, "null", "ErrorV1")
+            (tool, scope, scope, f"{request_name}|null", "null", "ErrorV1")
         )
     expected_envelope_signatures.add(
         (
             "eebus.v1.features.data.get",
             "eebus.raw.read",
             "eebus.raw.read",
-            "FeatureDataGetRequestV1",
+            "FeatureDataGetRequestV1|null",
             "FeatureDataGetDataV1",
             "ErrorV1:partial_result",
         )
