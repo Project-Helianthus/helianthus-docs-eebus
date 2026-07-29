@@ -6095,7 +6095,7 @@ def issue_96_spine13_hvac_model_erratum_errors(root: Path) -> list[str]:
             errors.append(f"{relative}: issue-96 exact {key} block missing or duplicated")
             continue
         try:
-            document = yaml.safe_load(matches[0])
+            document = yaml.load(matches[0], Loader=UniqueKeySafeLoader)
         except yaml.YAMLError:
             errors.append(f"{relative}: issue-96 malformed {key} block")
             continue

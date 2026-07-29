@@ -140,6 +140,36 @@ class Issue96Spine13HvacModelErratumContractTests(unittest.TestCase):
                     errors,
                 )
 
+    def test_policy_rejects_duplicate_contract_keys(self) -> None:
+        cases = (
+            (
+                Path("evidence/EV-20260730-001.md"),
+                "  implementation: SPINE 1.3",
+                "  implementation: SPINE 1.4\n  implementation: SPINE 1.3",
+                "public_version_hunk_binding",
+            ),
+            (
+                Path("evidence/EV-20260730-002.md"),
+                "  declared: 49",
+                "  declared: 50\n  declared: 49",
+                "public_baseline_commitment",
+            ),
+        )
+        for relative, before, after, key in cases:
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / relative
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(before, text)
+                path.write_text(text.replace(before, after, 1), encoding="utf-8")
+
+                errors = repository_policy.issue_96_spine13_hvac_model_erratum_errors(repo)
+
+                self.assertIn(
+                    f"{relative}: issue-96 malformed {key} block",
+                    errors,
+                )
+
     def test_policy_rejects_missing_provenance_or_baseline_evidence(self) -> None:
         for relative in repository_policy.ISSUE96_EVIDENCE_RELS:
             with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
