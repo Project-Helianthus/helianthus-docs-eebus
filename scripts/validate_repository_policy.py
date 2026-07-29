@@ -310,6 +310,8 @@ ISSUE96_REQUIRED_MARKERS = {
     "classification boundary": "non_empty_reply_observed",
     "falsifier boundary": "typed-empty result is treated as a successful non-empty reply",
     "raw/redacted boundary": "raw/operator versus public-redacted rules remain unchanged",
+    "version hunk binding": "binds every admitted revision to upstream's public SPINE 1.3 README claim",
+    "baseline commitment": "three public SHA-256 commitments",
 }
 ISSUE76_PROTOCOL_REL = Path(
     "protocols/_candidate/msp-0625-feature-data-acquisition.md"
@@ -937,10 +939,59 @@ ISSUE96_PUBLIC_SOURCE_COMMITS = {
     "4f986b14324a0d9ed719121b82c2621d50f58303",
     "9970150f6d81ffa06605fecddedcdf0e38174543",
 }
+ISSUE96_PUBLIC_VERSION_HUNK_BINDING = {
+    "repository": "github.com/enbility/spine-go",
+    "implementation": "SPINE 1.3",
+    "advertised_specification_version": "1.3.0",
+    "revisions": [
+        "d5f89c767706ef411fc622cd6771c479b7fd1b26",
+        "a6cb0727a1509dd04454c8e8edce899f4111fb3a",
+        "4f986b14324a0d9ed719121b82c2621d50f58303",
+        "9970150f6d81ffa06605fecddedcdf0e38174543",
+    ],
+    "source_paths": ["README.md", "spine/const.go"],
+    "bounded_scopes": {
+        "d5f89c767706ef411fc622cd6771c479b7fd1b26": (
+            "setpoint_hvac_model_and_factory_only"
+        ),
+        "a6cb0727a1509dd04454c8e8edce899f4111fb3a": "hvac_cardinality_only",
+        "4f986b14324a0d9ed719121b82c2621d50f58303": (
+            "hvac_operation_mode_selector_hunk_only"
+        ),
+        "9970150f6d81ffa06605fecddedcdf0e38174543": (
+            "setpoint_measurement_and_timetable_identifier_types_only"
+        ),
+    },
+    "excluded": [
+        "spine_1_4",
+        "wholesale_upstream_dev",
+        "key_tags_and_update_engine",
+        "unrelated_hunks",
+    ],
+}
+ISSUE96_PUBLIC_BASELINE_HASHES = {
+    "declarations": "6ff2d9061dab29b32ed2914377aabea0b2a1dcb8c7345023f7e5870442a553b8",
+    "targets": "00cd8388b5f384c0d77a56c2de59045f0514759f115c05a44544f7abbee3aa43",
+    "result_table": "f106bb5ba09ff7bb14230fac48113dedce152e5887d6b2a27beaf3b0998d7cf9",
+}
+ISSUE96_PUBLIC_BASELINE_COMMITMENT = {
+    "schema": "helianthus.eebus.spine13-read-baseline.v1",
+    "operation": "READ",
+    "declared": 49,
+    "success": 26,
+    "failure": 23,
+    "private_artifact_retained": "yes",
+    "custody": "owner_only_not_published",
+    "evidence_sha256": ISSUE96_PUBLIC_BASELINE_HASHES,
+}
 ISSUE96_PROVENANCE_TEXT_FINGERPRINTS = {
     "evidence/EV-20260730-001.md": ISSUE96_PUBLIC_SOURCE_COMMITS,
+    "evidence/EV-20260730-002.md": set(ISSUE96_PUBLIC_BASELINE_HASHES.values()),
     "protocols/_candidate/msp-096-spine13-hvac-model-erratum.md": ISSUE96_PUBLIC_SOURCE_COMMITS,
-    "scripts/validate_repository_policy.py": ISSUE96_PUBLIC_SOURCE_COMMITS,
+    "scripts/validate_repository_policy.py": (
+        ISSUE96_PUBLIC_SOURCE_COMMITS
+        | set(ISSUE96_PUBLIC_BASELINE_HASHES.values())
+    ),
 }
 PROVENANCE_TEXT_FINGERPRINTS = {
     **MSP055_PROVENANCE_TEXT_FINGERPRINTS,
@@ -6018,6 +6069,38 @@ def issue_96_spine13_hvac_model_erratum_errors(root: Path) -> list[str]:
     for source_commit in ISSUE96_PUBLIC_SOURCE_COMMITS:
         if source_commit not in normalized:
             errors.append(f"{ISSUE96_CANDIDATE_REL}: issue-96 public source pin is missing")
+
+    contracts = (
+        (
+            Path("evidence/EV-20260730-001.md"),
+            "public_version_hunk_binding",
+            ISSUE96_PUBLIC_VERSION_HUNK_BINDING,
+        ),
+        (
+            Path("evidence/EV-20260730-002.md"),
+            "public_baseline_commitment",
+            ISSUE96_PUBLIC_BASELINE_COMMITMENT,
+        ),
+    )
+    for relative, key, expected in contracts:
+        path = root / relative
+        if not path.is_file() or path.is_symlink():
+            continue
+        matches = re.findall(
+            rf"```yaml\r?\n({re.escape(key)}:\r?\n.*?)\r?\n```",
+            _read(path),
+            re.DOTALL,
+        )
+        if len(matches) != 1:
+            errors.append(f"{relative}: issue-96 exact {key} block missing or duplicated")
+            continue
+        try:
+            document = yaml.safe_load(matches[0])
+        except yaml.YAMLError:
+            errors.append(f"{relative}: issue-96 malformed {key} block")
+            continue
+        if document != {key: expected}:
+            errors.append(f"{relative}: issue-96 {key} contract drift")
     return errors
 
 

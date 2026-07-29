@@ -48,6 +48,8 @@ class Issue96Spine13HvacModelErratumContractTests(unittest.TestCase):
                 "classification boundary",
                 "falsifier boundary",
                 "raw/redacted boundary",
+                "version hunk binding",
+                "baseline commitment",
             },
         )
 
@@ -76,6 +78,67 @@ class Issue96Spine13HvacModelErratumContractTests(unittest.TestCase):
                 errors = repository_policy.issue_96_spine13_hvac_model_erratum_errors(repo)
 
                 self.assertIn(f"{candidate}: issue-96 missing {name} marker", errors)
+
+    def test_policy_rejects_version_or_hunk_binding_drift(self) -> None:
+        relative = Path("evidence/EV-20260730-001.md")
+        mutations = (
+            ("implementation: SPINE 1.3", "implementation: SPINE 1.4"),
+            (
+                "advertised_specification_version: \"1.3.0\"",
+                "advertised_specification_version: \"1.4.0\"",
+            ),
+            (
+                "hvac_operation_mode_selector_hunk_only",
+                "all_hunks_from_commit",
+            ),
+            ("- spine/const.go", "- model/commandframe.go"),
+        )
+        for before, after in mutations:
+            with self.subTest(before=before), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / relative
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(before, text)
+                path.write_text(text.replace(before, after, 1), encoding="utf-8")
+
+                errors = repository_policy.issue_96_spine13_hvac_model_erratum_errors(repo)
+
+                self.assertIn(
+                    f"{relative}: issue-96 public_version_hunk_binding contract drift",
+                    errors,
+                )
+
+    def test_policy_rejects_baseline_or_custody_commitment_drift(self) -> None:
+        relative = Path("evidence/EV-20260730-002.md")
+        retained_field = "private_artifact_" + "retained"
+        mutations = (
+            ("declared: 49", "declared: 50"),
+            ("success: 26", "success: 27"),
+            ("failure: 23", "failure: 22"),
+            (
+                f'{retained_field}: "yes"',
+                f'{retained_field}: "no"',
+            ),
+            ("custody: owner_only_not_published", "custody: public"),
+            (
+                repository_policy.ISSUE96_PUBLIC_BASELINE_HASHES["result_table"],
+                "0" * 64,
+            ),
+        )
+        for before, after in mutations:
+            with self.subTest(before=before), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / relative
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(before, text)
+                path.write_text(text.replace(before, after, 1), encoding="utf-8")
+
+                errors = repository_policy.issue_96_spine13_hvac_model_erratum_errors(repo)
+
+                self.assertIn(
+                    f"{relative}: issue-96 public_baseline_commitment contract drift",
+                    errors,
+                )
 
     def test_policy_rejects_missing_provenance_or_baseline_evidence(self) -> None:
         for relative in repository_policy.ISSUE96_EVIDENCE_RELS:

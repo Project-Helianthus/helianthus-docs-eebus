@@ -31,6 +31,10 @@ redacted comparison baseline in
 [EV-20260730-002](../../evidence/EV-20260730-002.md). Public upstream
 implementation evidence can justify this bounded implementation candidate; it
 does not independently prove conformance to a normative SPINE specification.
+EV-20260730-001 binds every admitted revision to upstream's public SPINE 1.3
+README claim and advertised `1.3.0` wire constant. EV-20260730-002 binds the
+aggregate baseline to three public SHA-256 commitments while retaining the
+preimages only under the owner-authorized boundary.
 
 Only SPINE 1.3 model corrections named below are candidates. SPINE 1.4 and a
 wholesale upstream-dev merge are outside this patch.
