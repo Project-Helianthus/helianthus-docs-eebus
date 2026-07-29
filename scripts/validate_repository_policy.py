@@ -400,15 +400,11 @@ ISSUE82_GATEWAY_RESIDUAL_RESPONSIBILITIES = (
     "canonical validator invocation and runtime-bound envelope construction",
     "public-safe error rendering and separate redacted evidence projection",
 )
-ISSUE82_PRE_BINDING_ERROR_CODES = (
+ISSUE92_ERROR_CODES = (
     "invalid_argument",
     "permission_denied",
     "unsupported_operation",
     "partial_operation_forbidden",
-    "secret_detected",
-    "internal",
-)
-ISSUE82_POST_BINDING_ERROR_CODES = (
     "constraints_unknown",
     "constraint_failure",
     "stale_read_token",
@@ -428,9 +424,8 @@ ISSUE82_POST_BINDING_ERROR_CODES = (
     "conflict",
     "rollback_failed",
     "not_found",
-)
-ISSUE84_ALWAYS_BOUND_ERROR_CODES = tuple(
-    code for code in ISSUE82_POST_BINDING_ERROR_CODES if code != "not_found"
+    "secret_detected",
+    "internal",
 )
 ISSUE84_RUNTIME_ADMISSION = {
     "definition": "complete-only-after-all-ordered-checks",
@@ -461,12 +456,25 @@ ISSUE84_RUNTIME_ADMISSION = {
             "failureCode": "connection_generation_mismatch",
         },
     ],
-    "zeroDataUnboundNotFound": [
-        "inventory-miss",
-        "status-miss",
-        "target-resolution-miss",
-        "unknown-mutation-reference",
-    ],
+    "errorBinding": {
+        "determinedBy": "operation-stage",
+        "carrier": "typed-runtime-outcome",
+        "postErrorRuntimeLookup": False,
+        "fabricatedBinding": False,
+        "sameCodeMayBeBoundOrUnbound": True,
+        "unboundSourceLayers": [
+            "mcp",
+            "gateway-router",
+            "eebusreg-runtime",
+            "eebusreg-coordinator",
+        ],
+        "postDispatchSourceLayers": [
+            "remote",
+            "spine-go-round-trip",
+            "ship-session",
+            "eebus-go-executor",
+        ],
+    },
     "positiveBindingRequiredFor": [
         "success",
         "partial-result",
@@ -497,10 +505,6 @@ ISSUE84_NATIVE_FEATURE_TYPE = {
     "examples": ["Measurement"],
     "x-topologyMatch": "exact-current-topology-value-no-alias",
 }
-ISSUE84_UNBOUND_NOT_FOUND_SOURCE_LAYERS = (
-    "eebusreg-runtime",
-    "eebusreg-coordinator",
-)
 ISSUE84_LOCAL_SOURCE_HEADING = "## Local SPINE Protocol Source"
 ISSUE84_LOCAL_SOURCE_END_HEADING = "## `features.get`"
 ISSUE84_SOURCE_MULTIPLICITY_ACTIONS = frozenset(
@@ -699,11 +703,19 @@ ISSUE84_REQUIRED_API_MARKERS = (
     "lowercase `measurement` is invalid and is not an alias",
     "Runtime admission is complete only after all five checks below succeed",
     "The rows are exhaustive and use first-failure precedence",
-    "A well-formed zero-data inventory, status, or target-resolution miss",
-    "unknown well-formed mutation reference",
-    "may terminate as `not_found` with `data=null` and `meta.runtime=null`",
-    "The other codes compatible with `meta.runtime=null` are",
-    "Every `constraints_unknown`",
+    "Binding presence is determined by the operation stage, not by the error code",
+    "An authenticated read token can supply its signed binding",
+    "A malformed or unknown token supplies no binding",
+    "A post-error runtime lookup is forbidden",
+    "must not fabricate a `MutationV1`, infer binding from an error code",
+    (
+        "When `meta.runtime` is null, `source_layer` is limited to `mcp`, "
+        "`gateway-router`, `eebusreg-runtime`, or `eebusreg-coordinator`"
+    ),
+    (
+        "An error from `eebus-go-executor`, `spine-go-round-trip`, "
+        "`ship-session`, or `remote` proves that dispatch was reached"
+    ),
     (
         "Every success, partial result, returned `MutationV1`, and error "
         "envelope that accompanies bound data requires a positive runtime binding"
@@ -5643,34 +5655,39 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             f"{ISSUE76_SCHEMA_REL}: issue-87 WAL restore policy is not exact"
         )
 
-    expected_error_code_definitions = {
-        "PreBindingErrorCodeV1": list(ISSUE82_PRE_BINDING_ERROR_CODES),
-        "PostBindingErrorCodeV1": list(ISSUE84_ALWAYS_BOUND_ERROR_CODES),
-    }
-    for definition_name, expected_codes in expected_error_code_definitions.items():
-        if definitions.get(definition_name) != {
-            "type": "string",
-            "enum": expected_codes,
-        }:
+    for obsolete_definition in (
+        "PreBindingErrorCodeV1",
+        "PostBindingErrorCodeV1",
+    ):
+        if obsolete_definition in definitions:
             errors.append(
-                f"{ISSUE76_SCHEMA_REL}: issue-82 {definition_name} is not exact"
+                f"{ISSUE76_SCHEMA_REL}: issue-92 error binding must not be classified by code"
             )
 
     error_code_definition = definitions.get("ErrorCodeV1")
-    classified_error_codes = {
-        *ISSUE82_PRE_BINDING_ERROR_CODES,
-        *ISSUE84_ALWAYS_BOUND_ERROR_CODES,
-        "not_found",
-    }
     if (
         not isinstance(error_code_definition, dict)
         or error_code_definition.get("type") != "string"
-        or set(error_code_definition.get("enum", [])) != classified_error_codes
-        or set(ISSUE82_PRE_BINDING_ERROR_CODES)
-        & set(ISSUE84_ALWAYS_BOUND_ERROR_CODES)
+        or error_code_definition.get("enum") != list(ISSUE92_ERROR_CODES)
     ):
         errors.append(
-            f"{ISSUE76_SCHEMA_REL}: issue-84 error binding classification is not exact"
+            f"{ISSUE76_SCHEMA_REL}: issue-92 error vocabulary is not exact"
+        )
+
+    unbound_source_layer = definitions.get("UnboundErrorSourceLayerV1")
+    if (
+        not isinstance(unbound_source_layer, dict)
+        or unbound_source_layer.get("type") != "string"
+        or unbound_source_layer.get("enum")
+        != [
+            "mcp",
+            "gateway-router",
+            "eebusreg-runtime",
+            "eebusreg-coordinator",
+        ]
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-92 unbound error source layers are not exact"
         )
 
     expected_envelope_implications = [
@@ -5735,7 +5752,6 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             "if": {
                 "properties": {
                     "meta": {
-                        "type": "object",
                         "properties": {"runtime": {"type": "null"}},
                         "required": ["runtime"],
                     }
@@ -5745,53 +5761,13 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             "then": {
                 "properties": {
                     "error": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/$defs/ErrorV1",
-                                "properties": {
-                                    "code": {
-                                        "$ref": "#/$defs/PreBindingErrorCodeV1"
-                                    },
-                                    "source_layer": {
-                                        "enum": ["mcp", "gateway-router"]
-                                    },
-                                },
-                            },
-                            {
-                                "$ref": "#/$defs/ErrorV1",
-                                "properties": {
-                                    "code": {"const": "not_found"},
-                                    "source_layer": {
-                                        "enum": list(
-                                            ISSUE84_UNBOUND_NOT_FOUND_SOURCE_LAYERS
-                                        )
-                                    },
-                                },
-                            },
-                        ]
-                    }
-                }
-            },
-        },
-        {
-            "if": {
-                "properties": {
-                    "error": {
                         "type": "object",
                         "properties": {
-                            "code": {"$ref": "#/$defs/PostBindingErrorCodeV1"}
+                            "source_layer": {
+                                "$ref": "#/$defs/UnboundErrorSourceLayerV1"
+                            }
                         },
-                        "required": ["code"],
-                    }
-                },
-                "required": ["error"],
-            },
-            "then": {
-                "properties": {
-                    "meta": {
-                        "properties": {
-                            "runtime": {"$ref": "#/$defs/RuntimeBindingV1"}
-                        }
+                        "required": ["source_layer"],
                     }
                 }
             },
@@ -5802,7 +5778,7 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         or envelope.get("allOf") != expected_envelope_implications
     ):
         errors.append(
-            f"{ISSUE76_SCHEMA_REL}: issue-84 envelope implications are not exact"
+            f"{ISSUE76_SCHEMA_REL}: issue-92 envelope implications are not exact"
         )
 
     envelope_signatures: set[tuple[str, str, str, str, str, str]] = set()
