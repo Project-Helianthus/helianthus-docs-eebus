@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260729-001"
 hypothesis_status: "draft"
-falsifier: "A final reviewed source or focused collision test for helianthus-ship-go pull request 23 shows that direction is not selected by the higher initiating identity key, that the losing inbound attempt reaches protocol activation while the winning outbound attempt is initiating, that inbound ownership follows data-pump startup, or that a pre-Run close permits a pump or more than one terminal close."
+falsifier: "A final reviewed source or focused collision test for helianthus-ship-go pull request 23 shows that direction is not selected by the higher initiating identity key, that the losing inbound attempt reaches protocol activation while the winning outbound attempt is initiating, that inbound ownership follows data-pump startup, or that a pre-Run close permits a pump or more than one terminal close; or a retained run record or bounded replay contradicts the reported four-cycle paired and connected outcome, absence of the prior collision signature, or final read-only SPINE reply."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -59,10 +59,11 @@ connection, registers it as the inbound owner, then calls `Run`. Registration
 therefore precedes data-pump initialization. A connection rejected by the
 collision rule is closed instead of entering that activation path.
 
-The reviewed lifecycle follow-up adds the same boundary to the
-registration-to-Run interval: if shutdown wins after registration, registration
-closes and rejects the connection; `Run` must not initialize data processing
-after that terminal close.
+The reviewed lifecycle follow-up also covers the registration-to-Run interval.
+If shutdown has already won, `registerInboundConnection` rejects the
+connection. If shutdown begins after successful registration, `beginShutdown`
+removes the accepted connection and `Shutdown` closes it; a later `Run` must
+not initialize data processing after that terminal close.
 
 ## Terminal Pre-Run Behavior
 
@@ -105,6 +106,11 @@ The following are direct falsifiers for this candidate:
 4. After shutdown or a competing replacement closes an inbound connection before
    `Run`, invoking `Run` starts a pump, or either the data close or the Hub
    terminal callback occurs other than exactly once.
+5. A retained run record or a bounded replay under the same runtime conditions
+   shows that any reported cycle did not return to one paired, connected
+   session, emitted the prior collision signature, or failed to complete the
+   reported final read-only SPINE reply while durable mutation state remained
+   empty.
 
 The corresponding source locators and their current evidence limits are kept
 in [EV-20260729-001](../../evidence/EV-20260729-001.md). Promotion from this
