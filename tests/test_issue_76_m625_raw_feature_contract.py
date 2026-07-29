@@ -217,6 +217,39 @@ def feature_data_get_partial_envelope() -> dict:
     }
 
 
+def read_observation() -> dict:
+    target = feature_target()
+    response_value = {"exampleValue": 21}
+    return {
+        "target": target,
+        "runtime": runtime_binding(),
+        "raw_request": {
+            "classifier": "READ",
+            "correlation_key": 41,
+            "function": target["function"],
+            "data": {},
+        },
+        "raw_response": {
+            "classifier": "REPLY",
+            "correlation_key": 41,
+            "function": target["function"],
+            "data": response_value,
+        },
+        "value": deepcopy(response_value),
+        "requested_at": "2026-07-27T00:00:00Z",
+        "received_at": "2026-07-27T00:00:01Z",
+        "data_timestamp": "2026-07-27T00:00:01Z",
+        "source": "live",
+        "read_token": {
+            "read_token": "R" * 43,
+            "reusable": False,
+            "expires_at": "2026-07-27T00:05:00Z",
+            "binding_hash": f"sha256:{'8' * 64}",
+        },
+        "data_hash": f"sha256:{'9' * 64}",
+    }
+
+
 def error_payload(code: str = "internal") -> dict:
     return {
         "code": code,
@@ -679,6 +712,78 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             "MutationRollbackRequestV1",
         ):
             self.assertFalse(schema["$defs"][definition]["additionalProperties"])
+
+    def test_issue_86_canonical_full_read_request_data_is_allowed_and_typed(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        observation = read_observation()
+        request_message = observation["raw_request"]
+
+        self.assertTrue(
+            schema_accepts(
+                schema,
+                "ProtocolMessageV1",
+                request_message,
+            )
+        )
+        self.assertTrue(schema_accepts(schema, "ReadObservationV1", observation))
+
+        request_without_data = deepcopy(request_message)
+        del request_without_data["data"]
+        self.assertTrue(
+            schema_accepts(
+                schema,
+                "ProtocolMessageV1",
+                request_without_data,
+            )
+        )
+
+        malformed_request_data = deepcopy(request_message)
+        malformed_request_data["data"] = {
+            "level1": {"level2": {"level3": {"level4": "too-deep"}}}
+        }
+        self.assertFalse(
+            schema_accepts(
+                schema,
+                "ProtocolMessageV1",
+                malformed_request_data,
+            )
+        )
+        malformed_observation = deepcopy(observation)
+        malformed_observation["raw_request"] = malformed_request_data
+        self.assertFalse(
+            schema_accepts(schema, "ReadObservationV1", malformed_observation)
+        )
+
+    def test_issue_86_response_value_and_correlation_invariants_remain_closed(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            schema["x-read-observation-invariants"],
+            repository_policy.ISSUE86_READ_OBSERVATION_INVARIANTS,
+        )
+
+        observation = read_observation()
+        self.assertEqual(
+            observation["raw_request"]["correlation_key"],
+            observation["raw_response"]["correlation_key"],
+        )
+        self.assertEqual(
+            observation["raw_request"]["function"],
+            observation["target"]["function"],
+        )
+        self.assertEqual(
+            observation["raw_response"]["function"],
+            observation["target"]["function"],
+        )
+        self.assertEqual(observation["raw_response"]["data"], observation["value"])
+        self.assertTrue(schema_accepts(schema, "ReadObservationV1", observation))
 
     def test_issue_84_native_measurement_round_trip_rejects_lowercase_alias(
         self,
@@ -1650,6 +1755,32 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                 repository_policy.issue_76_m625_raw_feature_errors(repo),
                 [],
             )
+
+    def test_validator_rejects_issue_86_read_observation_weakening(self) -> None:
+        mutations = {
+            "requestDataPresence": "forbidden",
+            "callerSuppliedRequestNarrowing": True,
+            "correlationBinding": "unbound",
+            "functionBinding": "unbound",
+            "valueBinding": "unbound",
+        }
+        for field, replacement in mutations.items():
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                schema["x-read-observation-invariants"][field] = replacement
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "issue-86 read observation invariants are not exact" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
 
     def test_validator_rejects_issue_87_boolean_checkpoint_weakening(self) -> None:
         definitions_and_states = {

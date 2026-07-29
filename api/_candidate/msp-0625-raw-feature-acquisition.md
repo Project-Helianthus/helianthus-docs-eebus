@@ -30,7 +30,9 @@ The additive SPINE dependency evidence is tracked by
 The validator/envelope baseline merged by
 [issue 82 and PR 83](https://github.com/Project-Helianthus/helianthus-docs-eebus/pull/83)
 is corrected for native targets and final runtime admission by
-[issue 84](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/84).
+[issue 84](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/84),
+then corrected for canonical full-READ request payload admission by
+[issue 86](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/86).
 It adds raw typed feature-data acquisition to the unreleased `eebus.v1`
 namespace. It does not modify or reclassify the nine M6 read-only tools or
 their raw/redacted profiles.
@@ -257,6 +259,22 @@ This public document provides no sample target value.
 `targets` contains 1 through 16 exact full-READ targets. `timeout_ms` is
 bounded by server policy. No target accepts selectors, elements, filters, or a
 partial mode.
+
+After admission, the runtime generates the actual function-specific full-READ
+SPINE command. `raw_request` is result evidence and is not a caller input.
+`raw_request.data` may be absent or contain the runtime-generated canonical
+typed function-specific full-READ command payload. This permission does not
+authorize caller-supplied selectors, elements, filters, or partial mode and
+does not widen `FeatureDataGetRequestV1`.
+
+The request message has classifier `READ`, no `error_number`, and the exact
+target function. The response message has classifier `REPLY`, no
+`error_number`, and required non-null canonical typed function data.
+`raw_request.correlation_key` equals `raw_response.correlation_key`;
+`raw_request.function` and `raw_response.function` both equal
+`target.function`; and `raw_response.data` is canonically equal to `value`.
+`ValidateFeatureDataGetDataV1` enforces these dynamic bindings while accepting
+either an absent request payload or a schema-valid runtime-generated one.
 
 Each `ReadObservationV1` binds:
 
@@ -583,6 +601,10 @@ authorization and tier. It may expose classifications, aggregate results,
 timestamps, and commitments, but never the raw target, typed preimages, stable
 identity, or secret material. No raw result is copied into `ebus.v1`, a
 semantic registry, or a consumer surface.
+
+The same boundary applies to `raw_request.data`: it is owner-only raw evidence,
+is recursively subject to the typed-value secret rejection below, and is never
+copied into the public/redacted projection.
 
 Before hashing, reference creation, audit insertion, or error rendering, the
 boundary recursively traverses every typed object, array, and scalar. Field

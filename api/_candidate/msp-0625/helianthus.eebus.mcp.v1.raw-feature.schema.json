@@ -248,6 +248,28 @@
     "rejectRetiredKeyReuse": true,
     "lateReplyCannotCompleteSuccessor": true
   },
+  "x-read-observation-invariants": {
+    "validator": "ValidateFeatureDataGetDataV1",
+    "requestClassifier": "READ",
+    "requestDataPresence": "optional",
+    "requestDataOrigin": "runtime-generated-canonical-function-specific-full-read-command",
+    "callerSuppliedRequestNarrowing": false,
+    "forbiddenCallerRequestNarrowing": [
+      "selectors",
+      "elements",
+      "filters",
+      "partial-mode"
+    ],
+    "requestErrorNumber": "forbidden",
+    "responseClassifier": "REPLY",
+    "responseData": "required-non-null-canonical-typed-function-data",
+    "responseErrorNumber": "forbidden",
+    "correlationBinding": "raw_request.correlation_key-equals-raw_response.correlation_key",
+    "functionBinding": "raw_request.function-equals-raw_response.function-equals-target.function",
+    "valueBinding": "raw_response.data-jcs-equals-value",
+    "payloadExposure": "owner-only-raw-never-public-redacted",
+    "secretBoundary": "recursive-typed-value-secret-rejection"
+  },
   "x-canonicalization": {
     "standard": "RFC 8785/JCS",
     "hash": "SHA-256",

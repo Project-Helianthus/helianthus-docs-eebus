@@ -525,6 +525,34 @@ ISSUE84_SOURCE_PROJECTION_ACTIONS = frozenset(
 ISSUE84_SOURCE_LIFECYCLE_ACTIONS = frozenset(
     {"allow", "move", "permit", "provision"}
 )
+ISSUE86_READ_OBSERVATION_INVARIANTS = {
+    "validator": "ValidateFeatureDataGetDataV1",
+    "requestClassifier": "READ",
+    "requestDataPresence": "optional",
+    "requestDataOrigin": (
+        "runtime-generated-canonical-function-specific-full-read-command"
+    ),
+    "callerSuppliedRequestNarrowing": False,
+    "forbiddenCallerRequestNarrowing": [
+        "selectors",
+        "elements",
+        "filters",
+        "partial-mode",
+    ],
+    "requestErrorNumber": "forbidden",
+    "responseClassifier": "REPLY",
+    "responseData": "required-non-null-canonical-typed-function-data",
+    "responseErrorNumber": "forbidden",
+    "correlationBinding": (
+        "raw_request.correlation_key-equals-raw_response.correlation_key"
+    ),
+    "functionBinding": (
+        "raw_request.function-equals-raw_response.function-equals-target.function"
+    ),
+    "valueBinding": "raw_response.data-jcs-equals-value",
+    "payloadExposure": "owner-only-raw-never-public-redacted",
+    "secretBoundary": "recursive-typed-value-secret-rejection",
+}
 ISSUE87_WAL_RESTORE_POLICY = {
     "recordValidator": "ValidateMutationV1",
     "recordValidation": "every-record-before-addressable",
@@ -625,6 +653,16 @@ ISSUE76_REQUIRED_MARKERS = {
         "topology says which feature functions and possible operations",
         "full `read` and full `write` only",
         "remote ski and ship id",
+        (
+            "may be absent or preserved in `raw_request.data`; "
+            "it is not required to be null"
+        ),
+        (
+            "does not add any caller-supplied selector, element, filter, "
+            "or partial-mode field"
+        ),
+        "response data remains canonically equal to the observation value",
+        "visible only on the owner-authorized raw surface",
         "register the waiter before send",
         "late response cannot complete an aba successor",
         "constraints_unknown",
@@ -660,6 +698,24 @@ ISSUE76_REQUIRED_MARKERS = {
         "authscopev1rawwrite",
         *ISSUE82_REQUIRED_API_MARKERS,
         *ISSUE84_REQUIRED_API_MARKERS,
+        "`raw_request` is result evidence and is not a caller input",
+        (
+            "`raw_request.data` may be absent or contain the runtime-generated "
+            "canonical typed function-specific full-read command payload"
+        ),
+        (
+            "does not authorize caller-supplied selectors, elements, filters, "
+            "or partial mode"
+        ),
+        (
+            "`raw_request.correlation_key` equals "
+            "`raw_response.correlation_key`"
+        ),
+        "`raw_response.data` is canonically equal to `value`",
+        (
+            "the same boundary applies to `raw_request.data`: "
+            "it is owner-only raw evidence"
+        ),
         "noeffectverificationv1",
         "a correlated reply records `protocol_accepted` as a boolean, including `false`",
         "`partial_result`",
@@ -4874,6 +4930,31 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     }
     if schema.get("x-round-trip") != expected_round_trip:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 round trip contract is not exact")
+    if (
+        schema.get("x-read-observation-invariants")
+        != ISSUE86_READ_OBSERVATION_INVARIANTS
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 read observation invariants are not exact"
+        )
+
+    protocol_message = definitions.get("ProtocolMessageV1")
+    protocol_message_properties = (
+        protocol_message.get("properties", {})
+        if isinstance(protocol_message, dict)
+        else {}
+    )
+    if (
+        not isinstance(protocol_message, dict)
+        or protocol_message.get("additionalProperties") is not False
+        or set(protocol_message.get("required", []))
+        != {"classifier", "correlation_key", "function"}
+        or protocol_message_properties.get("data")
+        != {"$ref": "#/$defs/TypedValueV1"}
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 optional protocol message data is not exact"
+        )
     if schema.get("x-secret-denylist") != ISSUE76_SECRET_DENYLIST:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 secret exclusion is not exact")
     if schema.get("x-secret-boundary") != ISSUE76_SECRET_BOUNDARY:
