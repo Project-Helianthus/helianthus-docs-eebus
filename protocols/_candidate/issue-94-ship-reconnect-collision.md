@@ -29,8 +29,9 @@ The inspection baseline is the published PR 23 head after focused lifecycle
 remediation. Its full revision is retained only in the local review record and
 is intentionally not published here. Exact-head CI, full normal and race
 tests, vet, and repeated focused lifecycle tests pass. The source remains a PR
-head rather than a merged release, and there is no bounded live
-interoperability evidence in this document.
+head rather than a merged release. A bounded read-only interoperability run
+now covers repeated reconnect on one deployed peer; it does not establish
+general interoperability or conformance.
 
 ## Implemented Arbitration Rule
 
@@ -86,6 +87,7 @@ conformance result.
 | A losing trusted inbound is rejected before protocol activation while a higher-key outbound is initiating. | Supported implementation evidence | Published PR head and repeated focused tests. |
 | Inbound ownership is registered before data-pump startup. | Supported implementation evidence | Published PR head and repeated focused tests. |
 | Shutdown or competing replacement before `Run` has one terminal close and no post-close pump. | Supported candidate implementation evidence | Published PR head; focused tests pass normally and under the race detector. |
+| Four consecutive start or restart cycles retain one trusted connection without the prior collision close. | Bounded observed runtime evidence | One redacted deployment and one peer; read-only SPINE access succeeded after the final reconnect. |
 | Full SHIP 12.2.2 compliance or interoperable peer behavior. | Not established | Requires permitted specification evidence and bounded interoperability validation. |
 
 ## Exact Falsifiers
