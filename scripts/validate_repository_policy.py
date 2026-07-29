@@ -287,6 +287,30 @@ ISSUE68_REQUIRED_MARKERS = {
     "candidate ref exclusion": "`candidate_ref` is forbidden from the stable public API",
     "public identity redaction": "public/shareable artifacts redact stable identities",
 }
+ISSUE96_CANDIDATE_REL = Path(
+    "protocols/_candidate/msp-096-spine13-hvac-model-erratum.md"
+)
+ISSUE96_EVIDENCE_RELS = (
+    Path("evidence/EV-20260730-001.md"),
+    Path("evidence/EV-20260730-002.md"),
+)
+ISSUE96_REQUIRED_MARKERS = {
+    "issue link": "docs issue 96",
+    "public implementation boundary": "public upstream implementation evidence",
+    "spine 1.4 exclusion": "SPINE 1.4",
+    "wholesale merge exclusion": "wholesale upstream-dev merge",
+    "restricted material exclusion": "candidate must not use vendor-restricted specifications",
+    "9970150 exclusion": "key-tag and update-engine changes are excluded",
+    "setpoint model": "SetpointDescriptionDataType",
+    "setpoint selector": "SetpointDescriptionListDataSelectorsType",
+    "hvac description functions": "FunctionTypeHvacOperationModeDescriptionListData",
+    "hvac relations": "HvacSystemFunctionSetpointRelationDataType",
+    "selector hunk": "selector hunk only in `4f986b14324a0d9ed719121b82c2621d50f58303`",
+    "baseline": "49 READ declared / 26 success / 23 failure",
+    "classification boundary": "non_empty_reply_observed",
+    "falsifier boundary": "typed-empty result is treated as a successful non-empty reply",
+    "raw/redacted boundary": "raw/operator versus public-redacted rules remain unchanged",
+}
 ISSUE76_PROTOCOL_REL = Path(
     "protocols/_candidate/msp-0625-feature-data-acquisition.md"
 )
@@ -906,6 +930,21 @@ MSP055_PROVENANCE_TEXT_FINGERPRINTS = {
         MSP055_SOURCE_PR_HEAD,
         "dc6085b0c3ab3f2182d3609db042663d7f73439c85c2f4f9dc51c33b02c57762",
     },
+}
+ISSUE96_PUBLIC_SOURCE_COMMITS = {
+    "d5f89c767706ef411fc622cd6771c479b7fd1b26",
+    "a6cb0727a1509dd04454c8e8edce899f4111fb3a",
+    "4f986b14324a0d9ed719121b82c2621d50f58303",
+    "9970150f6d81ffa06605fecddedcdf0e38174543",
+}
+ISSUE96_PROVENANCE_TEXT_FINGERPRINTS = {
+    "evidence/EV-20260730-001.md": ISSUE96_PUBLIC_SOURCE_COMMITS,
+    "protocols/_candidate/msp-096-spine13-hvac-model-erratum.md": ISSUE96_PUBLIC_SOURCE_COMMITS,
+    "scripts/validate_repository_policy.py": ISSUE96_PUBLIC_SOURCE_COMMITS,
+}
+PROVENANCE_TEXT_FINGERPRINTS = {
+    **MSP055_PROVENANCE_TEXT_FINGERPRINTS,
+    **ISSUE96_PROVENANCE_TEXT_FINGERPRINTS,
 }
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
@@ -3517,7 +3556,7 @@ def _provenance_fingerprint_exempt_spans(
     text: str, rel: str
 ) -> tuple[tuple[int, int], ...]:
     spans = list(git_fingerprint_exempt_spans(text))
-    for fingerprint in MSP055_PROVENANCE_TEXT_FINGERPRINTS.get(rel, set()):
+    for fingerprint in PROVENANCE_TEXT_FINGERPRINTS.get(rel, set()):
         pattern = re.compile(
             rf"(?<![0-9A-Fa-f]){re.escape(fingerprint)}(?![0-9A-Fa-f])"
         )
@@ -5956,6 +5995,32 @@ def issue_88_lab_profile_activation_errors(root: Path) -> list[str]:
     return errors
 
 
+def issue_96_spine13_hvac_model_erratum_errors(root: Path) -> list[str]:
+    """Enforce the bounded public-evidence SPINE 1.3 HVAC model erratum."""
+    errors: list[str] = []
+    candidate = root / ISSUE96_CANDIDATE_REL
+    if not candidate.is_file() or candidate.is_symlink():
+        return [f"{ISSUE96_CANDIDATE_REL}: issue-96 candidate document is missing"]
+
+    normalized = " ".join(_read(candidate).split()).casefold()
+    for name, marker in ISSUE96_REQUIRED_MARKERS.items():
+        if marker.casefold() not in normalized:
+            errors.append(f"{ISSUE96_CANDIDATE_REL}: issue-96 missing {name} marker")
+
+    for relative in ISSUE96_EVIDENCE_RELS:
+        path = root / relative
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"{relative}: issue-96 evidence document is missing")
+            continue
+        if ISSUE96_CANDIDATE_REL.name not in _read(path):
+            errors.append(f"{relative}: issue-96 evidence link to candidate is missing")
+
+    for source_commit in ISSUE96_PUBLIC_SOURCE_COMMITS:
+        if source_commit not in normalized:
+            errors.append(f"{ISSUE96_CANDIDATE_REL}: issue-96 public source pin is missing")
+    return errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -6660,6 +6725,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(issue_68_raw_operator_redaction_errors(root))
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))
+    errors.extend(issue_96_spine13_hvac_model_erratum_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
