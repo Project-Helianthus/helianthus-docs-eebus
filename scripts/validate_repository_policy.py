@@ -553,6 +553,71 @@ ISSUE86_READ_OBSERVATION_INVARIANTS = {
     "payloadExposure": "owner-only-raw-never-public-redacted",
     "secretBoundary": "recursive-typed-value-secret-rejection",
 }
+ISSUE88_LAB_PROFILE_MARKERS = {
+    ISSUE76_PROTOCOL_REL: (
+        "## Production Lab Profile Activation",
+        "`helianthus.eebus.raw-mutation-lab-profile.v1`",
+        "disabled by absence",
+        "exact target",
+        "permitted value hashes",
+        "rollback value hash",
+        "maximum probe ttl",
+        "absolute expiry",
+        "owner-controlled regular file",
+        "`0700`",
+        "`0600`",
+        "at most `65536` bytes",
+        "exactly one json object",
+        "unknown keys, duplicate keys, trailing json values, and non-canonical field forms are rejected",
+        "duplicate object keys are rejected at every depth",
+        "protected owner file therefore contains exactly one profile when present",
+        "runtime may carry up to `16` immutable validated profiles internally",
+        "symbolic links are rejected",
+        "profile content is forbidden in environment variables and process arguments",
+        "cannot prevent recovery or rollback",
+    ),
+    ISSUE76_ARCHITECTURE_REL: (
+        "## Owner-Controlled Lab Profile Boundary",
+        "at most `65536` bytes",
+        "protected `0700` runtime state root",
+        "exactly one closed json `mutationlabprofilev1` object",
+        "decoder rejects unknown keys, duplicate keys at every depth, trailing json values, and non-canonical field forms",
+        "protected owner file carries exactly one profile when present",
+        "runtime may carry up to `16` immutable profiles internally",
+        "load and validate before runtime `start`",
+        "request cannot create, widen, or persist a profile",
+        "public http remains zero-contact denied",
+        "new writes fail after profile expiry",
+        "durable recovery and rollback remain authorized",
+        "no new mcp tool",
+    ),
+    ISSUE76_API_REL: (
+        "## `MutationLabProfileV1`",
+        "`mutationlabprofilev1`",
+        "all nine fields are required",
+        "`contract`, `profile_id`, `target`, `allowed_value_hashes`, `rollback_value_hash`, `maximum_probe_ttl_seconds`, `safety_predicates`, `evidence_hashes`, and `expires_at`",
+        "no other profile-root key is accepted",
+        "`profile_id` is 1..128 bytes after exact/no-trim validation",
+        "`allowed_value_hashes` contains 1..32 unique exact `hashv1` values",
+        "`safety_predicates` contains 1..16 unique strings, each 1..128 bytes after exact/no-trim validation",
+        "`evidence_hashes` contains 1..32 unique exact `hashv1` values",
+        "`maximum_probe_ttl_seconds` is an integer 1..900",
+        "`target` uses the existing exact `featuretargetv1` bounds",
+        "`rollback_value_hash` is an exact `hashv1`",
+        "`expires_at` uses the existing utc timestamp contract",
+        "`profile_id`",
+        "`target`",
+        "`allowed_value_hashes`",
+        "`rollback_value_hash`",
+        "`maximum_probe_ttl_seconds`",
+        "`safety_predicates`",
+        "`evidence_hashes`",
+        "`expires_at`",
+        "exactly one already-loaded profile",
+        "does not add an mcp tool",
+        "disabled by absence",
+    ),
+}
 ISSUE87_WAL_RESTORE_POLICY = {
     "recordValidator": "ValidateMutationV1",
     "recordValidation": "every-record-before-addressable",
@@ -5891,6 +5956,23 @@ def issue_76_m625_raw_feature_errors(root: Path) -> list[str]:
     return errors
 
 
+def issue_88_lab_profile_activation_errors(root: Path) -> list[str]:
+    """Require the exact owner-controlled M6.25 lab-profile activation contract."""
+    errors: list[str] = []
+    for rel, markers in ISSUE88_LAB_PROFILE_MARKERS.items():
+        path = root / rel
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"{rel}: issue-88 canonical document is missing")
+            continue
+        normalized = " ".join(_read(path).split()).casefold()
+        for marker in markers:
+            if marker.casefold() not in normalized:
+                errors.append(
+                    f"{rel}: issue-88 lab-profile marker is missing: {marker}"
+                )
+    return errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -6594,6 +6676,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(strict_current_schema_errors(root))
     errors.extend(issue_68_raw_operator_redaction_errors(root))
     errors.extend(issue_76_m625_raw_feature_errors(root))
+    errors.extend(issue_88_lab_profile_activation_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
