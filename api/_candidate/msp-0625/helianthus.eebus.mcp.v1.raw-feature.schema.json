@@ -113,7 +113,19 @@
       "carrier": "typed-runtime-outcome",
       "postErrorRuntimeLookup": false,
       "fabricatedBinding": false,
-      "sameCodeMayBeBoundOrUnbound": true
+      "sameCodeMayBeBoundOrUnbound": true,
+      "unboundSourceLayers": [
+        "mcp",
+        "gateway-router",
+        "eebusreg-runtime",
+        "eebusreg-coordinator"
+      ],
+      "postDispatchSourceLayers": [
+        "remote",
+        "spine-go-round-trip",
+        "ship-session",
+        "eebus-go-executor"
+      ]
     },
     "positiveBindingRequiredFor": [
       "success",
@@ -466,6 +478,15 @@
         "spine-go-round-trip",
         "ship-session",
         "remote"
+      ]
+    },
+    "UnboundErrorSourceLayerV1": {
+      "type": "string",
+      "enum": [
+        "mcp",
+        "gateway-router",
+        "eebusreg-runtime",
+        "eebusreg-coordinator"
       ]
     },
     "FeatureRoleV1": {
@@ -3450,6 +3471,40 @@
                 },
                 "required": [
                   "code",
+                  "source_layer"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "meta": {
+                "properties": {
+                  "runtime": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "runtime"
+                ]
+              }
+            },
+            "required": [
+              "meta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "type": "object",
+                "properties": {
+                  "source_layer": {
+                    "$ref": "#/$defs/UnboundErrorSourceLayerV1"
+                  }
+                },
+                "required": [
                   "source_layer"
                 ]
               }

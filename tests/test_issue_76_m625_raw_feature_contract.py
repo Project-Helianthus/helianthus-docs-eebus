@@ -139,6 +139,50 @@ def schema_accepts(schema: dict, definition: str, instance: object) -> bool:
     return matches(definitions[definition], instance)
 
 
+def canonicalize_jcs_subset(value: object) -> str:
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if type(value) is int:
+        if abs(value) > 9_007_199_254_740_991:
+            raise ValueError("unsafe-integer")
+        return str(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(value, list):
+        return "[" + ",".join(canonicalize_jcs_subset(item) for item in value) + "]"
+    if isinstance(value, dict):
+        keys = sorted(value, key=lambda key: key.encode("utf-16-be"))
+        return "{" + ",".join(
+            canonicalize_jcs_subset(key) + ":" + canonicalize_jcs_subset(value[key])
+            for key in keys
+        ) + "}"
+    raise ValueError(f"unsupported-jcs-type:{type(value).__name__}")
+
+
+def command_hash_view(envelope: dict) -> dict:
+    meta = envelope["meta"]
+    return {
+        "contract": meta["contract"],
+        "tool": meta["tool"],
+        "scope": meta["scope"],
+        "mask_tier": meta["mask_tier"],
+        "auth_scope": meta["auth_scope"],
+        "runtime": meta["runtime"],
+        "request": envelope["request"],
+        "data": envelope["data"],
+        "error": envelope["error"],
+    }
+
+
+def command_hash(envelope: dict) -> str:
+    canonical = canonicalize_jcs_subset(command_hash_view(envelope))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def runtime_binding() -> dict:
     return {"runtime_epoch": 7, "connection_generation": 3}
 
@@ -728,6 +772,38 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                     envelope["error"]["source_layer"] = "eebusreg-runtime"
                     self.assertTrue(schema_accepts(schema, "EnvelopeV1", envelope))
 
+        for source_layer in (
+            "mcp",
+            "gateway-router",
+            "eebusreg-runtime",
+            "eebusreg-coordinator",
+        ):
+            with self.subTest(unbound_source_layer=source_layer):
+                unbound = features_get_envelope()
+                unbound["meta"]["runtime"] = None
+                unbound["data"] = None
+                unbound["error"] = error_payload("disconnected")
+                unbound["error"]["source_layer"] = source_layer
+                self.assertTrue(schema_accepts(schema, "EnvelopeV1", unbound))
+
+        for source_layer in (
+            "remote",
+            "spine-go-round-trip",
+            "ship-session",
+            "eebus-go-executor",
+        ):
+            with self.subTest(source_layer=source_layer):
+                unbound = features_get_envelope()
+                unbound["meta"]["runtime"] = None
+                unbound["data"] = None
+                unbound["error"] = error_payload("disconnected")
+                unbound["error"]["source_layer"] = source_layer
+                self.assertFalse(schema_accepts(schema, "EnvelopeV1", unbound))
+
+                bound = deepcopy(unbound)
+                bound["meta"]["runtime"] = runtime_binding()
+                self.assertTrue(schema_accepts(schema, "EnvelopeV1", bound))
+
         prose = (ROOT / repository_policy.ISSUE76_API_REL).read_text(
             encoding="utf-8"
         )
@@ -736,6 +812,65 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             prose,
         )
         self.assertIn("A post-error runtime lookup is forbidden", prose)
+
+    def test_issue_92_command_hash_view_is_jcs_stable_and_runtime_sensitive(
+        self,
+    ) -> None:
+        envelope = {
+            "meta": {
+                "contract": "helianthus.eebus.raw-feature-runtime.v1",
+                "tool": "eebus.v1.features.data.set",
+                "scope": "eebus.raw.write",
+                "mask_tier": "raw",
+                "auth_scope": "eebus.raw.write",
+                "data_timestamp": "2026-07-29T08:00:00Z",
+                "data_hash": f"sha256:{'0' * 64}",
+                "runtime": None,
+            },
+            "request": {"idempotency_key": "issue-92", "mode": "probe"},
+            "data": None,
+            "error": {
+                "code": "stale_read_token",
+                "message": "read token is stale",
+                "retriable": False,
+                "source_layer": "eebusreg-runtime",
+            },
+        }
+        expected_canonical = (
+            '{"auth_scope":"eebus.raw.write",'
+            '"contract":"helianthus.eebus.raw-feature-runtime.v1",'
+            '"data":null,'
+            '"error":{"code":"stale_read_token","message":"read token is stale",'
+            '"retriable":false,"source_layer":"eebusreg-runtime"},'
+            '"mask_tier":"raw",'
+            '"request":{"idempotency_key":"issue-92","mode":"probe"},'
+            '"runtime":null,"scope":"eebus.raw.write",'
+            '"tool":"eebus.v1.features.data.set"}'
+        )
+        self.assertEqual(
+            canonicalize_jcs_subset(command_hash_view(envelope)),
+            expected_canonical,
+        )
+        self.assertEqual(
+            command_hash(envelope),
+            "sha256:f77046c90a1d240de7dd0c030814667f7165da613e034f0e0d51ba294c1d7b99",
+        )
+
+        reordered = {
+            "error": dict(reversed(list(envelope["error"].items()))),
+            "data": None,
+            "request": dict(reversed(list(envelope["request"].items()))),
+            "meta": dict(reversed(list(envelope["meta"].items()))),
+        }
+        self.assertEqual(command_hash(reordered), command_hash(envelope))
+
+        timestamp_changed = deepcopy(envelope)
+        timestamp_changed["meta"]["data_timestamp"] = "2026-07-29T08:01:00Z"
+        self.assertEqual(command_hash(timestamp_changed), command_hash(envelope))
+
+        bound = deepcopy(envelope)
+        bound["meta"]["runtime"] = runtime_binding()
+        self.assertNotEqual(command_hash(bound), command_hash(envelope))
 
     def test_issue_86_canonical_full_read_request_data_is_allowed_and_typed(
         self,
@@ -1385,7 +1520,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
     def test_validator_rejects_each_issue_84_envelope_implication_removal(
         self,
     ) -> None:
-        for index in range(3):
+        for index in range(4):
             with self.subTest(index=index), tempfile.TemporaryDirectory() as tmp:
                 repo = copy_repo(Path(tmp))
                 path = repo / repository_policy.ISSUE76_SCHEMA_REL
@@ -1403,6 +1538,26 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                     errors,
                 )
 
+    def test_validator_rejects_issue_92_unbound_source_layer_weakening(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            path = repo / repository_policy.ISSUE76_SCHEMA_REL
+            schema = json.loads(path.read_text(encoding="utf-8"))
+            schema["$defs"]["UnboundErrorSourceLayerV1"]["enum"].append("remote")
+            path.write_text(json.dumps(schema), encoding="utf-8")
+
+            errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+            self.assertTrue(
+                any(
+                    "issue-92 unbound error source layers are not exact" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
     def test_validator_rejects_issue_84_runtime_and_source_contract_weakening(
         self,
     ) -> None:
@@ -1417,6 +1572,12 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                 lambda schema: schema["x-runtime-admission"][
                     "errorBinding"
                 ].update({"postErrorRuntimeLookup": True}),
+                "runtime admission",
+            ),
+            "unbound source layer partition": (
+                lambda schema: schema["x-runtime-admission"][
+                    "errorBinding"
+                ]["unboundSourceLayers"].append("remote"),
                 "runtime admission",
             ),
             "positive mutation binding": (

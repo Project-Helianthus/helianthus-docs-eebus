@@ -462,6 +462,18 @@ ISSUE84_RUNTIME_ADMISSION = {
         "postErrorRuntimeLookup": False,
         "fabricatedBinding": False,
         "sameCodeMayBeBoundOrUnbound": True,
+        "unboundSourceLayers": [
+            "mcp",
+            "gateway-router",
+            "eebusreg-runtime",
+            "eebusreg-coordinator",
+        ],
+        "postDispatchSourceLayers": [
+            "remote",
+            "spine-go-round-trip",
+            "ship-session",
+            "eebus-go-executor",
+        ],
     },
     "positiveBindingRequiredFor": [
         "success",
@@ -696,6 +708,14 @@ ISSUE84_REQUIRED_API_MARKERS = (
     "A malformed or unknown token supplies no binding",
     "A post-error runtime lookup is forbidden",
     "must not fabricate a `MutationV1`, infer binding from an error code",
+    (
+        "When `meta.runtime` is null, `source_layer` is limited to `mcp`, "
+        "`gateway-router`, `eebusreg-runtime`, or `eebusreg-coordinator`"
+    ),
+    (
+        "An error from `eebus-go-executor`, `spine-go-round-trip`, "
+        "`ship-session`, or `remote` proves that dispatch was reached"
+    ),
     (
         "Every success, partial result, returned `MutationV1`, and error "
         "envelope that accompanies bound data requires a positive runtime binding"
@@ -5654,6 +5674,22 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
             f"{ISSUE76_SCHEMA_REL}: issue-92 error vocabulary is not exact"
         )
 
+    unbound_source_layer = definitions.get("UnboundErrorSourceLayerV1")
+    if (
+        not isinstance(unbound_source_layer, dict)
+        or unbound_source_layer.get("type") != "string"
+        or unbound_source_layer.get("enum")
+        != [
+            "mcp",
+            "gateway-router",
+            "eebusreg-runtime",
+            "eebusreg-coordinator",
+        ]
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-92 unbound error source layers are not exact"
+        )
+
     expected_envelope_implications = [
         {
             "if": {
@@ -5709,6 +5745,30 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
                         },
                         "required": ["code", "source_layer"],
                     },
+                }
+            },
+        },
+        {
+            "if": {
+                "properties": {
+                    "meta": {
+                        "properties": {"runtime": {"type": "null"}},
+                        "required": ["runtime"],
+                    }
+                },
+                "required": ["meta"],
+            },
+            "then": {
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "source_layer": {
+                                "$ref": "#/$defs/UnboundErrorSourceLayerV1"
+                            }
+                        },
+                        "required": ["source_layer"],
+                    }
                 }
             },
         },

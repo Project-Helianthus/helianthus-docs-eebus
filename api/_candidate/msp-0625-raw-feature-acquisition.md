@@ -217,6 +217,12 @@ the typed runtime outcome from the operation that produced the error. A
 gateway must not fabricate a `MutationV1`, infer binding from an error code, or
 replace an otherwise canonical terminal merely because its binding is null.
 
+When `meta.runtime` is null, `source_layer` is limited to `mcp`,
+`gateway-router`, `eebusreg-runtime`, or `eebusreg-coordinator`. An error from
+`eebus-go-executor`, `spine-go-round-trip`, `ship-session`, or `remote` proves
+that dispatch was reached and therefore requires the positive runtime binding
+captured by that operation.
+
 Every success, partial result, returned `MutationV1`, and error envelope that
 accompanies bound data requires a positive runtime binding. `partial_result`
 always accompanies bound data and therefore cannot use a null runtime.
