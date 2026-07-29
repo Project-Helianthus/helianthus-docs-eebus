@@ -369,12 +369,12 @@ default. The profile does not add an MCP tool, public method on the read-only
 `Runtime`, GraphQL field, Portal model, Home Assistant entity, alias, or second
 namespace.
 
-The owner-only gateway boundary loads the closed object before runtime start
-from protected local storage and passes a typed immutable copy to the mutation
-coordinator. MCP carries only `constraints_override`; it cannot supply
-`MutationLabProfileV1`, change its hashes, or persist it. Expiry blocks new
-forward writes but does not revoke an already-durable recovery or rollback
-obligation.
+The storage and loader contract is owned by the
+[architecture boundary](../../architecture/_candidate/msp-0625-raw-feature-command-path.md#owner-controlled-lab-profile-boundary).
+This API only receives one already-loaded immutable typed profile. MCP carries
+only `constraints_override`; it cannot supply `MutationLabProfileV1`, change
+its hashes, choose a storage path, or persist it. Expiry blocks new forward
+writes but does not revoke an already-durable recovery or rollback obligation.
 
 The response is the durable `MutationV1`. A correlated reply records
 `protocol_accepted` as a boolean, including `false`, in `reply_observed` and

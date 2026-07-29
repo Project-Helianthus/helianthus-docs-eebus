@@ -284,17 +284,25 @@ same READ-before-WRITE, WRITE, and READ-after-WRITE path.
 
 ## Owner-Controlled Lab Profile Boundary
 
-The gateway is the only profile-file owner. It opens one non-symlink regular
-file, at most `65536` bytes, under the protected `0700` runtime state root,
-verifies gateway ownership and `0600` mode, and decodes exactly one closed
-JSON `MutationLabProfileV1` object. The decoder rejects unknown keys, duplicate
-keys at every depth, trailing JSON values, and non-canonical field forms. It
-passes an immutable typed copy into eebusreg and must load and validate before
-runtime `Start`; absence leaves mutation profiles disabled while preserving
-read-only startup. The protected owner file carries exactly one profile when
-present; the runtime may carry up to `16` immutable profiles internally.
-Profile content never travels through environment variables, process
-arguments, public HTTP, GraphQL, Portal, or Home Assistant.
+The gateway is the only profile-file owner. Its one canonical path is
+`/data/eebus/eebusmutation/mutation-lab-profile-v1.json`, inside the existing
+protected raw-mutation subtree; no alternate root-level or legacy path exists.
+Both the protected `0700` runtime state root and its `eebusmutation` child are
+`0700`.
+The gateway traverses descriptor-relative with `openat` and `O_NOFOLLOW` from
+the verified state-root descriptor through the exact child and final file. The
+leaf must be a gateway-owned `0600` regular file with `st_nlink=1`, at most
+`65536` bytes; its descriptor identity and metadata must remain byte-for-byte
+stable across the bounded read. It then decodes exactly one closed JSON
+`MutationLabProfileV1` object. The association-store top-level whitelist
+remains unchanged. The decoder rejects unknown keys, duplicate keys at every
+depth, trailing JSON values, and non-canonical field forms. It passes an
+immutable typed copy into eebusreg and must load and validate before runtime
+`Start`; absence leaves mutation profiles disabled while preserving read-only
+startup. The protected owner file carries exactly one profile when present;
+the runtime may carry up to `16` immutable profiles internally. Profile
+content never travels through environment variables, process arguments,
+public HTTP, GraphQL, Portal, or Home Assistant.
 
 The runtime and coordinator independently bind the profile to the exact target,
 current capability evidence, permitted requested hashes, rollback hash, maximum
@@ -310,11 +318,13 @@ owner `AF_UNIX` command path remains the only raw-write entry. This adds no new
 MCP tool and does not widen `RawFeatureRuntimeV1` or the existing public
 `Runtime` method set.
 
-New writes fail after profile expiry. Durable recovery and rollback remain
-authorized because they are safety obligations bound to the already-persisted
-mutation, before-image, exact target, and probe deadline. Expiry cannot turn a
-recovery action into a new forward write, suppress rollback, or authorize a
-blind retry.
+New writes fail after profile expiry. Removing the profile, or observing it
+absent after a durable mutation exists, also denies every new forward write but
+does not revoke guarded recovery or rollback. Durable recovery and rollback
+remain authorized because they are safety obligations bound to the
+already-persisted mutation, before-image, exact target, and probe deadline.
+Expiry or removal cannot turn a recovery action into a new forward write,
+suppress rollback, or authorize a blind retry.
 
 ## Durable WAL And Mutation FSM
 
