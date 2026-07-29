@@ -4955,6 +4955,69 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         errors.append(
             f"{ISSUE76_SCHEMA_REL}: issue-86 optional protocol message data is not exact"
         )
+
+    expected_read_request_message = {
+        "allOf": [
+            {"$ref": "#/$defs/ProtocolMessageV1"},
+            {
+                "type": "object",
+                "properties": {
+                    "classifier": {"const": "READ"},
+                    "data": {"$ref": "#/$defs/VerifiedTypedValueV1"},
+                },
+                "not": {"required": ["error_number"]},
+            },
+        ]
+    }
+    expected_read_response_message = {
+        "allOf": [
+            {"$ref": "#/$defs/ProtocolMessageV1"},
+            {
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "classifier": {"const": "REPLY"},
+                    "data": {"$ref": "#/$defs/VerifiedTypedValueV1"},
+                },
+                "not": {"required": ["error_number"]},
+            },
+        ]
+    }
+    if definitions.get("FullReadRequestMessageV1") != expected_read_request_message:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 READ request message is not exact"
+        )
+    if definitions.get("FullReadResponseMessageV1") != expected_read_response_message:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 READ response message is not exact"
+        )
+
+    read_observation_properties = (
+        definitions.get("ReadObservationV1", {}).get("properties", {})
+        if isinstance(definitions.get("ReadObservationV1"), dict)
+        else {}
+    )
+    read_failure_properties = (
+        definitions.get("ReadFailureV1", {}).get("properties", {})
+        if isinstance(definitions.get("ReadFailureV1"), dict)
+        else {}
+    )
+    expected_read_bindings = {
+        "target": {"$ref": "#/$defs/ReadFeatureTargetV1"},
+        "raw_request": {"$ref": "#/$defs/FullReadRequestMessageV1"},
+        "raw_response": {"$ref": "#/$defs/FullReadResponseMessageV1"},
+    }
+    if (
+        any(
+            read_observation_properties.get(field) != expected
+            for field, expected in expected_read_bindings.items()
+        )
+        or read_failure_properties.get("target")
+        != {"$ref": "#/$defs/ReadFeatureTargetV1"}
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 READ result bindings are not exact"
+        )
     if schema.get("x-secret-denylist") != ISSUE76_SECRET_DENYLIST:
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 secret exclusion is not exact")
     if schema.get("x-secret-boundary") != ISSUE76_SECRET_BOUNDARY:
@@ -5018,6 +5081,19 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         or set(target.get("properties", {})) != expected_target_fields
     ):
         errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 exact target binding is not closed")
+    expected_read_target = {
+        "allOf": [
+            {"$ref": "#/$defs/FeatureTargetV1"},
+            {
+                "type": "object",
+                "properties": {"operation": {"const": "READ"}},
+            },
+        ]
+    }
+    if definitions.get("ReadFeatureTargetV1") != expected_read_target:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 READ target binding is not exact"
+        )
     if definitions.get("NativeFeatureTypeV1") != ISSUE84_NATIVE_FEATURE_TYPE:
         errors.append(
             f"{ISSUE76_SCHEMA_REL}: issue-84 native feature type is not exact"
@@ -5079,6 +5155,25 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
         ):
             label = "write token" if name == "FeatureDataSetRequestV1" else name
             errors.append(f"{ISSUE76_SCHEMA_REL}: issue-76 {label} request is not exact")
+
+    read_request = definitions.get("FeatureDataGetRequestV1")
+    read_request_properties = (
+        read_request.get("properties", {}) if isinstance(read_request, dict) else {}
+    )
+    read_targets = read_request_properties.get("targets")
+    if (
+        not isinstance(read_request, dict)
+        or read_request.get("additionalProperties") is not False
+        or set(read_request.get("required", [])) != {"targets"}
+        or set(read_request_properties) != {"targets", "timeout_ms"}
+        or not isinstance(read_targets, dict)
+        or read_targets.get("items")
+        != {"$ref": "#/$defs/ReadFeatureTargetV1"}
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-86 READ request closed property set "
+            "is not exact"
+        )
 
     set_request = definitions.get("FeatureDataSetRequestV1")
     expected_set_properties = {

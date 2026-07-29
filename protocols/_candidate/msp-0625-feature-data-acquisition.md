@@ -130,7 +130,9 @@ cannot satisfy it or mint a current read token.
 A READ request contains exactly one function and no selector or filter. A
 bounded `features.data.get` call may contain 1 through 16 exact targets. Each
 target gets an independent correlated round trip and result. Ordering in the
-response equals request order.
+response equals request order. The machine contract binds every request,
+successful observation, and per-target failure to `ReadFeatureTargetV1`, whose
+operation is the constant `READ`.
 
 The runtime, not the caller, constructs the actual function-specific full-READ
 command after exact-target admission. Its canonical typed command payload may

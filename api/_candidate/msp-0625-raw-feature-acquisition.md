@@ -253,12 +253,13 @@ READ and does not mint a read token.
 ## `features.data.get`
 
 The closed request is
-`FeatureDataGetRequestV1 { targets: FeatureTargetV1[1..16], timeout_ms? }`.
+`FeatureDataGetRequestV1 { targets: ReadFeatureTargetV1[1..16], timeout_ms? }`.
 This public document provides no sample target value.
 
-`targets` contains 1 through 16 exact full-READ targets. `timeout_ms` is
-bounded by server policy. No target accepts selectors, elements, filters, or a
-partial mode.
+`targets` contains 1 through 16 exact `ReadFeatureTargetV1` values whose
+`operation` is the constant `READ`. `timeout_ms` is bounded by server policy.
+Those are the exact closed properties of `FeatureDataGetRequestV1`; no request
+accepts selectors, elements, filters, or a partial mode.
 
 After admission, the runtime generates the actual function-specific full-READ
 SPINE command. `raw_request` is result evidence and is not a caller input.
