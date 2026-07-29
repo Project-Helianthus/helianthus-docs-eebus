@@ -25,13 +25,12 @@ and [pull request 23](https://github.com/Project-Helianthus/helianthus-ship-go/p
 It records the implementation behavior inspected for that PR; it is neither a
 general standardized requirement nor a claim of full SHIP section 12.2.2 compliance.
 
-The immutable inspection baseline is the PR 23 source revision inspected
-during this documentation review. Its full revision is retained only in the
-local review record and is intentionally not published here.
-The shutdown and pre-Run lifecycle hardening was also inspected as a working
-diff in the PR checkout, so it remains candidate evidence until the final
-reviewed source commit is pinned. There is no bounded live interoperability
-evidence in this document.
+The inspection baseline is the published PR 23 head after focused lifecycle
+remediation. Its full revision is retained only in the local review record and
+is intentionally not published here. Exact-head CI, full normal and race
+tests, vet, and repeated focused lifecycle tests pass. The source remains a PR
+head rather than a merged release, and there is no bounded live
+interoperability evidence in this document.
 
 ## Implemented Arbitration Rule
 
@@ -84,9 +83,9 @@ conformance result.
 | Claim | Evidence status | Boundary |
 | --- | --- | --- |
 | Higher-key initiated direction is selected during the inspected collision path. | Supported implementation evidence | Immutable source baseline and PR source inspection; no live run. |
-| A losing trusted inbound is rejected before protocol activation while a higher-key outbound is initiating. | Supported implementation evidence | PR source inspection; focused final-test result still required. |
-| Inbound ownership is registered before data-pump startup. | Supported implementation evidence | Immutable baseline and focused test source. |
-| Shutdown or competing replacement before `Run` has one terminal close and no post-close pump. | Candidate implementation evidence | Present only in the inspected working diff and focused test source until a final PR commit is pinned and run. |
+| A losing trusted inbound is rejected before protocol activation while a higher-key outbound is initiating. | Supported implementation evidence | Published PR head and repeated focused tests. |
+| Inbound ownership is registered before data-pump startup. | Supported implementation evidence | Published PR head and repeated focused tests. |
+| Shutdown or competing replacement before `Run` has one terminal close and no post-close pump. | Supported candidate implementation evidence | Published PR head; focused tests pass normally and under the race detector. |
 | Full SHIP 12.2.2 compliance or interoperable peer behavior. | Not established | Requires permitted specification evidence and bounded interoperability validation. |
 
 ## Exact Falsifiers
@@ -107,5 +106,5 @@ The following are direct falsifiers for this candidate:
 
 The corresponding source locators and their current evidence limits are kept
 in [EV-20260729-001](../../evidence/EV-20260729-001.md). Promotion from this
-candidate requires a final immutable source pin, focused test results, and
+candidate requires a final immutable merged or released source pin and
 separate evidence sufficient for any interoperability or conformance claim.
