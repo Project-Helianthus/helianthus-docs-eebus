@@ -248,6 +248,28 @@
     "rejectRetiredKeyReuse": true,
     "lateReplyCannotCompleteSuccessor": true
   },
+  "x-read-observation-invariants": {
+    "validator": "ValidateFeatureDataGetDataV1",
+    "requestClassifier": "READ",
+    "requestDataPresence": "optional",
+    "requestDataOrigin": "runtime-generated-canonical-function-specific-full-read-command",
+    "callerSuppliedRequestNarrowing": false,
+    "forbiddenCallerRequestNarrowing": [
+      "selectors",
+      "elements",
+      "filters",
+      "partial-mode"
+    ],
+    "requestErrorNumber": "forbidden",
+    "responseClassifier": "REPLY",
+    "responseData": "required-non-null-canonical-typed-function-data",
+    "responseErrorNumber": "forbidden",
+    "correlationBinding": "raw_request.correlation_key-equals-raw_response.correlation_key",
+    "functionBinding": "raw_request.function-equals-raw_response.function-equals-target.function",
+    "valueBinding": "raw_response.data-jcs-equals-value",
+    "payloadExposure": "owner-only-raw-never-public-redacted",
+    "secretBoundary": "recursive-typed-value-secret-rejection"
+  },
   "x-canonicalization": {
     "standard": "RFC 8785/JCS",
     "hash": "SHA-256",
@@ -662,6 +684,21 @@
         }
       }
     },
+    "ReadFeatureTargetV1": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/FeatureTargetV1"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "READ"
+            }
+          }
+        }
+      ]
+    },
     "FullOperationsV1": {
       "type": "object",
       "additionalProperties": false,
@@ -972,6 +1009,55 @@
         }
       }
     },
+    "FullReadRequestMessageV1": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ProtocolMessageV1"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "classifier": {
+              "const": "READ"
+            },
+            "data": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            }
+          },
+          "not": {
+            "required": [
+              "error_number"
+            ]
+          }
+        }
+      ]
+    },
+    "FullReadResponseMessageV1": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ProtocolMessageV1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "classifier": {
+              "const": "REPLY"
+            },
+            "data": {
+              "$ref": "#/$defs/VerifiedTypedValueV1"
+            }
+          },
+          "not": {
+            "required": [
+              "error_number"
+            ]
+          }
+        }
+      ]
+    },
     "ReadTokenV1": {
       "type": "object",
       "additionalProperties": false,
@@ -1064,7 +1150,7 @@
           "minItems": 1,
           "maxItems": 16,
           "items": {
-            "$ref": "#/$defs/FeatureTargetV1"
+            "$ref": "#/$defs/ReadFeatureTargetV1"
           }
         },
         "timeout_ms": {
@@ -1092,16 +1178,16 @@
       ],
       "properties": {
         "target": {
-          "$ref": "#/$defs/FeatureTargetV1"
+          "$ref": "#/$defs/ReadFeatureTargetV1"
         },
         "runtime": {
           "$ref": "#/$defs/RuntimeBindingV1"
         },
         "raw_request": {
-          "$ref": "#/$defs/ProtocolMessageV1"
+          "$ref": "#/$defs/FullReadRequestMessageV1"
         },
         "raw_response": {
-          "$ref": "#/$defs/ProtocolMessageV1"
+          "$ref": "#/$defs/FullReadResponseMessageV1"
         },
         "value": {
           "$ref": "#/$defs/TypedValueV1"
@@ -1192,7 +1278,7 @@
           "maximum": 15
         },
         "target": {
-          "$ref": "#/$defs/FeatureTargetV1"
+          "$ref": "#/$defs/ReadFeatureTargetV1"
         },
         "error": {
           "$ref": "#/$defs/ErrorV1"

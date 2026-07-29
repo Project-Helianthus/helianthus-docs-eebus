@@ -217,6 +217,39 @@ def feature_data_get_partial_envelope() -> dict:
     }
 
 
+def read_observation() -> dict:
+    target = feature_target()
+    response_value = {"exampleValue": 21}
+    return {
+        "target": target,
+        "runtime": runtime_binding(),
+        "raw_request": {
+            "classifier": "READ",
+            "correlation_key": 41,
+            "function": target["function"],
+            "data": {},
+        },
+        "raw_response": {
+            "classifier": "REPLY",
+            "correlation_key": 41,
+            "function": target["function"],
+            "data": response_value,
+        },
+        "value": deepcopy(response_value),
+        "requested_at": "2026-07-27T00:00:00Z",
+        "received_at": "2026-07-27T00:00:01Z",
+        "data_timestamp": "2026-07-27T00:00:01Z",
+        "source": "live",
+        "read_token": {
+            "read_token": "R" * 43,
+            "reusable": False,
+            "expires_at": "2026-07-27T00:05:00Z",
+            "binding_hash": f"sha256:{'8' * 64}",
+        },
+        "data_hash": f"sha256:{'9' * 64}",
+    }
+
+
 def error_payload(code: str = "internal") -> dict:
     return {
         "code": code,
@@ -679,6 +712,162 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             "MutationRollbackRequestV1",
         ):
             self.assertFalse(schema["$defs"][definition]["additionalProperties"])
+
+    def test_issue_86_canonical_full_read_request_data_is_allowed_and_typed(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        observation = read_observation()
+        request_message = observation["raw_request"]
+
+        self.assertTrue(
+            schema_accepts(
+                schema,
+                "FullReadRequestMessageV1",
+                request_message,
+            )
+        )
+        self.assertTrue(schema_accepts(schema, "ReadObservationV1", observation))
+
+        request_without_data = deepcopy(request_message)
+        del request_without_data["data"]
+        self.assertTrue(
+            schema_accepts(
+                schema,
+                "FullReadRequestMessageV1",
+                request_without_data,
+            )
+        )
+
+        malformed_request_data = deepcopy(request_message)
+        malformed_request_data["data"] = {
+            "level1": {"level2": {"level3": {"level4": "too-deep"}}}
+        }
+        self.assertFalse(
+            schema_accepts(
+                schema,
+                "FullReadRequestMessageV1",
+                malformed_request_data,
+            )
+        )
+        malformed_observation = deepcopy(observation)
+        malformed_observation["raw_request"] = malformed_request_data
+        self.assertFalse(
+            schema_accepts(schema, "ReadObservationV1", malformed_observation)
+        )
+
+    def test_issue_86_context_specific_read_message_shapes_reject_mismatches(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        observation = read_observation()
+        invalid = {}
+
+        write_request = deepcopy(observation)
+        write_request["raw_request"]["classifier"] = "WRITE"
+        invalid["request classifier WRITE"] = write_request
+
+        request_error = deepcopy(observation)
+        request_error["raw_request"]["error_number"] = 1
+        invalid["request error_number"] = request_error
+
+        response_error = deepcopy(observation)
+        response_error["raw_response"]["error_number"] = 1
+        invalid["response error_number"] = response_error
+
+        result_response = deepcopy(observation)
+        result_response["raw_response"]["classifier"] = "RESULT"
+        invalid["response classifier RESULT"] = result_response
+
+        missing_response_data = deepcopy(observation)
+        del missing_response_data["raw_response"]["data"]
+        invalid["missing response data"] = missing_response_data
+
+        null_response_data = deepcopy(observation)
+        null_response_data["raw_response"]["data"] = None
+        invalid["null response data"] = null_response_data
+
+        for name, instance in invalid.items():
+            with self.subTest(name=name):
+                self.assertFalse(schema_accepts(schema, "ReadObservationV1", instance))
+
+    def test_issue_86_cross_field_equality_remains_a_go_validator_obligation(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            schema["x-read-observation-invariants"],
+            repository_policy.ISSUE86_READ_OBSERVATION_INVARIANTS,
+        )
+
+        observation = read_observation()
+        self.assertTrue(schema_accepts(schema, "ReadObservationV1", observation))
+
+        mismatched = {}
+        correlation = deepcopy(observation)
+        correlation["raw_response"]["correlation_key"] += 1
+        mismatched["correlation"] = correlation
+
+        function = deepcopy(observation)
+        function["raw_response"]["function"] = "differentFunction"
+        mismatched["function"] = function
+
+        value = deepcopy(observation)
+        value["value"] = {"exampleValue": 22}
+        mismatched["value"] = value
+
+        for name, instance in mismatched.items():
+            with self.subTest(name=name):
+                self.assertTrue(schema_accepts(schema, "ReadObservationV1", instance))
+
+        invariants = schema["x-read-observation-invariants"]
+        self.assertEqual(invariants["validator"], "ValidateFeatureDataGetDataV1")
+        self.assertIn("equals", invariants["correlationBinding"])
+        self.assertIn("equals", invariants["functionBinding"])
+        self.assertIn("equals", invariants["valueBinding"])
+
+    def test_issue_86_read_request_rejects_write_targets_and_narrowing_fields(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        request = {"targets": [feature_target()]}
+        self.assertTrue(schema_accepts(schema, "ReadFeatureTargetV1", feature_target()))
+        self.assertTrue(schema_accepts(schema, "FeatureDataGetRequestV1", request))
+
+        write_request = deepcopy(request)
+        write_request["targets"][0]["operation"] = "WRITE"
+        self.assertFalse(
+            schema_accepts(
+                schema,
+                "ReadFeatureTargetV1",
+                write_request["targets"][0],
+            )
+        )
+        self.assertFalse(
+            schema_accepts(schema, "FeatureDataGetRequestV1", write_request)
+        )
+
+        narrowing_fields = {
+            "selector": {},
+            "elements": [],
+            "filter": {},
+            "partial": True,
+        }
+        for field, value in narrowing_fields.items():
+            with self.subTest(field=field):
+                widened = deepcopy(request)
+                widened[field] = value
+                self.assertFalse(
+                    schema_accepts(schema, "FeatureDataGetRequestV1", widened)
+                )
 
     def test_issue_84_native_measurement_round_trip_rejects_lowercase_alias(
         self,
@@ -1650,6 +1839,79 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                 repository_policy.issue_76_m625_raw_feature_errors(repo),
                 [],
             )
+
+    def test_validator_rejects_issue_86_read_observation_weakening(self) -> None:
+        mutations = {
+            "requestDataPresence": "forbidden",
+            "callerSuppliedRequestNarrowing": True,
+            "correlationBinding": "unbound",
+            "functionBinding": "unbound",
+            "valueBinding": "unbound",
+        }
+        for field, replacement in mutations.items():
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                schema["x-read-observation-invariants"][field] = replacement
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "issue-86 read observation invariants are not exact" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_validator_rejects_issue_86_read_request_schema_widening(self) -> None:
+        for field in ("selector", "elements", "filter", "partial"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                schema["$defs"]["FeatureDataGetRequestV1"]["properties"][field] = {
+                    "type": "boolean"
+                }
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(
+                        "issue-86 READ request closed property set is not exact"
+                        in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+        mutations = {
+            "generic target": lambda schema: schema["$defs"][
+                "FeatureDataGetRequestV1"
+            ]["properties"]["targets"]["items"].update(
+                {"$ref": "#/$defs/FeatureTargetV1"}
+            ),
+            "WRITE target": lambda schema: schema["$defs"][
+                "ReadFeatureTargetV1"
+            ]["allOf"][1]["properties"]["operation"].update({"const": "WRITE"}),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                mutate(schema)
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any("issue-86 READ " in error for error in errors),
+                    errors,
+                )
 
     def test_validator_rejects_issue_87_boolean_checkpoint_weakening(self) -> None:
         definitions_and_states = {

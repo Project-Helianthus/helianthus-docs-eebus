@@ -24,7 +24,9 @@ This page is the protocol owner for
 as corrected before release by
 [issue 78](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/78),
 with additive SPINE transport-handoff evidence tracked by
-[issue 80](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/80).
+[issue 80](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/80)
+and canonical full-READ request payload admission corrected by
+[issue 86](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/86).
 It distinguishes completed M6 feature topology from M6.25 feature-data
 acquisition. Topology says which feature functions and possible operations a
 remote reports; it does not contain a fresh value and is not proof that a
@@ -52,7 +54,14 @@ The public source observations used here are:
   `WriteShipMessageWithPayload(message []byte)`, whose writer interface returns
   no delivery result
   ([writer call](https://github.com/Project-Helianthus/helianthus-spine-go/blob/b21400335be90ea95a6cad5f512d1c8e22f2cdeb/spine/send.go#L69-L112),
-  [transport interface](https://github.com/Project-Helianthus/helianthus-ship-go/blob/3abd41d19f419de907bc1bdf2a126ca19c930626/api/shipconnection.go#L195-L200)).
+  [transport interface](https://github.com/Project-Helianthus/helianthus-ship-go/blob/3abd41d19f419de907bc1bdf2a126ca19c930626/api/shipconnection.go#L195-L200)); and
+- eebusreg v0.1.20 converts the actual dispatched full-READ command and its
+  correlated reply to canonical typed values, preserving them as
+  `raw_request.data` and `raw_response.data`
+  ([runtime projection](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/63e43d94024d101cea882697acb5436a3b51fc77/internal/eebusfacade/raw_feature_runtime.go#L737-L768)),
+  while its result validator preserves the response, value, function, and
+  correlation checks but also rejects every non-nil request payload
+  ([validator contradiction](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/63e43d94024d101cea882697acb5436a3b51fc77/eebusraw/contract_validation_v1.go#L457-L484)).
 
 These source observations establish available public primitives, not the
 unimplemented Helianthus M6.25 guarantees. Every requirement below is a
@@ -121,7 +130,15 @@ cannot satisfy it or mint a current read token.
 A READ request contains exactly one function and no selector or filter. A
 bounded `features.data.get` call may contain 1 through 16 exact targets. Each
 target gets an independent correlated round trip and result. Ordering in the
-response equals request order.
+response equals request order. The machine contract binds every request,
+successful observation, and per-target failure to `ReadFeatureTargetV1`, whose
+operation is the constant `READ`.
+
+The runtime, not the caller, constructs the actual function-specific full-READ
+command after exact-target admission. Its canonical typed command payload may
+be absent or preserved in `raw_request.data`; it is not required to be null.
+This result-side evidence does not add any caller-supplied selector, element,
+filter, or partial-mode field to `FeatureDataGetRequestV1`.
 
 A successful observation contains:
 
@@ -132,6 +149,17 @@ A successful observation contains:
 - source `live`;
 - a deterministic JCS/SHA-256 commitment; and
 - a bound `read_token`.
+
+The raw request remains classifier `READ` with no error number. The raw
+response remains classifier `REPLY` with no error number and required non-null
+typed function data. Both messages retain the same correlation key and exact
+target function, and the response data remains canonically equal to the
+observation value. Request payload admission changes none of those
+`ValidateFeatureDataGetDataV1` invariants.
+
+The payload is visible only on the owner-authorized raw surface, is recursively
+subject to the existing cryptographic-secret exclusion, and is absent from
+public/redacted evidence.
 
 If some targets succeed and another fails, the call reports
 `partial_result`, preserves each completed result in request order, and lists
