@@ -324,6 +324,50 @@ containing exact profile id, justification, and expiry. The coordinator must
 already hold the profile's exact target/value bounds, safety predicates,
 rollback shape, and maximum TTL; request data cannot create or widen a profile.
 
+## `MutationLabProfileV1`
+
+`MutationLabProfileV1` is raw runtime configuration, not an MCP request or
+response type:
+
+```json
+{
+  "contract": "helianthus.eebus.raw-mutation-lab-profile.v1",
+  "profile_id": "owner-assigned-bounded-id",
+  "target": "<exact FeatureTargetV1 with operation WRITE>",
+  "allowed_value_hashes": ["sha256:<canonical TypedValueV1 digest>"],
+  "rollback_value_hash": "sha256:<canonical before-image digest>",
+  "maximum_probe_ttl_seconds": 60,
+  "safety_predicates": ["exact-target-capability-current", "rollback-representable"],
+  "evidence_hashes": ["sha256:<publishable capability or safety evidence digest>"],
+  "expires_at": "<UTC RFC3339 timestamp>"
+}
+```
+
+All fields are required. Arrays are non-empty, duplicate-free, and bounded.
+The canonical JSON field names are `profile_id`, `target`,
+`allowed_value_hashes`, `rollback_value_hash`,
+`maximum_probe_ttl_seconds`, `safety_predicates`, `evidence_hashes`, and
+`expires_at`.
+`target` is exact and includes the operational remote identity, device/entity/
+feature address, native feature type and role, function, and full WRITE
+operation. Hashes bind canonical `TypedValueV1` values; request values or
+free-form bounds cannot widen them. `expires_at` is an absolute profile
+deadline, and the request override expiry must be no later.
+
+The runtime accepts exactly one already-loaded profile matching `profile_id`,
+target, requested-value hash, rollback-value hash, safety evidence, and TTL.
+Zero or multiple matches fail closed. Disabled by absence is the production
+default. The profile does not add an MCP tool, public method on the read-only
+`Runtime`, GraphQL field, Portal model, Home Assistant entity, alias, or second
+namespace.
+
+The owner-only gateway boundary loads the closed object before runtime start
+from protected local storage and passes a typed immutable copy to the mutation
+coordinator. MCP carries only `constraints_override`; it cannot supply
+`MutationLabProfileV1`, change its hashes, or persist it. Expiry blocks new
+forward writes but does not revoke an already-durable recovery or rollback
+obligation.
+
 The response is the durable `MutationV1`. A correlated reply records
 `protocol_accepted` as a boolean, including `false`, in `reply_observed` and
 `verify_pending`; neither state is `applied`. A full readback equal to

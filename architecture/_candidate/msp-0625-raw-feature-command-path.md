@@ -282,6 +282,36 @@ inference, or sibling-feature inheritance is invalid.
 effect. `mode=apply` has no automatic rollback deadline. Both modes use the
 same READ-before-WRITE, WRITE, and READ-after-WRITE path.
 
+## Owner-Controlled Lab Profile Boundary
+
+The gateway is the only profile-file owner. It opens one bounded, non-symlink
+regular file under the protected runtime state root, verifies ownership and
+`0600` mode, decodes a closed `MutationLabProfileV1`, and passes an immutable
+typed copy into eebusreg. It must load and validate before runtime `Start`;
+absence leaves mutation profiles disabled while preserving read-only startup.
+Profile content never travels through environment variables, process
+arguments, public HTTP, GraphQL, Portal, or Home Assistant.
+
+The runtime and coordinator independently bind the profile to the exact target,
+current capability evidence, permitted requested hashes, rollback hash, maximum
+probe TTL, safety predicates, and expiry. The MCP request can only select the
+profile by id with a bounded justification and narrower expiry. The request
+cannot create, widen, or persist a profile. Duplicate exact matches, wildcard
+fields, stale evidence, unsafe permissions, symlinks, expired profiles, hash
+mismatches, or a wider request fail before provider/session lookup or remote
+contact.
+
+Public HTTP remains zero-contact denied by the existing tool boundary. The
+owner `AF_UNIX` command path remains the only raw-write entry. This adds no new
+MCP tool and does not widen `RawFeatureRuntimeV1` or the existing public
+`Runtime` method set.
+
+New writes fail after profile expiry. Durable recovery and rollback remain
+authorized because they are safety obligations bound to the already-persisted
+mutation, before-image, exact target, and probe deadline. Expiry cannot turn a
+recovery action into a new forward write, suppress rollback, or authorize a
+blind retry.
+
 ## Durable WAL And Mutation FSM
 
 Each transition is append-only, hash-linked with RFC 8785/JCS commitments, and

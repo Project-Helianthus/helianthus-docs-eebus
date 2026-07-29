@@ -274,6 +274,37 @@ device-family inheritance are forbidden.
 TTL before dispatch and requires automatic verified rollback by that deadline,
 including across restart.
 
+## Production Lab Profile Activation
+
+The production exception contract is
+`helianthus.eebus.raw-mutation-lab-profile.v1`. It is disabled by absence and
+does not infer permission from a device family, sibling feature, declared
+WRITE operation, or MCP request. One profile binds one exact target, permitted
+value hashes, rollback value hash, maximum probe TTL, safety predicates,
+publishable evidence commitments, and absolute expiry.
+
+The gateway loads profiles only from an owner-controlled regular file under the
+runtime state root. The state root is mode `0700`; the profile is mode `0600`,
+owned by the gateway identity, bounded in size, and parsed as closed JSON.
+Symbolic links are rejected, every parent is checked without following links,
+and profile content is forbidden in environment variables and process
+arguments. A missing file is the normal disabled state. An invalid,
+over-permissive, duplicated, or expired profile prevents mutation activation
+without preventing the read-only runtime from starting.
+
+An exact profile may attest lab-only changeability and complete constraints
+only when the remote declares full WRITE, the profile binds the current live
+capability evidence, both the requested and rollback hashes match, and every
+safety predicate is green. The request's `constraints_override` selects one
+already-loaded profile and supplies a bounded justification and earlier
+expiry; it cannot create, widen, or persist a profile.
+
+Profile expiry denies every new write. It cannot prevent recovery or rollback
+of a mutation that already has a durable `dispatch_intent`, `probe_active`, or
+rollback state. Recovery uses the persisted exact target, before-image,
+requested value, absolute probe deadline, and commitments; it never converts
+profile expiry into permission for a new forward mutation.
+
 ## Structured Terminal Outcomes
 
 The contract represents at least these outcomes explicitly:
