@@ -641,13 +641,11 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             schema["x-wal-restore-policy"],
             repository_policy.ISSUE87_WAL_RESTORE_POLICY,
         )
+        self.assertNotIn("PreBindingErrorCodeV1", schema["$defs"])
+        self.assertNotIn("PostBindingErrorCodeV1", schema["$defs"])
         self.assertEqual(
-            schema["$defs"]["PreBindingErrorCodeV1"]["enum"],
-            list(repository_policy.ISSUE82_PRE_BINDING_ERROR_CODES),
-        )
-        self.assertEqual(
-            schema["$defs"]["PostBindingErrorCodeV1"]["enum"],
-            list(repository_policy.ISSUE84_ALWAYS_BOUND_ERROR_CODES),
+            schema["$defs"]["ErrorCodeV1"]["enum"],
+            list(repository_policy.ISSUE92_ERROR_CODES),
         )
         self.assertEqual(
             set(schema["$defs"]["FeatureDataSetRequestV1"]["required"]),
@@ -968,91 +966,19 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         error_envelope["error"] = error_payload()
         self.assertTrue(schema_accepts(schema, "EnvelopeV1", error_envelope))
 
-        for code in repository_policy.ISSUE82_PRE_BINDING_ERROR_CODES:
-            with self.subTest(pre_binding_code=code):
-                pre_runtime_error = deepcopy(error_envelope)
-                pre_runtime_error["meta"]["runtime"] = None
-                pre_runtime_error["error"] = error_payload(code)
-                self.assertTrue(
-                    schema_accepts(schema, "EnvelopeV1", pre_runtime_error)
-                )
-
-        pre_runtime_router_error = deepcopy(error_envelope)
-        pre_runtime_router_error["meta"]["runtime"] = None
-        pre_runtime_router_error["error"]["source_layer"] = "gateway-router"
-        self.assertTrue(
-            schema_accepts(schema, "EnvelopeV1", pre_runtime_router_error)
-        )
-
-        pre_runtime_wrong_layer = deepcopy(pre_runtime_router_error)
-        pre_runtime_wrong_layer["error"]["source_layer"] = "eebusreg-runtime"
-        self.assertFalse(
-            schema_accepts(schema, "EnvelopeV1", pre_runtime_wrong_layer)
-        )
-
-        unbound_not_found_cases = {
-            "inventory miss": deepcopy(error_envelope),
-            "target-resolution miss": {
-                "meta": envelope_meta(
-                    "eebus.v1.features.data.get",
-                    "eebus.raw.read",
-                ),
-                "request": {"targets": [feature_target()]},
-                "data": None,
-                "error": error_payload("not_found"),
-            },
-            "unknown mutation reference": {
-                "meta": envelope_meta(
-                    "eebus.v1.mutations.get",
-                    "eebus.raw.read",
-                ),
-                "request": {"mutation_ref": "B" * 43},
-                "data": None,
-                "error": error_payload("not_found"),
-            },
-        }
-        for name, unbound_not_found in unbound_not_found_cases.items():
-            with self.subTest(unbound_not_found=name):
-                unbound_not_found["meta"]["runtime"] = None
-                unbound_not_found["error"]["code"] = "not_found"
-                unbound_not_found["error"]["source_layer"] = (
-                    "eebusreg-coordinator"
-                    if name == "unknown mutation reference"
-                    else "eebusreg-runtime"
-                )
-                self.assertTrue(
-                    schema_accepts(schema, "EnvelopeV1", unbound_not_found)
-                )
-
-        unbound_not_found_wrong_layer = deepcopy(
-            unbound_not_found_cases["inventory miss"]
-        )
-        unbound_not_found_wrong_layer["error"]["source_layer"] = "mcp"
-        self.assertFalse(
-            schema_accepts(
-                schema,
-                "EnvelopeV1",
-                unbound_not_found_wrong_layer,
-            )
-        )
-
-        bound_not_found = deepcopy(error_envelope)
-        bound_not_found["error"] = error_payload("not_found")
-        bound_not_found["error"]["source_layer"] = "eebusreg-runtime"
-        self.assertTrue(schema_accepts(schema, "EnvelopeV1", bound_not_found))
-
-        for code in repository_policy.ISSUE84_ALWAYS_BOUND_ERROR_CODES:
-            with self.subTest(post_binding_code=code):
-                post_binding_without_runtime = deepcopy(error_envelope)
-                post_binding_without_runtime["meta"]["runtime"] = None
-                post_binding_without_runtime["error"] = error_payload(code)
-                self.assertFalse(
-                    schema_accepts(
-                        schema,
-                        "EnvelopeV1",
-                        post_binding_without_runtime,
+        for code in (
+            code
+            for code in repository_policy.ISSUE92_ERROR_CODES
+            if code != "partial_result"
+        ):
+            for runtime in (runtime_binding(), None):
+                with self.subTest(error_code=code, runtime=runtime):
+                    operation_error = deepcopy(error_envelope)
+                    operation_error["meta"]["runtime"] = runtime
+                    operation_error["error"] = error_payload(code)
+                    self.assertTrue(
+                        schema_accepts(schema, "EnvelopeV1", operation_error)
                     )
-                )
 
         success_without_runtime = deepcopy(valid)
         success_without_runtime["meta"]["runtime"] = None
@@ -1459,7 +1385,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
     def test_validator_rejects_each_issue_84_envelope_implication_removal(
         self,
     ) -> None:
-        for index in range(5):
+        for index in range(3):
             with self.subTest(index=index), tempfile.TemporaryDirectory() as tmp:
                 repo = copy_repo(Path(tmp))
                 path = repo / repository_policy.ISSUE76_SCHEMA_REL
@@ -1471,7 +1397,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
 
                 self.assertTrue(
                     any(
-                        "issue-84 envelope implications are not exact" in error
+                        "issue-92 envelope implications are not exact" in error
                         for error in errors
                     ),
                     errors,
@@ -1487,10 +1413,10 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                 ].update({"order": 2}),
                 "runtime admission",
             ),
-            "zero-data not_found classification": (
+            "operation-stage error binding": (
                 lambda schema: schema["x-runtime-admission"][
-                    "zeroDataUnboundNotFound"
-                ].remove("target-resolution-miss"),
+                    "errorBinding"
+                ].update({"postErrorRuntimeLookup": True}),
                 "runtime admission",
             ),
             "positive mutation binding": (
@@ -1570,57 +1496,47 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
                     errors,
                 )
 
-    def test_validator_rejects_issue_84_unbound_not_found_branch_removal(
+    def test_validator_rejects_issue_92_stage_binding_implication_change(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
             path = repo / repository_policy.ISSUE76_SCHEMA_REL
             schema = json.loads(path.read_text(encoding="utf-8"))
-            schema["$defs"]["EnvelopeV1"]["allOf"][3]["then"]["properties"][
-                "error"
-            ]["anyOf"].pop()
+            schema["$defs"]["EnvelopeV1"]["allOf"].append(
+                {"if": {"properties": {"meta": {"type": "object"}}}}
+            )
             path.write_text(json.dumps(schema), encoding="utf-8")
 
             errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
 
             self.assertTrue(
-                any("envelope implications are not exact" in error for error in errors),
+                any("issue-92 envelope implications are not exact" in error for error in errors),
                 errors,
             )
 
-    def test_validator_rejects_issue_84_error_binding_weakening(self) -> None:
-        definitions = (
-            (
-                "PreBindingErrorCodeV1",
-                repository_policy.ISSUE82_PRE_BINDING_ERROR_CODES,
-            ),
-            (
-                "PostBindingErrorCodeV1",
-                repository_policy.ISSUE84_ALWAYS_BOUND_ERROR_CODES,
-            ),
-        )
-        for definition, codes in definitions:
-            for index, code in enumerate(codes):
-                with (
-                    self.subTest(definition=definition, code=code),
-                    tempfile.TemporaryDirectory() as tmp,
-                ):
-                    repo = copy_repo(Path(tmp))
-                    path = repo / repository_policy.ISSUE76_SCHEMA_REL
-                    schema = json.loads(path.read_text(encoding="utf-8"))
-                    schema["$defs"][definition]["enum"].pop(index)
-                    path.write_text(json.dumps(schema), encoding="utf-8")
+    def test_validator_rejects_issue_92_code_binding_reintroduction(self) -> None:
+        for definition in ("PreBindingErrorCodeV1", "PostBindingErrorCodeV1"):
+            with self.subTest(definition=definition), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                schema["$defs"][definition] = {
+                    "type": "string",
+                    "enum": ["internal"],
+                }
+                path.write_text(json.dumps(schema), encoding="utf-8")
 
-                    errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
 
-                    self.assertTrue(
-                        any(
-                            f"issue-82 {definition} is not exact" in error
-                            for error in errors
-                        ),
-                        errors,
-                    )
+                self.assertTrue(
+                    any(
+                        "issue-92 error binding must not be classified by code"
+                        in error
+                        for error in errors
+                    ),
+                    errors,
+                )
 
         with tempfile.TemporaryDirectory() as tmp:
             repo = copy_repo(Path(tmp))
@@ -1632,12 +1548,9 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
             errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
 
             self.assertTrue(
-                any(
-                    "issue-84 error binding classification is not exact" in error
-                    for error in errors
-                ),
-                errors,
-            )
+                    any("issue-92 error vocabulary is not exact" in error for error in errors),
+                    errors,
+                )
 
     def test_validator_rejects_issue_82_dto_inventory_weakening(self) -> None:
         mutations = [

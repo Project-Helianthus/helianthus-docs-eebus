@@ -108,12 +108,13 @@
         "failureCode": "connection_generation_mismatch"
       }
     ],
-    "zeroDataUnboundNotFound": [
-      "inventory-miss",
-      "status-miss",
-      "target-resolution-miss",
-      "unknown-mutation-reference"
-    ],
+    "errorBinding": {
+      "determinedBy": "operation-stage",
+      "carrier": "typed-runtime-outcome",
+      "postErrorRuntimeLookup": false,
+      "fabricatedBinding": false,
+      "sameCodeMayBeBoundOrUnbound": true
+    },
     "positiveBindingRequiredFor": [
       "success",
       "partial-result",
@@ -465,40 +466,6 @@
         "spine-go-round-trip",
         "ship-session",
         "remote"
-      ]
-    },
-    "PreBindingErrorCodeV1": {
-      "type": "string",
-      "enum": [
-        "invalid_argument",
-        "permission_denied",
-        "unsupported_operation",
-        "partial_operation_forbidden",
-        "secret_detected",
-        "internal"
-      ]
-    },
-    "PostBindingErrorCodeV1": {
-      "type": "string",
-      "enum": [
-        "constraints_unknown",
-        "constraint_failure",
-        "stale_read_token",
-        "cas_mismatch",
-        "runtime_epoch_mismatch",
-        "connection_generation_mismatch",
-        "idempotency_conflict",
-        "writer_busy",
-        "timeout",
-        "cancelled",
-        "disconnected",
-        "remote_error",
-        "decode_error",
-        "partial_result",
-        "no_effect",
-        "outcome_unknown",
-        "conflict",
-        "rollback_failed"
       ]
     },
     "FeatureRoleV1": {
@@ -3488,96 +3455,9 @@
               }
             }
           }
-        },
-        {
-          "if": {
-            "properties": {
-              "meta": {
-                "type": "object",
-                "properties": {
-                  "runtime": {
-                    "type": "null"
-                  }
-                },
-                "required": [
-                  "runtime"
-                ]
-              }
-            },
-            "required": [
-              "meta"
-            ]
-          },
-          "then": {
-            "properties": {
-              "error": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/ErrorV1",
-                    "properties": {
-                      "code": {
-                        "$ref": "#/$defs/PreBindingErrorCodeV1"
-                      },
-                      "source_layer": {
-                        "enum": [
-                          "mcp",
-                          "gateway-router"
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "$ref": "#/$defs/ErrorV1",
-                    "properties": {
-                      "code": {
-                        "const": "not_found"
-                      },
-                      "source_layer": {
-                        "enum": [
-                          "eebusreg-runtime",
-                          "eebusreg-coordinator"
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "error": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "$ref": "#/$defs/PostBindingErrorCodeV1"
-                  }
-                },
-                "required": [
-                  "code"
-                ]
-              }
-            },
-            "required": [
-              "error"
-            ]
-          },
-          "then": {
-            "properties": {
-              "meta": {
-                "properties": {
-                  "runtime": {
-                    "$ref": "#/$defs/RuntimeBindingV1"
-                  }
-                }
-              }
-            }
-          }
         }
       ],
-      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; malformed undecodable input alone uses request=null with invalid_argument from mcp; runtime=null is limited to pre-binding-compatible MCP or gateway-router errors and typed zero-data not_found from the runtime or coordinator; every success, partial_result, MutationV1, and error accompanying bound data is runtime-bound"
+      "x-invariant": "oneOf binds tool, scope, auth_scope, request, data, and success/error exclusivity; malformed undecodable input alone uses request=null with invalid_argument from mcp; error-only runtime presence is determined by the operation-captured outcome rather than the error code; every success, partial_result, MutationV1, and error accompanying bound data is runtime-bound; post-error runtime lookup and fabricated binding are forbidden"
     }
   }
 }

@@ -199,31 +199,27 @@ precedence; dispatch and result processing occur only after row 5.
 | 4 | The selected positive runtime epoch is still current. | `runtime_epoch_mismatch` |
 | 5 | The selected positive connection generation is still current. | `connection_generation_mismatch` |
 
-`EnvelopeMetaV1.runtime` contains the admitted positive binding. A server must
-not synthesize epoch or generation values when admission did not complete.
-A well-formed zero-data inventory, status, or target-resolution miss, and an
-unknown well-formed mutation reference, may terminate as `not_found` with
-`data=null` and `meta.runtime=null`. Such an envelope retains its exact typed
-request and comes from the runtime or durable coordinator source layer; it does
-not claim that runtime admission occurred. `not_found` is therefore not
-globally classified as either pre-binding or post-binding: it may instead carry
-a positive binding when that binding was established.
+`EnvelopeMetaV1.runtime` contains the positive binding captured by the
+operation when one was established. A server must not synthesize epoch or
+generation values when the operation did not establish a trusted binding.
+Binding presence is determined by the operation stage, not by the error code:
+the same terminal code can be bound or unbound in different executions.
 
-The other codes compatible with `meta.runtime=null` are `invalid_argument`,
-`permission_denied`, `unsupported_operation`, `partial_operation_forbidden`,
-`secret_detected`, and `internal`, and only when `source_layer` is `mcp` or
-`gateway-router` and the failure actually precedes runtime admission. The same
-codes carry a positive binding when detected after admission. Every
-`constraints_unknown`, `constraint_failure`, `stale_read_token`,
-`cas_mismatch`, `runtime_epoch_mismatch`, `connection_generation_mismatch`,
-`idempotency_conflict`, `writer_busy`, `timeout`, `cancelled`, `disconnected`,
-`remote_error`, `decode_error`, `partial_result`, `no_effect`,
-`outcome_unknown`, `conflict`, and `rollback_failed` error requires a positive
-runtime.
+An authenticated read token can supply its signed binding before a later expiry
+or context check returns `stale_read_token`. A malformed or unknown token
+supplies no binding. Likewise, a resolved mutation record supplies its stored
+binding even when a later status or rollback step fails, while an unknown
+well-formed mutation reference does not.
+
+A post-error runtime lookup is forbidden because it can observe a different
+connection generation from the failed operation. Runtime binding is carried in
+the typed runtime outcome from the operation that produced the error. A
+gateway must not fabricate a `MutationV1`, infer binding from an error code, or
+replace an otherwise canonical terminal merely because its binding is null.
 
 Every success, partial result, returned `MutationV1`, and error envelope that
-accompanies bound data requires a positive runtime binding. In particular,
-`partial_result` cannot use the zero-data `not_found` exception.
+accompanies bound data requires a positive runtime binding. `partial_result`
+always accompanies bound data and therefore cannot use a null runtime.
 
 ## Local SPINE Protocol Source
 
@@ -601,9 +597,9 @@ completed target results and per-target failures.
 The envelope echoes the typed closed request after successful decoding. If
 the input cannot be decoded into that closed request, `request` is `null` and
 the error code is `invalid_argument`; arbitrary malformed input is never
-reflected into the raw response. An error envelope may use
-`meta.runtime=null` only under the pre-binding or zero-data `not_found` rules
-above.
+reflected into the raw response. An error-only envelope may use
+`meta.runtime=null` only when its typed operation outcome established no
+trusted runtime binding.
 
 `ErrorV1` has exactly `code`, `message`, `retriable`, `source_layer`, and
 optional public-safe `details`. Backend text, payload preimages, and
@@ -633,7 +629,7 @@ The closed error vocabulary includes:
 | `outcome_unknown` | A side effect may have occurred; blind retry forbidden. |
 | `conflict` | Readback matches neither allowed convergence value; writes quarantined. |
 | `rollback_failed` | Restoration could not be verified. |
-| `not_found` | Exact zero-data inventory, status, target resolution, or mutation-reference lookup found no result; runtime is positive only when admission established it. |
+| `not_found` | Exact zero-data inventory, status, target resolution, or mutation-reference lookup found no result; runtime is present only when that operation established it. |
 | `secret_detected` | A secret-classified field/value failed closed before output or hashing. |
 | `internal` | Fixed public-safe internal failure. |
 
