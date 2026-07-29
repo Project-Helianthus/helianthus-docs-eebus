@@ -343,16 +343,24 @@ response type:
 }
 ```
 
-All fields are required. Arrays are non-empty, duplicate-free, and bounded.
-The canonical JSON field names are `profile_id`, `target`,
-`allowed_value_hashes`, `rollback_value_hash`,
+All nine fields are required. The canonical JSON field names are `contract`,
+`profile_id`, `target`, `allowed_value_hashes`, `rollback_value_hash`,
 `maximum_probe_ttl_seconds`, `safety_predicates`, `evidence_hashes`, and
-`expires_at`.
-`target` is exact and includes the operational remote identity, device/entity/
-feature address, native feature type and role, function, and full WRITE
-operation. Hashes bind canonical `TypedValueV1` values; request values or
-free-form bounds cannot widen them. `expires_at` is an absolute profile
-deadline, and the request override expiry must be no later.
+`expires_at`; no other profile-root key is accepted. `contract` is exactly
+`helianthus.eebus.raw-mutation-lab-profile.v1`.
+
+`profile_id` is 1..128 bytes after exact/no-trim validation.
+`allowed_value_hashes` contains 1..32 unique exact `HashV1` values.
+`safety_predicates` contains 1..16 unique strings, each 1..128 bytes after
+exact/no-trim validation. `evidence_hashes` contains 1..32 unique exact
+`HashV1` values. `maximum_probe_ttl_seconds` is an integer 1..900.
+`target` uses the existing exact `FeatureTargetV1` bounds and includes the
+operational remote identity, device/entity/feature address, native feature type
+and role, function, and full WRITE operation. `rollback_value_hash` is an exact
+`HashV1`. `expires_at` uses the existing UTC timestamp contract and is an
+absolute profile deadline; the request override expiry must be no later.
+Hashes bind canonical `TypedValueV1` values; request values or free-form bounds
+cannot widen them.
 
 The runtime accepts exactly one already-loaded profile matching `profile_id`,
 target, requested-value hash, rollback-value hash, safety evidence, and TTL.

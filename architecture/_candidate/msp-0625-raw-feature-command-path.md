@@ -284,11 +284,15 @@ same READ-before-WRITE, WRITE, and READ-after-WRITE path.
 
 ## Owner-Controlled Lab Profile Boundary
 
-The gateway is the only profile-file owner. It opens one bounded, non-symlink
-regular file under the protected runtime state root, verifies ownership and
-`0600` mode, decodes a closed `MutationLabProfileV1`, and passes an immutable
-typed copy into eebusreg. It must load and validate before runtime `Start`;
-absence leaves mutation profiles disabled while preserving read-only startup.
+The gateway is the only profile-file owner. It opens one non-symlink regular
+file, at most `65536` bytes, under the protected `0700` runtime state root,
+verifies gateway ownership and `0600` mode, and decodes exactly one closed
+JSON `MutationLabProfileV1` object. The decoder rejects unknown keys, duplicate
+keys at every depth, trailing JSON values, and non-canonical field forms. It
+passes an immutable typed copy into eebusreg and must load and validate before
+runtime `Start`; absence leaves mutation profiles disabled while preserving
+read-only startup. The protected owner file carries exactly one profile when
+present; the runtime may carry up to `16` immutable profiles internally.
 Profile content never travels through environment variables, process
 arguments, public HTTP, GraphQL, Portal, or Home Assistant.
 
