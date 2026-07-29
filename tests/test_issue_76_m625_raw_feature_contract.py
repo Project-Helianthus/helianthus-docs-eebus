@@ -713,6 +713,32 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         ):
             self.assertFalse(schema["$defs"][definition]["additionalProperties"])
 
+    def test_issue_92_error_binding_is_operation_stage_driven(self) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("PreBindingErrorCodeV1", schema["$defs"])
+        self.assertNotIn("PostBindingErrorCodeV1", schema["$defs"])
+
+        for code in ("stale_read_token", "disconnected"):
+            for runtime in (runtime_binding(), None):
+                with self.subTest(code=code, runtime=runtime):
+                    envelope = features_get_envelope()
+                    envelope["meta"]["runtime"] = runtime
+                    envelope["data"] = None
+                    envelope["error"] = error_payload(code)
+                    envelope["error"]["source_layer"] = "eebusreg-runtime"
+                    self.assertTrue(schema_accepts(schema, "EnvelopeV1", envelope))
+
+        prose = (ROOT / repository_policy.ISSUE76_API_REL).read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "Binding presence is determined by the operation stage, not by the error code",
+            prose,
+        )
+        self.assertIn("A post-error runtime lookup is forbidden", prose)
+
     def test_issue_86_canonical_full_read_request_data_is_allowed_and_typed(
         self,
     ) -> None:
