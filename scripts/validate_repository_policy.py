@@ -91,7 +91,6 @@ CANDIDATE_API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json",
     "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
-    "api/_candidate/msp-0625/helianthus.eebus.m625.public-redacted-evidence.v1.schema.json",
 }
 MSP055_RETIRED_MANIFEST_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
