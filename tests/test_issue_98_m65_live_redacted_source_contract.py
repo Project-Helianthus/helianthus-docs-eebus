@@ -55,6 +55,8 @@ def schema_accepts(schema: dict, instance: object) -> bool:
             matches(option, value) for option in candidate["allOf"]
         ):
             return False
+        if "not" in candidate and matches(candidate["not"], value):
+            return False
         reference = candidate.get("$ref")
         if reference is not None:
             prefix = "#/$defs/"
@@ -353,6 +355,19 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
         mutated = deepcopy(fixture)
         mutated["observations"][0]["unit"] = "unit-with-identity=abc"
         self.assertFalse(schema_accepts(schema, mutated))
+
+    def test_enum_constraint_is_portable_json_schema_regex(self) -> None:
+        schema = load_json(SCHEMA_REL)
+        enum_value = schema["$defs"]["EnumValueV1"]
+        self.assertEqual(
+            enum_value,
+            {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "not": {"enum": ["false", "true"]},
+            },
+        )
+        self.assertNotIn("(?", enum_value["pattern"])
 
     def test_repository_policy_binds_docs_schema_and_public_boundary(self) -> None:
         self.assertEqual(
