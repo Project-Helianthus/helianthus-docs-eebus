@@ -388,6 +388,33 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
                     ),
                 )
 
+                mutated = deepcopy(fixture)
+                observation = mutated["observations"][0]
+                observation["feature_type"] = "HVAC"
+                observation["function"] = "hvacSystemFunctionListData"
+                observation["value_type"] = "ENUM"
+                observation["value"] = disguised_identity
+                observation["unit"] = None
+                self.assertFalse(schema_accepts(schema, mutated))
+                self.assertIn(
+                    "HVAC ENUM observations require canonical opaque ID_<uint>",
+                    repository_policy.issue_98_m65_live_redacted_source_instance_errors(
+                        schema,
+                        mutated,
+                    ),
+                )
+
+        for noncanonical_enum in ("ID_", "ID_02", "ID_18446744073709551616"):
+            with self.subTest(noncanonical_enum=noncanonical_enum):
+                mutated = deepcopy(fixture)
+                observation = mutated["observations"][0]
+                observation["feature_type"] = "HVAC"
+                observation["function"] = "hvacSystemFunctionListData"
+                observation["value_type"] = "ENUM"
+                observation["value"] = noncanonical_enum
+                observation["unit"] = None
+                self.assertFalse(schema_accepts(schema, mutated))
+
     def test_timestamp_grammar_is_identical_in_schema_and_policy(self) -> None:
         schema = load_json(SCHEMA_REL)
         timestamp = schema["$defs"]["TimestampV1"]
