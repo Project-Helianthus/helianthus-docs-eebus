@@ -110,6 +110,8 @@ It may contain:
 - schema and error classifications;
 - aggregate test or live-run results;
 - timestamps and bounded counts;
+- selected normalized scalar comparison observations admitted by the
+  exception below;
 - deterministic JCS/SHA-256 commitments; and
 - pass/fail statements for identity, rollback, and anti-leak checks.
 
@@ -120,13 +122,45 @@ It must not contain:
 - raw typed function-data preimages;
 - private network coordinates;
 - payload or transport transcripts;
-- household state or schedules; or
+- unselected household state, labels, or schedules; or
 - secret material.
 
 Raw references cannot be dereferenced through a public/redacted boundary.
 Public references cannot be upgraded to raw. A scope, tier, principal,
 runtime-epoch, connection-generation, tool, or boundary mismatch fails closed
 before data lookup.
+
+### Public-redacted M6.25 comparison exception
+
+This section defines the public-redacted M6.25 comparison exception.
+
+The rule is that selected normalized values are publishable only inside the closed
+`helianthus.eebus.m625.public-redacted-evidence.v1` source contract and its
+validated MSP-065 wrapper. This is the public-redacted M6.25 comparison
+exception needed for synchronized M7 value/unit comparison. It does not license owner-local raw payloads,
+stable identity, native SHIP/SPINE
+coordinates, labels, schedules, unknown raw objects, tokens, remapping data,
+or secrets.
+
+The rule is that numeric comparison values use canonical exact decimals with a 64-character
+bound. Boolean values use exactly `true` or `false`; protocol enums and units
+use bounded machine-token grammars. Successful observations carry explicit
+quality and source time. Other terminal classifications carry null value,
+unit, and quality.
+
+Service/entity/feature/field selectors, observation references, source ids,
+and runtime ids are minted or remasked inside one outer MSP-065 bundle. They
+are not retained for reuse: no cross-bundle correlator is permitted. The
+recorder's private issuance gate rejects reuse before persistence and its
+two-bundle negative test must show fresh public identifiers for the same
+owner-local native path.
+
+The source-owned payload does not duplicate outer authority. The MSP-065
+envelope remains the sole owner of immutable source binding, effective
+authorization, phase and capture timing, per-bundle remasking manifest,
+evidence refs, item/byte counts, artifact hash, bundle hash, and regenerated
+replay hash. A missing or mismatched outer binding prevents `PRESENT` and
+therefore prevents M7 consumption.
 
 ## Evidence Authority
 
@@ -139,9 +173,11 @@ READ or WRITE under the recorded conditions. It does not establish a device
 family rule, semantic meaning, future availability, or consumer support.
 
 An ACK or correlated no-error result establishes protocol acceptance only.
-`applied` and `rolled_back` require a full live readback. Public evidence may
-report those classifications and commitments after redaction; it may not
-publish the values used to prove them.
+`applied` and `rolled_back` require a full live readback. Public mutation
+evidence may report those classifications and commitments after redaction; it
+may not publish the before, requested, observed-after, or rollback values used
+to prove them. The comparison exception above is read-only and does not
+authorize mutation-proof values.
 
 ## Milestone Preservation
 

@@ -166,6 +166,30 @@ If some targets succeed and another fails, the call reports
 each failed target with a structured error. It never converts a missing target
 or missing payload into an empty successful value.
 
+### Synchronized public comparison projection
+
+A later M6.5 capture may derive one public-redacted record from a direct typed READ
+only after the raw result validates under this contract. The derivation
+uses a fresh bundle-local pseudonymous path for the complete service, entity,
+feature, and optional field sequence. It publishes no stable identity or native SPINE address
+and cannot be reversed through a public remapping table.
+
+A successful selected scalar may carry a normalized comparison value:
+canonical exact decimal, canonical boolean text, or a bounded protocol enum.
+The record also carries the bounded unit, acquisition quality, source time,
+recorder offset, and exact terminal classification. The public projection
+does not carry typed request/response objects, unknown raw object fields,
+purpose-bound tokens, labels, schedules, private network coordinates, or
+cryptographic material. A non-success terminal has null value, unit, and
+quality; it is never converted into empty success.
+
+The source payload is wrapped by the canonical MSP-065 recorder. That outer
+contract supplies immutable source authority, authorization and mask binding,
+per-bundle remasking, evidence refs, artifact hashing, and deterministic
+offline replay. The source payload does not define parallel ids or hashes.
+`CLOUD_APP` is still pre-captured platform input: there is no cloud client, credential, refresh, or retry
+in this flow.
+
 ## Full WRITE And Verification
 
 A WRITE carries one exact target and one complete typed function-data value.

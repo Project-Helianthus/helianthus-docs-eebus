@@ -1,0 +1,488 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Project-Helianthus/helianthus-docs-eebus/raw/main/api/_candidate/msp-0625/helianthus.eebus.m625.public-redacted-evidence.v1.schema.json",
+  "title": "Helianthus M6.25 public-redacted eeBUS normalized evidence V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "schema_version",
+    "source_observed_at",
+    "summary",
+    "services",
+    "feature_paths",
+    "observations"
+  ],
+  "properties": {
+    "contract": {
+      "const": "helianthus.eebus.m625.public-redacted-evidence.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "source_observed_at": {
+      "$ref": "#/$defs/TimestampV1"
+    },
+    "summary": {
+      "$ref": "#/$defs/SummaryV1"
+    },
+    "services": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/PseudonymV1"
+      }
+    },
+    "feature_paths": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/EEBusPathV1"
+      }
+    },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/ObservationV1"
+      }
+    }
+  },
+  "$defs": {
+    "TimestampV1": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,8}[1-9])?Z$"
+    },
+    "SafeIntegerV1": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "DigestV1": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "PseudonymV1": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "ObservationRefV1": {
+      "type": "string",
+      "pattern": "^obs-[A-Za-z0-9_-]{43}$"
+    },
+    "IdentifierV1": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9]{0,127}$"
+    },
+    "DecimalV1": {
+      "type": "string",
+      "pattern": "^(0(\\.0+)?|0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\\.[0-9]+)?|-(0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\\.[0-9]+)?))$",
+      "maxLength": 64
+    },
+    "BooleanV1": {
+      "type": "string",
+      "enum": [
+        "false",
+        "true"
+      ]
+    },
+    "EnumValueV1": {
+      "type": "string",
+      "pattern": "^(?!(?:true|false)$)[A-Za-z][A-Za-z0-9_]{0,63}$"
+    },
+    "UnitV1": {
+      "type": "string",
+      "pattern": "^(1|%|[A-Za-z][A-Za-z0-9./*^_-]{0,31})$"
+    },
+    "NullableUnitV1": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/UnitV1"
+        }
+      ]
+    },
+    "NullableQualityV1": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "OBSERVED",
+            "STALE"
+          ]
+        }
+      ]
+    },
+    "TerminalClassificationV1": {
+      "enum": [
+        "SUCCESS",
+        "INVALID_ARGUMENT",
+        "PERMISSION_DENIED",
+        "UNSUPPORTED_OPERATION",
+        "PARTIAL_OPERATION_FORBIDDEN",
+        "CONSTRAINTS_UNKNOWN",
+        "CONSTRAINT_FAILURE",
+        "STALE_READ_TOKEN",
+        "CAS_MISMATCH",
+        "RUNTIME_EPOCH_MISMATCH",
+        "CONNECTION_GENERATION_MISMATCH",
+        "IDEMPOTENCY_CONFLICT",
+        "WRITER_BUSY",
+        "TIMEOUT",
+        "CANCELLED",
+        "DISCONNECTED",
+        "REMOTE_ERROR",
+        "DECODE_ERROR",
+        "PARTIAL_RESULT",
+        "NO_EFFECT",
+        "OUTCOME_UNKNOWN",
+        "CONFLICT",
+        "ROLLBACK_FAILED",
+        "NOT_FOUND",
+        "SECRET_DETECTED",
+        "INTERNAL"
+      ]
+    },
+    "TerminalCountV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "count"
+      ],
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/TerminalClassificationV1"
+        },
+        "count": {
+          "$ref": "#/$defs/SafeIntegerV1"
+        }
+      }
+    },
+    "SummaryV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_read_count",
+        "attempted_read_count",
+        "terminal_counts"
+      ],
+      "properties": {
+        "declared_read_count": {
+          "$ref": "#/$defs/SafeIntegerV1"
+        },
+        "attempted_read_count": {
+          "$ref": "#/$defs/SafeIntegerV1"
+        },
+        "terminal_counts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 27,
+          "items": {
+            "$ref": "#/$defs/TerminalCountV1"
+          }
+        }
+      }
+    },
+    "PathSegmentV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "selector"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "SERVICE",
+            "ENTITY",
+            "FEATURE",
+            "FIELD"
+          ]
+        },
+        "selector": {
+          "$ref": "#/$defs/PseudonymV1"
+        }
+      }
+    },
+    "EEBusPathV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service",
+        "entity",
+        "feature",
+        "feature_path"
+      ],
+      "properties": {
+        "service": {
+          "$ref": "#/$defs/PseudonymV1"
+        },
+        "entity": {
+          "$ref": "#/$defs/PseudonymV1"
+        },
+        "feature": {
+          "$ref": "#/$defs/PseudonymV1"
+        },
+        "feature_path": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/PathSegmentV1"
+          }
+        }
+      }
+    },
+    "NullableValueTypeV1": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "BOOLEAN",
+            "DECIMAL",
+            "ENUM"
+          ]
+        }
+      ]
+    },
+    "NullableValueV1": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/DecimalV1"
+        },
+        {
+          "$ref": "#/$defs/BooleanV1"
+        },
+        {
+          "$ref": "#/$defs/EnumValueV1"
+        }
+      ]
+    },
+    "ObservationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_ref",
+        "path_index",
+        "feature_type",
+        "feature_role",
+        "function",
+        "source_observed_at",
+        "recorder_offset_ns",
+        "terminal_classification",
+        "value_type",
+        "value",
+        "unit",
+        "quality",
+        "outcome_commitment"
+      ],
+      "properties": {
+        "observation_ref": {
+          "$ref": "#/$defs/ObservationRefV1"
+        },
+        "path_index": {
+          "$ref": "#/$defs/SafeIntegerV1"
+        },
+        "feature_type": {
+          "$ref": "#/$defs/IdentifierV1"
+        },
+        "feature_role": {
+          "enum": [
+            "client",
+            "server",
+            "special"
+          ]
+        },
+        "function": {
+          "$ref": "#/$defs/IdentifierV1"
+        },
+        "source_observed_at": {
+          "$ref": "#/$defs/TimestampV1"
+        },
+        "recorder_offset_ns": {
+          "$ref": "#/$defs/SafeIntegerV1"
+        },
+        "terminal_classification": {
+          "$ref": "#/$defs/TerminalClassificationV1"
+        },
+        "value_type": {
+          "$ref": "#/$defs/NullableValueTypeV1"
+        },
+        "value": {
+          "$ref": "#/$defs/NullableValueV1"
+        },
+        "unit": {
+          "$ref": "#/$defs/NullableUnitV1"
+        },
+        "quality": {
+          "$ref": "#/$defs/NullableQualityV1"
+        },
+        "outcome_commitment": {
+          "$ref": "#/$defs/DigestV1"
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "terminal_classification": {
+                  "const": "SUCCESS"
+                },
+                "value_type": {
+                  "const": "DECIMAL"
+                },
+                "value": {
+                  "$ref": "#/$defs/DecimalV1"
+                },
+                "quality": {
+                  "enum": [
+                    "OBSERVED",
+                    "STALE"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "terminal_classification": {
+                  "const": "SUCCESS"
+                },
+                "value_type": {
+                  "const": "BOOLEAN"
+                },
+                "value": {
+                  "$ref": "#/$defs/BooleanV1"
+                },
+                "quality": {
+                  "enum": [
+                    "OBSERVED",
+                    "STALE"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "terminal_classification": {
+                  "const": "SUCCESS"
+                },
+                "value_type": {
+                  "const": "ENUM"
+                },
+                "value": {
+                  "$ref": "#/$defs/EnumValueV1"
+                },
+                "quality": {
+                  "enum": [
+                    "OBSERVED",
+                    "STALE"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "terminal_classification": {
+                  "enum": [
+                    "INVALID_ARGUMENT",
+                    "PERMISSION_DENIED",
+                    "UNSUPPORTED_OPERATION",
+                    "PARTIAL_OPERATION_FORBIDDEN",
+                    "CONSTRAINTS_UNKNOWN",
+                    "CONSTRAINT_FAILURE",
+                    "STALE_READ_TOKEN",
+                    "CAS_MISMATCH",
+                    "RUNTIME_EPOCH_MISMATCH",
+                    "CONNECTION_GENERATION_MISMATCH",
+                    "IDEMPOTENCY_CONFLICT",
+                    "WRITER_BUSY",
+                    "TIMEOUT",
+                    "CANCELLED",
+                    "DISCONNECTED",
+                    "REMOTE_ERROR",
+                    "DECODE_ERROR",
+                    "PARTIAL_RESULT",
+                    "NO_EFFECT",
+                    "OUTCOME_UNKNOWN",
+                    "CONFLICT",
+                    "ROLLBACK_FAILED",
+                    "NOT_FOUND",
+                    "SECRET_DETECTED",
+                    "INTERNAL"
+                  ]
+                },
+                "value_type": {
+                  "type": "null"
+                },
+                "value": {
+                  "type": "null"
+                },
+                "unit": {
+                  "type": "null"
+                },
+                "quality": {
+                  "type": "null"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "x-msp065-adapter": {
+    "source_kind": "EEBUS",
+    "operation_id": "eebus.v1.features.data.get",
+    "normalized_evidence_root": "$",
+    "value_pointer_pattern": "/observations/{index}/value",
+    "unit_pointer_pattern": "/observations/{index}/unit",
+    "envelope_owned_fields": [
+      "bundle_id",
+      "source_id",
+      "artifact_id",
+      "phase",
+      "source_binding",
+      "auth_scope",
+      "evidence_refs",
+      "recorder_ingested_at",
+      "recorder_ingested_offset_ns",
+      "remasking",
+      "item_count",
+      "byte_count",
+      "redacted_hash",
+      "generated_replay_hash"
+    ]
+  },
+  "x-privacy-boundary": {
+    "pseudonyms": "minted and remasked per MSP-065 bundle",
+    "values": "bounded normalized scalar comparison values only",
+    "forbidden": [
+      "stable identity",
+      "SKI",
+      "SHIP ID",
+      "native SPINE address",
+      "raw request or response",
+      "purpose-bound token",
+      "private network coordinate",
+      "label",
+      "schedule",
+      "secret",
+      "remapping table",
+      "candidate reference"
+    ]
+  }
+}

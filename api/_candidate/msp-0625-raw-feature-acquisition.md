@@ -239,6 +239,48 @@ method. The local source is not a remote target and must not enter raw remote
 topology, semantic projection, GraphQL, or public/redacted evidence. It changes
 no candidate tool inventory or envelope field.
 
+## Public-Redacted M6.25 Evidence Source
+
+The source-owned
+[public-redacted M6.25 evidence source](msp-0625/helianthus.eebus.m625.public-redacted-evidence.v1.schema.json)
+is a closed `normalized_evidence` payload for the later MSP-065 synchronized
+recorder. It is not a sixth MCP tool, a public transport, or a replacement for
+the owner-authorized raw envelope. The historical MSP-06 authority remains immutable
+and continues to validate historical service-only evidence.
+
+The owner-local raw response is not the public source payload. A bounded
+redaction adapter selects only comparison-safe scalar observations and emits:
+
+- a bundle-local pseudonymous service/entity/feature path, including ordered
+  `SERVICE`, `ENTITY`, `FEATURE`, and optional `FIELD` selectors;
+- the exact protocol feature type, role, and function identifier admitted by
+  the public-value allowlist;
+- per-observation source time and recorder monotonic offset;
+- terminal classification and a secondary outcome commitment; and
+- normalized value, unit, and quality for a successful `DECIMAL`, `BOOLEAN`,
+  or `ENUM` observation.
+
+The source payload deliberately contains no bundle, source, artifact,
+authorization, remasking-manifest, evidence-reference, or hash field. The
+MSP-065 envelope owns source authority, artifact hash, and replay hash, plus
+the complete `SourceBindingV1`, effective authorization, per-bundle remasking,
+capture timing, evidence refs, item/byte counts, and content-addressed ids.
+Its profile adapter binds `/observations/{index}/value` and
+`/observations/{index}/unit` as the native M7 comparison pointers and binds
+`path_index` to one complete declared eeBUS path.
+
+Every pseudonym is freshly minted for the outer MSP-065 bundle. Reuse across
+bundles fails closed before persistence. Stable operational identity, native
+SPINE addresses, raw request/response objects, read or mutation tokens,
+network coordinates, labels, schedules, remapping tables, and secrets are
+absent. An unsuccessful observation carries its terminal classification but
+requires null value type, value, unit, and quality.
+
+`CLOUD_APP remains pre-captured`: this source contract introduces no cloud
+client, credential, refresh, or retry. It also introduces no GraphQL, Portal,
+Home Assistant, semantic-registry, command-routing, write, v2, alias, or
+consumer surface.
+
 ## `features.get`
 
 The closed request is `FeaturesGetRequestV1 { target: FeatureLocatorV1 }`.

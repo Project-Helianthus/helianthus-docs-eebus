@@ -12,6 +12,7 @@ import stat
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -64,6 +65,7 @@ API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json",
     "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
     "api/_candidate/msp-0625/helianthus.eebus.mcp.v1.raw-feature.schema.json",
+    "api/_candidate/msp-0625/helianthus.eebus.m625.public-redacted-evidence.v1.schema.json",
     "api/eebusruntime-v1/attestation.json",
     "api/eebusruntime-v1/manifest.json",
     "api/eebusruntime-v1/predicate.json",
@@ -89,6 +91,7 @@ CANDIDATE_API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.schema.json",
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json",
     "api/_candidate/msp-06/jcs-hash-vectors-v1.json",
+    "api/_candidate/msp-0625/helianthus.eebus.m625.public-redacted-evidence.v1.schema.json",
 }
 MSP055_RETIRED_MANIFEST_SHA256 = (
     "c93492bd275b5e14d3c9e05da701730d" "6d34a197e0653e6b169d103418bfcc8c"
@@ -313,6 +316,92 @@ ISSUE96_REQUIRED_MARKERS = {
     "version hunk binding": "binds every admitted revision to upstream's public SPINE 1.3 README claim",
     "baseline commitment": "three public SHA-256 commitments",
 }
+ISSUE98_SCHEMA_REL = Path(
+    "api/_candidate/msp-0625/"
+    "helianthus.eebus.m625.public-redacted-evidence.v1.schema.json"
+)
+ISSUE98_FIXTURE_REL = Path(
+    "tests/fixtures/issue98/m625-public-redacted-source-positive.json"
+)
+ISSUE98_API_REL = Path("api/_candidate/msp-0625-raw-feature-acquisition.md")
+ISSUE98_PROTOCOL_REL = Path(
+    "protocols/_candidate/msp-0625-feature-data-acquisition.md"
+)
+ISSUE98_POLICY_REL = Path("development/msp-0625-provenance-policy.md")
+ISSUE98_DOCUMENT_MARKERS = {
+    ISSUE98_API_REL: (
+        "public-redacted M6.25 evidence source",
+        "historical MSP-06 authority remains immutable",
+        "owner-local raw response is not the public source payload",
+        "CLOUD_APP remains pre-captured",
+        "normalized value, unit, and quality",
+        "bundle-local pseudonymous service/entity/feature path",
+        "MSP-065 envelope owns source authority, artifact hash, and replay hash",
+    ),
+    ISSUE98_PROTOCOL_REL: (
+        "direct typed READ",
+        "bundle-local pseudonymous path",
+        "no stable identity or native SPINE address",
+        "normalized comparison value",
+        "no cloud client, credential, refresh, or retry",
+    ),
+    ISSUE98_POLICY_REL: (
+        "public-redacted M6.25 comparison exception",
+        "selected normalized values are publishable",
+        "does not license owner-local raw payloads",
+        "no cross-bundle correlator",
+        "numeric comparison values use canonical exact decimals",
+    ),
+}
+ISSUE98_ROOT_KEYS = {
+    "contract",
+    "schema_version",
+    "source_observed_at",
+    "summary",
+    "services",
+    "feature_paths",
+    "observations",
+}
+ISSUE98_TERMINAL_ORDER = (
+    "SUCCESS",
+    "INVALID_ARGUMENT",
+    "PERMISSION_DENIED",
+    "UNSUPPORTED_OPERATION",
+    "PARTIAL_OPERATION_FORBIDDEN",
+    "CONSTRAINTS_UNKNOWN",
+    "CONSTRAINT_FAILURE",
+    "STALE_READ_TOKEN",
+    "CAS_MISMATCH",
+    "RUNTIME_EPOCH_MISMATCH",
+    "CONNECTION_GENERATION_MISMATCH",
+    "IDEMPOTENCY_CONFLICT",
+    "WRITER_BUSY",
+    "TIMEOUT",
+    "CANCELLED",
+    "DISCONNECTED",
+    "REMOTE_ERROR",
+    "DECODE_ERROR",
+    "PARTIAL_RESULT",
+    "NO_EFFECT",
+    "OUTCOME_UNKNOWN",
+    "CONFLICT",
+    "ROLLBACK_FAILED",
+    "NOT_FOUND",
+    "SECRET_DETECTED",
+    "INTERNAL",
+)
+ISSUE98_PSEUDONYM_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
+ISSUE98_OBSERVATION_REF_PATTERN = re.compile(r"^obs-[A-Za-z0-9_-]{43}$")
+ISSUE98_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,127}$")
+ISSUE98_DECIMAL_PATTERN = re.compile(
+    r"^(0(\.0+)?|0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?|"
+    r"-(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?))$"
+)
+ISSUE98_ENUM_PATTERN = re.compile(r"^(?!(?:true|false)$)[A-Za-z][A-Za-z0-9_]{0,63}$")
+ISSUE98_UNIT_PATTERN = re.compile(r"^(1|%|[A-Za-z][A-Za-z0-9./*^_-]{0,31})$")
+ISSUE98_STABLE_IDENTITY_PATTERN = re.compile(
+    r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
+)
 ISSUE76_PROTOCOL_REL = Path(
     "protocols/_candidate/msp-0625-feature-data-acquisition.md"
 )
@@ -6029,6 +6118,454 @@ def issue_76_m625_raw_feature_errors(root: Path) -> list[str]:
     return errors
 
 
+def _issue_98_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return None
+    try:
+        return datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return None
+
+
+def _issue_98_path_errors(value: object, services: set[str]) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(value, dict) or set(value) != {
+        "service",
+        "entity",
+        "feature",
+        "feature_path",
+    }:
+        return ["eeBUS path must use the closed service/entity/feature shape"]
+
+    base = [value["service"], value["entity"], value["feature"]]
+    segments = value["feature_path"]
+    if (
+        any(
+            not isinstance(item, str)
+            or ISSUE98_PSEUDONYM_PATTERN.fullmatch(item) is None
+            for item in base
+        )
+        or value["service"] not in services
+        or not isinstance(segments, list)
+        or not 3 <= len(segments) <= 32
+    ):
+        errors.append("eeBUS path selectors must be complete and ordered")
+        return errors
+
+    selectors: list[str] = []
+    kinds: list[str] = []
+    for segment in segments:
+        if (
+            not isinstance(segment, dict)
+            or set(segment) != {"kind", "selector"}
+            or segment.get("kind") not in {"SERVICE", "ENTITY", "FEATURE", "FIELD"}
+            or not isinstance(segment.get("selector"), str)
+            or ISSUE98_PSEUDONYM_PATTERN.fullmatch(segment["selector"]) is None
+        ):
+            errors.append("eeBUS path selectors must be complete and ordered")
+            return errors
+        kinds.append(segment["kind"])
+        selectors.append(segment["selector"])
+
+    if (
+        kinds[:3] != ["SERVICE", "ENTITY", "FEATURE"]
+        or any(kind != "FIELD" for kind in kinds[3:])
+        or selectors[:3] != base
+        or len(selectors) != len(set(selectors))
+    ):
+        errors.append("eeBUS path selectors must be complete and ordered")
+    return errors
+
+
+def _issue_98_public_string_errors(value: object) -> list[str]:
+    if not isinstance(value, str):
+        return []
+    errors: list[str] = []
+    if ISSUE98_STABLE_IDENTITY_PATTERN.search(value):
+        errors.append("public string field contains stable identity")
+    if issue_76_secret_boundary_errors(value):
+        errors.append("public string field contains secret material")
+    if any(
+        classify_ipv4(match.group(0)) == "private network"
+        for match in IPV4_CANDIDATE_PATTERN.finditer(value)
+    ):
+        errors.append("public string field contains private network coordinate")
+    return errors
+
+
+def issue_98_m65_live_redacted_source_instance_errors(
+    schema: object,
+    value: object,
+) -> list[str]:
+    """Validate one source-owned M6.25 normalized public evidence payload."""
+
+    errors: list[str] = []
+    if not isinstance(schema, dict):
+        return ["M6.25 public-redacted schema must be an object"]
+    if not isinstance(value, dict) or set(value) != ISSUE98_ROOT_KEYS:
+        return ["M6.25 public-redacted source payload must use the closed root shape"]
+    if (
+        value["contract"]
+        != "helianthus.eebus.m625.public-redacted-evidence.v1"
+        or value["schema_version"] != 1
+    ):
+        errors.append("source contract and schema version must be exact")
+
+    services_value = value["services"]
+    services: set[str] = set()
+    if not isinstance(services_value, list) or not 1 <= len(services_value) <= 64:
+        errors.append("services must be a bounded non-empty array")
+    else:
+        if any(
+            not isinstance(item, str)
+            or ISSUE98_PSEUDONYM_PATTERN.fullmatch(item) is None
+            for item in services_value
+        ):
+            errors.append("services must contain bundle-local pseudonyms")
+        if services_value != sorted(set(services_value), key=lambda item: item.encode()):
+            errors.append("services must be unique and bytewise ordered")
+        services = {item for item in services_value if isinstance(item, str)}
+
+    feature_paths = value["feature_paths"]
+    if not isinstance(feature_paths, list) or not 1 <= len(feature_paths) <= 4096:
+        errors.append("feature_paths must be a bounded non-empty array")
+        feature_paths = []
+    else:
+        for path in feature_paths:
+            errors.extend(_issue_98_path_errors(path, services))
+        encoded_paths = [
+            json.dumps(path, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+            for path in feature_paths
+        ]
+        if len(encoded_paths) != len(set(encoded_paths)):
+            errors.append("feature_paths must be unique")
+        if encoded_paths != sorted(encoded_paths, key=lambda item: item.encode()):
+            errors.append("feature_paths must be bytewise ordered")
+        if {
+            path.get("service")
+            for path in feature_paths
+            if isinstance(path, dict)
+        } != services:
+            errors.append("services must equal the services referenced by feature_paths")
+
+    summary = value["summary"]
+    if not isinstance(summary, dict) or set(summary) != {
+        "declared_read_count",
+        "attempted_read_count",
+        "terminal_counts",
+    }:
+        errors.append("summary must use the closed count shape")
+        summary = {}
+    declared = summary.get("declared_read_count")
+    attempted = summary.get("attempted_read_count")
+    if declared != len(feature_paths):
+        errors.append("declared_read_count must equal feature_paths length")
+
+    terminal_counts = summary.get("terminal_counts")
+    terminal_rows: list[tuple[str, int]] = []
+    if not isinstance(terminal_counts, list) or not terminal_counts:
+        errors.append("terminal_counts must be a non-empty array")
+    else:
+        for row in terminal_counts:
+            if (
+                not isinstance(row, dict)
+                or set(row) != {"classification", "count"}
+                or row.get("classification") not in ISSUE98_TERMINAL_ORDER
+                or not isinstance(row.get("count"), int)
+                or isinstance(row.get("count"), bool)
+                or row["count"] < 0
+            ):
+                errors.append("terminal_counts contains an invalid row")
+                continue
+            terminal_rows.append((row["classification"], row["count"]))
+        classifications = [row[0] for row in terminal_rows]
+        if len(classifications) != len(set(classifications)):
+            errors.append("terminal classifications must be unique")
+        terminal_rank = {
+            classification: index
+            for index, classification in enumerate(ISSUE98_TERMINAL_ORDER)
+        }
+        if classifications != sorted(
+            classifications,
+            key=lambda classification: terminal_rank[classification],
+        ):
+            errors.append("terminal_counts must be ordered by terminal classification")
+        if isinstance(attempted, int) and sum(row[1] for row in terminal_rows) != attempted:
+            errors.append("terminal count sum must equal attempted_read_count")
+
+    observations = value["observations"]
+    if not isinstance(observations, list) or not 1 <= len(observations) <= 4096:
+        errors.append("observations must be a bounded non-empty array")
+        observations = []
+    if attempted != len(observations):
+        errors.append("attempted_read_count must equal observations length")
+
+    observation_refs: list[str] = []
+    observed_terminals: dict[str, int] = {}
+    observed_times: list[datetime] = []
+    path_indices: set[int] = set()
+    observation_keys = {
+        "observation_ref",
+        "path_index",
+        "feature_type",
+        "feature_role",
+        "function",
+        "source_observed_at",
+        "recorder_offset_ns",
+        "terminal_classification",
+        "value_type",
+        "value",
+        "unit",
+        "quality",
+        "outcome_commitment",
+    }
+    for observation in observations:
+        if not isinstance(observation, dict) or set(observation) != observation_keys:
+            errors.append("observation must use the closed public shape")
+            continue
+        observation_ref = observation["observation_ref"]
+        if (
+            not isinstance(observation_ref, str)
+            or ISSUE98_OBSERVATION_REF_PATTERN.fullmatch(observation_ref) is None
+        ):
+            errors.append("observation_ref must be a bundle-local pseudonym")
+        else:
+            observation_refs.append(observation_ref)
+
+        path_index = observation["path_index"]
+        if (
+            not isinstance(path_index, int)
+            or isinstance(path_index, bool)
+            or not 0 <= path_index < len(feature_paths)
+        ):
+            errors.append("observation path_index must select a declared feature_path")
+        else:
+            if path_index in path_indices:
+                errors.append("each declared feature_path may have at most one observation")
+            path_indices.add(path_index)
+
+        if (
+            not isinstance(observation["feature_type"], str)
+            or ISSUE98_IDENTIFIER_PATTERN.fullmatch(observation["feature_type"]) is None
+            or not isinstance(observation["function"], str)
+            or ISSUE98_IDENTIFIER_PATTERN.fullmatch(observation["function"]) is None
+            or observation["feature_role"] not in {"client", "server", "special"}
+        ):
+            errors.append("feature metadata must use the bounded protocol identifier shape")
+
+        timestamp = _issue_98_timestamp(observation["source_observed_at"])
+        if timestamp is None:
+            errors.append("observation source_observed_at must be a canonical UTC timestamp")
+        else:
+            observed_times.append(timestamp)
+        offset = observation["recorder_offset_ns"]
+        if (
+            not isinstance(offset, int)
+            or isinstance(offset, bool)
+            or not 0 <= offset <= 9007199254740991
+        ):
+            errors.append("recorder_offset_ns must be a safe non-negative integer")
+
+        terminal = observation["terminal_classification"]
+        if terminal not in ISSUE98_TERMINAL_ORDER:
+            errors.append("observation terminal classification is invalid")
+        else:
+            observed_terminals[terminal] = observed_terminals.get(terminal, 0) + 1
+
+        value_type = observation["value_type"]
+        observed_value = observation["value"]
+        unit = observation["unit"]
+        quality = observation["quality"]
+        if terminal == "SUCCESS":
+            if value_type is None or observed_value is None or quality not in {
+                "OBSERVED",
+                "STALE",
+            }:
+                errors.append("SUCCESS observations require value_type, value, and quality")
+            elif value_type == "DECIMAL":
+                if (
+                    not isinstance(observed_value, str)
+                    or len(observed_value) > 64
+                    or ISSUE98_DECIMAL_PATTERN.fullmatch(observed_value) is None
+                ):
+                    errors.append("DECIMAL observations require canonical exact decimal")
+            elif value_type == "BOOLEAN":
+                if observed_value not in {"false", "true"}:
+                    errors.append("BOOLEAN observations require canonical boolean text")
+            elif value_type == "ENUM":
+                if (
+                    not isinstance(observed_value, str)
+                    or ISSUE98_ENUM_PATTERN.fullmatch(observed_value) is None
+                ):
+                    errors.append("ENUM observations require a bounded protocol token")
+            else:
+                errors.append("SUCCESS observation value_type is invalid")
+            if (
+                unit is not None
+                and (
+                    not isinstance(unit, str)
+                    or ISSUE98_UNIT_PATTERN.fullmatch(unit) is None
+                )
+            ):
+                errors.append("observation unit must be null or a bounded unit token")
+        elif any(item is not None for item in (value_type, observed_value, unit, quality)):
+            errors.append(
+                "non-SUCCESS observations require null value_type, value, unit, and quality"
+            )
+
+        commitment = observation["outcome_commitment"]
+        if (
+            not isinstance(commitment, str)
+            or re.fullmatch(r"sha256:[0-9a-f]{64}", commitment) is None
+        ):
+            errors.append("outcome_commitment must be a lowercase SHA-256 digest")
+
+        for candidate in (
+            observation["feature_type"],
+            observation["function"],
+            observed_value,
+            unit,
+        ):
+            errors.extend(_issue_98_public_string_errors(candidate))
+
+    if len(observation_refs) != len(set(observation_refs)):
+        errors.append("observation_refs must be unique")
+    if observation_refs != sorted(observation_refs, key=lambda item: item.encode()):
+        errors.append("observations must be ordered by observation_ref")
+    if dict(terminal_rows) != observed_terminals:
+        errors.append("terminal_counts must equal observed terminal classifications")
+
+    source_timestamp = _issue_98_timestamp(value["source_observed_at"])
+    if source_timestamp is None:
+        errors.append("source_observed_at must be a canonical UTC timestamp")
+    elif observed_times and source_timestamp != max(observed_times):
+        errors.append("source_observed_at must equal the latest observation timestamp")
+
+    return sorted(set(errors), key=lambda item: item.encode())
+
+
+def issue_98_m65_live_redacted_source_errors(root: Path) -> list[str]:
+    """Enforce the source-owned M6.25 normalized public evidence contract."""
+
+    errors: list[str] = []
+    documents: dict[Path, str] = {}
+    for relative, markers in ISSUE98_DOCUMENT_MARKERS.items():
+        path = root / relative
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"{relative}: issue-98 canonical document is missing")
+            continue
+        text = _read(path)
+        documents[relative] = text
+        normalized = " ".join(text.split())
+        for marker in markers:
+            if marker not in normalized:
+                errors.append(f"{relative}: issue-98 required marker is missing")
+
+    schema_path = root / ISSUE98_SCHEMA_REL
+    if not schema_path.is_file() or schema_path.is_symlink():
+        return errors + [f"{ISSUE98_SCHEMA_REL}: issue-98 source schema is missing"]
+    try:
+        schema = json.loads(_read(schema_path))
+    except (OSError, json.JSONDecodeError):
+        return errors + [f"{ISSUE98_SCHEMA_REL}: issue-98 source schema is invalid JSON"]
+    if not isinstance(schema, dict):
+        return errors + [f"{ISSUE98_SCHEMA_REL}: issue-98 source schema is not an object"]
+
+    root_properties = schema.get("properties")
+    if (
+        schema.get("type") != "object"
+        or schema.get("additionalProperties") is not False
+        or set(schema.get("required", [])) != ISSUE98_ROOT_KEYS
+        or not isinstance(root_properties, dict)
+        or set(root_properties) != ISSUE98_ROOT_KEYS
+        or root_properties.get("contract", {}).get("const")
+        != "helianthus.eebus.m625.public-redacted-evidence.v1"
+        or root_properties.get("schema_version", {}).get("const") != 1
+    ):
+        errors.append(f"{ISSUE98_SCHEMA_REL}: issue-98 root source shape is not exact")
+
+    expected_adapter = {
+        "source_kind": "EEBUS",
+        "operation_id": "eebus.v1.features.data.get",
+        "normalized_evidence_root": "$",
+        "value_pointer_pattern": "/observations/{index}/value",
+        "unit_pointer_pattern": "/observations/{index}/unit",
+        "envelope_owned_fields": [
+            "bundle_id",
+            "source_id",
+            "artifact_id",
+            "phase",
+            "source_binding",
+            "auth_scope",
+            "evidence_refs",
+            "recorder_ingested_at",
+            "recorder_ingested_offset_ns",
+            "remasking",
+            "item_count",
+            "byte_count",
+            "redacted_hash",
+            "generated_replay_hash",
+        ],
+    }
+    if schema.get("x-msp065-adapter") != expected_adapter:
+        errors.append(f"{ISSUE98_SCHEMA_REL}: issue-98 MSP-065 adapter binding is not exact")
+    privacy = schema.get("x-privacy-boundary")
+    if (
+        not isinstance(privacy, dict)
+        or privacy.get("pseudonyms") != "minted and remasked per MSP-065 bundle"
+        or privacy.get("values")
+        != "bounded normalized scalar comparison values only"
+        or set(privacy.get("forbidden", []))
+        != {
+            "stable identity",
+            "SKI",
+            "SHIP ID",
+            "native SPINE address",
+            "raw request or response",
+            "purpose-bound token",
+            "private network coordinate",
+            "label",
+            "schedule",
+            "secret",
+            "remapping table",
+            "candidate reference",
+        }
+    ):
+        errors.append(f"{ISSUE98_SCHEMA_REL}: issue-98 privacy boundary is not exact")
+
+    serialized = json.dumps(schema, sort_keys=True).casefold()
+    for forbidden in (
+        "candidate_ref",
+        '"ebus.v1',
+        "graphql",
+        "portal",
+        "home assistant",
+        "semantic registry",
+    ):
+        if forbidden in serialized:
+            errors.append(
+                f"{ISSUE98_SCHEMA_REL}: issue-98 forbidden public surface {forbidden!r}"
+            )
+
+    fixture_path = root / ISSUE98_FIXTURE_REL
+    if not fixture_path.is_file() or fixture_path.is_symlink():
+        errors.append(f"{ISSUE98_FIXTURE_REL}: issue-98 positive fixture is missing")
+    else:
+        try:
+            fixture = json.loads(_read(fixture_path))
+        except (OSError, json.JSONDecodeError):
+            errors.append(f"{ISSUE98_FIXTURE_REL}: issue-98 fixture is invalid JSON")
+        else:
+            errors.extend(
+                f"{ISSUE98_FIXTURE_REL}: {error}"
+                for error in issue_98_m65_live_redacted_source_instance_errors(
+                    schema,
+                    fixture,
+                )
+            )
+    return errors
+
+
 def issue_88_lab_profile_activation_errors(root: Path) -> list[str]:
     """Require the exact owner-controlled M6.25 lab-profile activation contract."""
     errors: list[str] = []
@@ -6809,6 +7346,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))
     errors.extend(issue_96_spine13_hvac_model_erratum_errors(root))
+    errors.extend(issue_98_m65_live_redacted_source_errors(root))
     return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
 
