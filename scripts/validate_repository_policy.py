@@ -650,6 +650,7 @@ ISSUE92_ERROR_CODES = (
     "disconnected",
     "remote_error",
     "decode_error",
+    "typed_empty",
     "partial_result",
     "no_effect",
     "outcome_unknown",
@@ -778,6 +779,7 @@ ISSUE86_READ_OBSERVATION_INVARIANTS = {
     "requestErrorNumber": "forbidden",
     "responseClassifier": "REPLY",
     "responseData": "required-non-null-canonical-typed-function-data",
+    "requireNonEmpty": True,
     "responseErrorNumber": "forbidden",
     "correlationBinding": (
         "raw_request.correlation_key-equals-raw_response.correlation_key"
@@ -788,6 +790,29 @@ ISSUE86_READ_OBSERVATION_INVARIANTS = {
     "valueBinding": "raw_response.data-jcs-equals-value",
     "payloadExposure": "owner-only-raw-never-public-redacted",
     "secretBoundary": "recursive-typed-value-secret-rejection",
+}
+ISSUE100_TYPED_EMPTY_CONTRACT = {
+    "classification": "valid-correlated-known-typed-payload-with-no-typed-data",
+    "terminalCode": "typed_empty",
+    "semanticSuccess": False,
+    "retriable": False,
+    "sourceLayer": "remote",
+    "readToken": "not-issued",
+    "beforeImage": "not-issued",
+    "mutationContinuation": "forbidden",
+    "knownEmptyWithUnknownFields": "decode_error-with-bounded-evidence",
+    "scalarFields": {
+        "false": "data",
+        "zero": "data",
+        "emptyString": "data",
+    },
+    "batch": {
+        "mixed": (
+            "successful-results-plus-typed-empty-failures-with-top-level-"
+            "partial_result"
+        ),
+        "allEmpty": "top-level-typed_empty",
+    },
 }
 ISSUE88_LAB_PROFILE_MARKERS = {
     ISSUE76_PROTOCOL_REL: (
@@ -5968,6 +5993,34 @@ def _issue_76_machine_contract_errors(root: Path) -> list[str]:
     ):
         errors.append(
             f"{ISSUE76_SCHEMA_REL}: issue-92 error vocabulary is not exact"
+        )
+
+    typed_empty_error_constraint = [
+        {
+            "if": {
+                "properties": {"code": {"const": "typed_empty"}},
+                "required": ["code"],
+            },
+            "then": {
+                "properties": {
+                    "retriable": {"const": False},
+                    "source_layer": {"const": "remote"},
+                },
+                "required": ["retriable", "source_layer"],
+            },
+        }
+    ]
+    error_definition = definitions.get("ErrorV1")
+    if (
+        not isinstance(error_definition, dict)
+        or error_definition.get("allOf") != typed_empty_error_constraint
+    ):
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-100 typed-empty error binding is not exact"
+        )
+    if schema.get("x-typed-empty") != ISSUE100_TYPED_EMPTY_CONTRACT:
+        errors.append(
+            f"{ISSUE76_SCHEMA_REL}: issue-100 typed-empty contract is not exact"
         )
 
     unbound_source_layer = definitions.get("UnboundErrorSourceLayerV1")

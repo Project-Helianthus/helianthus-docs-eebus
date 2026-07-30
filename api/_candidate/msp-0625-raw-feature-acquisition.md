@@ -666,6 +666,29 @@ trusted runtime binding.
 optional public-safe `details`. Backend text, payload preimages, and
 secret-classified values never enter `message` or `details`.
 
+### Typed-empty READ terminal
+
+`typed_empty` is a terminal READ failure, not semantic success. It is emitted
+only when a correlated reply has a known typed payload shape but that shape
+contains no typed function data. Its `ErrorV1` is always
+`retriable=false` and `source_layer=remote`. It is distinct from
+`remote_error`, which is an explicit correlated remote rejection/error, and
+from `decode_error`, which covers a malformed reply or one that cannot be
+decoded into the known typed payload.
+
+The global `requireNonEmpty` rule remains strict for the typed payload
+container. It does not reinterpret a present `false`, `0`, or empty string
+field as empty: each is typed data. A known empty payload that also carries
+unknown fields is `decode_error`, with only bounded unknown-field evidence;
+it is never downgraded to `typed_empty` or success.
+
+`typed_empty` returns no `ReadObservationV1`, read token, before-image, or
+`MutationV1`, and it cannot start mutation, rollback, probe, or recovery
+continuation. In a mixed bounded READ batch, successful observations remain in
+`results`, each typed-empty target is a failure, and the top-level terminal is
+`partial_result`. When every target is typed-empty, the top-level terminal is
+`typed_empty` and `data=null`.
+
 The closed error vocabulary includes:
 
 | Code | Meaning |
@@ -685,6 +708,7 @@ The closed error vocabulary includes:
 | `timeout`, `cancelled`, `disconnected` | Round trip ended without a trusted correlated result. |
 | `remote_error` | Correlated remote rejection/error. |
 | `decode_error` | Correlated response is malformed or cannot produce typed data. |
+| `typed_empty` | Valid correlated known typed payload has no typed data; terminal, non-retriable remote failure. |
 | `partial_result` | Some bounded READ targets failed. |
 | `no_effect` | Possible-send recovery verified the before-image; non-retriable because blind resend remains forbidden. |
 | `outcome_unknown` | A side effect may have occurred; blind retry forbidden. |
