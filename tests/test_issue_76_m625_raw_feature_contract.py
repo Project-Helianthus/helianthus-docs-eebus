@@ -294,12 +294,17 @@ def read_observation() -> dict:
     }
 
 
-def error_payload(code: str = "internal") -> dict:
+def error_payload(
+    code: str = "internal",
+    *,
+    retriable: bool = False,
+    source_layer: str = "mcp",
+) -> dict:
     return {
         "code": code,
         "message": "fixed public-safe error",
-        "retriable": False,
-        "source_layer": "mcp",
+        "retriable": retriable,
+        "source_layer": source_layer,
     }
 
 
@@ -1104,7 +1109,7 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         for code in (
             code
             for code in repository_policy.ISSUE92_ERROR_CODES
-            if code != "partial_result"
+            if code not in {"partial_result", "typed_empty"}
         ):
             for runtime in (runtime_binding(), None):
                 with self.subTest(error_code=code, runtime=runtime):
@@ -1203,6 +1208,73 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
         malformed_echo["error"]["details"] = {"raw_input": "not echoed"}
         self.assertFalse(
             schema_accepts(schema, "EnvelopeV1", malformed_echo)
+        )
+
+    def test_issue_100_typed_empty_is_terminal_and_preserves_nonempty_scalars(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / repository_policy.ISSUE76_SCHEMA_REL).read_text(encoding="utf-8")
+        )
+        typed_empty = error_payload("typed_empty", source_layer="remote")
+        self.assertTrue(schema_accepts(schema, "ErrorV1", typed_empty))
+
+        for field, replacement in (
+            ("retriable", True),
+            ("source_layer", "mcp"),
+        ):
+            with self.subTest(field=field):
+                invalid = deepcopy(typed_empty)
+                invalid[field] = replacement
+                self.assertFalse(schema_accepts(schema, "ErrorV1", invalid))
+
+        all_empty = {
+            "meta": envelope_meta(
+                "eebus.v1.features.data.get",
+                "eebus.raw.read",
+            ),
+            "request": {"targets": [feature_target()]},
+            "data": None,
+            "error": typed_empty,
+        }
+        self.assertTrue(schema_accepts(schema, "EnvelopeV1", all_empty))
+        self.assertIsNone(all_empty["data"])
+        self.assertNotIn("read_token", all_empty)
+        self.assertNotIn("before", all_empty)
+        self.assertNotIn("mutation", all_empty)
+
+        unbound = deepcopy(all_empty)
+        unbound["meta"]["runtime"] = None
+        self.assertFalse(schema_accepts(schema, "EnvelopeV1", unbound))
+
+        mixed = feature_data_get_partial_envelope()
+        mixed["data"]["results"] = [read_observation()]
+        mixed["data"]["failures"][0]["error"] = typed_empty
+        self.assertEqual(mixed["error"]["code"], "partial_result")
+        self.assertTrue(schema_accepts(schema, "EnvelopeV1", mixed))
+
+        unknown_fields = deepcopy(all_empty)
+        unknown_fields["error"] = error_payload(
+            "decode_error",
+            source_layer="remote",
+        )
+        unknown_fields["error"]["details"] = {
+            "classification": "known-empty-payload-with-unknown-fields"
+        }
+        self.assertTrue(schema_accepts(schema, "EnvelopeV1", unknown_fields))
+        unknown_fields["error"]["details"]["classification"] = "x" * 129
+        self.assertFalse(schema_accepts(schema, "EnvelopeV1", unknown_fields))
+
+        for value in (False, 0, ""):
+            with self.subTest(value=repr(value)):
+                self.assertTrue(schema_accepts(schema, "TypedValueV1", value))
+
+        self.assertTrue(
+            schema["x-read-observation-invariants"]["requireNonEmpty"]
+        )
+        self.assertEqual(
+            schema["x-typed-empty"]["knownEmptyWithUnknownFields"],
+            "decode_error-with-bounded-evidence",
         )
 
     def test_mutation_schema_rejects_incoherent_terminal_evidence(self) -> None:
@@ -1710,6 +1782,42 @@ class Issue76M625RawFeatureContractTests(unittest.TestCase):
 
             self.assertTrue(
                     any("issue-92 error vocabulary is not exact" in error for error in errors),
+                    errors,
+                )
+
+    def test_validator_rejects_issue_100_typed_empty_contract_weakening(
+        self,
+    ) -> None:
+        mutations = {
+            "error binding": (
+                lambda schema: schema["$defs"]["ErrorV1"].pop("allOf"),
+                "issue-100 typed-empty",
+            ),
+            "unknown field classification": (
+                lambda schema: schema["x-typed-empty"].update(
+                    {"knownEmptyWithUnknownFields": "typed_empty"}
+                ),
+                "issue-100 typed-empty",
+            ),
+            "nonempty requirement": (
+                lambda schema: schema["x-read-observation-invariants"].update(
+                    {"requireNonEmpty": False}
+                ),
+                "issue-86 read observation invariants",
+            ),
+        }
+        for name, (mutate, expected) in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                path = repo / repository_policy.ISSUE76_SCHEMA_REL
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                mutate(schema)
+                path.write_text(json.dumps(schema), encoding="utf-8")
+
+                errors = repository_policy.issue_76_m625_raw_feature_errors(repo)
+
+                self.assertTrue(
+                    any(expected in error for error in errors),
                     errors,
                 )
 

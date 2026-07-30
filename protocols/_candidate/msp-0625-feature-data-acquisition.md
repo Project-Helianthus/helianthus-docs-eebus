@@ -166,6 +166,16 @@ If some targets succeed and another fails, the call reports
 each failed target with a structured error. It never converts a missing target
 or missing payload into an empty successful value.
 
+A valid correlated reply with a known typed payload shape but no typed function
+data is terminal `typed_empty`: a non-retriable remote failure, not semantic
+success. The global `requireNonEmpty` rule applies to the payload container;
+present `false`, `0`, and empty-string fields remain data. An empty known
+payload that also contains unknown fields is instead `decode_error` with
+bounded unknown-field evidence. `typed_empty` produces no observation, token,
+before-image, or mutation continuation. A mixed batch keeps valid observations
+plus typed-empty failures under top-level `partial_result`; an all-typed-empty
+batch has top-level `typed_empty`.
+
 ### Synchronized public comparison projection
 
 A later M6.5 capture may derive one public-redacted record from a direct typed READ
@@ -359,6 +369,7 @@ The contract represents at least these outcomes explicitly:
 | Readback differs from both expected values | `conflict` and global write quarantine |
 | Some bounded READ targets fail | `partial_result` with per-target structured errors |
 | Decode failure or malformed correlated response | `decode_error`; never empty success |
+| Valid correlated known typed payload has no typed data | terminal non-retriable remote `typed_empty`; no token, before-image, or mutation continuation |
 | Rollback cannot be verified | `rollback_failed`, `outcome_unknown`, or `conflict`; never `rolled_back` |
 
 `outcome_unknown` is resolved only by a trustworthy fresh full READ after
