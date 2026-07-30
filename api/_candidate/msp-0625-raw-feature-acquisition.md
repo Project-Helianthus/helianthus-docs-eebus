@@ -254,17 +254,20 @@ redaction adapter selects only comparison-safe scalar observations and emits:
 - a bundle-local pseudonymous service/entity/feature path, including ordered
   `SERVICE`, `ENTITY`, `FEATURE`, and optional `FIELD` selectors;
 - the exact protocol feature type, role, and function identifier admitted by
-  the public-value allowlist;
-- per-observation source time and recorder monotonic offset;
-- terminal classification and a secondary outcome commitment; and
-- normalized value, unit, and quality for a successful `DECIMAL`, `BOOLEAN`,
-  or `ENUM` observation.
+  the closed public-value allowlist: `Measurement/measurementListData` or
+  `Setpoint/setpointListData`;
+- per-observation source time and terminal classification; and
+- normalized value, unit, and quality for a successful canonical `DECIMAL`
+  observation.
 
-The source payload deliberately contains no bundle, source, artifact,
-authorization, remasking-manifest, evidence-reference, or hash field. The
+The source payload owns only normalized evidence. It deliberately contains no
+bundle, source, artifact, authorization, recorder offset, summary count,
+outcome commitment, remasking-manifest, evidence-reference, or hash field. The
 MSP-065 envelope owns source authority, artifact hash, and replay hash, plus
 the complete `SourceBindingV1`, effective authorization, per-bundle remasking,
 capture timing, evidence refs, item/byte counts, and content-addressed ids.
+Thus all recorder timing, counts, and hashes are envelope-owned and are
+derived from the closed arrays rather than duplicated by this source payload.
 Its profile adapter binds `/observations/{index}/value` and
 `/observations/{index}/unit` as the native M7 comparison pointers and binds
 `path_index` to one complete declared eeBUS path.

@@ -325,7 +325,7 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
                 observation["unit"] = None
                 self.assertFalse(schema_accepts(schema, mutated))
                 self.assertIn(
-                    "successful observation is outside the public value allowlist",
+                    "observation is outside the public value allowlist",
                     repository_policy.issue_98_m65_live_redacted_source_instance_errors(
                         schema,
                         mutated,

@@ -142,11 +142,14 @@ stable identity, native SHIP/SPINE
 coordinates, labels, schedules, unknown raw objects, tokens, remapping data,
 or secrets.
 
-The rule is that numeric comparison values use canonical exact decimals with a 64-character
-bound. Boolean values use exactly `true` or `false`; protocol enums and units
-use bounded machine-token grammars. Successful observations carry explicit
-quality and source time. Other terminal classifications carry null value,
-unit, and quality.
+The closed allowlist contains only `Measurement/measurementListData` and
+`Setpoint/setpointListData`, each with a canonical exact decimal value and a
+64-character bound; numeric comparison values use canonical exact decimals.
+Description, manufacturer, schedule, label, state, and
+enum functions are not publishable through this exception. Units use the
+bounded machine-token grammar. Successful observations carry explicit quality
+and source time. Other terminal classifications carry null value, unit, and
+quality.
 
 Service/entity/feature/field selectors, observation references, source ids,
 and runtime ids are minted or remasked inside one outer MSP-065 bundle. They
@@ -159,8 +162,10 @@ The source-owned payload does not duplicate outer authority. The MSP-065
 envelope remains the sole owner of immutable source binding, effective
 authorization, phase and capture timing, per-bundle remasking manifest,
 evidence refs, item/byte counts, artifact hash, bundle hash, and regenerated
-replay hash. A missing or mismatched outer binding prevents `PRESENT` and
-therefore prevents M7 consumption.
+replay hash. The source owns only normalized evidence; it contains no recorder
+offset, summary count, outcome commitment, or parallel hash. A missing or
+mismatched outer binding prevents `PRESENT` and therefore prevents M7
+consumption.
 
 ## Evidence Authority
 

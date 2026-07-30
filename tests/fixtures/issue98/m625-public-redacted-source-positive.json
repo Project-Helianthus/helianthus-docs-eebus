@@ -2,20 +2,6 @@
   "contract": "helianthus.eebus.m625.public-redacted-evidence.v1",
   "schema_version": 1,
   "source_observed_at": "2026-07-30T00:00:01Z",
-  "summary": {
-    "declared_read_count": 2,
-    "attempted_read_count": 2,
-    "terminal_counts": [
-      {
-        "classification": "SUCCESS",
-        "count": 1
-      },
-      {
-        "classification": "DECODE_ERROR",
-        "count": 1
-      }
-    ]
-  },
   "services": [
     "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
   ],
@@ -75,13 +61,11 @@
       "feature_role": "server",
       "function": "measurementListData",
       "source_observed_at": "2026-07-30T00:00:00Z",
-      "recorder_offset_ns": 1000000000,
       "terminal_classification": "SUCCESS",
       "value_type": "DECIMAL",
       "value": "21.5",
       "unit": "degC",
-      "quality": "OBSERVED",
-      "outcome_commitment": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+      "quality": "OBSERVED"
     },
     {
       "observation_ref": "obs-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
@@ -90,13 +74,11 @@
       "feature_role": "server",
       "function": "measurementListData",
       "source_observed_at": "2026-07-30T00:00:01Z",
-      "recorder_offset_ns": 2000000000,
       "terminal_classification": "DECODE_ERROR",
       "value_type": null,
       "value": null,
       "unit": null,
-      "quality": null,
-      "outcome_commitment": "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+      "quality": null
     }
   ]
 }

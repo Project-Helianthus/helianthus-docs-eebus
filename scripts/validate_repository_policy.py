@@ -334,19 +334,25 @@ ISSUE98_DOCUMENT_MARKERS = {
         "owner-local raw response is not the public source payload",
         "CLOUD_APP remains pre-captured",
         "normalized value, unit, and quality",
+        "Measurement/measurementListData",
+        "Setpoint/setpointListData",
         "bundle-local pseudonymous service/entity/feature path",
         "MSP-065 envelope owns source authority, artifact hash, and replay hash",
+        "timing, counts, and hashes",
     ),
     ISSUE98_PROTOCOL_REL: (
         "direct typed READ",
         "bundle-local pseudonymous path",
         "no stable identity or native SPINE address",
         "normalized comparison value",
+        "closed public value allowlist",
         "no cloud client, credential, refresh, or retry",
     ),
     ISSUE98_POLICY_REL: (
         "public-redacted M6.25 comparison exception",
         "selected normalized values are publishable",
+        "Measurement/measurementListData",
+        "Setpoint/setpointListData",
         "does not license owner-local raw payloads",
         "no cross-bundle correlator",
         "numeric comparison values use canonical exact decimals",
@@ -356,7 +362,6 @@ ISSUE98_ROOT_KEYS = {
     "contract",
     "schema_version",
     "source_observed_at",
-    "summary",
     "services",
     "feature_paths",
     "observations",
@@ -396,8 +401,16 @@ ISSUE98_DECIMAL_PATTERN = re.compile(
     r"^(0(\.0+)?|0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?|"
     r"-(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?))$"
 )
-ISSUE98_ENUM_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 ISSUE98_UNIT_PATTERN = re.compile(r"^(1|%|[A-Za-z][A-Za-z0-9./*^_-]{0,31})$")
+ISSUE98_TIMESTAMP_PATTERN = re.compile(
+    r"^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])"
+    r"T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+    r"(\.[0-9]{0,8}[1-9])?Z$"
+)
+ISSUE98_PUBLIC_VALUE_ALLOWLIST = {
+    ("Measurement", "measurementListData"): "DECIMAL",
+    ("Setpoint", "setpointListData"): "DECIMAL",
+}
 ISSUE98_STABLE_IDENTITY_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
 )
@@ -6118,12 +6131,195 @@ def issue_76_m625_raw_feature_errors(root: Path) -> list[str]:
 
 
 def _issue_98_timestamp(value: object) -> datetime | None:
-    if not isinstance(value, str) or not value.endswith("Z"):
+    if (
+        not isinstance(value, str)
+        or ISSUE98_TIMESTAMP_PATTERN.fullmatch(value) is None
+    ):
         return None
     try:
         return datetime.fromisoformat(value[:-1] + "+00:00")
     except ValueError:
         return None
+
+
+def _issue_98_json_schema_errors(schema: object, value: object) -> list[str]:
+    """Execute the closed JSON Schema subset used by the M6.25 source."""
+
+    if not isinstance(schema, dict):
+        return ["checked-in JSON Schema must be an object"]
+    definitions = schema.get("$defs")
+    if not isinstance(definitions, dict):
+        return ["checked-in JSON Schema must define an object-valued $defs"]
+
+    errors: list[str] = []
+
+    def validate(candidate: object, instance: object, path: str, depth: int) -> None:
+        if depth > 64:
+            errors.append(f"{path}: JSON Schema recursion limit exceeded")
+            return
+        if not isinstance(candidate, dict):
+            errors.append(f"{path}: JSON Schema node is not an object")
+            return
+
+        reference = candidate.get("$ref")
+        if reference is not None:
+            prefix = "#/$defs/"
+            if (
+                not isinstance(reference, str)
+                or not reference.startswith(prefix)
+                or reference.removeprefix(prefix) not in definitions
+            ):
+                errors.append(
+                    f"{path}: unresolved local JSON Schema reference {reference!r}"
+                )
+                return
+            validate(
+                definitions[reference.removeprefix(prefix)],
+                instance,
+                path,
+                depth + 1,
+            )
+
+        one_of = candidate.get("oneOf")
+        if one_of is not None:
+            if not isinstance(one_of, list) or not one_of:
+                errors.append(f"{path}: JSON Schema oneOf must be a non-empty array")
+            else:
+                matches = 0
+                for option in one_of:
+                    before = len(errors)
+                    validate(option, instance, path, depth + 1)
+                    if len(errors) == before:
+                        matches += 1
+                    else:
+                        del errors[before:]
+                if matches != 1:
+                    errors.append(f"{path}: instance must match exactly one oneOf branch")
+
+        all_of = candidate.get("allOf")
+        if all_of is not None:
+            if not isinstance(all_of, list):
+                errors.append(f"{path}: JSON Schema allOf must be an array")
+            else:
+                for option in all_of:
+                    validate(option, instance, path, depth + 1)
+
+        if "not" in candidate:
+            before = len(errors)
+            validate(candidate["not"], instance, path, depth + 1)
+            matched = len(errors) == before
+            del errors[before:]
+            if matched:
+                errors.append(f"{path}: instance matches forbidden schema")
+
+        expected_type = candidate.get("type")
+        type_matches = {
+            "null": instance is None,
+            "boolean": isinstance(instance, bool),
+            "integer": isinstance(instance, int) and not isinstance(instance, bool),
+            "string": isinstance(instance, str),
+            "array": isinstance(instance, list),
+            "object": isinstance(instance, dict),
+        }
+        if isinstance(expected_type, str) and not type_matches.get(
+            expected_type, False
+        ):
+            errors.append(f"{path}: instance has the wrong JSON type")
+            return
+        if "const" in candidate and instance != candidate["const"]:
+            errors.append(f"{path}: instance does not equal const")
+        enum = candidate.get("enum")
+        if isinstance(enum, list) and instance not in enum:
+            errors.append(f"{path}: instance is outside enum")
+
+        if isinstance(instance, str):
+            if len(instance) < candidate.get("minLength", 0):
+                errors.append(f"{path}: string is shorter than minLength")
+            if len(instance) > candidate.get("maxLength", len(instance)):
+                errors.append(f"{path}: string is longer than maxLength")
+            pattern = candidate.get("pattern")
+            if isinstance(pattern, str):
+                try:
+                    matched = re.fullmatch(pattern, instance) is not None
+                except re.error:
+                    errors.append(f"{path}: JSON Schema pattern is invalid")
+                else:
+                    if not matched:
+                        errors.append(f"{path}: string does not match pattern")
+
+        if isinstance(instance, int) and not isinstance(instance, bool):
+            if instance < candidate.get("minimum", instance):
+                errors.append(f"{path}: integer is below minimum")
+            if instance > candidate.get("maximum", instance):
+                errors.append(f"{path}: integer is above maximum")
+
+        if isinstance(instance, list):
+            if len(instance) < candidate.get("minItems", 0):
+                errors.append(f"{path}: array is shorter than minItems")
+            if len(instance) > candidate.get("maxItems", len(instance)):
+                errors.append(f"{path}: array is longer than maxItems")
+            item_schema = candidate.get("items")
+            if item_schema is not None:
+                for index, item in enumerate(instance):
+                    validate(item_schema, item, f"{path}/{index}", depth + 1)
+
+        if isinstance(instance, dict):
+            required = candidate.get("required", [])
+            if not isinstance(required, list):
+                errors.append(f"{path}: JSON Schema required must be an array")
+            else:
+                for name in required:
+                    if name not in instance:
+                        errors.append(f"{path}: required property {name!r} is missing")
+            properties = candidate.get("properties", {})
+            if not isinstance(properties, dict):
+                errors.append(f"{path}: JSON Schema properties must be an object")
+            else:
+                for name, item in instance.items():
+                    if name in properties:
+                        validate(
+                            properties[name],
+                            item,
+                            f"{path}/{name}",
+                            depth + 1,
+                        )
+                    elif candidate.get("additionalProperties") is False:
+                        errors.append(f"{path}: additional property {name!r} is forbidden")
+
+    validate(schema, value, "$", 0)
+    return sorted(set(errors), key=lambda item: item.encode())
+
+
+def _issue_98_schema_reference_errors(schema: object) -> list[str]:
+    if not isinstance(schema, dict):
+        return ["checked-in JSON Schema must be an object"]
+    definitions = schema.get("$defs")
+    if not isinstance(definitions, dict):
+        return ["checked-in JSON Schema must define an object-valued $defs"]
+
+    errors: list[str] = []
+
+    def visit(value: object, path: str) -> None:
+        if isinstance(value, dict):
+            reference = value.get("$ref")
+            if reference is not None:
+                prefix = "#/$defs/"
+                if (
+                    not isinstance(reference, str)
+                    or not reference.startswith(prefix)
+                    or reference.removeprefix(prefix) not in definitions
+                ):
+                    errors.append(
+                        f"{path}: unresolved local JSON Schema reference {reference!r}"
+                    )
+            for key, child in value.items():
+                visit(child, f"{path}/{key}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                visit(child, f"{path}/{index}")
+
+    visit(schema, "$")
+    return sorted(set(errors), key=lambda item: item.encode())
 
 
 def _issue_98_path_errors(value: object, services: set[str]) -> list[str]:
@@ -6247,60 +6443,12 @@ def issue_98_m65_live_redacted_source_instance_errors(
         } != services:
             errors.append("services must equal the services referenced by feature_paths")
 
-    summary = value["summary"]
-    if not isinstance(summary, dict) or set(summary) != {
-        "declared_read_count",
-        "attempted_read_count",
-        "terminal_counts",
-    }:
-        errors.append("summary must use the closed count shape")
-        summary = {}
-    declared = summary.get("declared_read_count")
-    attempted = summary.get("attempted_read_count")
-    if declared != len(feature_paths):
-        errors.append("declared_read_count must equal feature_paths length")
-
-    terminal_counts = summary.get("terminal_counts")
-    terminal_rows: list[tuple[str, int]] = []
-    if not isinstance(terminal_counts, list) or not terminal_counts:
-        errors.append("terminal_counts must be a non-empty array")
-    else:
-        for row in terminal_counts:
-            if (
-                not isinstance(row, dict)
-                or set(row) != {"classification", "count"}
-                or row.get("classification") not in ISSUE98_TERMINAL_ORDER
-                or not isinstance(row.get("count"), int)
-                or isinstance(row.get("count"), bool)
-                or row["count"] < 0
-            ):
-                errors.append("terminal_counts contains an invalid row")
-                continue
-            terminal_rows.append((row["classification"], row["count"]))
-        classifications = [row[0] for row in terminal_rows]
-        if len(classifications) != len(set(classifications)):
-            errors.append("terminal classifications must be unique")
-        terminal_rank = {
-            classification: index
-            for index, classification in enumerate(ISSUE98_TERMINAL_ORDER)
-        }
-        if classifications != sorted(
-            classifications,
-            key=lambda classification: terminal_rank[classification],
-        ):
-            errors.append("terminal_counts must be ordered by terminal classification")
-        if isinstance(attempted, int) and sum(row[1] for row in terminal_rows) != attempted:
-            errors.append("terminal count sum must equal attempted_read_count")
-
     observations = value["observations"]
     if not isinstance(observations, list) or not 1 <= len(observations) <= 4096:
         errors.append("observations must be a bounded non-empty array")
         observations = []
-    if attempted != len(observations):
-        errors.append("attempted_read_count must equal observations length")
 
     observation_refs: list[str] = []
-    observed_terminals: dict[str, int] = {}
     observed_times: list[datetime] = []
     path_indices: set[int] = set()
     observation_keys = {
@@ -6310,13 +6458,11 @@ def issue_98_m65_live_redacted_source_instance_errors(
         "feature_role",
         "function",
         "source_observed_at",
-        "recorder_offset_ns",
         "terminal_classification",
         "value_type",
         "value",
         "unit",
         "quality",
-        "outcome_commitment",
     }
     for observation in observations:
         if not isinstance(observation, dict) or set(observation) != observation_keys:
@@ -6357,24 +6503,22 @@ def issue_98_m65_live_redacted_source_instance_errors(
             errors.append("observation source_observed_at must be a canonical UTC timestamp")
         else:
             observed_times.append(timestamp)
-        offset = observation["recorder_offset_ns"]
-        if (
-            not isinstance(offset, int)
-            or isinstance(offset, bool)
-            or not 0 <= offset <= 9007199254740991
-        ):
-            errors.append("recorder_offset_ns must be a safe non-negative integer")
 
         terminal = observation["terminal_classification"]
         if terminal not in ISSUE98_TERMINAL_ORDER:
             errors.append("observation terminal classification is invalid")
-        else:
-            observed_terminals[terminal] = observed_terminals.get(terminal, 0) + 1
 
         value_type = observation["value_type"]
         observed_value = observation["value"]
         unit = observation["unit"]
         quality = observation["quality"]
+        allowed_value_type = ISSUE98_PUBLIC_VALUE_ALLOWLIST.get(
+            (observation["feature_type"], observation["function"])
+        )
+        if allowed_value_type is None or (
+            terminal == "SUCCESS" and value_type != allowed_value_type
+        ):
+            errors.append("observation is outside the public value allowlist")
         if terminal == "SUCCESS":
             if value_type is None or observed_value is None or quality not in {
                 "OBSERVED",
@@ -6388,16 +6532,6 @@ def issue_98_m65_live_redacted_source_instance_errors(
                     or ISSUE98_DECIMAL_PATTERN.fullmatch(observed_value) is None
                 ):
                     errors.append("DECIMAL observations require canonical exact decimal")
-            elif value_type == "BOOLEAN":
-                if observed_value not in {"false", "true"}:
-                    errors.append("BOOLEAN observations require canonical boolean text")
-            elif value_type == "ENUM":
-                if (
-                    not isinstance(observed_value, str)
-                    or observed_value in {"false", "true"}
-                    or ISSUE98_ENUM_PATTERN.fullmatch(observed_value) is None
-                ):
-                    errors.append("ENUM observations require a bounded protocol token")
             else:
                 errors.append("SUCCESS observation value_type is invalid")
             if (
@@ -6413,13 +6547,6 @@ def issue_98_m65_live_redacted_source_instance_errors(
                 "non-SUCCESS observations require null value_type, value, unit, and quality"
             )
 
-        commitment = observation["outcome_commitment"]
-        if (
-            not isinstance(commitment, str)
-            or re.fullmatch(r"sha256:[0-9a-f]{64}", commitment) is None
-        ):
-            errors.append("outcome_commitment must be a lowercase SHA-256 digest")
-
         for candidate in (
             observation["feature_type"],
             observation["function"],
@@ -6432,8 +6559,6 @@ def issue_98_m65_live_redacted_source_instance_errors(
         errors.append("observation_refs must be unique")
     if observation_refs != sorted(observation_refs, key=lambda item: item.encode()):
         errors.append("observations must be ordered by observation_ref")
-    if dict(terminal_rows) != observed_terminals:
-        errors.append("terminal_counts must equal observed terminal classifications")
 
     source_timestamp = _issue_98_timestamp(value["source_observed_at"])
     if source_timestamp is None:
@@ -6483,6 +6608,56 @@ def issue_98_m65_live_redacted_source_errors(root: Path) -> list[str]:
         or root_properties.get("schema_version", {}).get("const") != 1
     ):
         errors.append(f"{ISSUE98_SCHEMA_REL}: issue-98 root source shape is not exact")
+    errors.extend(
+        f"{ISSUE98_SCHEMA_REL}: {error}"
+        for error in _issue_98_schema_reference_errors(schema)
+    )
+
+    definitions = schema.get("$defs")
+    observation_schema = (
+        definitions.get("ObservationV1")
+        if isinstance(definitions, dict)
+        else None
+    )
+    observation_keys = {
+        "observation_ref",
+        "path_index",
+        "feature_type",
+        "feature_role",
+        "function",
+        "source_observed_at",
+        "terminal_classification",
+        "value_type",
+        "value",
+        "unit",
+        "quality",
+    }
+    if (
+        not isinstance(root_properties, dict)
+        or root_properties.get("observations", {}).get("items", {}).get("$ref")
+        != "#/$defs/ObservationV1"
+        or not isinstance(observation_schema, dict)
+        or observation_schema.get("type") != "object"
+        or observation_schema.get("additionalProperties") is not False
+        or set(observation_schema.get("required", [])) != observation_keys
+        or set(observation_schema.get("properties", {})) != observation_keys
+    ):
+        errors.append(f"{ISSUE98_SCHEMA_REL}: ObservationV1 schema is not exact")
+
+    expected_allowlist = [
+        {
+            "feature_type": "Measurement",
+            "function": "measurementListData",
+            "value_type": "DECIMAL",
+        },
+        {
+            "feature_type": "Setpoint",
+            "function": "setpointListData",
+            "value_type": "DECIMAL",
+        },
+    ]
+    if schema.get("x-public-value-allowlist") != expected_allowlist:
+        errors.append(f"{ISSUE98_SCHEMA_REL}: public value allowlist is not exact")
 
     expected_adapter = {
         "source_kind": "EEBUS",
@@ -6556,6 +6731,26 @@ def issue_98_m65_live_redacted_source_errors(root: Path) -> list[str]:
         except (OSError, json.JSONDecodeError):
             errors.append(f"{ISSUE98_FIXTURE_REL}: issue-98 fixture is invalid JSON")
         else:
+            schema_errors = _issue_98_json_schema_errors(schema, fixture)
+            if schema_errors:
+                errors.append(
+                    f"{ISSUE98_FIXTURE_REL}: checked-in JSON Schema rejects the "
+                    "positive fixture"
+                )
+                errors.extend(
+                    f"{ISSUE98_FIXTURE_REL}: {error}" for error in schema_errors
+                )
+            if isinstance(fixture, dict):
+                forbidden_fixture = json.loads(json.dumps(fixture))
+                observations = forbidden_fixture.get("observations")
+                if isinstance(observations, list) and observations:
+                    observations[0]["feature_type"] = "Schedule"
+                    observations[0]["function"] = "scheduleListData"
+                    if not _issue_98_json_schema_errors(schema, forbidden_fixture):
+                        errors.append(
+                            f"{ISSUE98_SCHEMA_REL}: checked-in JSON Schema admits "
+                            "a forbidden public value function"
+                        )
             errors.extend(
                 f"{ISSUE98_FIXTURE_REL}: {error}"
                 for error in issue_98_m65_live_redacted_source_instance_errors(
