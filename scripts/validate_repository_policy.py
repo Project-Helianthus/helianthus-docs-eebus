@@ -407,7 +407,7 @@ ISSUE98_DECIMAL_PATTERN = re.compile(
     r"^(0(\.0+)?|0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?|"
     r"-(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?))$"
 )
-ISSUE98_ENUM_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+ISSUE98_ENUM_PATTERN = re.compile(r"^ID_(0|[1-9][0-9]{0,9})$")
 ISSUE98_TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])"
     r"T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
@@ -6649,10 +6649,11 @@ def issue_98_m65_live_redacted_source_instance_errors(
             elif value_type == "ENUM":
                 if (
                     not isinstance(observed_value, str)
-                    or observed_value in {"false", "true"}
                     or ISSUE98_ENUM_PATTERN.fullmatch(observed_value) is None
                 ):
-                    errors.append("ENUM observations require a bounded protocol token")
+                    errors.append(
+                        "HVAC ENUM observations require canonical opaque ID_<uint>"
+                    )
             else:
                 errors.append("SUCCESS observation value_type is invalid")
             if (
@@ -6812,6 +6813,16 @@ def issue_98_m65_live_redacted_source_errors(root: Path) -> list[str]:
         or len(unit_schema["enum"]) != len(ISSUE98_PUBLIC_UNITS)
     ):
         errors.append(f"{ISSUE98_SCHEMA_REL}: public protocol unit set is not exact")
+    enum_schema = (
+        definitions.get("EnumValueV1")
+        if isinstance(definitions, dict)
+        else None
+    )
+    if enum_schema != {
+        "type": "string",
+        "pattern": ISSUE98_ENUM_PATTERN.pattern,
+    }:
+        errors.append(f"{ISSUE98_SCHEMA_REL}: public enum grammar is not exact")
 
     expected_adapter = {
         "source_kind": "EEBUS",

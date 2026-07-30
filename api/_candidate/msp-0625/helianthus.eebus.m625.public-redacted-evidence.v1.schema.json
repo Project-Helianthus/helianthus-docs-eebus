@@ -84,13 +84,7 @@
     },
     "EnumValueV1": {
       "type": "string",
-      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
-      "not": {
-        "enum": [
-          "false",
-          "true"
-        ]
-      }
+      "pattern": "^ID_(0|[1-9][0-9]{0,9})$"
     },
     "UnitV1": {
       "type": "string",

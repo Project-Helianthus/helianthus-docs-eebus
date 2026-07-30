@@ -262,7 +262,10 @@ redaction adapter selects only comparison-safe scalar observations and emits:
 
 The value-type matrix is exact: Measurement admits `DECIMAL`; Setpoint admits
 `DECIMAL` and `BOOLEAN`; HVAC system-function data admits `BOOLEAN` and
-`ENUM`. Boolean and enum observations require null unit. Decimal units are
+`ENUM`. An HVAC enum is the opaque canonical token `ID_<uint>` with no leading
+zero and at most ten decimal digits; it is never resolved to a label,
+description, mode name, or manufacturer. Boolean and enum observations require
+null unit. Decimal units are
 limited to the closed public SPINE 1.3 `UnitOfMeasurementType` vocabulary;
 arbitrary bounded strings are rejected, so unit cannot carry a label,
 description, manufacturer, schedule, or other identity.

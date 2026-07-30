@@ -178,7 +178,9 @@ A successful selected scalar may carry a normalized comparison value only
 through the closed public value allowlist:
 `Measurement/measurementListData` as decimal;
 `Setpoint/setpointListData` as decimal or boolean; and
-`HVAC/hvacSystemFunctionListData` as boolean or bounded enum. Description,
+`HVAC/hvacSystemFunctionListData` as boolean or opaque `ID_<uint>` enum.
+The enum is never resolved to a label, description, mode name, or
+manufacturer. Description,
 manufacturer, schedule, and label functions are not admitted. Decimal units
 must be members of the public SPINE 1.3 `UnitOfMeasurementType` vocabulary;
 boolean and enum units are null. The record also carries acquisition quality,

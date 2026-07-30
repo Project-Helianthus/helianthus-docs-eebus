@@ -144,7 +144,9 @@ or secrets.
 
 The closed allowlist contains `Measurement/measurementListData` with decimal,
 `Setpoint/setpointListData` with decimal or boolean, and
-`HVAC/hvacSystemFunctionListData` with boolean or bounded enum. The rule is
+`HVAC/hvacSystemFunctionListData` with boolean or opaque canonical
+`ID_<uint>` enum. Enum ids are never resolved to labels, descriptions, mode
+names, or manufacturers. The rule is
 that numeric comparison values use canonical exact decimals with a
 64-character bound.
 Description, manufacturer, schedule, and label functions are not publishable
