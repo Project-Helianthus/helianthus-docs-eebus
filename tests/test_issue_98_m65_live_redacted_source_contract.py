@@ -90,6 +90,13 @@ def schema_accepts(schema: dict, instance: object) -> bool:
 
                 if re.fullmatch(pattern, value) is None:
                     return False
+            if candidate.get("format") == "date-time":
+                from datetime import datetime
+
+                try:
+                    datetime.fromisoformat(value.replace("Z", "+00:00"))
+                except ValueError:
+                    return False
 
         if isinstance(value, int) and not isinstance(value, bool):
             if value < candidate.get("minimum", value):
@@ -286,16 +293,23 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
         fixture = load_json(FIXTURE_REL)
 
         allowed_cases = (
-            ("Measurement", "measurementListData", "21.5", "degC"),
-            ("Setpoint", "setpointListData", "20", "degC"),
+            ("Measurement", "measurementListData", "DECIMAL", "21.5", "degC"),
+            ("Setpoint", "setpointListData", "DECIMAL", "20", "degC"),
+            ("Setpoint", "setpointListData", "BOOLEAN", "true", None),
+            ("HVAC", "hvacSystemFunctionListData", "BOOLEAN", "false", None),
+            ("HVAC", "hvacSystemFunctionListData", "ENUM", "ID_2", None),
         )
-        for feature_type, function, value, unit in allowed_cases:
-            with self.subTest(feature_type=feature_type, function=function):
+        for feature_type, function, value_type, value, unit in allowed_cases:
+            with self.subTest(
+                feature_type=feature_type,
+                function=function,
+                value_type=value_type,
+            ):
                 mutated = deepcopy(fixture)
                 observation = mutated["observations"][0]
                 observation["feature_type"] = feature_type
                 observation["function"] = function
-                observation["value_type"] = "DECIMAL"
+                observation["value_type"] = value_type
                 observation["value"] = value
                 observation["unit"] = unit
                 self.assertTrue(schema_accepts(schema, mutated))
@@ -313,6 +327,7 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
             ("HvacSystemFunction", "hvacSystemFunctionDescriptionListData", "ENUM", "HEATING"),
             ("Measurement", "measurementListData", "BOOLEAN", "true"),
             ("Setpoint", "setpointListData", "ENUM", "AUTO"),
+            ("HVAC", "hvacSystemFunctionDescriptionListData", "ENUM", "HEATING"),
         )
         for feature_type, function, value_type, value in forbidden_pairs:
             with self.subTest(feature_type=feature_type, function=function):
@@ -360,9 +375,23 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
         mutated["observations"][0]["unit"] = "unit-with-identity=abc"
         self.assertFalse(schema_accepts(schema, mutated))
 
+        for disguised_identity in ("Kitchen", "Vaillant"):
+            with self.subTest(disguised_identity=disguised_identity):
+                mutated = deepcopy(fixture)
+                mutated["observations"][0]["unit"] = disguised_identity
+                self.assertFalse(schema_accepts(schema, mutated))
+                self.assertIn(
+                    "observation unit must be null or a public protocol unit",
+                    repository_policy.issue_98_m65_live_redacted_source_instance_errors(
+                        schema,
+                        mutated,
+                    ),
+                )
+
     def test_timestamp_grammar_is_identical_in_schema_and_policy(self) -> None:
         schema = load_json(SCHEMA_REL)
         timestamp = schema["$defs"]["TimestampV1"]
+        self.assertEqual(timestamp["format"], "date-time")
         self.assertEqual(
             timestamp["pattern"],
             (
@@ -394,6 +423,7 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
             "20260730T000000Z",
             "2026-07-30T00:00:00.10Z",
             "2026-07-30T00:00:00.1234567890Z",
+            "2026-02-31T00:00:00Z",
         ):
             with self.subTest(rejected=rejected):
                 mutated = deepcopy(fixture)
