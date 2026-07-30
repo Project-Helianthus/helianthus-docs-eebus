@@ -254,11 +254,18 @@ redaction adapter selects only comparison-safe scalar observations and emits:
 - a bundle-local pseudonymous service/entity/feature path, including ordered
   `SERVICE`, `ENTITY`, `FEATURE`, and optional `FIELD` selectors;
 - the exact protocol feature type, role, and function identifier admitted by
-  the closed public-value allowlist: `Measurement/measurementListData` or
-  `Setpoint/setpointListData`;
+  the closed public-value allowlist: `Measurement/measurementListData`,
+  `Setpoint/setpointListData`, or `HVAC/hvacSystemFunctionListData`;
 - per-observation source time and terminal classification; and
-- normalized value, unit, and quality for a successful canonical `DECIMAL`
-  observation.
+- normalized value, unit, and quality for an allowlisted successful
+  `DECIMAL`, `BOOLEAN`, or `ENUM` observation.
+
+The value-type matrix is exact: Measurement admits `DECIMAL`; Setpoint admits
+`DECIMAL` and `BOOLEAN`; HVAC system-function data admits `BOOLEAN` and
+`ENUM`. Boolean and enum observations require null unit. Decimal units are
+limited to the closed public SPINE 1.3 `UnitOfMeasurementType` vocabulary;
+arbitrary bounded strings are rejected, so unit cannot carry a label,
+description, manufacturer, schedule, or other identity.
 
 The source payload owns only normalized evidence. It deliberately contains no
 bundle, source, artifact, authorization, recorder offset, summary count,

@@ -336,6 +336,8 @@ ISSUE98_DOCUMENT_MARKERS = {
         "normalized value, unit, and quality",
         "Measurement/measurementListData",
         "Setpoint/setpointListData",
+        "HVAC/hvacSystemFunctionListData",
+        "UnitOfMeasurementType",
         "bundle-local pseudonymous service/entity/feature path",
         "MSP-065 envelope owns source authority, artifact hash, and replay hash",
         "timing, counts, and hashes",
@@ -346,6 +348,8 @@ ISSUE98_DOCUMENT_MARKERS = {
         "no stable identity or native SPINE address",
         "normalized comparison value",
         "closed public value allowlist",
+        "HVAC/hvacSystemFunctionListData",
+        "UnitOfMeasurementType",
         "no cloud client, credential, refresh, or retry",
     ),
     ISSUE98_POLICY_REL: (
@@ -353,6 +357,8 @@ ISSUE98_DOCUMENT_MARKERS = {
         "selected normalized values are publishable",
         "Measurement/measurementListData",
         "Setpoint/setpointListData",
+        "HVAC/hvacSystemFunctionListData",
+        "UnitOfMeasurementType",
         "does not license owner-local raw payloads",
         "no cross-bundle correlator",
         "numeric comparison values use canonical exact decimals",
@@ -401,16 +407,115 @@ ISSUE98_DECIMAL_PATTERN = re.compile(
     r"^(0(\.0+)?|0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?|"
     r"-(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?))$"
 )
-ISSUE98_UNIT_PATTERN = re.compile(r"^(1|%|[A-Za-z][A-Za-z0-9./*^_-]{0,31})$")
+ISSUE98_ENUM_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 ISSUE98_TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])"
     r"T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
     r"(\.[0-9]{0,8}[1-9])?Z$"
 )
 ISSUE98_PUBLIC_VALUE_ALLOWLIST = {
-    ("Measurement", "measurementListData"): "DECIMAL",
-    ("Setpoint", "setpointListData"): "DECIMAL",
+    ("Measurement", "measurementListData"): frozenset({"DECIMAL"}),
+    ("Setpoint", "setpointListData"): frozenset({"BOOLEAN", "DECIMAL"}),
+    ("HVAC", "hvacSystemFunctionListData"): frozenset({"BOOLEAN", "ENUM"}),
 }
+ISSUE98_PUBLIC_UNITS = frozenset(
+    {
+        "unknown",
+        "1",
+        "m",
+        "kg",
+        "s",
+        "A",
+        "K",
+        "mol",
+        "cd",
+        "V",
+        "W",
+        "Wh",
+        "VA",
+        "VAh",
+        "var",
+        "varh",
+        "degC",
+        "degF",
+        "Lm",
+        "lx",
+        "Ohm",
+        "Hz",
+        "dB",
+        "dBm",
+        "pct",
+        "ppm",
+        "l",
+        "l/s",
+        "l/h",
+        "deg",
+        "rad",
+        "rad/s",
+        "sr",
+        "Gy",
+        "Bq",
+        "Bq/m^3",
+        "Sv",
+        "Rd",
+        "C",
+        "F",
+        "H",
+        "J",
+        "N",
+        "N_m",
+        "N_s",
+        "Wb",
+        "T",
+        "Pa",
+        "bar",
+        "atm",
+        "psi",
+        "mmHg",
+        "m^2",
+        "m^3",
+        "m^3/h",
+        "m/s",
+        "m/s^2",
+        "m^3/s",
+        "m/m^3",
+        "kg/m^3",
+        "kg_m",
+        "m^2/s",
+        "W/m_K",
+        "J/K",
+        "1/s",
+        "W/m^2",
+        "J/m^2",
+        "S",
+        "S/m",
+        "K/s",
+        "Pa/s",
+        "J/kg_K",
+        "Vs",
+        "V/m",
+        "V/Hz",
+        "As",
+        "A/m",
+        "Hz/s",
+        "kg/s",
+        "kg_m^2",
+        "J/Wh",
+        "W/s",
+        "ft^3",
+        "ft^3/h",
+        "ccf",
+        "ccf/h",
+        "US.liq.gal",
+        "US.liq.gal/h",
+        "Imp.gal",
+        "Imp.gal/h",
+        "Btu",
+        "Btu/h",
+        "Ah",
+        "kg/Wh",
+    }
+)
 ISSUE98_STABLE_IDENTITY_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
 )
@@ -6246,6 +6351,12 @@ def _issue_98_json_schema_errors(schema: object, value: object) -> list[str]:
                 else:
                     if not matched:
                         errors.append(f"{path}: string does not match pattern")
+            declared_format = candidate.get("format")
+            if declared_format == "date-time":
+                if _issue_98_timestamp(instance) is None:
+                    errors.append(f"{path}: string is not a canonical date-time")
+            elif declared_format is not None:
+                errors.append(f"{path}: JSON Schema format is unsupported")
 
         if isinstance(instance, int) and not isinstance(instance, bool):
             if instance < candidate.get("minimum", instance):
@@ -6512,11 +6623,11 @@ def issue_98_m65_live_redacted_source_instance_errors(
         observed_value = observation["value"]
         unit = observation["unit"]
         quality = observation["quality"]
-        allowed_value_type = ISSUE98_PUBLIC_VALUE_ALLOWLIST.get(
+        allowed_value_types = ISSUE98_PUBLIC_VALUE_ALLOWLIST.get(
             (observation["feature_type"], observation["function"])
         )
-        if allowed_value_type is None or (
-            terminal == "SUCCESS" and value_type != allowed_value_type
+        if allowed_value_types is None or (
+            terminal == "SUCCESS" and value_type not in allowed_value_types
         ):
             errors.append("observation is outside the public value allowlist")
         if terminal == "SUCCESS":
@@ -6532,16 +6643,30 @@ def issue_98_m65_live_redacted_source_instance_errors(
                     or ISSUE98_DECIMAL_PATTERN.fullmatch(observed_value) is None
                 ):
                     errors.append("DECIMAL observations require canonical exact decimal")
+            elif value_type == "BOOLEAN":
+                if observed_value not in {"false", "true"}:
+                    errors.append("BOOLEAN observations require canonical boolean text")
+            elif value_type == "ENUM":
+                if (
+                    not isinstance(observed_value, str)
+                    or observed_value in {"false", "true"}
+                    or ISSUE98_ENUM_PATTERN.fullmatch(observed_value) is None
+                ):
+                    errors.append("ENUM observations require a bounded protocol token")
             else:
                 errors.append("SUCCESS observation value_type is invalid")
             if (
                 unit is not None
                 and (
                     not isinstance(unit, str)
-                    or ISSUE98_UNIT_PATTERN.fullmatch(unit) is None
+                    or unit not in ISSUE98_PUBLIC_UNITS
                 )
             ):
-                errors.append("observation unit must be null or a bounded unit token")
+                errors.append(
+                    "observation unit must be null or a public protocol unit"
+                )
+            if value_type in {"BOOLEAN", "ENUM"} and unit is not None:
+                errors.append("BOOLEAN and ENUM observations require a null unit")
         elif any(item is not None for item in (value_type, observed_value, unit, quality)):
             errors.append(
                 "non-SUCCESS observations require null value_type, value, unit, and quality"
@@ -6648,16 +6773,45 @@ def issue_98_m65_live_redacted_source_errors(root: Path) -> list[str]:
         {
             "feature_type": "Measurement",
             "function": "measurementListData",
-            "value_type": "DECIMAL",
+            "value_types": ["DECIMAL"],
         },
         {
             "feature_type": "Setpoint",
             "function": "setpointListData",
-            "value_type": "DECIMAL",
+            "value_types": ["BOOLEAN", "DECIMAL"],
+        },
+        {
+            "feature_type": "HVAC",
+            "function": "hvacSystemFunctionListData",
+            "value_types": ["BOOLEAN", "ENUM"],
         },
     ]
     if schema.get("x-public-value-allowlist") != expected_allowlist:
         errors.append(f"{ISSUE98_SCHEMA_REL}: public value allowlist is not exact")
+    timestamp_schema = (
+        definitions.get("TimestampV1")
+        if isinstance(definitions, dict)
+        else None
+    )
+    if timestamp_schema != {
+        "type": "string",
+        "format": "date-time",
+        "pattern": ISSUE98_TIMESTAMP_PATTERN.pattern,
+    }:
+        errors.append(f"{ISSUE98_SCHEMA_REL}: timestamp schema is not exact")
+    unit_schema = (
+        definitions.get("UnitV1")
+        if isinstance(definitions, dict)
+        else None
+    )
+    if (
+        not isinstance(unit_schema, dict)
+        or unit_schema.get("type") != "string"
+        or not isinstance(unit_schema.get("enum"), list)
+        or set(unit_schema["enum"]) != ISSUE98_PUBLIC_UNITS
+        or len(unit_schema["enum"]) != len(ISSUE98_PUBLIC_UNITS)
+    ):
+        errors.append(f"{ISSUE98_SCHEMA_REL}: public protocol unit set is not exact")
 
     expected_adapter = {
         "source_kind": "EEBUS",

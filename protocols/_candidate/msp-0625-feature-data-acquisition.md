@@ -176,10 +176,13 @@ and cannot be reversed through a public remapping table.
 
 A successful selected scalar may carry a normalized comparison value only
 through the closed public value allowlist:
-`Measurement/measurementListData` and `Setpoint/setpointListData`, both as
-canonical exact decimals. Description, manufacturer, schedule, label, state,
-and enum functions are not admitted. The record also carries the bounded
-unit, acquisition quality, source time, and exact terminal classification. The public projection
+`Measurement/measurementListData` as decimal;
+`Setpoint/setpointListData` as decimal or boolean; and
+`HVAC/hvacSystemFunctionListData` as boolean or bounded enum. Description,
+manufacturer, schedule, and label functions are not admitted. Decimal units
+must be members of the public SPINE 1.3 `UnitOfMeasurementType` vocabulary;
+boolean and enum units are null. The record also carries acquisition quality,
+source time, and exact terminal classification. The public projection
 does not carry typed request/response objects, unknown raw object fields,
 purpose-bound tokens, labels, schedules, private network coordinates, or
 cryptographic material. A non-success terminal has null value, unit, and

@@ -142,14 +142,17 @@ stable identity, native SHIP/SPINE
 coordinates, labels, schedules, unknown raw objects, tokens, remapping data,
 or secrets.
 
-The closed allowlist contains only `Measurement/measurementListData` and
-`Setpoint/setpointListData`, each with a canonical exact decimal value and a
-64-character bound; numeric comparison values use canonical exact decimals.
-Description, manufacturer, schedule, label, state, and
-enum functions are not publishable through this exception. Units use the
-bounded machine-token grammar. Successful observations carry explicit quality
-and source time. Other terminal classifications carry null value, unit, and
-quality.
+The closed allowlist contains `Measurement/measurementListData` with decimal,
+`Setpoint/setpointListData` with decimal or boolean, and
+`HVAC/hvacSystemFunctionListData` with boolean or bounded enum. The rule is
+that numeric comparison values use canonical exact decimals with a
+64-character bound.
+Description, manufacturer, schedule, and label functions are not publishable
+through this exception. Decimal units use exactly the public SPINE 1.3
+`UnitOfMeasurementType` vocabulary; boolean and enum units are null, so an
+arbitrary string cannot be smuggled through the unit field. Successful
+observations carry explicit quality and source time. Other terminal
+classifications carry null value, unit, and quality.
 
 Service/entity/feature/field selectors, observation references, source ids,
 and runtime ids are minted or remasked inside one outer MSP-065 bundle. They
