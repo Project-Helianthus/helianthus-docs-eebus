@@ -132,15 +132,36 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
 
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(
+            set(schema["properties"]),
+            {
+                "contract",
+                "schema_version",
+                "source_observed_at",
+                "services",
+                "feature_paths",
+                "observations",
+            },
+        )
+        self.assertEqual(
             schema["properties"]["contract"]["const"],
             "helianthus.eebus.m625.public-redacted-evidence.v1",
         )
         self.assertEqual(schema["properties"]["schema_version"]["const"], 1)
-        self.assertNotIn("bundle_id", schema["properties"])
-        self.assertNotIn("source_id", schema["properties"])
-        self.assertNotIn("artifact_id", schema["properties"])
-        self.assertNotIn("redacted_hash", schema["properties"])
-        self.assertNotIn("replay_hash", schema["properties"])
+        for envelope_owned in (
+            "summary",
+            "recorder_offset_ns",
+            "outcome_commitment",
+            "bundle_id",
+            "source_id",
+            "artifact_id",
+            "redacted_hash",
+            "replay_hash",
+        ):
+            self.assertNotIn(envelope_owned, schema["properties"])
+            self.assertNotIn(
+                envelope_owned,
+                schema["$defs"]["ObservationV1"]["properties"],
+            )
 
     def test_schema_preserves_m7_comparison_data_without_native_identity(self) -> None:
         schema = load_json(SCHEMA_REL)
@@ -206,7 +227,7 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
                 mutated["observations"][0][field] = "forbidden"
                 self.assertFalse(schema_accepts(schema, mutated))
 
-    def test_schema_closes_ordering_counts_terminal_and_success_shape(self) -> None:
+    def test_schema_closes_ordering_terminal_and_success_shape(self) -> None:
         schema = load_json(SCHEMA_REL)
         fixture = load_json(FIXTURE_REL)
 
@@ -217,28 +238,6 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
             mutated,
         )
         self.assertIn("observations must be ordered by observation_ref", errors)
-
-        mutated = deepcopy(fixture)
-        mutated["summary"]["terminal_counts"].reverse()
-        errors = repository_policy.issue_98_m65_live_redacted_source_instance_errors(
-            schema,
-            mutated,
-        )
-        self.assertIn(
-            "terminal_counts must be ordered by terminal classification",
-            errors,
-        )
-
-        mutated = deepcopy(fixture)
-        mutated["summary"]["attempted_read_count"] = 50
-        errors = repository_policy.issue_98_m65_live_redacted_source_instance_errors(
-            schema,
-            mutated,
-        )
-        self.assertIn(
-            "terminal count sum must equal attempted_read_count",
-            errors,
-        )
 
         mutated = deepcopy(fixture)
         mutated["observations"][0]["terminal_classification"] = "INVENTED_SUCCESS"
@@ -282,41 +281,21 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
         )
         self.assertIn("observation path_index must select a declared feature_path", errors)
 
-        mutated = deepcopy(fixture)
-        mutated["summary"]["declared_read_count"] = 1
-        errors = repository_policy.issue_98_m65_live_redacted_source_instance_errors(
-            schema,
-            mutated,
-        )
-        self.assertIn(
-            "declared_read_count must equal feature_paths length",
-            errors,
-        )
-
-        mutated = deepcopy(fixture)
-        mutated["summary"]["terminal_counts"].append(
-            {"classification": "SUCCESS", "count": 0}
-        )
-        errors = repository_policy.issue_98_m65_live_redacted_source_instance_errors(
-            schema,
-            mutated,
-        )
-        self.assertIn("terminal classifications must be unique", errors)
-
     def test_numeric_values_units_and_privacy_are_executable(self) -> None:
         schema = load_json(SCHEMA_REL)
         fixture = load_json(FIXTURE_REL)
 
-        value_cases = (
-            ("DECIMAL", "21.5", "degC"),
-            ("BOOLEAN", "true", None),
-            ("ENUM", "AUTO", None),
+        allowed_cases = (
+            ("Measurement", "measurementListData", "21.5", "degC"),
+            ("Setpoint", "setpointListData", "20", "degC"),
         )
-        for value_type, value, unit in value_cases:
-            with self.subTest(value_type=value_type):
+        for feature_type, function, value, unit in allowed_cases:
+            with self.subTest(feature_type=feature_type, function=function):
                 mutated = deepcopy(fixture)
                 observation = mutated["observations"][0]
-                observation["value_type"] = value_type
+                observation["feature_type"] = feature_type
+                observation["function"] = function
+                observation["value_type"] = "DECIMAL"
                 observation["value"] = value
                 observation["unit"] = unit
                 self.assertTrue(schema_accepts(schema, mutated))
@@ -326,6 +305,31 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
                         mutated,
                     ),
                     [],
+                )
+
+        forbidden_pairs = (
+            ("Schedule", "scheduleListData", "DECIMAL", "21.5"),
+            ("DeviceClassification", "deviceClassificationManufacturerData", "ENUM", "Vaillant"),
+            ("HvacSystemFunction", "hvacSystemFunctionDescriptionListData", "ENUM", "HEATING"),
+            ("Measurement", "measurementListData", "BOOLEAN", "true"),
+            ("Setpoint", "setpointListData", "ENUM", "AUTO"),
+        )
+        for feature_type, function, value_type, value in forbidden_pairs:
+            with self.subTest(feature_type=feature_type, function=function):
+                mutated = deepcopy(fixture)
+                observation = mutated["observations"][0]
+                observation["feature_type"] = feature_type
+                observation["function"] = function
+                observation["value_type"] = value_type
+                observation["value"] = value
+                observation["unit"] = None
+                self.assertFalse(schema_accepts(schema, mutated))
+                self.assertIn(
+                    "successful observation is outside the public value allowlist",
+                    repository_policy.issue_98_m65_live_redacted_source_instance_errors(
+                        schema,
+                        mutated,
+                    ),
                 )
 
         negatives = (
@@ -356,18 +360,92 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
         mutated["observations"][0]["unit"] = "unit-with-identity=abc"
         self.assertFalse(schema_accepts(schema, mutated))
 
-    def test_enum_constraint_is_portable_json_schema_regex(self) -> None:
+    def test_timestamp_grammar_is_identical_in_schema_and_policy(self) -> None:
         schema = load_json(SCHEMA_REL)
-        enum_value = schema["$defs"]["EnumValueV1"]
+        timestamp = schema["$defs"]["TimestampV1"]
         self.assertEqual(
-            enum_value,
-            {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
-                "not": {"enum": ["false", "true"]},
-            },
+            timestamp["pattern"],
+            (
+                "^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])"
+                "T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+                "(\\.[0-9]{0,8}[1-9])?Z$"
+            ),
         )
-        self.assertNotIn("(?", enum_value["pattern"])
+        fixture = load_json(FIXTURE_REL)
+        for accepted in (
+            "2026-07-30T00:00:00Z",
+            "2026-07-30T00:00:00.1Z",
+            "2026-07-30T00:00:00.123456789Z",
+        ):
+            with self.subTest(accepted=accepted):
+                mutated = deepcopy(fixture)
+                mutated["observations"][0]["source_observed_at"] = accepted
+                self.assertTrue(schema_accepts(schema, mutated))
+                self.assertNotIn(
+                    "observation source_observed_at must be a canonical UTC timestamp",
+                    repository_policy.issue_98_m65_live_redacted_source_instance_errors(
+                        schema,
+                        mutated,
+                    ),
+                )
+
+        for rejected in (
+            "2026-07-30 00:00:00Z",
+            "20260730T000000Z",
+            "2026-07-30T00:00:00.10Z",
+            "2026-07-30T00:00:00.1234567890Z",
+        ):
+            with self.subTest(rejected=rejected):
+                mutated = deepcopy(fixture)
+                mutated["observations"][0]["source_observed_at"] = rejected
+                self.assertFalse(schema_accepts(schema, mutated))
+                self.assertIn(
+                    "observation source_observed_at must be a canonical UTC timestamp",
+                    repository_policy.issue_98_m65_live_redacted_source_instance_errors(
+                        schema,
+                        mutated,
+                    ),
+                )
+
+    def test_repository_gate_executes_the_checked_in_json_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            schema_path = repo / SCHEMA_REL
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema["properties"]["observations"] = {"type": "null"}
+            schema_path.write_text(
+                json.dumps(schema, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                any(
+                    "checked-in JSON Schema rejects the positive fixture" in error
+                    or "ObservationV1 schema is not exact" in error
+                    for error in repository_policy.issue_98_m65_live_redacted_source_errors(
+                        repo
+                    )
+                )
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            schema_path = repo / SCHEMA_REL
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema["properties"]["observations"]["items"]["$ref"] = (
+                "#/$defs/MissingObservationV1"
+            )
+            schema_path.write_text(
+                json.dumps(schema, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                any(
+                    "unresolved local JSON Schema reference" in error
+                    for error in repository_policy.issue_98_m65_live_redacted_source_errors(
+                        repo
+                    )
+                )
+            )
 
     def test_repository_policy_binds_docs_schema_and_public_boundary(self) -> None:
         self.assertEqual(
@@ -382,19 +460,25 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
                 "owner-local raw response is not the public source payload",
                 "CLOUD_APP remains pre-captured",
                 "normalized value, unit, and quality",
+                "Measurement/measurementListData",
+                "Setpoint/setpointListData",
                 "bundle-local pseudonymous service/entity/feature path",
                 "MSP-065 envelope owns source authority, artifact hash, and replay hash",
+                "timing, counts, and hashes",
             ),
             PROTOCOL_REL: (
                 "direct typed READ",
                 "bundle-local pseudonymous path",
                 "no stable identity or native SPINE address",
                 "normalized comparison value",
+                "closed public value allowlist",
                 "no cloud client, credential, refresh, or retry",
             ),
             DEVELOPMENT_REL: (
                 "public-redacted M6.25 comparison exception",
                 "selected normalized values are publishable",
+                "Measurement/measurementListData",
+                "Setpoint/setpointListData",
                 "does not license owner-local raw payloads",
                 "no cross-bundle correlator",
                 "numeric comparison values use canonical exact decimals",
