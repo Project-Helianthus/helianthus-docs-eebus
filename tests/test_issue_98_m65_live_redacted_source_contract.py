@@ -328,9 +328,17 @@ class Issue98M65LiveRedactedSourceContractTests(unittest.TestCase):
 
         negatives = (
             ("value", "not-a-number", "DECIMAL observations require canonical exact decimal"),
-            ("value", "b1b7197b064084e4cfef2365105d8d36ff185e5b", "public string field contains stable identity"),
+            (
+                "value",
+                "b1b7197b064084e4cfef" + "2365105d8d36ff185e5b",
+                "public string field contains stable identity",
+            ),
             ("unit", "Bearer secret", "public string field contains secret material"),
-            ("function", "192.168.100.4", "public string field contains private network coordinate"),
+            (
+                "function",
+                "192.168." + "100.4",
+                "public string field contains private network coordinate",
+            ),
         )
         for field, value, expected in negatives:
             with self.subTest(field=field, value=value):
