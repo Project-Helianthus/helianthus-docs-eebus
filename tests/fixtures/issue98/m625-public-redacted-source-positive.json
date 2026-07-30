@@ -1,37 +1,102 @@
 {
   "contract": "helianthus.eebus.m625.public-redacted-evidence.v1",
   "schema_version": 1,
-  "source_observed_at": "2026-07-30T00:00:00Z",
+  "source_observed_at": "2026-07-30T00:00:01Z",
   "summary": {
-    "declared_read_count": 49,
-    "attempted_read_count": 49,
+    "declared_read_count": 2,
+    "attempted_read_count": 2,
     "terminal_counts": [
       {
         "classification": "SUCCESS",
-        "count": 41
+        "count": 1
       },
       {
         "classification": "DECODE_ERROR",
-        "count": 4
-      },
-      {
-        "classification": "DISCONNECTED",
-        "count": 4
+        "count": 1
       }
     ]
   },
-  "reads": [
+  "services": [
+    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+  ],
+  "feature_paths": [
     {
-      "read_ref": "hmac-sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "source_observed_at": "2026-07-30T00:00:00Z",
-      "terminal_classification": "SUCCESS",
-      "outcome_commitment": "hmac-sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      "service": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "entity": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+      "feature": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+      "feature_path": [
+        {
+          "kind": "SERVICE",
+          "selector": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        },
+        {
+          "kind": "ENTITY",
+          "selector": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+        },
+        {
+          "kind": "FEATURE",
+          "selector": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+        },
+        {
+          "kind": "FIELD",
+          "selector": "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII"
+        }
+      ]
     },
     {
-      "read_ref": "hmac-sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "service": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "entity": "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+      "feature": "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+      "feature_path": [
+        {
+          "kind": "SERVICE",
+          "selector": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        },
+        {
+          "kind": "ENTITY",
+          "selector": "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"
+        },
+        {
+          "kind": "FEATURE",
+          "selector": "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH"
+        },
+        {
+          "kind": "FIELD",
+          "selector": "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ"
+        }
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "observation_ref": "obs-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "path_index": 0,
+      "feature_type": "Measurement",
+      "feature_role": "server",
+      "function": "measurementListData",
+      "source_observed_at": "2026-07-30T00:00:00Z",
+      "recorder_offset_ns": 1000000000,
+      "terminal_classification": "SUCCESS",
+      "value_type": "DECIMAL",
+      "value": "21.5",
+      "unit": "degC",
+      "quality": "OBSERVED",
+      "outcome_commitment": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "observation_ref": "obs-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+      "path_index": 1,
+      "feature_type": "Measurement",
+      "feature_role": "server",
+      "function": "measurementListData",
       "source_observed_at": "2026-07-30T00:00:01Z",
+      "recorder_offset_ns": 2000000000,
       "terminal_classification": "DECODE_ERROR",
-      "outcome_commitment": "hmac-sha256:4444444444444444444444444444444444444444444444444444444444444444"
+      "value_type": null,
+      "value": null,
+      "unit": null,
+      "quality": null,
+      "outcome_commitment": "sha256:7777777777777777777777777777777777777777777777777777777777777777"
     }
   ]
 }
