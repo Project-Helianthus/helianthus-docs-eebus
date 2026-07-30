@@ -2277,6 +2277,10 @@ class APISurfaceV1ContractTests(unittest.TestCase):
                 "api/_candidate/msp-0625/"
                 "helianthus.eebus.mcp.v1.raw-feature.schema.json"
             ),
+            Path(
+                "api/_candidate/msp-0625/"
+                "helianthus.eebus.m625.public-redacted-evidence.v1.schema.json"
+            ),
         }
         expected = {SCHEMA.relative_to(REPO)} | {
             path.relative_to(REPO)
