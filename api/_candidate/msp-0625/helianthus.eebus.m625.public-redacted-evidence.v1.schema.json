@@ -91,7 +91,13 @@
     },
     "EnumValueV1": {
       "type": "string",
-      "pattern": "^(?!(?:true|false)$)[A-Za-z][A-Za-z0-9_]{0,63}$"
+      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+      "not": {
+        "enum": [
+          "false",
+          "true"
+        ]
+      }
     },
     "UnitV1": {
       "type": "string",

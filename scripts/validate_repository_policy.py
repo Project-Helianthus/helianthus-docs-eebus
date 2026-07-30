@@ -396,7 +396,7 @@ ISSUE98_DECIMAL_PATTERN = re.compile(
     r"^(0(\.0+)?|0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?|"
     r"-(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?))$"
 )
-ISSUE98_ENUM_PATTERN = re.compile(r"^(?!(?:true|false)$)[A-Za-z][A-Za-z0-9_]{0,63}$")
+ISSUE98_ENUM_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 ISSUE98_UNIT_PATTERN = re.compile(r"^(1|%|[A-Za-z][A-Za-z0-9./*^_-]{0,31})$")
 ISSUE98_STABLE_IDENTITY_PATTERN = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"
@@ -6394,6 +6394,7 @@ def issue_98_m65_live_redacted_source_instance_errors(
             elif value_type == "ENUM":
                 if (
                     not isinstance(observed_value, str)
+                    or observed_value in {"false", "true"}
                     or ISSUE98_ENUM_PATTERN.fullmatch(observed_value) is None
                 ):
                     errors.append("ENUM observations require a bounded protocol token")
