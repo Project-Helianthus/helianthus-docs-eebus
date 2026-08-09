@@ -32,56 +32,71 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
         except ValueError:
             continue
 
-    label_separator = r"[\s_-]+"
-    sensitive_labels = (
-        "container" + rf"(?:{label_separator}(?:id|identifier|digest|hash|ref|reference))?",
-        "machine" + rf"(?:{label_separator}(?:id|identifier|digest|hash|ref|reference))?",
-        "image" + rf"(?:{label_separator}(?:id|identifier|digest|hash|ref|reference))?",
-        "manifest"
-        + rf"(?:{label_separator}[ab])?(?:{label_separator}(?:sha256|digest|hash|ref|reference))?",
-        "trust"
-        + rf"(?:{label_separator}(?:store|manifest))?"
-        + rf"(?:{label_separator}(?:path|location|filename|identifier|bytes|digest|hash|ref|reference))?",
-        "private"
-        + label_separator
-        + "artifact"
-        + rf"(?:{label_separator}(?:path|location|filename|identifier|digest|hash|ref|reference))?",
-        "ship" + rf"{label_separator}(?:id|identifier)",
-        "ski",
-        "peer" + rf"{label_separator}(?:id|identifier)",
-        "(?:device|entity|feature|protocol|spine)" + rf"{label_separator}address",
-    )
-    labeled_value = re.compile(
-        rf"(?i)\b(?:{'|'.join(sensitive_labels)})\b\s*[:=]\s*[^\s,;`]+"
-    )
-    if labeled_value.search(text):
-        violations.add("labeled-protected-value")
-
-    credential_labels = (
+    credential_labels = {
         "token",
-        "(?:access|refresh|session|authentication|bearer)" + label_separator + "token",
+        "access token",
+        "refresh token",
+        "session token",
+        "authentication token",
+        "bearer token",
         "password",
         "passphrase",
         "credential",
         "secret",
-        "cryptographic" + label_separator + "secret",
-        "api" + label_separator + "key",
-        "client" + label_separator + "secret",
-        "account" + label_separator + "(?:id|identifier)",
-        "(?:full" + label_separator + ")?fingerprint",
-        "mac" + label_separator + "address",
-        "serial(?:" + label_separator + "number)?",
-        "local" + label_separator + "identity",
-        "stable" + label_separator + "peer" + label_separator + "identifier",
-        "pairing" + label_separator + "history",
-        "household" + label_separator + "schedule",
-    )
-    credential_assignment = re.compile(
-        rf"(?i)\b(?:{'|'.join(credential_labels)})\b\s*[:=]\s*[^\s,;`]+"
-    )
-    bearer_authorization = re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+\S+")
-    if credential_assignment.search(text) or bearer_authorization.search(text):
-        violations.add("credential-token")
+        "cryptographic secret",
+        "api key",
+        "client secret",
+        "account id",
+        "account identifier",
+        "fingerprint",
+        "full fingerprint",
+        "mac address",
+        "serial",
+        "serial number",
+        "local identity",
+        "stable peer identifier",
+        "pairing history",
+        "household schedule",
+    }
+    protected_roots = {
+        "container",
+        "machine",
+        "image",
+        "manifest",
+        "trust",
+        "ship",
+        "ski",
+        "peer",
+    }
+    address_labels = {
+        "device address",
+        "entity address",
+        "feature address",
+        "protocol address",
+        "spine address",
+    }
+    for raw_line in text.splitlines():
+        line = re.sub(r"^\s*[-*]\s*", "", raw_line).strip()
+        line = line.replace("`", "").replace('"', "").replace("'", "")
+        for separator in re.finditer(r"[:=]", line):
+            value = line[separator.end() :].strip()
+            if not value:
+                continue
+            raw_label = line[max(0, separator.start() - 120) : separator.start()]
+            normalized = re.sub(r"[^a-z0-9]+", " ", raw_label.lower()).strip()
+            words = normalized.split()
+            for index in range(len(words)):
+                label = " ".join(words[index:])
+                if label == "private artifact retained" and value.lower().rstrip(".") in {"yes", "no"}:
+                    continue
+                if label.startswith("private artifact"):
+                    violations.add("labeled-protected-value")
+                if label.split(" ", 1)[0] in protected_roots or label in address_labels:
+                    violations.add("labeled-protected-value")
+                if label in credential_labels:
+                    violations.add("credential-token")
+                if label == "authorization" and value.lower().startswith("bearer "):
+                    violations.add("credential-token")
 
     patterns = {
         "stable-fingerprint": r"(?i)\b[0-9a-f]{40}\b",
@@ -197,6 +212,14 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "labeled-protected-value",
                 "Machine" + " ID: synthetic-host-id",
             ),
+            "machine-code-span-id": (
+                "labeled-protected-value",
+                "`Machine" + " ID`: `synthetic-host-id`",
+            ),
+            "embedded-machine-code-span-id": (
+                "labeled-protected-value",
+                "Observation: `Machine" + " ID: synthetic-host-id`",
+            ),
             "image-identifier": (
                 "labeled-protected-value",
                 "image" + "_id=sha256:deadbeef",
@@ -212,6 +235,18 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "trust-manifest-hash": (
                 "labeled-protected-value",
                 "trust" + "_manifest_hash=synthetic-trust-hash",
+            ),
+            "trust-underscore-id": (
+                "labeled-protected-value",
+                "trust" + "_id=synthetic-trust-id",
+            ),
+            "trust-hyphen-id": (
+                "labeled-protected-value",
+                "trust" + "-id=synthetic-trust-id",
+            ),
+            "trust-space-identifier": (
+                "labeled-protected-value",
+                "Trust" + " identifier: synthetic-trust-id",
             ),
             "trust-store-locator": (
                 "labeled-protected-value",
@@ -232,6 +267,18 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "private-artifact" + "-space-locator": (
                 "labeled-protected-value",
                 "Private" + " artifact path: /" + "Users/example/operator.json",
+            ),
+            "private-artifact" + "-underscore-id": (
+                "labeled-protected-value",
+                "private" + "_artifact_id=synthetic-artifact-id",
+            ),
+            "private-artifact" + "-hyphen-id": (
+                "labeled-protected-value",
+                "private" + "-artifact-id=synthetic-artifact-id",
+            ),
+            "private-artifact" + "-space-identifier": (
+                "labeled-protected-value",
+                "Private" + " artifact identifier: synthetic-artifact-id",
             ),
             "canonical-ship" + "-id": (
                 "canonical-ship" + "-id",
@@ -353,6 +400,30 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "short-ski-label": (
                 "labeled-protected-value",
                 "S" + "KI: synthetic-ski",
+            ),
+            "ski-underscore-id": (
+                "labeled-protected-value",
+                "S" + "KI_id=synthetic-ski",
+            ),
+            "ski-hyphen-id": (
+                "labeled-protected-value",
+                "S" + "KI-id=synthetic-ski",
+            ),
+            "ski-space-identifier": (
+                "labeled-protected-value",
+                "S" + "KI identifier: synthetic-ski",
+            ),
+            "quoted-ski-label": (
+                "labeled-protected-value",
+                '"S' + 'KI ID": "synthetic-ski"',
+            ),
+            "code-span-token": (
+                "credential-token",
+                "`to" + "ken`=`synthetic-token-value-1234`",
+            ),
+            "embedded-code-span-token": (
+                "credential-token",
+                "Observation: `to" + "ken=synthetic-token-value-1234`",
             ),
             "private-artifact" + "-locator": ("private-artifact-locator", "/mnt" + "/data/private/operator.json"),
             "candidate" + "-ref": ("candidate-ref", "candidate" + "_ref=synthetic"),
