@@ -65,10 +65,27 @@ validation, deduplication, and stable ordering. Secrets are not accepted
 through add-on options, environment variables, or process arguments.
 
 Before protected material is loaded, the wrapper recreates a deterministic
-container machine identity from the validated explicit interface identity and
-the fixed Helianthus eeBUS add-on domain. This preserves access to host-bound
-key material across container recreation. Neither the interface identity nor
-the derived machine identity is logged or exposed through an API.
+container machine identity using this frozen algorithm:
+
+1. read `/sys/class/net/<eebus_interface>/address` after the interface name has
+   passed the single-component allowlist `[A-Za-z0-9_.:-]+`;
+2. remove colon, carriage-return, and newline bytes, convert ASCII `A-F` to
+   lowercase, and require exactly 12 lowercase hexadecimal bytes;
+3. concatenate the exact ASCII domain-separation bytes
+   `helianthus-eebusreg-ha-v1:` with those 12 bytes, with no separator or
+   terminator;
+4. compute SHA-256 and encode all 32 digest bytes as 64 lowercase hexadecimal
+   bytes; and
+5. write those 64 bytes plus one line-feed byte to `/etc/machine-id`, then set
+   its mode to `0444`.
+
+For the synthetic normalized interface identity `020000000001`, the canonical
+input is `helianthus-eebusreg-ha-v1:020000000001` and the file value is
+`8a4c331847003c7bacbfa7f2f383cc8b49126d9b1ad071cf97a4ab39c6d12f7c`.
+
+This preserves access to host-bound key material across container recreation.
+Neither the interface identity nor the derived machine identity is logged or
+exposed through an API.
 
 ## Persistence And Restart Gate
 

@@ -62,11 +62,22 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
     def test_host_bound_key_identity_survives_without_identity_logging(self) -> None:
         for phrase in (
             "deterministic container machine identity",
-            "validated explicit interface identity",
+            "using this frozen algorithm",
             "preserves access to host-bound key material",
             "Neither the interface identity nor the derived machine identity is logged",
         ):
             self.assertIn(phrase, self.compact)
+        for exact in (
+            "`/sys/class/net/<eebus_interface>/address`",
+            "`[A-Za-z0-9_.:-]+`",
+            "`helianthus-eebusreg-ha-v1:`",
+            "synthetic normalized interface identity `020000000001`",
+            "`helianthus-eebusreg-ha-v1:020000000001`",
+            "`8a4c331847003c7bacbfa7f2f383cc8b49126d9b1ad071cf97a4ab39c6d12f7c`",
+            "`/etc/machine-id`",
+            "`0444`",
+        ):
+            self.assertIn(exact, self.text)
 
     def test_raw_operator_and_public_redacted_boundaries_remain_separate(self) -> None:
         for phrase in (
