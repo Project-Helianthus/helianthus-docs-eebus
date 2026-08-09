@@ -64,6 +64,15 @@ gateway parser, which remains authoritative for prefix and peer-identity
 validation, deduplication, and stable ordering. Secrets are not accepted
 through add-on options, environment variables, or process arguments.
 
+During an in-place upgrade, Supervisor may temporarily answer configuration
+lookups from its cached pre-eeBUS schema while the protected
+`/data/options.json` already contains the new fields. The wrapper MAY recover
+only an eeBUS field whose normal configuration lookup is missing or null from
+that protected file. It MUST NOT replace a non-empty lookup value, recover
+non-eeBUS fields through this path, or bypass any validation below. A recovered
+invalid interface, subnet set, port, allowlist, or unsupported gateway binary
+fails identically to the normal configuration path.
+
 Before protected material is loaded, the wrapper recreates a deterministic
 container machine identity using this frozen algorithm:
 

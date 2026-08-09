@@ -79,6 +79,17 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
         ):
             self.assertIn(exact, self.text)
 
+    def test_cached_supervisor_schema_fallback_is_bounded_and_fail_closed(self) -> None:
+        for phrase in (
+            "cached pre-eeBUS schema",
+            "only an eeBUS field whose normal configuration lookup is missing or null",
+            "MUST NOT replace a non-empty lookup value",
+            "recover non-eeBUS fields through this path",
+            "bypass any validation",
+            "fails identically to the normal configuration path",
+        ):
+            self.assertIn(phrase, self.compact)
+
     def test_raw_operator_and_public_redacted_boundaries_remain_separate(self) -> None:
         for phrase in (
             "`mask_tier=raw`",
