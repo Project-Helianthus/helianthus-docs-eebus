@@ -32,20 +32,56 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
         except ValueError:
             continue
 
+    label_separator = r"[\s_-]+"
     sensitive_labels = (
-        "container" + r"(?:_id)?",
-        "machine" + r"(?:_id)?",
-        "image" + r"(?:_id|_digest)?",
-        "manifest" + r"(?:_[ab])?(?:_sha256|_hash)?",
-        "trust" + r"(?:_store|_manifest)?(?:_path|_hash|_bytes)?",
-        "private" + r"_artifact(?:_path|_location|_hash)?",
-        "ship" + r"_id",
+        "container" + rf"(?:{label_separator}(?:id|identifier|digest|hash|ref|reference))?",
+        "machine" + rf"(?:{label_separator}(?:id|identifier|digest|hash|ref|reference))?",
+        "image" + rf"(?:{label_separator}(?:id|identifier|digest|hash|ref|reference))?",
+        "manifest"
+        + rf"(?:{label_separator}[ab])?(?:{label_separator}(?:sha256|digest|hash|ref|reference))?",
+        "trust"
+        + rf"(?:{label_separator}(?:store|manifest))?"
+        + rf"(?:{label_separator}(?:path|location|filename|identifier|bytes|digest|hash|ref|reference))?",
+        "private"
+        + label_separator
+        + "artifact"
+        + rf"(?:{label_separator}(?:path|location|filename|identifier|digest|hash|ref|reference))?",
+        "ship" + rf"{label_separator}(?:id|identifier)",
+        "ski",
+        "peer" + rf"{label_separator}(?:id|identifier)",
+        "(?:device|entity|feature|protocol|spine)" + rf"{label_separator}address",
     )
     labeled_value = re.compile(
         rf"(?i)\b(?:{'|'.join(sensitive_labels)})\b\s*[:=]\s*[^\s,;`]+"
     )
     if labeled_value.search(text):
         violations.add("labeled-protected-value")
+
+    credential_labels = (
+        "token",
+        "(?:access|refresh|session|authentication|bearer)" + label_separator + "token",
+        "password",
+        "passphrase",
+        "credential",
+        "secret",
+        "cryptographic" + label_separator + "secret",
+        "api" + label_separator + "key",
+        "client" + label_separator + "secret",
+        "account" + label_separator + "(?:id|identifier)",
+        "(?:full" + label_separator + ")?fingerprint",
+        "mac" + label_separator + "address",
+        "serial(?:" + label_separator + "number)?",
+        "local" + label_separator + "identity",
+        "stable" + label_separator + "peer" + label_separator + "identifier",
+        "pairing" + label_separator + "history",
+        "household" + label_separator + "schedule",
+    )
+    credential_assignment = re.compile(
+        rf"(?i)\b(?:{'|'.join(credential_labels)})\b\s*[:=]\s*[^\s,;`]+"
+    )
+    bearer_authorization = re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+\S+")
+    if credential_assignment.search(text) or bearer_authorization.search(text):
+        violations.add("credential-token")
 
     patterns = {
         "stable-fingerprint": r"(?i)\b[0-9a-f]{40}\b",
@@ -54,11 +90,7 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
         "numeric-ship" + "-id": r"\b[0-9]{20,}[A-Za-z0-9]*\b",
         "spine-address": r"(?<![A-Za-z0-9_])d:[^\s`]+",
         "mac-address": r"(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b",
-        "private-key": r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE " + r"KEY-----",
-        "credential-token": (
-            r"(?i)(?:authorization:\s*bearer\s+\S+|\b(?:access_|refresh_)?token\s*[:=]\s*"
-            r"[A-Za-z0-9._~-]{16,}|\b(?:api_key|credential)\s*[:=]\s*[A-Za-z0-9._~-]{16,})"
-        ),
+        "private-key": r"-----BEGIN [A-Z0-9 -]*PRIVATE " + r"KEY-----",
         "private-artifact-locator": r"(?<![A-Za-z0-9_])(?:/mnt)?/data/[A-Za-z0-9._/-]+",
         "candidate-ref": r"\bcandidate" + r"_ref\b",
     }
@@ -149,13 +181,29 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "labeled-protected-value",
                 "container" + "_id=" + "ab12" + "cd34" + "ef56",
             ),
+            "container-space-id": (
+                "labeled-protected-value",
+                "Container" + " ID: " + "ab12" + "cd34" + "ef56",
+            ),
+            "container-hyphen-identifier": (
+                "labeled-protected-value",
+                "Container" + "-identifier=synthetic-container",
+            ),
             "machine-identifier": (
                 "labeled-protected-value",
                 "machine" + "_id=synthetic-host-id",
             ),
+            "machine-space-id": (
+                "labeled-protected-value",
+                "Machine" + " ID: synthetic-host-id",
+            ),
             "image-identifier": (
                 "labeled-protected-value",
                 "image" + "_id=sha256:deadbeef",
+            ),
+            "image-space-id": (
+                "labeled-protected-value",
+                "Image" + " ID: sha256:deadbeef",
             ),
             "image-digest": (
                 "protected-digest-or-identifier",
@@ -169,6 +217,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "labeled-protected-value",
                 "trust" + "_store_path=/var/lib/synthetic/trust.json",
             ),
+            "trust-store-space-locator": (
+                "labeled-protected-value",
+                "Trust" + " store path: /var/lib/synthetic/trust.json",
+            ),
             "private-artifact" + "-hash": (
                 "labeled-protected-value",
                 "private" + "_artifact_hash=synthetic-artifact-hash",
@@ -177,6 +229,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "labeled-protected-value",
                 "private" + "_artifact_path=/" + "Users/example/operator.json",
             ),
+            "private-artifact" + "-space-locator": (
+                "labeled-protected-value",
+                "Private" + " artifact path: /" + "Users/example/operator.json",
+            ),
             "canonical-ship" + "-id": (
                 "canonical-ship" + "-id",
                 "HLS-" + ("1" * 32),
@@ -184,6 +240,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "opaque-ship" + "-id": (
                 "labeled-protected-value",
                 "ship" + "_id=opaque-synthetic-peer",
+            ),
+            "opaque-ship" + "-space-id": (
+                "labeled-protected-value",
+                "SHIP" + " ID: opaque-synthetic-peer",
             ),
             "numeric-ship" + "-id": (
                 "numeric-ship" + "-id",
@@ -198,21 +258,101 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "private-key",
                 "-----BEGIN OPENSSH PRIVATE " + "KEY-----",
             ),
-            "bearer-token": (
+            "encrypted-private-key": (
+                "private-key",
+                "-----BEGIN ENCRYPTED PRIVATE " + "KEY-----",
+            ),
+            "dsa-private-key": (
+                "private-key",
+                "-----BEGIN DSA PRIVATE " + "KEY-----",
+            ),
+            "bearer" + "-token": (
                 "credential-token",
                 "Authorization:" + " Bearer synthetic-token-value-1234",
             ),
-            "access-token": (
+            "plain" + "-token": (
+                "credential-token",
+                "to" + "ken=synthetic-token-value-1234",
+            ),
+            "access" + "-token": (
                 "credential-token",
                 "access" + "_token=synthetic-token-value-1234",
             ),
-            "refresh-token": (
+            "refresh" + "-token": (
                 "credential-token",
                 "refresh" + "_token=synthetic-token-value-1234",
             ),
             "api" + "-key": (
                 "credential-token",
                 "api" + "_key=synthetic-api-value-1234",
+            ),
+            "pass" + "word": (
+                "credential-token",
+                "pass" + "word=synthetic-password",
+            ),
+            "pass" + "phrase": (
+                "credential-token",
+                "pass" + "phrase=synthetic-passphrase",
+            ),
+            "credential" + "-value": (
+                "credential-token",
+                "credential" + "=synthetic-credential",
+            ),
+            "secret" + "-value": (
+                "credential-token",
+                "secret" + "=synthetic-secret",
+            ),
+            "client" + "-secret": (
+                "credential-token",
+                "client" + "_secret=synthetic-client-secret",
+            ),
+            "session" + "-token": (
+                "credential-token",
+                "session" + "_token=synthetic-session-token",
+            ),
+            "authentication" + "-token": (
+                "credential-token",
+                "authentication" + "_token=synthetic-auth-token",
+            ),
+            "cryptographic" + "-secret": (
+                "credential-token",
+                "cryptographic" + "_secret=synthetic-crypto-secret",
+            ),
+            "account" + "-identifier": (
+                "credential-token",
+                "account" + " identifier: synthetic-account",
+            ),
+            "full" + "-fingerprint-label": (
+                "credential-token",
+                "Full" + " fingerprint: synthetic-fingerprint",
+            ),
+            "mac" + "-address-label": (
+                "credential-token",
+                "MAC" + " address: synthetic-mac",
+            ),
+            "serial" + "-number": (
+                "credential-token",
+                "Serial" + " number: synthetic-serial",
+            ),
+            "local" + "-identity": (
+                "credential-token",
+                "Local" + " identity: synthetic-local",
+            ),
+            "stable-peer" + "-identifier": (
+                "credential-token",
+                "Stable" + " peer identifier: synthetic-peer",
+            ),
+            "pairing" + "-history": (
+                "credential-token",
+                "Pairing" + " history: synthetic-history",
+            ),
+            "household" + "-schedule": (
+                "credential-token",
+                "Household" + " schedule: synthetic-schedule",
+            ),
+            "short-ski-label": (
+                "labeled-protected-value",
+                "S" + "KI: synthetic-ski",
             ),
             "private-artifact" + "-locator": ("private-artifact-locator", "/mnt" + "/data/private/operator.json"),
             "candidate" + "-ref": ("candidate-ref", "candidate" + "_ref=synthetic"),
