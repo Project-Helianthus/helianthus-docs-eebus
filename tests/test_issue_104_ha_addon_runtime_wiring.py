@@ -28,7 +28,9 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
         if canonical_retained_line.fullmatch(raw_line):
             continue
         shared_policy_lines.append(raw_line)
-    if marker_diagnostics("\n".join(shared_policy_lines)):
+    shared_policy_text = "\n".join(shared_policy_lines)
+    shared_policy_visible_text = re.sub(r"[`*\"']", "", shared_policy_text)
+    if marker_diagnostics(shared_policy_text) or marker_diagnostics(shared_policy_visible_text):
         violations.add("shared-publication-policy")
 
     for candidate in re.findall(r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])", text):
@@ -314,6 +316,14 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "private-artifact" + "-retained-bold": (
                 "shared-publication-policy",
                 "**Private" + " artifact retained: no**",
+            ),
+            "private-artifact" + "-retained-double-quoted": (
+                "shared-publication-policy",
+                '- "Private ' + 'artifact retained": "yes"',
+            ),
+            "private-artifact" + "-retained-single-quoted": (
+                "shared-publication-policy",
+                "- 'Private " + "artifact retained': 'no'",
             ),
             "private-artifact" + "-retained-capitalized": (
                 "shared-publication-policy",
