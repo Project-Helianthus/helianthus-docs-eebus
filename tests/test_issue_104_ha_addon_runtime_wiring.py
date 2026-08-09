@@ -93,6 +93,9 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "MUST match the types declared by the add-on schema",
             "`-flag=value` argument",
             "ignore later trust or identity options",
+            "containing U+0000 MUST be rejected",
+            "before shell capture",
+            "shell command substitution removes NUL bytes",
         ):
             self.assertIn(phrase, self.compact)
 

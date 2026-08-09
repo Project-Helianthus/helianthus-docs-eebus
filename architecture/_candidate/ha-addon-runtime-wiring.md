@@ -80,6 +80,11 @@ wrong-typed protected values stop startup. Boolean gateway options use one
 `-flag=value` argument so Go flag parsing cannot interpret the value as a
 positional argument and ignore later trust or identity options.
 
+Protected string values containing U+0000 MUST be rejected by the JSON decoder
+before shell capture. The wrapper cannot rely on post-capture validation
+because shell command substitution removes NUL bytes and could otherwise
+transform an invalid identity or network selector into a different value.
+
 Before protected material is loaded, the wrapper recreates a deterministic
 container machine identity using this frozen algorithm:
 
