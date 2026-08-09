@@ -20,16 +20,12 @@ EVIDENCE = ROOT / "evidence" / "EV-20260809-001.md"
 
 def restart_evidence_redaction_violations(text: str) -> set[str]:
     violations: set[str] = set()
+    canonical_retained_line = re.compile(
+        r"^- Private " + r"artifact retained: (?:yes|no)$"
+    )
     shared_policy_lines: list[str] = []
     for raw_line in text.splitlines():
-        visible = re.sub(r"^\s*[-*]\s*", "", raw_line).strip().replace("`", "")
-        label, separator, value = visible.partition(":")
-        normalized_label = re.sub(r"[\s_-]+", " ", label.lower()).strip()
-        if (
-            separator
-            and normalized_label == "private artifact retained"
-            and value.strip().lower().rstrip(".") in {"yes", "no"}
-        ):
+        if canonical_retained_line.fullmatch(raw_line):
             continue
         shared_policy_lines.append(raw_line)
     if marker_diagnostics("\n".join(shared_policy_lines)):
@@ -98,6 +94,8 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
         "spine address",
     }
     for raw_line in text.splitlines():
+        if canonical_retained_line.fullmatch(raw_line):
+            continue
         line = re.sub(r"^\s*[-*]\s*", "", raw_line).strip()
         line = line.replace("`", "").replace('"', "").replace("'", "")
         for separator in re.finditer(r"[:=]", line):
@@ -109,8 +107,6 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
             words = normalized.split()
             for index in range(len(words)):
                 label = " ".join(words[index:])
-                if label == "private artifact retained" and value.lower().rstrip(".") in {"yes", "no"}:
-                    continue
                 if label.startswith("private artifact"):
                     violations.add("labeled-protected-value")
                 if label.split(" ", 1)[0] in protected_roots or label in address_labels:
@@ -302,6 +298,30 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "private-artifact" + "-space-identifier": (
                 "labeled-protected-value",
                 "Private" + " artifact identifier: synthetic-artifact-id",
+            ),
+            "private-artifact" + "-retained-underscore": (
+                "shared-publication-policy",
+                "Private" + "_artifact_retained: yes",
+            ),
+            "private-artifact" + "-retained-hyphen": (
+                "shared-publication-policy",
+                "Private" + "-artifact-retained: no",
+            ),
+            "private-artifact" + "-retained-code-span": (
+                "shared-publication-policy",
+                "`Private" + " artifact retained: yes`",
+            ),
+            "private-artifact" + "-retained-bold": (
+                "shared-publication-policy",
+                "**Private" + " artifact retained: no**",
+            ),
+            "private-artifact" + "-retained-capitalized": (
+                "shared-publication-policy",
+                "- Private " + "artifact retained: Yes",
+            ),
+            "private-artifact" + "-retained-alternate-bullet": (
+                "shared-publication-policy",
+                "* Private " + "artifact retained: no",
             ),
             "canonical-ship" + "-id": (
                 "canonical-ship" + "-id",
