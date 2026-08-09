@@ -2,17 +2,39 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+
+from machine_publication_policy import marker_diagnostics  # noqa: E402
+
+
 CONTRACT = ROOT / "architecture" / "_candidate" / "ha-addon-runtime-wiring.md"
 EVIDENCE = ROOT / "evidence" / "EV-20260809-001.md"
 
 
 def restart_evidence_redaction_violations(text: str) -> set[str]:
     violations: set[str] = set()
+    shared_policy_lines: list[str] = []
+    for raw_line in text.splitlines():
+        visible = re.sub(r"^\s*[-*]\s*", "", raw_line).strip().replace("`", "")
+        label, separator, value = visible.partition(":")
+        normalized_label = re.sub(r"[\s_-]+", " ", label.lower()).strip()
+        if (
+            separator
+            and normalized_label == "private artifact retained"
+            and value.strip().lower().rstrip(".") in {"yes", "no"}
+        ):
+            continue
+        shared_policy_lines.append(raw_line)
+    if marker_diagnostics("\n".join(shared_policy_lines)):
+        violations.add("shared-publication-policy")
+
     for candidate in re.findall(r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])", text):
         try:
             if ipaddress.ip_address(candidate).is_private:
@@ -99,13 +121,13 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
                     violations.add("credential-token")
 
     patterns = {
-        "stable-fingerprint": r"(?i)\b[0-9a-f]{40}\b",
+        "stable-fingerprint": r"(?i)\b[0-9a-f]{40,}\b",
         "protected-digest-or-identifier": r"(?i)\b(?:sha256:)?[0-9a-f]{64}\b",
         "canonical-ship" + "-id": r"(?i)\bHLS-[0-9a-f]{32}\b",
         "numeric-ship" + "-id": r"\b[0-9]{20,}[A-Za-z0-9]*\b",
         "spine-address": r"(?<![A-Za-z0-9_])d:[^\s`]+",
         "mac-address": r"(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b",
-        "private-key": r"-----BEGIN [A-Z0-9 -]*PRIVATE " + r"KEY-----",
+        "private-key": r"(?i)-----BEGIN [A-Z0-9 -]*PRIVATE " + r"KEY-----",
         "private-artifact-locator": r"(?<![A-Za-z0-9_])(?:/mnt)?/data/[A-Za-z0-9._/-]+",
         "candidate-ref": r"\bcandidate" + r"_ref\b",
     }
@@ -192,6 +214,7 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "private-ipv4": ("private-ipv4", "host=" + ".".join(("192", "168", "10", "4"))),
             "private-ipv6": ("private-ipv6", "host=" + "fd00" + "::1234"),
             "stable-fingerprint": ("stable-fingerprint", "ski=" + ("a" * 40)),
+            "long-fingerprint": ("stable-fingerprint", "fingerprint=" + ("a" * 41)),
             "container-short-id": (
                 "labeled-protected-value",
                 "container" + "_id=" + "ab12" + "cd34" + "ef56",
@@ -292,6 +315,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "labeled-protected-value",
                 "SHIP" + " ID: opaque-synthetic-peer",
             ),
+            "concatenated-ship" + "-id": (
+                "shared-publication-policy",
+                "SHIP" + "ID: opaque-synthetic-peer",
+            ),
             "numeric-ship" + "-id": (
                 "numeric-ship" + "-id",
                 "ship" + "_id=12345678901234567890TEST",
@@ -312,6 +339,14 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "dsa-private-key": (
                 "private-key",
                 "-----BEGIN DSA PRIVATE " + "KEY-----",
+            ),
+            "lowercase-private-key": (
+                "private-key",
+                "-----begin encrypted private " + "key-----",
+            ),
+            "private-key" + "-assignment": (
+                "shared-publication-policy",
+                "Private" + " key: synthetic-private-key",
             ),
             "bearer" + "-token": (
                 "credential-token",
@@ -369,6 +404,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "credential-token",
                 "account" + " identifier: synthetic-account",
             ),
+            "account" + "-data": (
+                "shared-publication-policy",
+                "Account" + " data: synthetic-account-data",
+            ),
             "full" + "-fingerprint-label": (
                 "credential-token",
                 "Full" + " fingerprint: synthetic-fingerprint",
@@ -397,6 +436,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "credential-token",
                 "Household" + " schedule: synthetic-schedule",
             ),
+            "household" + "-data": (
+                "shared-publication-policy",
+                "Household" + " data: synthetic-household-data",
+            ),
             "short-ski-label": (
                 "labeled-protected-value",
                 "S" + "KI: synthetic-ski",
@@ -413,6 +456,10 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
                 "labeled-protected-value",
                 "S" + "KI identifier: synthetic-ski",
             ),
+            "concatenated-ski" + "-id": (
+                "shared-publication-policy",
+                "S" + "KIID: synthetic-ski",
+            ),
             "quoted-ski-label": (
                 "labeled-protected-value",
                 '"S' + 'KI ID": "synthetic-ski"',
@@ -424,6 +471,18 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "embedded-code-span-token": (
                 "credential-token",
                 "Observation: `to" + "ken=synthetic-token-value-1234`",
+            ),
+            "direct-private-path": (
+                "shared-publication-policy",
+                "path=/" + "Users/example/private.json",
+            ),
+            "raw-evidence" + "-assignment": (
+                "shared-publication-policy",
+                "raw" + "_evidence=synthetic-payload",
+            ),
+            "source-contamination": (
+                "shared-publication-policy",
+                "vendor_" + "restric" + "ted=true",
             ),
             "private-artifact" + "-locator": ("private-artifact-locator", "/mnt" + "/data/private/operator.json"),
             "candidate" + "-ref": ("candidate-ref", "candidate" + "_ref=synthetic"),
