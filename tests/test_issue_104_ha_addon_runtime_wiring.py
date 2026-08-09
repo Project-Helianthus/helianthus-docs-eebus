@@ -20,14 +20,45 @@ def restart_evidence_redaction_violations(text: str) -> set[str]:
         except ValueError:
             continue
 
+    for candidate in re.findall(
+        r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,}[0-9A-Fa-f]{0,4}"
+        r"(?:%[A-Za-z0-9_.-]+)?(?![0-9A-Fa-f:])",
+        text,
+    ):
+        try:
+            address = ipaddress.ip_address(candidate.split("%", 1)[0])
+            if address.version == 6 and (address.is_private or address.is_link_local):
+                violations.add("private-ipv6")
+        except ValueError:
+            continue
+
+    sensitive_labels = (
+        "container" + r"(?:_id)?",
+        "machine" + r"(?:_id)?",
+        "image" + r"(?:_id|_digest)?",
+        "manifest" + r"(?:_[ab])?(?:_sha256|_hash)?",
+        "trust" + r"(?:_store|_manifest)?(?:_path|_hash|_bytes)?",
+        "private" + r"_artifact(?:_path|_location|_hash)?",
+        "ship" + r"_id",
+    )
+    labeled_value = re.compile(
+        rf"(?i)\b(?:{'|'.join(sensitive_labels)})\b\s*[:=]\s*[^\s,;`]+"
+    )
+    if labeled_value.search(text):
+        violations.add("labeled-protected-value")
+
     patterns = {
         "stable-fingerprint": r"(?i)\b[0-9a-f]{40}\b",
         "protected-digest-or-identifier": r"(?i)\b(?:sha256:)?[0-9a-f]{64}\b",
-        "ship" + "-id": r"\b[0-9]{20,}[A-Za-z0-9]*\b",
+        "canonical-ship" + "-id": r"(?i)\bHLS-[0-9a-f]{32}\b",
+        "numeric-ship" + "-id": r"\b[0-9]{20,}[A-Za-z0-9]*\b",
         "spine-address": r"(?<![A-Za-z0-9_])d:[^\s`]+",
         "mac-address": r"(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b",
         "private-key": r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE " + r"KEY-----",
-        "credential-token": r"(?i)(?:authorization:\s*bearer\s+\S+|\btoken\s*[:=]\s*[A-Za-z0-9._~-]{16,})",
+        "credential-token": (
+            r"(?i)(?:authorization:\s*bearer\s+\S+|\b(?:access_|refresh_)?token\s*[:=]\s*"
+            r"[A-Za-z0-9._~-]{16,}|\b(?:api_key|credential)\s*[:=]\s*[A-Za-z0-9._~-]{16,})"
+        ),
         "private-artifact-locator": r"(?<![A-Za-z0-9_])(?:/mnt)?/data/[A-Za-z0-9._/-]+",
         "candidate-ref": r"\bcandidate" + r"_ref\b",
     }
@@ -112,16 +143,77 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
         evidence = EVIDENCE.read_text(encoding="utf-8")
         synthetic_mutations = {
             "private-ipv4": ("private-ipv4", "host=" + ".".join(("192", "168", "10", "4"))),
+            "private-ipv6": ("private-ipv6", "host=" + "fd00" + "::1234"),
             "stable-fingerprint": ("stable-fingerprint", "ski=" + ("a" * 40)),
-            "machine-identifier": ("protected-digest-or-identifier", "machine_id=" + ("b" * 64)),
-            "image-digest": ("protected-digest-or-identifier", "image=sha256:" + ("c" * 64)),
-            "trust-manifest-hash": ("protected-digest-or-identifier", "manifest=" + ("d" * 64)),
-            "private-artifact" + "-hash": ("protected-digest-or-identifier", "artifact=" + ("e" * 64)),
-            "ship" + "-id": ("ship" + "-id", "ship" + "_id=12345678901234567890TEST"),
+            "container-short-id": (
+                "labeled-protected-value",
+                "container" + "_id=" + "ab12" + "cd34" + "ef56",
+            ),
+            "machine-identifier": (
+                "labeled-protected-value",
+                "machine" + "_id=synthetic-host-id",
+            ),
+            "image-identifier": (
+                "labeled-protected-value",
+                "image" + "_id=sha256:deadbeef",
+            ),
+            "image-digest": (
+                "protected-digest-or-identifier",
+                "image=sha256:" + ("c" * 64),
+            ),
+            "trust-manifest-hash": (
+                "labeled-protected-value",
+                "trust" + "_manifest_hash=synthetic-trust-hash",
+            ),
+            "trust-store-locator": (
+                "labeled-protected-value",
+                "trust" + "_store_path=/var/lib/synthetic/trust.json",
+            ),
+            "private-artifact" + "-hash": (
+                "labeled-protected-value",
+                "private" + "_artifact_hash=synthetic-artifact-hash",
+            ),
+            "private-artifact" + "-labeled-locator": (
+                "labeled-protected-value",
+                "private" + "_artifact_path=/" + "Users/example/operator.json",
+            ),
+            "canonical-ship" + "-id": (
+                "canonical-ship" + "-id",
+                "HLS-" + ("1" * 32),
+            ),
+            "opaque-ship" + "-id": (
+                "labeled-protected-value",
+                "ship" + "_id=opaque-synthetic-peer",
+            ),
+            "numeric-ship" + "-id": (
+                "numeric-ship" + "-id",
+                "ship" + "_id=12345678901234567890TEST",
+            ),
             "spine-address": ("spine-address", "feature=d:synthetic_peer:[1]:4"),
             "mac-address": ("mac-address", "interface=" + ":".join(("02", "00", "00", "00", "00", "01"))),
-            "private-key": ("private-key", "-----BEGIN PRIVATE " + "KEY-----"),
-            "credential-token": ("credential-token", "token=synthetic-token-value-1234"),
+            "generic-private-key": ("private-key", "-----BEGIN PRIVATE " + "KEY-----"),
+            "rsa-private-key": ("private-key", "-----BEGIN RSA PRIVATE " + "KEY-----"),
+            "ec-private-key": ("private-key", "-----BEGIN EC PRIVATE " + "KEY-----"),
+            "openssh-private-key": (
+                "private-key",
+                "-----BEGIN OPENSSH PRIVATE " + "KEY-----",
+            ),
+            "bearer-token": (
+                "credential-token",
+                "Authorization:" + " Bearer synthetic-token-value-1234",
+            ),
+            "access-token": (
+                "credential-token",
+                "access" + "_token=synthetic-token-value-1234",
+            ),
+            "refresh-token": (
+                "credential-token",
+                "refresh" + "_token=synthetic-token-value-1234",
+            ),
+            "api" + "-key": (
+                "credential-token",
+                "api" + "_key=synthetic-api-value-1234",
+            ),
             "private-artifact" + "-locator": ("private-artifact-locator", "/mnt" + "/data/private/operator.json"),
             "candidate" + "-ref": ("candidate-ref", "candidate" + "_ref=synthetic"),
         }
