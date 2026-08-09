@@ -84,6 +84,9 @@ Protected string values containing U+0000 MUST be rejected by the JSON decoder
 before shell capture. The wrapper cannot rely on post-capture validation
 because shell command substitution removes NUL bytes and could otherwise
 transform an invalid identity or network selector into a different value.
+Every present protected eeBUS field MUST be JSON-type checked before any
+`bashio::config` capture, including when Supervisor exposes the current schema;
+the normal and cached-schema paths therefore share the same byte and type gate.
 
 Before protected material is loaded, the wrapper recreates a deterministic
 container machine identity using this frozen algorithm:

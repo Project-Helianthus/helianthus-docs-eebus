@@ -96,6 +96,9 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "containing U+0000 MUST be rejected",
             "before shell capture",
             "shell command substitution removes NUL bytes",
+            "MUST be JSON-type checked before any",
+            "`bashio::config` capture",
+            "normal and cached-schema paths",
         ):
             self.assertIn(phrase, self.compact)
 
