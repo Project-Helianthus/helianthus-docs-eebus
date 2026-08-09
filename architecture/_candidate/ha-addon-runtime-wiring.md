@@ -73,6 +73,13 @@ non-eeBUS fields through this path, or bypass any validation below. A recovered
 invalid interface, subnet set, port, allowlist, or unsupported gateway binary
 fails identically to the normal configuration path.
 
+Fallback decoding preserves JSON presence and type. JSON `null` means absent,
+while the string `"null"` remains a string and is validated as such. Boolean,
+integer, and string options MUST match the types declared by the add-on schema;
+wrong-typed protected values stop startup. Boolean gateway options use one
+`-flag=value` argument so Go flag parsing cannot interpret the value as a
+positional argument and ignore later trust or identity options.
+
 Before protected material is loaded, the wrapper recreates a deterministic
 container machine identity using this frozen algorithm:
 

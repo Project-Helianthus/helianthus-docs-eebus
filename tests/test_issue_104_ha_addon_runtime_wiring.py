@@ -87,6 +87,12 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "recover non-eeBUS fields through this path",
             "bypass any validation",
             "fails identically to the normal configuration path",
+            "Fallback decoding preserves JSON presence and type",
+            "JSON `null` means absent",
+            "string `\"null\"` remains a string",
+            "MUST match the types declared by the add-on schema",
+            "`-flag=value` argument",
+            "ignore later trust or identity options",
         ):
             self.assertIn(phrase, self.compact)
 
