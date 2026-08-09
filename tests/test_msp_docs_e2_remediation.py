@@ -31,7 +31,7 @@ from manage_platform_cross_seed_snapshot import (
 )
 
 
-PLATFORM_COMMIT = "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4"
+PLATFORM_COMMIT = "9cede4c61a4f73019142b7418cf6f875" "37cf645c"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
 PLATFORM_URL = (
     "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/"
@@ -110,6 +110,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             "api/search-index.json": (
                 '{"pages":["api/api-surface-v1.md",'
                 '"api/eebusruntime-v1/reference.md","architecture/README.md",'
+                '"architecture/multi-runtime-coexistence.md",'
                 '"protocols/ship-spine-overview.md"]}\n'
             ),
             "api/sitemap.xml": (
@@ -118,16 +119,19 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "<url><loc>api/api-surface-v1.md</loc></url>"
                 "<url><loc>api/eebusruntime-v1/reference.md</loc></url>"
                 "<url><loc>architecture/README.md</loc></url>"
+                "<url><loc>architecture/multi-runtime-coexistence.md</loc></url>"
                 "<url><loc>protocols/ship-spine-overview.md</loc></url></urlset>\n"
             ),
             "api/versioned-bundle.txt": (
                 "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
                 "architecture/README.md\n"
+                "architecture/multi-runtime-coexistence.md\n"
                 "protocols/ship-spine-overview.md\n"
             ),
             "api/release-bundle.txt": (
                 "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
                 "architecture/README.md\n"
+                "architecture/multi-runtime-coexistence.md\n"
                 "protocols/ship-spine-overview.md\n"
             ),
         }
@@ -160,21 +164,26 @@ class MspDocsE2RemediationTests(unittest.TestCase):
         mutations = {
             "api/search-index.json": (
                 '{"pages":["api/api-surface-v1.md",'
-                '"api/eebusruntime-v1/reference.md","architecture/README.md"]}\n'
+                '"api/eebusruntime-v1/reference.md","architecture/README.md",'
+                '"architecture/multi-runtime-coexistence.md"]}\n'
             ),
             "api/sitemap.xml": (
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
                 "<url><loc>api/api-surface-v1.md</loc></url>"
                 "<url><loc>api/eebusruntime-v1/reference.md</loc></url>"
-                "<url><loc>architecture/README.md</loc></url></urlset>\n"
+                "<url><loc>architecture/README.md</loc></url>"
+                "<url><loc>architecture/multi-runtime-coexistence.md</loc></url>"
+                "</urlset>\n"
             ),
             "api/versioned-bundle.txt": (
                 "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
                 "architecture/README.md\n"
+                "architecture/multi-runtime-coexistence.md\n"
             ),
             "api/release-bundle.txt": (
                 "api/api-surface-v1.md\napi/eebusruntime-v1/reference.md\n"
                 "architecture/README.md\n"
+                "architecture/multi-runtime-coexistence.md\n"
             ),
         }
         for relative_path, payload in mutations.items():
@@ -2030,6 +2039,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             (repo / "api/search-index.json").write_text(
                 '{"pages":["api/eebusruntime-v1/reference.md",'
                 '"architecture/README.md",'
+                '"architecture/multi-runtime-coexistence.md",'
                 '"protocols/ship-spine-overview.md"]}\n',
                 encoding="utf-8",
             )
@@ -2069,8 +2079,12 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             )
         )
         target_paths = [target["path"] for target in snapshot_document["targets"]]
-        self.assertEqual(len(target_paths), 11)
+        self.assertEqual(len(target_paths), 12)
         self.assertIn("docs/platform/cross-runtime-envelope.md", target_paths)
+        self.assertIn(
+            "docs/platform/multi-runtime-coexistence-no-drift-v1.md",
+            target_paths,
+        )
         self.assertTrue(
             all(len(target["blob"]) == 40 for target in snapshot_document["targets"])
         )

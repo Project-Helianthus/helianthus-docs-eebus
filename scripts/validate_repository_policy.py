@@ -1254,7 +1254,7 @@ SCAFFOLD_PAGES = {
 }
 
 SCAFFOLD_ARTIFACT_SHA256 = {
-    "README.md": "2cbdf09619d7bdee2c6cc9c11495da1" "5a04a1888309ea5df487c70c1a5c1eeba",
+    "README.md": "6f4670f0c056759cb78d394449bdee94" "e6c4f4a15b6e4a476069be095c3d5781",
     "api/README.md": "99cd8f1833d1a1f801f4d04d62b1ecb" "95f20ad73d8dadc04c654f1fdcf31f1f3",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
@@ -1275,7 +1275,7 @@ PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "75ad978cfaec7573003508df67a28305" "fc7ccdf580d05ee25d7784fad8da7510"
+        "50dc9c6f8f67c517e8c953868f531541" "1c9f341c5e2b07c01ffc198eec8d3d52"
     ),
 }
 
@@ -1316,12 +1316,10 @@ CONTROL_MD = {
     "AGENTS.md",
 }
 
-PLATFORM_SNAPSHOT_REF = (
-    "153191f72b5b9ecacbadcf2f3d7e480c6" + "fef89a4"
-)
+PLATFORM_SNAPSHOT_REF = "9cede4c61a4f73019142b7418cf6f875" "37cf645c"
 PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
-PLATFORM_SNAPSHOT_SHA256 = "2ba234d20e3687299ffc4777da7b1413" "8ebf9b49b1ca82ccbca834e5dc9d171b"
+PLATFORM_SNAPSHOT_SHA256 = "10c31fc3a0dcd9980d2eac7e844664cf2fba1d9bcb8b331534eb36daf738462b"
 PLATFORM_SNAPSHOT_TARGETS = {
     "docs/platform/README.md",
     "docs/platform/cross-runtime-envelope.md",
@@ -1329,6 +1327,7 @@ PLATFORM_SNAPSHOT_TARGETS = {
     "docs/platform/eebus-interop-smoke.md",
     "docs/platform/eebus-raw-first-contract.md",
     "docs/platform/hash-auth-binding.md",
+    "docs/platform/multi-runtime-coexistence-no-drift-v1.md",
     "docs/platform/ownership-and-doc-gates.md",
     "docs/platform/ownership-validation.md",
     "docs/platform/promotion-and-consumer-contract.md",
@@ -1573,6 +1572,69 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
+    "5904ddd45f6a6b400afa7117126e3b87" "33e50e03d3ec6dcfa9b6e0062fc7a53e": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001, EV-20260714-001, EV-20260720-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical contract changes these ownership or "
+            "evidence-acceptance boundaries."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
+    "cdcac982cf559cf8dee4ae58ad1cacd0" "4a6419437b2788bc510ea73696fd5bc5": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:"
+            "architecture/multi-runtime-coexistence.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "publication_status": "active",
+        "claim_status": "evidence-backed",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical coexistence contract changes the M8 "
+            "authority, isolation, or scope boundaries summarized here."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/multi-runtime-coexistence-no-drift-v1.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
+            "docs/platform/multi-runtime-coexistence-no-drift-v1.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
 }
 PRODUCTION_REVIEWED_SUPPORTED_API = {
     "74a8f24cc7d835029d368d67ebcb1856" "77db7c4177a26bbb60165b4cbedf36d5": {
@@ -1612,7 +1674,7 @@ PRODUCTION_REVIEWED_SUPPORTED_API = {
 }
 FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
     # Synthetic contract bytes are accepted only by the explicit fixture mode.
-    "bebc7eb49d7eb838e6409c24369610e0" "c751adb47e9d8f96a7f7d2b90ae741a2": {
+    "faa90544fdf4564d5c012d5fc377a913" "331ce4db448fff97aea79dc74aed5c6a": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -1631,7 +1693,7 @@ FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
         "cross_seed_mode": "summary-only",
         "cross_seed_snapshot": (
             "Project-Helianthus/helianthus-docs-ebus@"
-            "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
             "docs/platform/shared-registry-boundary.md"
         ),
     },
@@ -1760,6 +1822,33 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "cross_seed_snapshot": (
             "Project-Helianthus/helianthus-docs-ebus@"
             "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "live_validation_status": "pending",
+    },
+    "2a4f88056136eabc87201e636bcaf0e1" "9c2cc438992a57fefa516cc8ae2a7014": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
+        ),
+        "owner_domain": "devices",
+        "license": "CC0-1.0",
+        "claim_status": "evidence-backed",
+        "publication_status": "planned-target",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260714-001,EV-20260720-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A bounded redacted live run violates the canonical advertisement, "
+            "callback provenance, transport ordering, or restart-persistence gate."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
             "docs/platform/eebus-raw-first-contract.md"
         ),
         "live_validation_status": "pending",
@@ -2907,13 +2996,47 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
     except yaml.YAMLError:
         return None, [invalid]
     entries = manifest.get("entries") if isinstance(manifest, dict) else None
-    if not isinstance(entries, list):
+    channel_registry = (
+        manifest.get("channel_registry") if isinstance(manifest, dict) else None
+    )
+    eligible_channels = (
+        manifest.get("eligible_channels") if isinstance(manifest, dict) else None
+    )
+    exact_memberships = (
+        manifest.get("exact_memberships") if isinstance(manifest, dict) else None
+    )
+    canonical_members = (
+        exact_memberships.get("canonical")
+        if isinstance(exact_memberships, dict)
+        else None
+    )
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema") != "helianthus.platform.doc-ownership"
+        or manifest.get("version") != 2
+        or channel_registry
+        != {
+            "canonical": {
+                "visibility": "stable",
+                "owner": "canonical_documentation_owner",
+            }
+        }
+        or not isinstance(eligible_channels, dict)
+        or not isinstance(entries, list)
+        or not isinstance(canonical_members, list)
+        or not canonical_members
+        or any(not isinstance(member, str) for member in canonical_members)
+        or len(set(canonical_members)) != len(canonical_members)
+        or canonical_members
+        != sorted(canonical_members, key=lambda member: member.encode("utf-8"))
+    ):
         return None, [invalid]
     manifest_channel_pages = {
         channel: set() for channel in CANDIDATE_API_CHANNELS
     }
     local_repository = REPO_ID.split("/", 1)[1]
     seen_entry_ids: set[str] = set()
+    canonical_member_set = set(canonical_members)
     for entry in entries:
         if not isinstance(entry, dict):
             return None, [invalid]
@@ -2922,20 +3045,25 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
             return None, [invalid]
         seen_entry_ids.add(entry_id)
         owner = entry.get("owner")
-        outputs = entry.get("outputs")
-        if not isinstance(owner, dict) or not isinstance(outputs, dict):
+        if not isinstance(owner, dict):
             return None, [invalid]
-        if owner.get("repository") != local_repository or entry.get("state") != "active":
+        eligible = eligible_channels.get(entry_id)
+        if entry_id in canonical_member_set and eligible != ["canonical"]:
+            return None, [invalid]
+        if (
+            owner.get("repository") != local_repository
+            or entry.get("state") != "active"
+            or entry_id not in canonical_member_set
+        ):
             continue
         owner_path = owner.get("path")
         if not isinstance(owner_path, str):
             return None, [invalid]
         for channel in CANDIDATE_API_CHANNELS:
-            enabled = outputs.get(channel)
-            if not isinstance(enabled, bool):
-                return None, [invalid]
-            if enabled:
-                manifest_channel_pages[channel].add(owner_path)
+            manifest_channel_pages[channel].add(owner_path)
+
+    if not canonical_member_set.issubset(seen_entry_ids):
+        return None, [invalid]
 
     return {
         "repository": document["repository"],

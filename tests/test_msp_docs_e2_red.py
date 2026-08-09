@@ -17,7 +17,7 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 CONTRACT = REPO / "tests" / "fixtures" / "msp_docs_e2_contract.yaml"
 CANDIDATE_PATH = "api/_candidate/runtime-reference.md"
-PLATFORM_COMMIT = "153191f72b5b9ecacbad" "cf2f3d7e480c6fef89a4"
+PLATFORM_COMMIT = "9cede4c61a4f73019142b7418cf6f875" "37cf645c"
 
 
 def copy_repo(tmp_path: Path) -> Path:
