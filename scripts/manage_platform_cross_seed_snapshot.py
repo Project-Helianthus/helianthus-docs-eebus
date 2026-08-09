@@ -25,6 +25,7 @@ CANONICAL_TARGETS = (
     "docs/platform/eebus-interop-smoke.md",
     "docs/platform/eebus-raw-first-contract.md",
     "docs/platform/hash-auth-binding.md",
+    "docs/platform/multi-runtime-coexistence-no-drift-v1.md",
     "docs/platform/ownership-and-doc-gates.md",
     "docs/platform/ownership-validation.md",
     "docs/platform/promotion-and-consumer-contract.md",
@@ -123,7 +124,7 @@ def internal_errors(document: dict[str, Any]) -> list[str]:
         or envelope.get("owner")
         != {
             "repository": "helianthus-docs-ebus",
-            "path": "docs/platform/cross-runtime-envelope.md",
+            "path": "docs/platform/README.md",
         }
     ):
         errors.append("source manifest does not canonically bind cross-runtime-envelope")

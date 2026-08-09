@@ -10,7 +10,7 @@ hypothesis_status: "publishable"
 falsifier: "A publishable canonical contract changes these ownership or evidence-acceptance boundaries."
 cross_seed_target: "Project-Helianthus/helianthus-docs-ebus:docs/platform/shared-registry-boundary.md"
 cross_seed_mode: "summary-only"
-cross_seed_snapshot: "Project-Helianthus/helianthus-docs-ebus@153191f72b5b9ecacbadcf2f3d7e480c6fef89a4:docs/platform/shared-registry-boundary.md"
+cross_seed_snapshot: "Project-Helianthus/helianthus-docs-ebus@9cede4c61a4f73019142b7418cf6f87537cf645c:docs/platform/shared-registry-boundary.md"
 stable_navigation: "true"
 search: "true"
 sitemap: "true"
@@ -33,7 +33,7 @@ stays in `protocols/`; public Go shape stays in the active
 
 Language-neutral registry semantics remain outside this repository. The
 canonical source is the
-[shared registry boundary](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/153191f72b5b9ecacbadcf2f3d7e480c6fef89a4/docs/platform/shared-registry-boundary.md).
+[shared registry boundary](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/9cede4c61a4f73019142b7418cf6f87537cf645c/docs/platform/shared-registry-boundary.md).
 This page records only where the local adapter hands responsibility to that
 platform contract.
 

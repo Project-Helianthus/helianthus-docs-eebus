@@ -50,6 +50,7 @@ MEMBERS = [
     "api/api-surface-v1.md",
     "api/eebusruntime-v1/reference.md",
     "architecture/README.md",
+    "architecture/multi-runtime-coexistence.md",
     "protocols/ship-spine-overview.md",
 ]
 OUTPUT_ROOTS = ["api", "build", "dist", "exports", "output", "public", "release", "site"]
