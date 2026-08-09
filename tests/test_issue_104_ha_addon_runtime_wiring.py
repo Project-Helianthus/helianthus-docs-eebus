@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "architecture" / "_candidate" / "ha-addon-runtime-wiring.md"
+EVIDENCE = ROOT / "evidence" / "EV-20260809-001.md"
 
 
 class HAAddonRuntimeWiringTests(unittest.TestCase):
@@ -58,6 +59,26 @@ class HAAddonRuntimeWiringTests(unittest.TestCase):
             "service-only restart",
         ):
             self.assertIn(phrase, self.compact)
+
+        self.assertIn("`EV-20260809-001`", self.text)
+
+    def test_restart_evidence_is_redacted_and_records_the_observed_gate(self) -> None:
+        evidence = EVIDENCE.read_text(encoding="utf-8")
+        compact = " ".join(evidence.split())
+        for phrase in (
+            "different container from the same candidate image",
+            "same redacted peer was paired and visible",
+            "one SHIP session returned to `connected`",
+            "| Remote protocol devices | 1 |",
+            "| Entities | 11 |",
+            "| Features | 20 |",
+            "| Use-case claims | 22 |",
+            "`mask_tier=raw`",
+            "`mask_tier=redacted`",
+            "both failed with `permission_denied`",
+            "does not claim a simultaneous live eBUS transport smoke test",
+        ):
+            self.assertIn(phrase, compact)
 
     def test_host_bound_key_identity_survives_without_identity_logging(self) -> None:
         for phrase in (

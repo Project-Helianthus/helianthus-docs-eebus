@@ -5,7 +5,7 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260729-001"
+evidence_ids: "EV-20260729-001, EV-20260809-001"
 hypothesis_status: "draft"
 falsifier: "A supported Home Assistant deployment cannot preserve the exact enabled eeBUS configuration and protected state across container recreation without widening listener, trust, or public API boundaries."
 stable_navigation: "false"
@@ -131,6 +131,13 @@ A service-only restart can test gateway lifecycle handling, but it cannot
 satisfy item 3. Public evidence records only redacted identifiers and network
 references. Exact identities and protocol addresses remain visible only on
 the authorized local operator surface.
+
+The full-container recreation gate above was observed for the candidate add-on
+and gateway revisions recorded in
+[`EV-20260809-001`](../../evidence/EV-20260809-001.md). That evidence is limited
+to the eeBUS sidecar and its API boundary: the physical eBUS transport was
+unavailable during the run, so it does not claim a simultaneous live eBUS
+smoke test.
 
 ## API And Security Boundary
 
