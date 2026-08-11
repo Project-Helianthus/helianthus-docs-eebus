@@ -68,13 +68,13 @@ map. The descriptor tuple above discovers the source; it does not hardcode one
 observed topology address as a portable VR940 constant.
 
 The exact eBUS peer is B524
-`OP=0x02/GG=0x00/II=0x00/RR=0x0073`, target `0x15`, category `STATE`, value
-type `f32`, unit `degC`, with controller-local group and instance context. Its
-`source_address` is not a constant: every capture must bind the exact admitted
-initiator reported by `ebus.v1.runtime.status.get` and corroborated by the bus
-observation for that poll. The current feasibility run admitted `0x7F`. A
-different source, including a value copied from an older fixture, is an
-identity mismatch unless that exact source was admitted for the new capture.
+`OP=0x02/GG=0x00/II=0x00/RR=0x0073`, category `STATE`, value type `f32`, unit
+`degC`, with controller-local group and instance context. Its source and target
+addresses are not public constants: every private capture must bind the exact
+admitted initiator reported by `ebus.v1.runtime.status.get`, the exact target,
+and the corroborating bus observation for that poll. A value copied from an
+older fixture or another address context is an identity mismatch. The public
+export retains only approved bundle-local pseudonyms and commitments.
 
 ## Closed V1 Profile
 
@@ -131,8 +131,9 @@ ebus_source:
   group: "0x00"
   instance: "0x00"
   register: "0x0073"
-  source_address: from_capture
-  target_address: "0x15"
+  source_address_binding: exact_from_private_capture
+  target_address_binding: exact_from_private_capture
+  target_product_class: BASV2
   category: STATE
   value_type: f32
   unit: degC
@@ -251,12 +252,12 @@ the comparator against contemporaneous eBUS evidence.
 
 The public evidence record may retain the candidate and comparator ids,
 normalized selected values admitted by the M6.25 comparison exception, units,
-capture/result counts, terminal outcome, eBUS register tuple and observed bus
-source/target context, fresh bundle-local selector pseudonyms, and deterministic
-commitments. It omits the peer SKI, SHIP ID, SPINE device address, native path
-selectors from the runtime artifact, remapping table, private network data,
-credentials, private keys, PEM material, trust-store bytes, tokens, and raw
-payloads.
+capture/result counts, terminal outcome, eBUS register tuple, target product
+class, fresh bundle-local pseudonyms, and deterministic commitments. It omits
+the eBUS source and target addresses, peer SKI, SHIP ID, SPINE device address,
+native path selectors from the runtime artifact, remapping table, private
+network data, credentials, private keys, PEM material, trust-store bytes,
+tokens, and raw payloads.
 
 No dossier field is copied into `ebus.v1`, GraphQL, Portal, Home Assistant, a
 stable semantic registry, or command routing before a separate per-leaf lock

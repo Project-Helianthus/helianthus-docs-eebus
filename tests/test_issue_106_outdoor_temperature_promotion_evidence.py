@@ -122,11 +122,15 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
             (source["opcode"], source["group"], source["instance"], source["register"]),
             ("0x02", "0x00", "0x00", "0x0073"),
         )
-        self.assertEqual(source["source_address"], "from_capture")
-        self.assertEqual(source["target_address"], "0x15")
+        self.assertEqual(source["source_address_binding"], "exact_from_private_capture")
+        self.assertEqual(source["target_address_binding"], "exact_from_private_capture")
+        self.assertEqual(source["target_product_class"], "BASV2")
         self.assertEqual(source["category"], "STATE")
         self.assertEqual(source["value_type"], "f32")
-        self.assertIn("admitted initiator as `0x7F`", self.evidence_compact)
+        self.assertIn(
+            "exact admitted initiator and target addresses were corroborated and retained in the private record",
+            self.evidence_compact,
+        )
         old_fixture_source = "0x" + "F7"
         self.assertNotIn(
             old_fixture_source,
@@ -231,7 +235,7 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
             "peer SKI",
             "SHIP ID",
             "SPINE device address",
-            "fresh bundle-local selector pseudonyms",
+            "fresh bundle-local pseudonyms",
             "private keys",
             "trust-store bytes",
             "`candidate_ref`",
@@ -242,6 +246,11 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
         self.assertIsNone(re.search(r"\b[0-9a-f]{40}\b", self.evidence, re.IGNORECASE))
         self.assertNotRegex(self.evidence, r"\b(?:10|127)\.\d+\.\d+\.\d+\b")
         self.assertNotRegex(self.evidence, r"\b192\.168\.\d+\.\d+\b")
+        admitted_source = "0x" + "7F"
+        target_address = "0x" + "15"
+        self.assertNotIn(admitted_source, self.evidence)
+        self.assertNotIn(target_address, self.evidence)
+        self.assertIn("eBUS source and target addresses", self.architecture)
 
 
 if __name__ == "__main__":
