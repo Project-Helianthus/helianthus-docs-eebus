@@ -1275,7 +1275,7 @@ PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "50dc9c6f8f67c517e8c953868f531541" "1c9f341c5e2b07c01ffc198eec8d3d52"
+        "a3ae5a2f9b96f11732f3ee953cb95cf6" "e15ccf7625472a2496bf2a3a9816fa3c"
     ),
 }
 
@@ -1826,7 +1826,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         ),
         "live_validation_status": "pending",
     },
-    "2a4f88056136eabc87201e636bcaf0e1" "9c2cc438992a57fefa516cc8ae2a7014": {
+    "139d09c849aff73c541858d3c30b9762" "17014ca77072c95f19a2ffe45f3850bc": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
         ),
@@ -1835,11 +1835,12 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "claim_status": "evidence-backed",
         "publication_status": "planned-target",
         "source_class": "derived_inference",
-        "evidence_ids": "EV-20260714-001,EV-20260720-001",
+        "evidence_ids": "EV-20260714-001,EV-20260720-001,EV-20260811-001",
         "hypothesis_status": "publishable",
         "falsifier": (
             "A bounded redacted live run violates the canonical advertisement, "
-            "callback provenance, transport ordering, or restart-persistence gate."
+            "callback provenance, transport ordering, restart-persistence gate, "
+            "or the exact outdoor-temperature source binding recorded below."
         ),
         "cross_seed_target": (
             "Project-Helianthus/helianthus-docs-ebus:"
