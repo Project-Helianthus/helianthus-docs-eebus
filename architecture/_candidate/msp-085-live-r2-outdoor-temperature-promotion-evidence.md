@@ -57,7 +57,7 @@ The protected owner-local eeBUS binding is:
 | Value function | `measurementListData` |
 | Measurement identity | `measurementId=0` |
 | Descriptor | `scopeType=outsideAirTemperature`, unit `degC` |
-| Operator value | `number=13`, `scale=0`, `valueType=value` |
+| Feasibility sample | `number=13`, `scale=0`, `valueType=value`; this is an observation, not a source-identity constant |
 | Declared constraints | step `{number:5,scale:-1}` = `0.5 degC`; minimum `{number:-6,scale:1}` = `-60 degC`; maximum `{number:8,scale:1}` = `80 degC` |
 
 The private capture also binds the exact service, peer, SPINE device address,
@@ -109,10 +109,11 @@ eebus_source:
   scope_type: outsideAirTemperature
   value_type: DECIMAL
   unit: degC
-  raw_value:
-    number: 13
-    scale: 0
-    value_type: value
+  value_representation:
+    number_field: number
+    scale_field: scale
+    value_type_field: valueType
+    decimal_rule: number_times_ten_to_scale
   declared_constraints:
     value_step_size:
       number: 5
@@ -199,7 +200,9 @@ scope, measurement identity, value kind, and unit match. Conversion is
 identity. No value or delta is rounded before the decision. The report may
 render the absolute delta to six decimal places using round-half-even.
 
-The tolerance is not an arbitrary gateway constant. The comparator derives it
+The observed `number=13`, `scale=0` feasibility sample is evidence only and is
+not part of source identity or a required future value. The tolerance is not
+an arbitrary gateway constant. The comparator derives it
 from the SPINE-declared `valueStepSize` captured with the exact source. For this
 source, `{number:5,scale:-1}` yields `0.5 degC`; the profile requires that exact
 declared granularity and then evaluates `abs(eebus - ebus) <= 0.5 degC`. A
@@ -264,7 +267,8 @@ The candidate remains unpromoted if any of these conditions occurs:
 
 - the exact SPINE field disappears, changes type or unit, its descriptor no
   longer identifies `outsideAirTemperature` and `measurementId=0`, or the
-  captured step/range differs from this exact profile;
+  captured step/range differs from this exact profile; the observed sample
+  itself may change and is not a falsifier;
 - the exact B524 identity is unavailable, is decoded under another tuple, or
   the capture does not bind the admitted source address;
 - pairing skew, sample-age, missing-count, type, unit, or generation checks

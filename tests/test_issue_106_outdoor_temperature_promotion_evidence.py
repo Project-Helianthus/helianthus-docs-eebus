@@ -87,10 +87,11 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
                 "scope_type": "outsideAirTemperature",
                 "value_type": "DECIMAL",
                 "unit": "degC",
-                "raw_value": {
-                    "number": 13,
-                    "scale": 0,
-                    "value_type": "value",
+                "value_representation": {
+                    "number_field": "number",
+                    "scale_field": "scale",
+                    "value_type_field": "valueType",
+                    "decimal_rule": "number_times_ten_to_scale",
                 },
                 "declared_constraints": {
                     "value_step_size": {"number": 5, "scale": -1},
@@ -106,6 +107,11 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
             "`outsideAirTemperature`, `degC`",
         ):
             self.assertIn(phrase, self.device)
+        self.assertNotIn("raw_value", source)
+        self.assertIn(
+            "sample is evidence only and is not part of source identity",
+            self.architecture_compact,
+        )
 
     def test_b524_identity_uses_the_admitted_capture_source(self) -> None:
         source = self.profile["ebus_source"]
