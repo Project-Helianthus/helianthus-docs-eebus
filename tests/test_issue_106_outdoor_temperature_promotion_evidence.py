@@ -71,16 +71,15 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
         for excluded in ("V2", "GraphQL", "Portal", "Home Assistant"):
             self.assertIn(excluded, self.architecture)
 
-    def test_exact_private_eebus_selector_shape_is_bound(self) -> None:
+    def test_public_source_shape_discovers_and_privately_binds_selectors(self) -> None:
         source = self.profile["eebus_source"]
         self.assertEqual(
             source,
             {
                 "entity_type": "TemperatureSensor",
-                "entity_selector": [6],
                 "feature_type": "Measurement",
                 "feature_role": "server",
-                "feature_selector": 11,
+                "selector_binding": "exact_from_private_capture",
                 "description_function": "measurementDescriptionListData",
                 "value_function": "measurementListData",
                 "measurement_id": 0,
@@ -101,8 +100,8 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
             },
         )
         for phrase in (
-            "`TemperatureSensor`, `[6]`",
-            "`Measurement`, `server`, `11`",
+            "`TemperatureSensor`; native selector retained in the private capture",
+            "`Measurement`, `server`; native selector retained in the private capture",
             "`measurementId=0`",
             "`outsideAirTemperature`, `degC`",
         ):
@@ -112,6 +111,10 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
             "sample is evidence only and is not part of source identity",
             self.architecture_compact,
         )
+        observed_entity_selector = "[" + "6" + "]"
+        observed_feature_selector = "selector " + "11"
+        self.assertNotIn(observed_entity_selector, self.architecture + self.device)
+        self.assertNotIn(observed_feature_selector, self.architecture + self.device)
 
     def test_b524_identity_uses_the_admitted_capture_source(self) -> None:
         source = self.profile["ebus_source"]

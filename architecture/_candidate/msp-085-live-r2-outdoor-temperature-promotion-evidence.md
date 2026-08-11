@@ -51,8 +51,8 @@ The protected owner-local eeBUS binding is:
 
 | Field | Exact value |
 | --- | --- |
-| Entity | type `TemperatureSensor`, native selector `[6]` |
-| Feature | type `Measurement`, role `server`, native selector `11` |
+| Entity | type `TemperatureSensor`; exact native selector bound from each private capture |
+| Feature | type `Measurement`, role `server`; exact native selector bound from each private capture |
 | Description function | `measurementDescriptionListData` |
 | Value function | `measurementListData` |
 | Measurement identity | `measurementId=0` |
@@ -61,9 +61,11 @@ The protected owner-local eeBUS binding is:
 | Declared constraints | step `{number:5,scale:-1}` = `0.5 degC`; minimum `{number:-6,scale:1}` = `-60 degC`; maximum `{number:8,scale:1}` = `80 degC` |
 
 The private capture also binds the exact service, peer, SPINE device address,
-runtime epoch, and connection generation. Those values are not written into a
-shareable artifact. Public evidence remasks native service/entity/feature/field
-selectors per bundle and retains no reverse map.
+native entity and feature selectors, runtime epoch, and connection generation.
+Those values are not written into a shareable artifact. Public evidence remasks
+native service/entity/feature/field selectors per bundle and retains no reverse
+map. The descriptor tuple above discovers the source; it does not hardcode one
+observed topology address as a portable VR940 constant.
 
 The exact eBUS peer is B524
 `OP=0x02/GG=0x00/II=0x00/RR=0x0073`, target `0x15`, category `STATE`, value
@@ -99,10 +101,9 @@ capture:
   require_single_ebus_poll_generation: true
 eebus_source:
   entity_type: TemperatureSensor
-  entity_selector: [6]
   feature_type: Measurement
   feature_role: server
-  feature_selector: 11
+  selector_binding: exact_from_private_capture
   description_function: measurementDescriptionListData
   value_function: measurementListData
   measurement_id: 0

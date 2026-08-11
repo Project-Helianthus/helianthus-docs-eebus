@@ -1275,7 +1275,7 @@ PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "003896e6bc80b867a449b14d338e8ca1" "1900a400b506267907ed16bada73c25a"
+        "a3ae5a2f9b96f11732f3ee953cb95cf6" "e15ccf7625472a2496bf2a3a9816fa3c"
     ),
 }
 
@@ -1826,7 +1826,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         ),
         "live_validation_status": "pending",
     },
-    "4a15409c69dc0b4bc6eadb8ab74e4ac9" "9f544751c06a0725f9a942ad5f13b700": {
+    "139d09c849aff73c541858d3c30b9762" "17014ca77072c95f19a2ffe45f3850bc": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
         ),
