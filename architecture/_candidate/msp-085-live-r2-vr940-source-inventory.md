@@ -86,6 +86,7 @@ sources:
       measurement_type: temperature
       scope_type: dhwTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: 0, scale: -6}
       maximum: {number: 99, scale: 0}
@@ -107,6 +108,7 @@ sources:
       setpoint_type: valueAbsolute
       scope_type: dhwTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: 35, scale: 0}
       maximum: {number: 7, scale: 1}
@@ -127,6 +129,7 @@ sources:
     descriptor:
       system_function_id: 0
       system_function_type: dhw
+    unit: null
     exact_mapping:
       0: auto
       1: "on"
@@ -144,6 +147,7 @@ sources:
     descriptor:
       system_function_id: 0
       system_function_type: dhw
+    unit: null
     exact_mapping: {false: false, true: true}
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: WITHHOLD_NO_EBUS_CAPABILITY_SOURCE
@@ -165,6 +169,7 @@ sources:
       overrun_id: 0
       overrun_type: oneTimeDhw
       affected_system_function_ids: [0]
+    unit: null
     exact_mapping:
       false: inactive
       true: active
@@ -185,6 +190,7 @@ sources:
       measurement_type: temperature
       scope_type: roomAirTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: 0, scale: -6}
       maximum: {number: 6, scale: 1}
@@ -206,6 +212,7 @@ sources:
       setpoint_type: valueAbsolute
       scope_type: roomAirTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: 5, scale: 0}
       maximum: {number: 3, scale: 1}
@@ -226,6 +233,7 @@ sources:
     descriptor:
       system_function_id: 0
       system_function_type: heating
+    unit: null
     exact_mapping: {0: auto, 1: "on", 2: "off"}
     comparator_class: ENUM_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
@@ -240,6 +248,7 @@ sources:
     descriptor:
       system_function_id: 0
       system_function_type: heating
+    unit: null
     exact_mapping: {false: false, true: true}
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: WITHHOLD_NO_EBUS_CAPABILITY_SOURCE
@@ -258,6 +267,7 @@ sources:
       measurement_type: temperature
       scope_type: roomAirTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: 0, scale: -6}
       maximum: {number: 6, scale: 1}
@@ -279,6 +289,7 @@ sources:
       setpoint_type: valueAbsolute
       scope_type: roomAirTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: 5, scale: 0}
       maximum: {number: 3, scale: 1}
@@ -299,6 +310,7 @@ sources:
     descriptor:
       system_function_id: 0
       system_function_type: heating
+    unit: null
     exact_mapping: {0: auto, 1: "on", 2: "off"}
     comparator_class: ENUM_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
@@ -313,6 +325,7 @@ sources:
     descriptor:
       system_function_id: 0
       system_function_type: heating
+    unit: null
     exact_mapping: {false: false, true: true}
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: WITHHOLD_NO_EBUS_CAPABILITY_SOURCE
@@ -331,6 +344,7 @@ sources:
       measurement_type: temperature
       scope_type: outsideAirTemperature
       unit: degC
+    unit: degC
     declared_constraints:
       minimum: {number: -6, scale: 1}
       maximum: {number: 8, scale: 1}

@@ -77,6 +77,95 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
                 {"measurementConstraintsListData", "setpointConstraintsListData"},
             )
 
+    def test_complete_source_projection_is_closed_per_candidate(self) -> None:
+        numeric = lambda slot, entity, feature, function, path, descriptor, minimum, maximum, step: {
+            "entity_slot": slot,
+            "entity_type": entity,
+            "feature_type": feature,
+            "description_functions": (function.replace("ListData", "DescriptionListData"),),
+            "value_functions": (function,),
+            "field_path": path,
+            "descriptor": descriptor,
+            "unit": "degC",
+            "constraints": {"minimum": minimum, "maximum": maximum, "step": step},
+            "mapping": None,
+            "comparator": "NUMERIC_DECLARED_GRANULARITY",
+            "eligibility": "ELIGIBLE",
+        }
+        mode = lambda slot, entity, system_type: {
+            "entity_slot": slot,
+            "entity_type": entity,
+            "feature_type": "HVAC",
+            "description_functions": (
+                "hvacSystemFunctionDescriptionListData",
+                "hvacOperationModeDescriptionListData",
+                "hvacSystemFunctionOperationModeRelationListData",
+            ),
+            "value_functions": ("hvacSystemFunctionListData",),
+            "field_path": "hvacSystemFunctionData[systemFunctionId=0].currentOperationModeId",
+            "descriptor": {"system_function_id": 0, "system_function_type": system_type},
+            "unit": None,
+            "constraints": None,
+            "mapping": {0: "auto", 1: "on", 2: "off"},
+            "comparator": "ENUM_EXACT_MAPPING",
+            "eligibility": "ELIGIBLE",
+        }
+        capability = lambda slot, entity, system_type: {
+            "entity_slot": slot,
+            "entity_type": entity,
+            "feature_type": "HVAC",
+            "description_functions": ("hvacSystemFunctionDescriptionListData",),
+            "value_functions": ("hvacSystemFunctionListData",),
+            "field_path": "hvacSystemFunctionData[systemFunctionId=0].isOperationModeIdChangeable",
+            "descriptor": {"system_function_id": 0, "system_function_type": system_type},
+            "unit": None,
+            "constraints": None,
+            "mapping": {False: False, True: True},
+            "comparator": "BOOLEAN_EXACT_MAPPING",
+            "eligibility": "WITHHOLD_NO_EBUS_CAPABILITY_SOURCE",
+        }
+        expected = {
+            "m7-candidate-0005": numeric("dhw_circuit", "DHWCircuit", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "domesticHotWater", "measurement_type": "temperature", "scope_type": "dhwTemperature", "unit": "degC"}, {"number": 0, "scale": -6}, {"number": 99, "scale": 0}, {"number": 1, "scale": 0}),
+            "m7-candidate-0006": numeric("dhw_circuit", "DHWCircuit", "Setpoint", "setpointListData", "setpointData[setpointId=1].value", {"measurement_id": 0, "setpoint_id": 1, "setpoint_type": "valueAbsolute", "scope_type": "dhwTemperature", "unit": "degC"}, {"number": 35, "scale": 0}, {"number": 7, "scale": 1}, {"number": 1, "scale": 0}),
+            "m7-candidate-0007": mode("dhw_circuit", "DHWCircuit", "dhw"),
+            "m7-candidate-0008": capability("dhw_circuit", "DHWCircuit", "dhw"),
+            "m7-candidate-0009": {
+                "entity_slot": "dhw_circuit", "entity_type": "DHWCircuit", "feature_type": "HVAC",
+                "description_functions": ("hvacSystemFunctionDescriptionListData", "hvacOverrunDescriptionListData"),
+                "value_functions": ("hvacSystemFunctionListData", "hvacOverrunListData"),
+                "field_path": "hvacSystemFunctionData[systemFunctionId=0].isOverrunActive",
+                "descriptor": {"system_function_id": 0, "system_function_type": "dhw", "overrun_id": 0, "overrun_type": "oneTimeDhw", "affected_system_function_ids": [0]},
+                "unit": None, "constraints": None, "mapping": {False: "inactive", True: "active"},
+                "comparator": "BOOLEAN_EXACT_MAPPING", "eligibility": "ELIGIBLE",
+            },
+            "m7-candidate-0010": numeric("zone_1_room", "HVACRoom", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "air", "measurement_type": "temperature", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 0, "scale": -6}, {"number": 6, "scale": 1}, {"number": 5, "scale": -1}),
+            "m7-candidate-0011": numeric("zone_1_room", "HVACRoom", "Setpoint", "setpointListData", "setpointData[setpointId=1].value", {"measurement_id": 0, "setpoint_id": 1, "setpoint_type": "valueAbsolute", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 5, "scale": 0}, {"number": 3, "scale": 1}, {"number": 5, "scale": -1}),
+            "m7-candidate-0012": mode("zone_1_room", "HVACRoom", "heating"),
+            "m7-candidate-0013": capability("zone_1_room", "HVACRoom", "heating"),
+            "m7-candidate-0014": numeric("zone_2_room", "HVACRoom", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "air", "measurement_type": "temperature", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 0, "scale": -6}, {"number": 6, "scale": 1}, {"number": 5, "scale": -1}),
+            "m7-candidate-0015": numeric("zone_2_room", "HVACRoom", "Setpoint", "setpointListData", "setpointData[setpointId=1].value", {"measurement_id": 0, "setpoint_id": 1, "setpoint_type": "valueAbsolute", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 5, "scale": 0}, {"number": 3, "scale": 1}, {"number": 5, "scale": -1}),
+            "m7-candidate-0016": mode("zone_2_room", "HVACRoom", "heating"),
+            "m7-candidate-0017": capability("zone_2_room", "HVACRoom", "heating"),
+            "m7-candidate-0018": numeric("outside_sensor", "TemperatureSensor", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "air", "measurement_type": "temperature", "scope_type": "outsideAirTemperature", "unit": "degC"}, {"number": -6, "scale": 1}, {"number": 8, "scale": 1}, {"number": 5, "scale": -1}),
+        }
+        actual = {}
+        for candidate_id, source in self.sources.items():
+            actual[candidate_id] = {
+                "entity_slot": source["entity_slot"],
+                "entity_type": source["entity_type"],
+                "feature_type": source["feature_type"],
+                "description_functions": tuple(source["description_functions"] if "description_functions" in source else [source["description_function"]]),
+                "value_functions": tuple(source["value_functions"] if "value_functions" in source else [source["value_function"]]),
+                "field_path": source["field_path"],
+                "descriptor": source["descriptor"],
+                "unit": source["unit"],
+                "constraints": source.get("declared_constraints"),
+                "mapping": source.get("exact_mapping"),
+                "comparator": source["comparator_class"],
+                "eligibility": source["protocol_eligibility"],
+            }
+        self.assertEqual(actual, expected)
+
     def test_enum_and_boolean_relations_are_closed(self) -> None:
         for candidate_id in ("m7-candidate-0007", "m7-candidate-0012", "m7-candidate-0016"):
             self.assertEqual(self.sources[candidate_id]["exact_mapping"], {0: "auto", 1: "on", 2: "off"})
