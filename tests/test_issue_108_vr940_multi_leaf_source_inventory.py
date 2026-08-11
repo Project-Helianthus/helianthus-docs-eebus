@@ -83,6 +83,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "entity_type": entity,
             "feature_type": feature,
             "description_functions": (function.replace("ListData", "DescriptionListData"),),
+            "constraints_function": function.replace("ListData", "ConstraintsListData"),
             "value_functions": (function,),
             "field_path": path,
             "descriptor": descriptor,
@@ -101,6 +102,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
                 "hvacOperationModeDescriptionListData",
                 "hvacSystemFunctionOperationModeRelationListData",
             ),
+            "constraints_function": None,
             "value_functions": ("hvacSystemFunctionListData",),
             "field_path": "hvacSystemFunctionData[systemFunctionId=0].currentOperationModeId",
             "descriptor": {"system_function_id": 0, "system_function_type": system_type},
@@ -115,6 +117,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "entity_type": entity,
             "feature_type": "HVAC",
             "description_functions": ("hvacSystemFunctionDescriptionListData",),
+            "constraints_function": None,
             "value_functions": ("hvacSystemFunctionListData",),
             "field_path": "hvacSystemFunctionData[systemFunctionId=0].isOperationModeIdChangeable",
             "descriptor": {"system_function_id": 0, "system_function_type": system_type},
@@ -132,10 +135,11 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "m7-candidate-0009": {
                 "entity_slot": "dhw_circuit", "entity_type": "DHWCircuit", "feature_type": "HVAC",
                 "description_functions": ("hvacSystemFunctionDescriptionListData", "hvacOverrunDescriptionListData"),
+                "constraints_function": None,
                 "value_functions": ("hvacSystemFunctionListData", "hvacOverrunListData"),
                 "field_path": "hvacSystemFunctionData[systemFunctionId=0].isOverrunActive",
                 "descriptor": {"system_function_id": 0, "system_function_type": "dhw", "overrun_id": 0, "overrun_type": "oneTimeDhw", "affected_system_function_ids": [0]},
-                "unit": None, "constraints": None, "mapping": {False: "inactive", True: "active"},
+                "unit": None, "constraints": None, "mapping": {False: False, True: True},
                 "comparator": "BOOLEAN_EXACT_MAPPING", "eligibility": "ELIGIBLE",
             },
             "m7-candidate-0010": numeric("zone_1_room", "HVACRoom", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "air", "measurement_type": "temperature", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 0, "scale": -6}, {"number": 6, "scale": 1}, {"number": 5, "scale": -1}),
@@ -155,6 +159,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
                 "entity_type": source["entity_type"],
                 "feature_type": source["feature_type"],
                 "description_functions": tuple(source["description_functions"] if "description_functions" in source else [source["description_function"]]),
+                "constraints_function": source.get("constraints_function"),
                 "value_functions": tuple(source["value_functions"] if "value_functions" in source else [source["value_function"]]),
                 "field_path": source["field_path"],
                 "descriptor": source["descriptor"],
@@ -181,8 +186,9 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         )
         self.assertEqual(
             self.sources["m7-candidate-0009"]["exact_mapping"],
-            {False: "inactive", True: "active"},
+            {False: False, True: True},
         )
+        self.assertTrue(all(isinstance(value, bool) for value in self.sources["m7-candidate-0009"]["exact_mapping"].values()))
 
     def test_capability_fields_are_not_comparable(self) -> None:
         for candidate_id in ("m7-candidate-0008", "m7-candidate-0013", "m7-candidate-0017"):
@@ -203,8 +209,15 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         self.assertIsNone(re.search(r"\b[0-9a-f]{40}\b", combined, re.IGNORECASE))
         self.assertNotRegex(combined, r"\b192\.168\.\d+\.\d+\b")
         self.assertNotIn("d:_i:", combined)
-        for selector in ("[3]", "[4,1,1]", "[5,1,1]", "[6]"):
-            self.assertNotIn(selector, combined)
+        for private_identity_field in (
+            "service_id:",
+            "device_address:",
+            "entity_address:",
+            "feature_address:",
+            "ship" + "_id:",
+            "s" + "ki:",
+        ):
+            self.assertNotIn(private_identity_field, combined.lower())
         self.assertIn("read token", combined)
         self.assertIn("trust-store bytes", combined)
 

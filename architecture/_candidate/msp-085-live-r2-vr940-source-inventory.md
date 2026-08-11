@@ -171,8 +171,8 @@ sources:
       affected_system_function_ids: [0]
     unit: null
     exact_mapping:
-      false: inactive
-      true: active
+      false: false
+      true: true
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0010
