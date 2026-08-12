@@ -239,13 +239,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             self.assertEqual(source["validation_mode"], "EEBUS_NATIVE_CAPABILITY")
         self.assertIn("not cross-protocol equivalence", self.text)
 
-    def test_all_real_candidates_have_unique_semantic_paths(self) -> None:
-        paths = [source["semantic_path"] for source in self.sources.values()]
-        self.assertEqual(len(paths), 18)
-        self.assertEqual(len(set(paths)), 18)
-        self.assertTrue(all(path.startswith("/") for path in paths))
-
-    def test_validation_partition_is_exact(self) -> None:
+    def test_native_validation_partition_is_exact(self) -> None:
         native = {
             candidate_id
             for candidate_id, source in self.sources.items()
@@ -270,26 +264,8 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "m7-candidate-0016", "m7-candidate-0018",
         })
 
-    def test_dhw_target_has_only_the_grounded_b555_fallback(self) -> None:
-        fallback = self.sources["m7-candidate-0006"]["ebus_fallback"]
-        self.assertEqual(fallback["family"], "B555")
-        self.assertEqual(fallback["operation"], "TIMER_READ")
-        self.assertEqual(fallback, {
-            "family": "B555",
-            "operation": "TIMER_READ",
-            "target_pseudonym_rule": "active_controller_target_hash",
-            "device_family": "BASV2",
-            "schedule_program": "DHW",
-            "slot_index": 0,
-            "day_of_week": "MONDAY",
-            "time_identity": "00:00:00",
-            "operation_mode_context": "temp_slots_1_shared_setpoint",
-            "unit_scale_source": "B555_DHW_TEMPERATURE_RAW_DIV10_C",
-            "field_path": "timerSlot.temperature",
-            "unit": "degC",
-            "coupling_rule": "dhw_temp_slots_1_mirrors_b524_setpoint",
-        })
-        self.assertNotIn("B509", str(fallback))
+        self.assertNotIn("semantic_path", self.sources["m7-candidate-0006"])
+        self.assertNotIn("ebus_fallback", self.sources["m7-candidate-0006"])
 
     def test_exact_descriptor_is_always_required_before_unit_conversion(self) -> None:
         self.assertIn("require the exact\ndescriptor and then either the exact unit", self.text)

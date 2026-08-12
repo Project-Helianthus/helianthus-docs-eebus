@@ -55,7 +55,6 @@ schema_version: 1
 target_model: VR940f
 selector_binding: exact_from_private_capture
 decimal_rule: number_times_ten_to_scale
-default_validation_mode: CROSS_PROTOCOL_EQUIVALENCE
 terminal_candidates:
   - candidate_id: m7-candidate-0001
     fact_hash: sha256:867157d98ac046e6bc09ae60b4a963e5f7c6d174f12d293b09cc339c7f9dd9a2
@@ -83,7 +82,6 @@ terminal_candidates:
     protocol_binding: null
 sources:
   - candidate_id: m7-candidate-0005
-    semantic_path: /dhw/temperature_c
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
     feature_type: Measurement
@@ -106,21 +104,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0006
-    semantic_path: /dhw/target_temperature_c
-    ebus_fallback:
-      family: B555
-      operation: TIMER_READ
-      target_pseudonym_rule: active_controller_target_hash
-      device_family: BASV2
-      schedule_program: DHW
-      slot_index: 0
-      day_of_week: MONDAY
-      time_identity: "00:00:00"
-      operation_mode_context: temp_slots_1_shared_setpoint
-      unit_scale_source: B555_DHW_TEMPERATURE_RAW_DIV10_C
-      field_path: timerSlot.temperature
-      unit: degC
-      coupling_rule: dhw_temp_slots_1_mirrors_b524_setpoint
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
     feature_type: Setpoint
@@ -143,7 +126,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0007
-    semantic_path: /dhw/operating_mode
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
     feature_type: HVAC
@@ -165,7 +147,6 @@ sources:
     comparator_class: ENUM_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0008
-    semantic_path: /dhw/operation_mode_changeable
     validation_mode: EEBUS_NATIVE_CAPABILITY
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
@@ -182,7 +163,6 @@ sources:
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: EEBUS_NATIVE
   - candidate_id: m7-candidate-0009
-    semantic_path: /dhw/overrun_active
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
     feature_type: HVAC
@@ -207,7 +187,6 @@ sources:
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0010
-    semantic_path: /zones/zone_1/room_temperature_c
     entity_slot: zone_1_room
     entity_type: HVACRoom
     feature_type: Measurement
@@ -230,7 +209,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0011
-    semantic_path: /zones/zone_1/target_temperature_c
     entity_slot: zone_1_room
     entity_type: HVACRoom
     feature_type: Setpoint
@@ -253,7 +231,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0012
-    semantic_path: /zones/zone_1/operating_mode
     entity_slot: zone_1_room
     entity_type: HVACRoom
     feature_type: HVAC
@@ -272,7 +249,6 @@ sources:
     comparator_class: ENUM_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0013
-    semantic_path: /zones/zone_1/operation_mode_changeable
     validation_mode: EEBUS_NATIVE_CAPABILITY
     entity_slot: zone_1_room
     entity_type: HVACRoom
@@ -289,7 +265,6 @@ sources:
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: EEBUS_NATIVE
   - candidate_id: m7-candidate-0014
-    semantic_path: /zones/zone_2/room_temperature_c
     entity_slot: zone_2_room
     entity_type: HVACRoom
     feature_type: Measurement
@@ -312,7 +287,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0015
-    semantic_path: /zones/zone_2/target_temperature_c
     entity_slot: zone_2_room
     entity_type: HVACRoom
     feature_type: Setpoint
@@ -335,7 +309,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0016
-    semantic_path: /zones/zone_2/operating_mode
     entity_slot: zone_2_room
     entity_type: HVACRoom
     feature_type: HVAC
@@ -354,7 +327,6 @@ sources:
     comparator_class: ENUM_EXACT_MAPPING
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0017
-    semantic_path: /zones/zone_2/operation_mode_changeable
     validation_mode: EEBUS_NATIVE_CAPABILITY
     entity_slot: zone_2_room
     entity_type: HVACRoom
@@ -371,7 +343,6 @@ sources:
     comparator_class: BOOLEAN_EXACT_MAPPING
     protocol_eligibility: EEBUS_NATIVE
   - candidate_id: m7-candidate-0018
-    semantic_path: /system/outside_air_temperature_c
     entity_slot: outside_sensor
     entity_type: TemperatureSensor
     feature_type: Measurement
@@ -394,7 +365,6 @@ sources:
     comparator_class: NUMERIC_DECLARED_GRANULARITY
     protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0019
-    semantic_path: /system/gateway_brand
     validation_mode: EEBUS_NATIVE_METADATA
     entity_slot: device_information
     entity_type: DeviceInformation
@@ -407,7 +377,6 @@ sources:
     comparator_class: STRING_EXACT_STABILITY
     protocol_eligibility: EEBUS_NATIVE
   - candidate_id: m7-candidate-0020
-    semantic_path: /system/gateway_vendor
     validation_mode: EEBUS_NATIVE_METADATA
     entity_slot: device_information
     entity_type: DeviceInformation
@@ -420,7 +389,6 @@ sources:
     comparator_class: STRING_EXACT_STABILITY
     protocol_eligibility: EEBUS_NATIVE
   - candidate_id: m7-candidate-0021
-    semantic_path: /zones/zone_1/name
     validation_mode: EEBUS_NATIVE_METADATA
     entity_slot: zone_1
     entity_type: HeatingZone
@@ -433,7 +401,6 @@ sources:
     comparator_class: STRING_EXACT_STABILITY
     protocol_eligibility: EEBUS_NATIVE
   - candidate_id: m7-candidate-0022
-    semantic_path: /zones/zone_2/name
     validation_mode: EEBUS_NATIVE_METADATA
     entity_slot: zone_2
     entity_type: HeatingZone
@@ -452,9 +419,8 @@ sources:
 `protocol_eligibility: ELIGIBLE` means only that both protocol identities are closed
 enough for a synchronized comparator. It does not mean the eBUS peer exists,
 the source is currently readable, the values match, or the candidate is
-promoted. Candidate `0006` may use its exact B555 fallback only because the
-VR940f `temp_slots=1` read-back is protocol-grounded as the current B524 DHW
-setpoint; B509 desired temperature is not an admitted substitute.
+promoted. The eBUS comparator identity and any fallback are intentionally not
+owned by this eeBUS-native repository.
 
 `protocol_eligibility: EEBUS_NATIVE` is limited to metadata or capability facts
 which have no fabricated eBUS equivalent. Promotion requires the exact SPINE
@@ -472,13 +438,11 @@ The promotable inventory is the 18 real sources `0005` through `0022`; a
 validator must also preserve the four retired records and their original M7
 states.
 
-The exact validation partition is 11 synchronized cross-protocol candidates
-(`0005`, `0006`, `0007`, `0009`, `0010`, `0011`, `0012`, `0014`, `0015`,
-`0016`, `0018`) and seven eeBUS-native candidates (`0008`, `0013`, `0017`,
-`0019`-`0022`). Cross-protocol comparator ownership, B555 identity validation,
-campaign assembly, and promotion decisions remain in `helianthus-docs-ebus`;
-this inventory owns only the eeBUS source facts and candidate bindings consumed
-by that platform contract. The serialized companion is
+Seven sources (`0008`, `0013`, `0017`, `0019`-`0022`) are explicitly eligible
+for eeBUS-native typed stability validation. Cross-protocol comparator
+ownership, semantic paths, fallback identity, campaign assembly, and promotion
+decisions remain in `helianthus-docs-ebus`; this inventory owns only the eeBUS
+source facts and candidate bindings consumed by that platform contract. The serialized companion is
 [`helianthus-docs-ebus#418`](https://github.com/Project-Helianthus/helianthus-docs-ebus/issues/418).
 
 ## Evidence And Redaction
