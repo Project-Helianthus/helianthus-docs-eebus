@@ -39,38 +39,12 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             item["candidate_id"]: item for item in cls.inventory["sources"]
         }
 
-    def test_four_retired_records_and_18_real_sources_are_exact(self) -> None:
-        terminal = self.inventory["terminal_candidates"]
-        self.assertEqual(
-            [item["candidate_id"] for item in terminal],
-            [f"m7-candidate-{index:04d}" for index in range(1, 5)],
-        )
+    def test_18_candidate_bound_sources_are_exact(self) -> None:
         self.assertEqual(
             [item["candidate_id"] for item in self.inventory["sources"]],
             [f"m7-candidate-{index:04d}" for index in range(5, 23)],
         )
-        self.assertEqual(
-            [(item["required_disposition"], item["required_terminal_state"]) for item in terminal],
-            [
-                ("WITHHELD", "CLOUD_ONLY"),
-                ("WITHHELD", "NOT_TESTED"),
-                ("WITHHELD", "NOT_TESTED"),
-                ("WITHHELD", "NOT_TESTED"),
-            ],
-        )
-        self.assertEqual(
-            {item["retirement_state"] for item in terminal},
-            {"RETIRED_TERMINAL_NOT_A_LEAF"},
-        )
-        self.assertEqual(
-            {item["candidate_id"]: item["fact_hash"] for item in terminal},
-            {
-                "m7-candidate-0001": "sha256:867157d98ac046e6bc09ae60b4a963e5f7c6d174f12d293b09cc339c7f9dd9a2",
-                "m7-candidate-0002": "sha256:26df8fd76d3d2804c899a063766075a9cad25ad90cccfcde067c10b95cb793be",
-                "m7-candidate-0003": "sha256:4f64a3fb317dee55c8838b2f5406976e3ba6e24f1c977cb141a0e1c1ed300911",
-                "m7-candidate-0004": "sha256:aae4e6db120c3ac922e9c981fd80041388c2e17cb099eadcddb34e61008e3490",
-            },
-        )
+        self.assertNotIn("terminal_candidates", self.inventory)
 
     def test_numeric_steps_are_protocol_owned(self) -> None:
         expected = {
@@ -84,8 +58,6 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         }
         for candidate_id, step in expected.items():
             source = self.sources[candidate_id]
-            self.assertEqual(source["comparator_class"], "NUMERIC_DECLARED_GRANULARITY")
-            self.assertEqual(source["protocol_eligibility"], "ELIGIBLE")
             self.assertEqual(
                 (source["declared_constraints"]["step"]["number"], source["declared_constraints"]["step"]["scale"]),
                 step,
@@ -108,8 +80,6 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "unit": "degC",
             "constraints": {"minimum": minimum, "maximum": maximum, "step": step},
             "mapping": None,
-            "comparator": "NUMERIC_DECLARED_GRANULARITY",
-            "eligibility": "ELIGIBLE",
         }
         mode = lambda slot, entity, system_type: {
             "entity_slot": slot,
@@ -127,8 +97,6 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "unit": None,
             "constraints": None,
             "mapping": {0: "auto", 1: "on", 2: "off"},
-            "comparator": "ENUM_EXACT_MAPPING",
-            "eligibility": "ELIGIBLE",
         }
         capability = lambda slot, entity, system_type: {
             "entity_slot": slot,
@@ -142,8 +110,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "unit": None,
             "constraints": None,
             "mapping": {False: False, True: True},
-            "comparator": "BOOLEAN_EXACT_MAPPING",
-            "eligibility": "EEBUS_NATIVE",
+            "source_classification": "EEBUS_NATIVE_CAPABILITY",
         }
         metadata = lambda slot, entity, function, field, scope: {
             "entity_slot": slot,
@@ -157,8 +124,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "unit": None,
             "constraints": None,
             "mapping": None,
-            "comparator": "STRING_EXACT_STABILITY",
-            "eligibility": "EEBUS_NATIVE",
+            "source_classification": "EEBUS_NATIVE_METADATA",
         }
         expected = {
             "m7-candidate-0005": numeric("dhw_circuit", "DHWCircuit", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "domesticHotWater", "measurement_type": "temperature", "scope_type": "dhwTemperature", "unit": "degC"}, {"number": 0, "scale": -6}, {"number": 99, "scale": 0}, {"number": 1, "scale": 0}),
@@ -173,7 +139,6 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
                 "field_path": "hvacSystemFunctionData[systemFunctionId=0].isOverrunActive",
                 "descriptor": {"system_function_id": 0, "system_function_type": "dhw", "overrun_id": 0, "overrun_type": "oneTimeDhw", "affected_system_function_ids": [0]},
                 "unit": None, "constraints": None, "mapping": {False: False, True: True},
-                "comparator": "BOOLEAN_EXACT_MAPPING", "eligibility": "ELIGIBLE",
             },
             "m7-candidate-0010": numeric("zone_1_room", "HVACRoom", "Measurement", "measurementListData", "measurementData[measurementId=0].value", {"measurement_id": 0, "commodity_type": "air", "measurement_type": "temperature", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 0, "scale": -6}, {"number": 6, "scale": 1}, {"number": 5, "scale": -1}),
             "m7-candidate-0011": numeric("zone_1_room", "HVACRoom", "Setpoint", "setpointListData", "setpointData[setpointId=1].value", {"measurement_id": 0, "setpoint_id": 1, "setpoint_type": "valueAbsolute", "scope_type": "roomAirTemperature", "unit": "degC"}, {"number": 5, "scale": 0}, {"number": 3, "scale": 1}, {"number": 5, "scale": -1}),
@@ -207,9 +172,9 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
                 "unit": source["unit"],
                 "constraints": source.get("declared_constraints"),
                 "mapping": source.get("exact_mapping"),
-                "comparator": source["comparator_class"],
-                "eligibility": source["protocol_eligibility"],
             }
+            if "source_classification" in source:
+                actual[candidate_id]["source_classification"] = source["source_classification"]
         self.assertEqual(actual, expected)
 
     def test_enum_and_boolean_relations_are_closed(self) -> None:
@@ -231,19 +196,18 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         )
         self.assertTrue(all(isinstance(value, bool) for value in self.sources["m7-candidate-0009"]["exact_mapping"].values()))
 
-    def test_native_capability_fields_are_restart_stability_candidates(self) -> None:
+    def test_native_capability_fields_are_classified(self) -> None:
         for candidate_id in ("m7-candidate-0008", "m7-candidate-0013", "m7-candidate-0017"):
             source = self.sources[candidate_id]
             self.assertEqual(source["field_path"].split(".")[-1], "isOperationModeIdChangeable")
-            self.assertEqual(source["protocol_eligibility"], "EEBUS_NATIVE")
-            self.assertEqual(source["validation_mode"], "EEBUS_NATIVE_CAPABILITY")
-        self.assertIn("not cross-protocol equivalence", self.text)
+            self.assertEqual(source["source_classification"], "EEBUS_NATIVE_CAPABILITY")
+        self.assertIn("does not\ndefine a comparator", self.text)
 
     def test_native_validation_partition_is_exact(self) -> None:
         native = {
             candidate_id
             for candidate_id, source in self.sources.items()
-            if source.get("protocol_eligibility") == "EEBUS_NATIVE"
+            if source.get("source_classification", "").startswith("EEBUS_NATIVE_")
         }
         self.assertEqual(
             native,
@@ -267,8 +231,8 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         self.assertNotIn("semantic_path", self.sources["m7-candidate-0006"])
         self.assertNotIn("ebus_fallback", self.sources["m7-candidate-0006"])
 
-    def test_exact_descriptor_is_always_required_before_unit_conversion(self) -> None:
-        self.assertIn("require the exact\ndescriptor and then either the exact unit", self.text)
+    def test_exact_descriptor_and_source_constraints_are_preserved(self) -> None:
+        self.assertIn("bind the exact\ndescriptor, unit, and protocol-declared constraints", self.text)
         for source in self.sources.values():
             self.assertEqual(source["feature_role"], "server")
             self.assertIn("descriptor", source)
