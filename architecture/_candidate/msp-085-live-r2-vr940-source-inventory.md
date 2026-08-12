@@ -19,8 +19,9 @@ release_bundle: "false"
 
 ## Scope
 
-This page owns the eeBUS protocol identity used to assess the 18 M7 VR940f
-candidates. It does not decide semantic promotion. The gateway must bind each
+This page owns the eeBUS protocol identity for 18 candidate-bound VR940f
+sources. It does not own terminal history, semantic paths, cross-protocol
+comparators, campaign rules, or promotion decisions. The gateway must bind each
 native selector from private operator evidence and compare the observed source
 with this closed inventory. A private campaign may not substitute a descriptor,
 field, unit, declared step, enum map, or boolean relation.
@@ -42,10 +43,10 @@ addresses.
 ## Closed Inventory
 
 The following YAML document is the canonical protocol-owned inventory. Decimal
-values use `number * 10^scale`. A numeric comparator must require the exact
-descriptor and then either the exact unit or one separately bound affine unit
-conversion. Its inclusive limit is the declared step in this inventory, not a
-step supplied by a campaign.
+values use `number * 10^scale`. Numeric source entries bind the exact
+descriptor, unit, and protocol-declared constraints. A platform comparator may
+consume those facts, but its tolerance and conversion policy are not defined
+here.
 
 ```yaml
 contract: helianthus.eebus.vr940f-m7-source-inventory.v1
@@ -53,23 +54,6 @@ schema_version: 1
 target_model: VR940f
 selector_binding: exact_from_private_capture
 decimal_rule: number_times_ten_to_scale
-terminal_candidates:
-  - candidate_id: m7-candidate-0001
-    required_disposition: WITHHELD
-    required_terminal_state: CLOUD_ONLY
-    protocol_binding: null
-  - candidate_id: m7-candidate-0002
-    required_disposition: WITHHELD
-    required_terminal_state: NOT_TESTED
-    protocol_binding: null
-  - candidate_id: m7-candidate-0003
-    required_disposition: WITHHELD
-    required_terminal_state: NOT_TESTED
-    protocol_binding: null
-  - candidate_id: m7-candidate-0004
-    required_disposition: WITHHELD
-    required_terminal_state: NOT_TESTED
-    protocol_binding: null
 sources:
   - candidate_id: m7-candidate-0005
     entity_slot: dhw_circuit
@@ -91,8 +75,6 @@ sources:
       minimum: {number: 0, scale: -6}
       maximum: {number: 99, scale: 0}
       step: {number: 1, scale: 0}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0006
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
@@ -113,8 +95,6 @@ sources:
       minimum: {number: 35, scale: 0}
       maximum: {number: 7, scale: 1}
       step: {number: 1, scale: 0}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0007
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
@@ -134,9 +114,8 @@ sources:
       0: auto
       1: "on"
       2: "off"
-    comparator_class: ENUM_EXACT_MAPPING
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0008
+    source_classification: EEBUS_NATIVE_CAPABILITY
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
     feature_type: HVAC
@@ -149,8 +128,6 @@ sources:
       system_function_type: dhw
     unit: null
     exact_mapping: {false: false, true: true}
-    comparator_class: BOOLEAN_EXACT_MAPPING
-    protocol_eligibility: WITHHOLD_NO_EBUS_CAPABILITY_SOURCE
   - candidate_id: m7-candidate-0009
     entity_slot: dhw_circuit
     entity_type: DHWCircuit
@@ -173,8 +150,6 @@ sources:
     exact_mapping:
       false: false
       true: true
-    comparator_class: BOOLEAN_EXACT_MAPPING
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0010
     entity_slot: zone_1_room
     entity_type: HVACRoom
@@ -195,8 +170,6 @@ sources:
       minimum: {number: 0, scale: -6}
       maximum: {number: 6, scale: 1}
       step: {number: 5, scale: -1}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0011
     entity_slot: zone_1_room
     entity_type: HVACRoom
@@ -217,8 +190,6 @@ sources:
       minimum: {number: 5, scale: 0}
       maximum: {number: 3, scale: 1}
       step: {number: 5, scale: -1}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0012
     entity_slot: zone_1_room
     entity_type: HVACRoom
@@ -235,9 +206,8 @@ sources:
       system_function_type: heating
     unit: null
     exact_mapping: {0: auto, 1: "on", 2: "off"}
-    comparator_class: ENUM_EXACT_MAPPING
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0013
+    source_classification: EEBUS_NATIVE_CAPABILITY
     entity_slot: zone_1_room
     entity_type: HVACRoom
     feature_type: HVAC
@@ -250,8 +220,6 @@ sources:
       system_function_type: heating
     unit: null
     exact_mapping: {false: false, true: true}
-    comparator_class: BOOLEAN_EXACT_MAPPING
-    protocol_eligibility: WITHHOLD_NO_EBUS_CAPABILITY_SOURCE
   - candidate_id: m7-candidate-0014
     entity_slot: zone_2_room
     entity_type: HVACRoom
@@ -272,8 +240,6 @@ sources:
       minimum: {number: 0, scale: -6}
       maximum: {number: 6, scale: 1}
       step: {number: 5, scale: -1}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0015
     entity_slot: zone_2_room
     entity_type: HVACRoom
@@ -294,8 +260,6 @@ sources:
       minimum: {number: 5, scale: 0}
       maximum: {number: 3, scale: 1}
       step: {number: 5, scale: -1}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0016
     entity_slot: zone_2_room
     entity_type: HVACRoom
@@ -312,9 +276,8 @@ sources:
       system_function_type: heating
     unit: null
     exact_mapping: {0: auto, 1: "on", 2: "off"}
-    comparator_class: ENUM_EXACT_MAPPING
-    protocol_eligibility: ELIGIBLE
   - candidate_id: m7-candidate-0017
+    source_classification: EEBUS_NATIVE_CAPABILITY
     entity_slot: zone_2_room
     entity_type: HVACRoom
     feature_type: HVAC
@@ -327,8 +290,6 @@ sources:
       system_function_type: heating
     unit: null
     exact_mapping: {false: false, true: true}
-    comparator_class: BOOLEAN_EXACT_MAPPING
-    protocol_eligibility: WITHHOLD_NO_EBUS_CAPABILITY_SOURCE
   - candidate_id: m7-candidate-0018
     entity_slot: outside_sensor
     entity_type: TemperatureSensor
@@ -349,21 +310,62 @@ sources:
       minimum: {number: -6, scale: 1}
       maximum: {number: 8, scale: 1}
       step: {number: 5, scale: -1}
-    comparator_class: NUMERIC_DECLARED_GRANULARITY
-    protocol_eligibility: ELIGIBLE
+  - candidate_id: m7-candidate-0019
+    source_classification: EEBUS_NATIVE_METADATA
+    entity_slot: device_information
+    entity_type: DeviceInformation
+    feature_type: DeviceClassification
+    feature_role: server
+    value_function: deviceClassificationManufacturerData
+    field_path: brandName
+    descriptor: {classification_scope: device_information}
+    unit: null
+  - candidate_id: m7-candidate-0020
+    source_classification: EEBUS_NATIVE_METADATA
+    entity_slot: device_information
+    entity_type: DeviceInformation
+    feature_type: DeviceClassification
+    feature_role: server
+    value_function: deviceClassificationManufacturerData
+    field_path: vendorName
+    descriptor: {classification_scope: device_information}
+    unit: null
+  - candidate_id: m7-candidate-0021
+    source_classification: EEBUS_NATIVE_METADATA
+    entity_slot: zone_1
+    entity_type: HeatingZone
+    feature_type: DeviceClassification
+    feature_role: server
+    value_function: deviceClassificationUserData
+    field_path: userLabel
+    descriptor: {classification_scope: heating_zone}
+    unit: null
+  - candidate_id: m7-candidate-0022
+    source_classification: EEBUS_NATIVE_METADATA
+    entity_slot: zone_2
+    entity_type: HeatingZone
+    feature_type: DeviceClassification
+    feature_role: server
+    value_function: deviceClassificationUserData
+    field_path: userLabel
+    descriptor: {classification_scope: heating_zone}
+    unit: null
 ```
 
-## Eligibility Interpretation
+## Source Ownership
 
-`protocol_eligibility: ELIGIBLE` means only that the eeBUS identity is closed
-enough for a synchronized comparator. It does not mean the eBUS peer exists,
-the source is currently readable, the values match, or the candidate is
-promoted. `WITHHOLD_NO_EBUS_CAPABILITY_SOURCE` requires terminal state
-`NOT_COMPARABLE` until an independently grounded eBUS capability source exists.
+The inventory contains exactly the 18 source references `0005` through `0022`.
+Seven sources (`0008`, `0013`, `0017`, `0019`-`0022`) carry a local
+`source_classification` because their typed capability or metadata fields are
+directly inspectable without a second protocol. This classification does not
+define a comparator, restart rule, semantic path, or promotion outcome.
 
-The four terminal candidates stay exactly terminal and cannot be relabeled by
-rehashing an evidence bundle. A promotion validator must bind all 18 candidate
-ids and their M7 source states, not only their fact hashes.
+Terminal provenance, cross-protocol comparator ownership, semantic paths,
+fallback identity, campaign assembly, and promotion decisions remain in
+`helianthus-docs-ebus`. The serialized companion is
+[`helianthus-docs-ebus#419`](https://github.com/Project-Helianthus/helianthus-docs-ebus/pull/419).
+It binds this inventory's exact PR head until this source PR is squash-merged,
+then must be repinned to the resulting full merge commit before it can merge.
 
 ## Evidence And Redaction
 
@@ -373,6 +375,12 @@ descriptor, function, field, unit, constraint and relation values above.
 It must not retain peer SKI, SHIP ID, service id, device/entity/feature native
 selectors, network coordinates, read tokens, private keys, PEM private
 material, trust-store bytes, or a reverse map for redacted selectors.
+
+The shareable
+[`EV-20260811-002 source manifest`](../../evidence/manifests/EV-20260811-002-source-manifest.json)
+binds the private raw-artifact digests, an owner validation result, and the
+canonical hash of every source profile without disclosing native selectors or
+observed values.
 
 The existing single-leaf
 [outdoor-temperature evidence profile](msp-085-live-r2-outdoor-temperature-promotion-evidence.md)
