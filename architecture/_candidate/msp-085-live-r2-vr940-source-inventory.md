@@ -58,21 +58,25 @@ decimal_rule: number_times_ten_to_scale
 default_validation_mode: CROSS_PROTOCOL_EQUIVALENCE
 terminal_candidates:
   - candidate_id: m7-candidate-0001
+    fact_hash: sha256:867157d98ac046e6bc09ae60b4a963e5f7c6d174f12d293b09cc339c7f9dd9a2
     required_disposition: WITHHELD
     required_terminal_state: CLOUD_ONLY
     retirement_state: RETIRED_TERMINAL_NOT_A_LEAF
     protocol_binding: null
   - candidate_id: m7-candidate-0002
+    fact_hash: sha256:26df8fd76d3d2804c899a063766075a9cad25ad90cccfcde067c10b95cb793be
     required_disposition: WITHHELD
     required_terminal_state: NOT_TESTED
     retirement_state: RETIRED_TERMINAL_NOT_A_LEAF
     protocol_binding: null
   - candidate_id: m7-candidate-0003
+    fact_hash: sha256:4f64a3fb317dee55c8838b2f5406976e3ba6e24f1c977cb141a0e1c1ed300911
     required_disposition: WITHHELD
     required_terminal_state: NOT_TESTED
     retirement_state: RETIRED_TERMINAL_NOT_A_LEAF
     protocol_binding: null
   - candidate_id: m7-candidate-0004
+    fact_hash: sha256:aae4e6db120c3ac922e9c981fd80041388c2e17cb099eadcddb34e61008e3490
     required_disposition: WITHHELD
     required_terminal_state: NOT_TESTED
     retirement_state: RETIRED_TERMINAL_NOT_A_LEAF
@@ -106,10 +110,14 @@ sources:
     ebus_fallback:
       family: B555
       operation: TIMER_READ
-      zone: dhw
-      program: dhw
-      weekday: monday
+      target_pseudonym_rule: active_controller_target_hash
+      device_family: BASV2
+      schedule_program: DHW
       slot_index: 0
+      day_of_week: MONDAY
+      time_identity: "00:00:00"
+      operation_mode_context: temp_slots_1_shared_setpoint
+      unit_scale_source: B555_DHW_TEMPERATURE_RAW_DIV10_C
       field_path: timerSlot.temperature
       unit: degC
       coupling_rule: dhw_temp_slots_1_mirrors_b524_setpoint
@@ -463,6 +471,15 @@ rehashing an evidence bundle. They are retired from the semantic leaf count.
 The promotable inventory is the 18 real sources `0005` through `0022`; a
 validator must also preserve the four retired records and their original M7
 states.
+
+The exact validation partition is 11 synchronized cross-protocol candidates
+(`0005`, `0006`, `0007`, `0009`, `0010`, `0011`, `0012`, `0014`, `0015`,
+`0016`, `0018`) and seven eeBUS-native candidates (`0008`, `0013`, `0017`,
+`0019`-`0022`). Cross-protocol comparator ownership, B555 identity validation,
+campaign assembly, and promotion decisions remain in `helianthus-docs-ebus`;
+this inventory owns only the eeBUS source facts and candidate bindings consumed
+by that platform contract. The serialized companion is
+[`helianthus-docs-ebus#418`](https://github.com/Project-Helianthus/helianthus-docs-ebus/issues/418).
 
 ## Evidence And Redaction
 

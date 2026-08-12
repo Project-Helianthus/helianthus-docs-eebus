@@ -62,6 +62,15 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             {item["retirement_state"] for item in terminal},
             {"RETIRED_TERMINAL_NOT_A_LEAF"},
         )
+        self.assertEqual(
+            {item["candidate_id"]: item["fact_hash"] for item in terminal},
+            {
+                "m7-candidate-0001": "sha256:867157d98ac046e6bc09ae60b4a963e5f7c6d174f12d293b09cc339c7f9dd9a2",
+                "m7-candidate-0002": "sha256:26df8fd76d3d2804c899a063766075a9cad25ad90cccfcde067c10b95cb793be",
+                "m7-candidate-0003": "sha256:4f64a3fb317dee55c8838b2f5406976e3ba6e24f1c977cb141a0e1c1ed300911",
+                "m7-candidate-0004": "sha256:aae4e6db120c3ac922e9c981fd80041388c2e17cb099eadcddb34e61008e3490",
+            },
+        )
 
     def test_numeric_steps_are_protocol_owned(self) -> None:
         expected = {
@@ -236,11 +245,50 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         self.assertEqual(len(set(paths)), 18)
         self.assertTrue(all(path.startswith("/") for path in paths))
 
+    def test_validation_partition_is_exact(self) -> None:
+        native = {
+            candidate_id
+            for candidate_id, source in self.sources.items()
+            if source.get("protocol_eligibility") == "EEBUS_NATIVE"
+        }
+        self.assertEqual(
+            native,
+            {
+                "m7-candidate-0008",
+                "m7-candidate-0013",
+                "m7-candidate-0017",
+                "m7-candidate-0019",
+                "m7-candidate-0020",
+                "m7-candidate-0021",
+                "m7-candidate-0022",
+            },
+        )
+        self.assertEqual(set(self.sources) - native, {
+            "m7-candidate-0005", "m7-candidate-0006", "m7-candidate-0007",
+            "m7-candidate-0009", "m7-candidate-0010", "m7-candidate-0011",
+            "m7-candidate-0012", "m7-candidate-0014", "m7-candidate-0015",
+            "m7-candidate-0016", "m7-candidate-0018",
+        })
+
     def test_dhw_target_has_only_the_grounded_b555_fallback(self) -> None:
         fallback = self.sources["m7-candidate-0006"]["ebus_fallback"]
         self.assertEqual(fallback["family"], "B555")
         self.assertEqual(fallback["operation"], "TIMER_READ")
-        self.assertEqual(fallback["slot_index"], 0)
+        self.assertEqual(fallback, {
+            "family": "B555",
+            "operation": "TIMER_READ",
+            "target_pseudonym_rule": "active_controller_target_hash",
+            "device_family": "BASV2",
+            "schedule_program": "DHW",
+            "slot_index": 0,
+            "day_of_week": "MONDAY",
+            "time_identity": "00:00:00",
+            "operation_mode_context": "temp_slots_1_shared_setpoint",
+            "unit_scale_source": "B555_DHW_TEMPERATURE_RAW_DIV10_C",
+            "field_path": "timerSlot.temperature",
+            "unit": "degC",
+            "coupling_rule": "dhw_temp_slots_1_mirrors_b524_setpoint",
+        })
         self.assertNotIn("B509", str(fallback))
 
     def test_exact_descriptor_is_always_required_before_unit_conversion(self) -> None:
