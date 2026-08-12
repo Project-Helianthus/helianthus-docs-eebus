@@ -202,6 +202,8 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             self.assertEqual(source["field_path"].split(".")[-1], "isOperationModeIdChangeable")
             self.assertEqual(source["source_classification"], "EEBUS_NATIVE_CAPABILITY")
         self.assertIn("does not\ndefine a comparator", self.text)
+        self.assertIn("defines no campaign validation rule", self.evidence)
+        self.assertNotIn("PRE/POST", self.evidence)
 
     def test_native_validation_partition_is_exact(self) -> None:
         native = {
