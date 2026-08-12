@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unittest
 from pathlib import Path
@@ -16,6 +17,7 @@ INVENTORY = (
     / "msp-085-live-r2-vr940-source-inventory.md"
 )
 EVIDENCE = ROOT / "evidence" / "EV-20260811-002.md"
+MANIFEST = ROOT / "evidence" / "manifests" / "EV-20260811-002-source-manifest.json"
 OVERVIEW = ROOT / "protocols" / "ship-spine-overview.md"
 
 
@@ -34,6 +36,7 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.text = INVENTORY.read_text(encoding="utf-8")
         cls.evidence = EVIDENCE.read_text(encoding="utf-8")
+        cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cls.inventory = closed_inventory(cls.text)
         cls.sources = {
             item["candidate_id"]: item for item in cls.inventory["sources"]
@@ -230,8 +233,29 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             "m7-candidate-0016", "m7-candidate-0018",
         })
 
-        self.assertNotIn("semantic_path", self.sources["m7-candidate-0006"])
-        self.assertNotIn("ebus_fallback", self.sources["m7-candidate-0006"])
+        forbidden = {
+            "semantic_path", "ebus_fallback", "validation_mode",
+            "comparator_class", "protocol_eligibility", "promotion_decision",
+            "terminal_state", "dossier_hash",
+        }
+        for source in self.sources.values():
+            self.assertTrue(forbidden.isdisjoint(source))
+
+    def test_shareable_manifest_binds_all_source_profiles_and_companion_pr(self) -> None:
+        expected = {}
+        for candidate_id, source in self.sources.items():
+            encoded = json.dumps(
+                source, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            ).encode("ascii")
+            expected[candidate_id] = "sha256:" + hashlib.sha256(encoded).hexdigest()
+        self.assertEqual(self.manifest["source_profile_sha256"], expected)
+        self.assertEqual(self.manifest["owner_validation"], "PASS")
+        self.assertEqual(set(self.manifest["private_artifact_sha256"]), {
+            "deployment_manifest", "hvac_descriptions_relations",
+            "numeric_descriptors_constraints", "runtime_status", "topology",
+        })
+        self.assertIn("helianthus-docs-ebus#419", self.text)
+        self.assertIn("exact PR head", self.text)
 
     def test_exact_descriptor_and_source_constraints_are_preserved(self) -> None:
         self.assertIn("bind the exact\ndescriptor, unit, and protocol-declared constraints", self.text)

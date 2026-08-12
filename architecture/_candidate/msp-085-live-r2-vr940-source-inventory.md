@@ -363,7 +363,9 @@ define a comparator, restart rule, semantic path, or promotion outcome.
 Terminal provenance, cross-protocol comparator ownership, semantic paths,
 fallback identity, campaign assembly, and promotion decisions remain in
 `helianthus-docs-ebus`. The serialized companion is
-[`helianthus-docs-ebus#418`](https://github.com/Project-Helianthus/helianthus-docs-ebus/issues/418).
+[`helianthus-docs-ebus#419`](https://github.com/Project-Helianthus/helianthus-docs-ebus/pull/419).
+It binds this inventory's exact PR head until this source PR is squash-merged,
+then must be repinned to the resulting full merge commit before it can merge.
 
 ## Evidence And Redaction
 
@@ -373,6 +375,12 @@ descriptor, function, field, unit, constraint and relation values above.
 It must not retain peer SKI, SHIP ID, service id, device/entity/feature native
 selectors, network coordinates, read tokens, private keys, PEM private
 material, trust-store bytes, or a reverse map for redacted selectors.
+
+The shareable
+[`EV-20260811-002 source manifest`](../../evidence/manifests/EV-20260811-002-source-manifest.json)
+binds the private raw-artifact digests, an owner validation result, and the
+canonical hash of every source profile without disclosing native selectors or
+observed values.
 
 The existing single-leaf
 [outdoor-temperature evidence profile](msp-085-live-r2-outdoor-temperature-promotion-evidence.md)
