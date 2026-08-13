@@ -144,6 +144,8 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "receives no pairing-window state, deadline, `register` state, or owner-intent derivative",
             "automatic window close, commit failure, or any other candidate lifecycle event alone changes no HA-visible field",
             "complete HA JSON projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`, `TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states",
+            "Candidate-bound, connected-untrusted, and transient-trust sessions are absent from every HA row, count, revision input, and degradation input",
+            "`connected` includes only rows already backed by an independently usable durable association",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -179,7 +181,9 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "transmit it once in the authenticated Portal response",
             "continuation of M4B's sole private candidate-read exception",
             "MUST NOT be logged, metriced, traced, persisted",
-            "retained after the request, or sent to HA",
+            "request/response buffers clear it immediately after the response completes",
+            "Portal client may retain it only in the bounded active OOB view lifetime",
+            "clears it on every specified terminal or UI event",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -207,6 +211,9 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "service workers and offline caches must exclude the entire",
             "clears them on candidate expiry or change, logout, navigation away, visibility loss",
             "never enter local/session storage, IndexedDB, browser history, URL state",
+            "server and client lifetimes are distinct and both bounded",
+            "request/response buffers clear candidate identity immediately after response completion",
+            "only in the currently visible active OOB view long enough for the owner comparison",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)

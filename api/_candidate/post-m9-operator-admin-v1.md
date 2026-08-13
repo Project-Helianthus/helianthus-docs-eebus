@@ -96,7 +96,7 @@ the protected gateway admin origin.
 
 | Operation | `portal_owner` | `ha_integration` |
 | --- | --- | --- |
-| Status; `trusted`, `connected`, `discovered` views | allow | allow, sanitized |
+| Status; `trusted`, `connected`, `discovered` views | allow | allow, sanitized; `connected` includes only rows already backed by an independently usable durable association |
 | `candidate` view | allow | deny |
 | Raw SPINE page | allow | deny; open Portal instead |
 | Open/close pairing window; select/connect/retry | allow | deny |
@@ -132,8 +132,12 @@ presence, lifecycle state, expiry, identity, failure, and any aggregate whose
 value would change merely because a candidate exists. Its response is
 therefore indistinguishable for zero versus one-or-more candidates when all
 non-candidate runtime facts are equal. HA receives only listener/discovery
-health, trusted/connected/discovered counts, sanitized degradation, and
-`state_revision`. It receives no pairing-window state, deadline, `register`
+health, trusted/discovered counts, a connected count restricted to sessions
+already backed by an independently usable durable association, sanitized
+degradation, and `state_revision`. Candidate-bound, connected-untrusted, and
+transient-trust sessions are absent from every HA row, count, revision input,
+and degradation input until durable commit independently permits them. HA
+receives no pairing-window state, deadline, `register`
 state, or owner-intent derivative. Candidate admission, automatic window close,
 commit failure, or any other candidate lifecycle event alone changes no
 HA-visible field: the revision is not advanced or partitioned solely to signal
@@ -199,6 +203,13 @@ logout, navigation away, visibility loss, and replacement by any later
 response. Candidate fields never enter local/session storage, IndexedDB,
 browser history, URL state, telemetry, crash capture, or reusable application
 cache.
+
+The server and client lifetimes are distinct and both bounded. Gateway and
+intermediary request/response buffers clear candidate identity immediately
+after response completion. The Portal client may keep it only in the currently
+visible active OOB view long enough for the owner comparison; it clears the
+view on confirmation/cancel, candidate expiry or change, connection close,
+logout, navigation away, visibility loss, or replacement by a later response.
 
 ## Lazy SPINE Page
 

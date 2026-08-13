@@ -196,7 +196,8 @@ status only and all mutation routes fail closed.
 
 Home Assistant uses a non-cookie, least-privilege machine principal bound to
 the integration/config entry and explicit actions. That credential alone may
-read sanitized status and the `trusted`, `connected`, and `discovered` views;
+read sanitized status, the `trusted` and `discovered` views, and only connected
+rows already backed by an independently usable durable association;
 it cannot read the `candidate` view or raw SPINE, confirm/revoke trust, or
 complete first trust. A browser cannot substitute that credential, and
 machine-authenticated requests do not accept ambient browser cookies.
@@ -270,6 +271,9 @@ response. That end-to-end relay remains the continuation of M4B's sole private
 candidate-read exception, not a second candidate source or public response.
 
 The identity still MUST NOT be logged, metriced, traced, persisted, included in
-diagnostics/tests/shareable capture, retained after the request, or sent to HA.
-Every other M4B confidentiality, same-generation confirmation, persistence,
-and restart rule continues unchanged.
+diagnostics/tests/shareable capture, or sent to HA. Gateway and intermediary
+request/response buffers clear it immediately after the response completes.
+The Portal client may retain it only in the bounded active OOB view lifetime
+defined by the API contract, then clears it on every specified terminal or UI
+event. Every other M4B confidentiality, same-generation confirmation,
+persistence, and restart rule continues unchanged.
