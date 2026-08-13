@@ -61,30 +61,45 @@ create a second eeBUS runtime namespace. Stable public MCP stays read-only.
 
 ## Operator Pairing Sequence
 
-The only valid first-trust sequence is:
+Every valid first-trust path begins with the shared prelude:
 
 1. An authenticated owner opens one bounded pairing window. Opening the window
    changes local `register=true`; it does not select a peer, dial, or trust.
-2. Passive discovery may add a `discovered` observation. Discovery grants no
+2. The coordinator admits at most one current TLS-bound candidate for that
+   window and generation. The path to that candidate is one of the following
+   two explicit branches.
+
+The **outbound discovered branch** is:
+
+1. Passive discovery adds a `discovered` observation. Discovery grants no
    authority and cannot initiate a connection by itself.
-3. The owner selects the exact current observation and validates the expected
+2. The owner selects the exact current observation and validates the expected
    complete 40-character lowercase certificate short identifier from an
    independent OOB source.
-4. The owner explicitly initiates a bounded connection/binding attempt, or an
-   eligible inbound attempt supplies the exact current TLS-bound candidate.
-5. The gateway displays the complete observed certificate short identifier and
+3. The owner explicitly initiates one bounded connection/binding attempt for
+   that exact selected observation. The resulting TLS connection may supply
+   the current candidate.
+
+The **inbound before discovery branch** is:
+
+1. An eligible inbound TLS attempt reaches the coordinator while the pairing
+   window is open.
+2. Its TLS-bound identity supplies the current candidate directly. This branch
+   requires no mDNS observation, performs no observation selection, and must
+   not fabricate an `observation_id`.
+
+Both branches then converge at the same confirmation and commit sequence:
+
+1. The gateway displays the complete observed certificate short identifier and
    the current bindings. The owner confirms that exact complete value against
-   the single server-held current candidate; confirmation does not require or
-   fabricate a discovery observation. Prefix,
-   suffix, shortened, case-folded,
-   separator-bearing, or whitespace-bearing matches fail closed.
-6. The coordinator may create transient runtime trust for that exact live
+   the single server-held current candidate. Prefix, suffix, shortened,
+   case-folded, separator-bearing, or whitespace-bearing matches fail closed.
+2. The coordinator may create transient runtime trust for that exact live
    connection generation. It writes no durable association yet.
-7. Only matching same-generation protocol completion and a non-empty
-   `remote_ship_id` value
-   may commit the association atomically. Persistence failure is terminal and
-   cannot be presented as trusted.
-8. Reconnect uses only the durable identity anchors plus fresh discovery. It
+3. Only matching same-generation protocol completion and a non-empty
+   `remote_ship_id` value may commit the association atomically. Persistence
+   failure is terminal and cannot be presented as trusted.
+4. Reconnect uses only the durable identity anchors plus fresh discovery. It
    never restores a volatile selection or endpoint from before restart.
 
 Every mutating request is owner-authenticated, authorized for its exact action,
@@ -198,12 +213,15 @@ machine-authenticated requests do not accept ambient browser cookies.
 
 An HA user action that needs `confirm` or `untrust` first redirects the owner to
 the Portal boundary. The owner-authenticated same-origin session performs the
-OOB comparison and issues one short-lived opaque approval grant bound to the
-exact action, partner or candidate, state revision, connection generation,
-idempotency key, config-entry principal, and expiry. HA can forward that grant
-once without seeing candidate identity. A grant with any changed binding,
-replay, or expiry fails closed before the coordinator receives a command. The
-result surfaces the sanitized audit request identifier.
+OOB comparison and issues one short-lived opaque approval grant. Every grant
+binds the exact action, state revision, idempotency key, config-entry principal,
+and expiry. Select/connect additionally bind the exact observation identifier,
+observation revision, and expected complete certificate identity; candidate
+and partner actions bind their hidden server-side generation and identity.
+HA can forward that grant once without seeing candidate identity. A grant with
+any changed binding, cross-observation substitution, replay, or expiry fails
+closed before the coordinator receives a command. The result surfaces the
+sanitized audit request identifier.
 
 The audit record contains action, authenticated principal class, request ID,
 idempotency outcome, prior and resulting state class, timestamp, and sanitized
@@ -258,6 +276,14 @@ Home Assistant remains candidate-free, and the public Runtime, MCP, GraphQL,
 semantic, logging, metrics, diagnostics, and shareable evidence boundaries
 remain candidate-free. Where M4B says all Portal surfaces are candidate-free or
 that no HTTP handler/Portal action exists, this section supersedes only those
-statements for the authenticated `portal_owner` adapter. Every other M4B
-confidentiality, same-generation confirmation, persistence, and restart rule
-continues unchanged.
+statements for the authenticated `portal_owner` adapter. It also supersedes
+M4B's no-capture/no-share rule only to the minimum extent needed for the gateway
+service and admin adapter to hold the complete comparison identity in bounded
+request-lifetime memory and transmit it once in the authenticated Portal
+response. That end-to-end relay remains the continuation of M4B's sole private
+candidate-read exception, not a second candidate source or public response.
+
+The identity still MUST NOT be logged, metriced, traced, persisted, included in
+diagnostics/tests/shareable capture, retained after the request, or sent to HA.
+Every other M4B confidentiality, same-generation confirmation, persistence,
+and restart rule continues unchanged.

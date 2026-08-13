@@ -104,13 +104,18 @@ the protected gateway admin origin.
 | Revoke durable trust | allow | deny | allow once for the exact partner/action |
 
 An owner approval grant is opaque, short-lived, and single-use. It is issued
-only by the owner-authenticated same-origin Portal session and binds the exact
-action, candidate or partner, state revision, connection generation when
-applicable, idempotency key, HA config-entry principal, and expiry. The gateway
-rejects a missing, replayed, expired, or differently bound grant before request
-translation or coordinator invocation. The machine credential cannot issue or
-refresh a grant, cannot exchange it for candidate data, and cannot use one
-grant for another operation.
+only by the owner-authenticated same-origin Portal session and always binds the
+exact action, state revision, idempotency key, HA config-entry principal, and
+expiry. A `select` or `connect` grant additionally binds the exact
+`observation_id`, observation revision, and expected complete certificate short
+identifier. A candidate action binds the hidden current candidate and
+connection generation; a partner action binds the exact `partner_id` and trust
+generation. The gateway rejects a missing, replayed, expired, differently bound,
+or cross-observation grant before request translation or coordinator
+invocation. Substituting observation B on a grant approved for observation A
+is a deterministic no-effect denial even when the global state revision is
+unchanged. The machine credential cannot issue or refresh a grant, cannot
+exchange it for candidate data, and cannot use one grant for another operation.
 
 `partner_id` and `observation_id` are opaque, bounded, and non-authoritative.
 Every operation resolves them under the current state revision. No response or
@@ -251,9 +256,14 @@ runtime outcomes map to `unknown_state` and deny mutation.
 
 ## Non-Disclosure And Anti-Leak Rules
 
-No request, response, audit row, log, metric, trace, diagnostic bundle, or
-shareable screenshot may contain a private key, private PEM, token, credential,
-trust-store bytes, candidate nonce, store internals, or raw socket frame.
+Authentication material is accepted only in the designated secure session
+cookie, CSRF header, or HA authorization header defined by the deployment
+profile. A URL, query string, request body, response, audit row, log, metric,
+trace, diagnostic bundle, or shareable screenshot must never contain or echo a
+private key, private PEM, token, credential, trust-store bytes, candidate nonce,
+store internals, or raw socket frame. Authentication headers/cookies are
+consumed before application logging and are never copied into application
+state, idempotency records, errors, or coordinator commands.
 Complete certificate short identifiers, protocol service identifiers,
 endpoints, native SPINE addresses, and raw/opaque fields are owner-only
 operational data and are removed from public/shareable output.

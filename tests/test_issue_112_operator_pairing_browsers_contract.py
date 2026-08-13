@@ -132,9 +132,10 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "Raw SPINE page | allow | deny | deny",
             "Confirm candidate trust | allow after OOB comparison | deny",
             "Revoke durable trust | allow | deny",
-            "exact action, candidate or partner, state revision, connection generation",
-            "HA config-entry principal, and expiry",
-            "missing, replayed, expired, or differently bound grant",
+            "exact action, state revision, idempotency key, HA config-entry principal",
+            "exact `observation_id`, observation revision, and expected complete certificate short identifier",
+            "Substituting observation B on a grant approved for observation A",
+            "missing, replayed, expired, differently bound, or cross-observation grant",
             "cannot issue or refresh a grant",
             "without seeing candidate identity",
             "`ha_integration` projection omits every candidate-derived field",
@@ -153,12 +154,41 @@ class PostM9OperatorContractTest(unittest.TestCase):
         _, api = read_markdown(API)
         normalized = " ".join((architecture + api).split())
         required = (
+            "outbound discovered branch",
+            "inbound before discovery branch",
+            "Both branches then converge at the same confirmation and commit sequence",
             "eligible inbound candidate admitted before mDNS",
             "no observation exists and none is fabricated",
             "does not require an observation identifier",
             "single server-held current candidate",
             "Outbound selection remains bound to an exact current discovery observation",
             "two paths converge at the same OOB confirmation and durable-commit state machine",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
+    def test_m4b_relay_precedence_is_narrow_and_ephemeral(self) -> None:
+        _, architecture = read_markdown(ARCH)
+        normalized = " ".join(architecture.split())
+        required = (
+            "supersedes M4B's no-capture/no-share rule only to the minimum extent",
+            "bounded request-lifetime memory",
+            "transmit it once in the authenticated Portal response",
+            "continuation of M4B's sole private candidate-read exception",
+            "MUST NOT be logged, metriced, traced, persisted",
+            "retained after the request, or sent to HA",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
+    def test_authentication_material_uses_only_designated_transport_fields(self) -> None:
+        _, api = read_markdown(API)
+        normalized = " ".join(api.split())
+        required = (
+            "designated secure session cookie, CSRF header, or HA authorization header",
+            "URL, query string, request body, response, audit row, log, metric",
+            "must never contain or echo",
+            "never copied into application state, idempotency records, errors, or coordinator commands",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
