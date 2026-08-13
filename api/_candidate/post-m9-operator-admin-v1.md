@@ -38,7 +38,7 @@ Read-only public MCP behavior remains unchanged.
 | Profile | Authentication | CSRF rule | Allowed use |
 | --- | --- | --- | --- |
 | `portal_owner` | Owner-authenticated, same-origin gateway session. | Mandatory session-bound CSRF token plus strict Origin/Referer and JSON content-type validation. | Read operator views and invoke explicitly authorized pairing actions. |
-| `ha_integration` | Non-cookie least-privilege machine credential bound to one HA config entry. | Browser CSRF does not apply; ambient cookies and browser-origin requests are rejected. | Read status and invoke only the scopes granted to the integration action. |
+| `ha_integration` | Non-cookie least-privilege machine credential bound to one HA config entry. | Browser CSRF does not apply; ambient cookies and browser-origin requests are rejected. | Read sanitized status/non-candidate partner views and forward an owner approval grant for an exact allowed action. The credential alone cannot read candidate/raw data or confirm/revoke trust. |
 
 Authentication and authorization run before request decoding can reveal whether
 a partner, observation, trust record, or snapshot exists. Errors are category
@@ -92,6 +92,26 @@ the protected gateway admin origin.
 | `POST /admin/eebus/v1/partners/{partner_id}:retry` | `eebus.admin.pairing` | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
 | `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | `eebus.admin.trust` | Revokes the exact durable association and current runtime trust through the coordinator. |
 
+### Endpoint Authorization Matrix
+
+| Operation | `portal_owner` | `ha_integration` credential alone | `ha_integration` plus owner approval grant |
+| --- | --- | --- | --- |
+| Status; `trusted`, `connected`, `discovered` views | allow | allow, sanitized | allow, sanitized |
+| `candidate` view | allow | deny | deny |
+| Raw SPINE page | allow | deny | deny; open Portal instead |
+| Open/close pairing window; select/connect/retry | allow | deny | allow once for the exact bound action |
+| Confirm candidate trust | allow after OOB comparison | deny | allow once without disclosing candidate identity |
+| Revoke durable trust | allow | deny | allow once for the exact partner/action |
+
+An owner approval grant is opaque, short-lived, and single-use. It is issued
+only by the owner-authenticated same-origin Portal session and binds the exact
+action, candidate or partner, state revision, connection generation when
+applicable, idempotency key, HA config-entry principal, and expiry. The gateway
+rejects a missing, replayed, expired, or differently bound grant before request
+translation or coordinator invocation. The machine credential cannot issue or
+refresh a grant, cannot exchange it for candidate data, and cannot use one
+grant for another operation.
+
 `partner_id` and `observation_id` are opaque, bounded, and non-authoritative.
 Every operation resolves them under the current state revision. No response or
 request contains `candidate_ref`, store generation bytes, filesystem path, or
@@ -141,6 +161,11 @@ sanitized outcome. Candidate nonce and coordinator/store generations remain
 server-side. Confirmation carries the exact complete certificate short identifier, current
 `state_revision`, and the selected observation identifier; the gateway binds
 the hidden coordinator values atomically.
+
+Candidate rows and complete candidate certificate identity are returned only
+to `portal_owner`. The HA response shape omits them and cannot distinguish an
+absent candidate from one that exists but is unauthorized. HA confirmation is
+only a one-time forwarding of a Portal-issued owner approval grant.
 
 ## Lazy SPINE Page
 

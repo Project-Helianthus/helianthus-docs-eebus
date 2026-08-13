@@ -11,6 +11,7 @@ ARCH_REL = "architecture/_candidate/post-m9-operator-pairing-browsers-v1.md"
 API_REL = "api/_candidate/post-m9-operator-admin-v1.md"
 ARCH = ROOT / ARCH_REL
 API = ROOT / API_REL
+M4B = ROOT / "architecture/_candidate/msp-04b-first-trust-admin-local.md"
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -119,6 +120,47 @@ class PostM9OperatorContractTest(unittest.TestCase):
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
+
+    def test_ha_credential_cannot_autonomously_read_or_mutate_trust(self) -> None:
+        _, architecture = read_markdown(ARCH)
+        _, api = read_markdown(API)
+        normalized = " ".join((architecture + api).split())
+        required = (
+            "Endpoint Authorization Matrix",
+            "`ha_integration` credential alone",
+            "`candidate` view | allow | deny | deny",
+            "Raw SPINE page | allow | deny | deny",
+            "Confirm candidate trust | allow after OOB comparison | deny",
+            "Revoke durable trust | allow | deny",
+            "exact action, candidate or partner, state revision, connection generation",
+            "HA config-entry principal, and expiry",
+            "missing, replayed, expired, or differently bound grant",
+            "cannot issue or refresh a grant",
+            "without seeing candidate identity",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
+    def test_post_m9_explicitly_amends_m4b_without_widening_public_surfaces(self) -> None:
+        _, architecture = read_markdown(ARCH)
+        _, m4b = read_markdown(M4B)
+        combined = " ".join((architecture + m4b).split())
+        required = (
+            "Amendment To The M4B Local Admin Boundary",
+            "narrowly amends the candidate-free clauses",
+            "immutable historical milestone artefact",
+            "records precedence without rewriting M4B's original scope statement",
+            "Public `Runtime`, MCP, GraphQL, Portal, and Home Assistant surfaces remain candidate-free",
+            "does not add an MCP tool/resource, GraphQL mutation, Portal action, Home Assistant service",
+            "same-UID AF_UNIX transport remains the private coordinator command",
+            "authenticated `portal_owner` adapter",
+            "The amendment does not expose `candidate_nonce`",
+            "Home Assistant remains candidate-free",
+            "public Runtime, MCP, GraphQL",
+            "Every other M4B confidentiality, same-generation confirmation, persistence, and restart rule continues unchanged",
+        )
+        for phrase in required:
+            self.assertIn(phrase, combined)
 
     def test_closed_degraded_outcomes_are_documented(self) -> None:
         _, architecture = read_markdown(ARCH)

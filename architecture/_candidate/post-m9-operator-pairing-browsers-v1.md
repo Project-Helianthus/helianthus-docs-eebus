@@ -38,7 +38,7 @@ boundary.
 | eeBUS runtime and first-trust coordinator | Discovery observations, the bounded pairing-window and candidate lifecycle, transient trust, durable association commit, reconnect, quarantine, and native raw topology. | Browser sessions, Home Assistant UX, semantic projection, or cross-protocol identity. |
 | Gateway authenticated admin boundary | Authentication, authorization, CSRF enforcement for browser principals, idempotency, audit outcomes, translation to coordinator commands, and sanitized operator views. | Trust-store parsing, private-key export, duplicate SHIP/SPINE state, or automatic trust policy. |
 | Portal | Full owner workflow, SHIP partner browser, lazy SPINE tree, explicit OOB comparison, and deterministic status presentation. | Direct trust-store access, the eeBUS operator socket, transport ownership, or hidden automatic retry/trust. |
-| Home Assistant integration | HA-native setup/options/repair/service UX and status against the gateway boundary. | Direct trust-store access, the eeBUS operator socket, transport state, or a second pairing FSM. |
+| Home Assistant integration | HA-native setup/options/repair UX, sanitized status, and owner-initiated action forwarding against the gateway boundary. | Candidate identity, raw SPINE, an autonomous trust decision, direct trust-store access, the eeBUS operator socket, transport state, or a second pairing FSM. |
 | Stable public MCP | Existing read-only `eebus.v1.*` runtime, service, session, pairing-status, topology, and snapshot inspection. | Pairing mutations, candidate selection, trust writes, or legacy/v2 aliases. |
 | Semantic consumers | Promoted protocol-neutral facts only. | Raw SHIP/SPINE records, trust state, certificate or protocol-service identity, endpoints, or candidate state. |
 
@@ -181,10 +181,20 @@ them; deployments without a valid authenticated boundary expose read-only
 status only and all mutation routes fail closed.
 
 Home Assistant uses a non-cookie, least-privilege machine principal bound to
-the integration/config entry and explicit actions. A browser cannot substitute
-that credential, and machine-authenticated requests do not accept ambient
-browser cookies. HA services that mutate pairing require an explicit user
-action and surface the resulting audit request identifier.
+the integration/config entry and explicit actions. That credential alone may
+read sanitized status and the `trusted`, `connected`, and `discovered` views;
+it cannot read the `candidate` view or raw SPINE, confirm/revoke trust, or
+complete first trust. A browser cannot substitute that credential, and
+machine-authenticated requests do not accept ambient browser cookies.
+
+An HA user action that needs `confirm` or `untrust` first redirects the owner to
+the Portal boundary. The owner-authenticated same-origin session performs the
+OOB comparison and issues one short-lived opaque approval grant bound to the
+exact action, partner or candidate, state revision, connection generation,
+idempotency key, config-entry principal, and expiry. HA can forward that grant
+once without seeing candidate identity. A grant with any changed binding,
+replay, or expiry fails closed before the coordinator receives a command. The
+result surfaces the sanitized audit request identifier.
 
 The audit record contains action, authenticated principal class, request ID,
 idempotency outcome, prior and resulting state class, timestamp, and sanitized
@@ -221,3 +231,24 @@ durable trust, connection, untrust, reconnect, and persistence for VR940 while
 the existing eBUS runtime remains operational. The raw SPINE tree must retain
 the observed one-device, eleven-entity, twenty-feature shape and use-case
 claims without leaking it into semantic or eBUS surfaces.
+
+## Amendment To The M4B Local Admin Boundary
+
+This post-M9 candidate narrowly amends the candidate-free clauses in
+[`msp-04b-first-trust-admin-local.md`](./msp-04b-first-trust-admin-local.md).
+M4B remains an immutable historical milestone artefact, so this later contract
+records precedence without rewriting M4B's original scope statement.
+The same-UID AF_UNIX transport remains the private coordinator command and
+candidate-binding boundary. It is no longer the only operator presentation
+surface: the gateway may translate its privileged read into the owner-only
+Portal response defined here, after gateway authentication and CSRF checks.
+
+The amendment does not expose `candidate_nonce`, connection generation, store
+generation, or socket framing to Portal or HA. Those bindings stay server-side.
+Home Assistant remains candidate-free, and the public Runtime, MCP, GraphQL,
+semantic, logging, metrics, diagnostics, and shareable evidence boundaries
+remain candidate-free. Where M4B says all Portal surfaces are candidate-free or
+that no HTTP handler/Portal action exists, this section supersedes only those
+statements for the authenticated `portal_owner` adapter. Every other M4B
+confidentiality, same-generation confirmation, persistence, and restart rule
+continues unchanged.
