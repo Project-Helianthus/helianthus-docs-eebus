@@ -128,6 +128,16 @@ Status contains only:
 - one closed degraded-state code; and
 - `state_revision`.
 
+That complete status object is `portal_owner` only. The `ha_integration`
+projection omits every candidate-derived field, including candidate count,
+presence, lifecycle state, expiry, identity, failure, and any aggregate whose
+value would change merely because a candidate exists. Its response is
+therefore indistinguishable for zero versus one-or-more candidates when all
+non-candidate runtime facts are equal. HA receives only pairing-window,
+listener/discovery health, trusted/connected/discovered counts, sanitized
+degradation, and `state_revision`; the revision is not advanced or partitioned
+solely to signal a candidate-visible change to that principal.
+
 Each partner row is the closed object:
 
 ```text

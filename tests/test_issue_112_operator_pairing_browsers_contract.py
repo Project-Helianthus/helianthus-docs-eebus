@@ -137,6 +137,10 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "missing, replayed, expired, or differently bound grant",
             "cannot issue or refresh a grant",
             "without seeing candidate identity",
+            "`ha_integration` projection omits every candidate-derived field",
+            "candidate count, presence, lifecycle state, expiry, identity, failure",
+            "indistinguishable for zero versus one-or-more candidates",
+            "revision is not advanced or partitioned solely to signal a candidate-visible change",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
