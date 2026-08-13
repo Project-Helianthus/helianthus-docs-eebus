@@ -38,7 +38,7 @@ Read-only public MCP behavior remains unchanged.
 | Profile | Authentication | CSRF rule | Allowed use |
 | --- | --- | --- | --- |
 | `portal_owner` | Owner-authenticated, same-origin gateway session. | Mandatory session-bound CSRF token plus strict Origin/Referer and JSON content-type validation. | Read operator views and invoke explicitly authorized pairing actions. |
-| `ha_integration` | Non-cookie least-privilege machine credential bound to one HA config entry. | Browser CSRF does not apply; ambient cookies and browser-origin requests are rejected. | Read sanitized status/non-candidate partner views and forward an owner approval grant for an exact allowed action. The credential alone cannot read candidate/raw data or confirm/revoke trust. |
+| `ha_integration` | Non-cookie least-privilege machine credential bound to one HA config entry. | Browser CSRF does not apply; ambient cookies and browser-origin requests are rejected. | Read sanitized status and non-candidate partner views only. Every mutation, candidate view, and raw view is denied. |
 
 Authentication and authorization run before request decoding can reveal whether
 a partner, observation, trust record, or snapshot exists. Errors are category
@@ -94,28 +94,21 @@ the protected gateway admin origin.
 
 ### Endpoint Authorization Matrix
 
-| Operation | `portal_owner` | `ha_integration` credential alone | `ha_integration` plus owner approval grant |
-| --- | --- | --- | --- |
-| Status; `trusted`, `connected`, `discovered` views | allow | allow, sanitized | allow, sanitized |
-| `candidate` view | allow | deny | deny |
-| Raw SPINE page | allow | deny | deny; open Portal instead |
-| Open/close pairing window; select/connect/retry | allow | deny | allow once for the exact bound action |
-| Confirm candidate trust | allow after OOB comparison | deny | allow once without disclosing candidate identity |
-| Revoke durable trust | allow | deny | allow once for the exact partner/action |
+| Operation | `portal_owner` | `ha_integration` |
+| --- | --- | --- |
+| Status; `trusted`, `connected`, `discovered` views | allow | allow, sanitized |
+| `candidate` view | allow | deny |
+| Raw SPINE page | allow | deny; open Portal instead |
+| Open/close pairing window; select/connect/retry | allow | deny |
+| Confirm candidate trust | allow after OOB comparison | deny |
+| Revoke durable trust | allow | deny |
 
-An owner approval grant is opaque, short-lived, and single-use. It is issued
-only by the owner-authenticated same-origin Portal session and always binds the
-exact action, state revision, idempotency key, HA config-entry principal, and
-expiry. A `select` or `connect` grant additionally binds the exact
-`observation_id`, observation revision, and expected complete certificate short
-identifier. A candidate action binds the hidden current candidate and
-connection generation; a partner action binds the exact `partner_id` and trust
-generation. The gateway rejects a missing, replayed, expired, differently bound,
-or cross-observation grant before request translation or coordinator
-invocation. Substituting observation B on a grant approved for observation A
-is a deterministic no-effect denial even when the global state revision is
-unchanged. The machine credential cannot issue or refresh a grant, cannot
-exchange it for candidate data, and cannot use one grant for another operation.
+There is no HA mutation grant, minting route, exchange route, mutation scope, or
+credential escalation. HA setup/options/repair may display one fixed
+same-origin Portal path such as `/portal/eebus`; it contains no query or
+fragment data and conveys no authority. The authenticated owner performs every
+mutation directly in Portal. After return, HA resumes polling only its
+candidate-free read projection.
 
 `partner_id` and `observation_id` are opaque, bounded, and non-authoritative.
 Every operation resolves them under the current state revision. No response or
@@ -185,17 +178,27 @@ an observation identifier. The gateway atomically binds those inputs to the
 single server-held current candidate, including its connection and store
 generations.
 
-For an outbound path, earlier selection still requires the exact current
-`observation_id` and its revision; that selection is retained only as a hidden
-server binding. For an eligible inbound candidate admitted before mDNS, no
-observation exists and none is fabricated. Both paths confirm the same current
-TLS-bound candidate and otherwise use identical OOB, expiry, generation, and
-persistence rules.
+Earlier selection requires the exact current `observation_id` and its revision;
+that selection is retained only as a hidden server binding. Outbound TLS or an
+eligible inbound callback may then bind only that already selected identity and
+generation. An inbound callback cannot select a candidate, and no observation
+is fabricated. Both TLS paths otherwise use identical OOB, expiry, generation,
+and persistence rules.
 
 Candidate rows and complete candidate certificate identity are returned only
 to `portal_owner`. The HA response shape omits them and cannot distinguish an
-absent candidate from one that exists but is unauthorized. HA confirmation is
-only a one-time forwarding of a Portal-issued owner approval grant.
+absent candidate from one that exists but is unauthorized. HA cannot confirm,
+forward, or relay a candidate action.
+
+Every response containing candidate-derived data includes `Cache-Control:
+private, no-store`, `Pragma: no-cache`, `Expires: 0`, and `Referrer-Policy:
+no-referrer`. Portal service workers and offline caches must exclude the entire
+`/admin/eebus/v1/` path. Portal holds candidate fields only in request-lifetime
+memory and the active view model; it clears them on candidate expiry or change,
+logout, navigation away, visibility loss, and replacement by any later
+response. Candidate fields never enter local/session storage, IndexedDB,
+browser history, URL state, telemetry, crash capture, or reusable application
+cache.
 
 ## Lazy SPINE Page
 

@@ -38,7 +38,7 @@ boundary.
 | eeBUS runtime and first-trust coordinator | Discovery observations, the bounded pairing-window and candidate lifecycle, transient trust, durable association commit, reconnect, quarantine, and native raw topology. | Browser sessions, Home Assistant UX, semantic projection, or cross-protocol identity. |
 | Gateway authenticated admin boundary | Authentication, authorization, CSRF enforcement for browser principals, idempotency, audit outcomes, translation to coordinator commands, and sanitized operator views. | Trust-store parsing, private-key export, duplicate SHIP/SPINE state, or automatic trust policy. |
 | Portal | Full owner workflow, SHIP partner browser, lazy SPINE tree, explicit OOB comparison, and deterministic status presentation. | Direct trust-store access, the eeBUS operator socket, transport ownership, or hidden automatic retry/trust. |
-| Home Assistant integration | HA-native setup/options/repair UX, sanitized status, and owner-initiated action forwarding against the gateway boundary. | Candidate identity, raw SPINE, an autonomous trust decision, direct trust-store access, the eeBUS operator socket, transport state, or a second pairing FSM. |
+| Home Assistant integration | HA-native setup/options/repair UX, sanitized status, and an owner-action link to the Portal boundary. | Candidate identity, raw SPINE, any pairing mutation or trust decision, direct trust-store access, the eeBUS operator socket, transport state, or a second pairing FSM. |
 | Stable public MCP | Existing read-only `eebus.v1.*` runtime, service, session, pairing-status, topology, and snapshot inspection. | Pairing mutations, candidate selection, trust writes, or legacy/v2 aliases. |
 | Semantic consumers | Promoted protocol-neutral facts only. | Raw SHIP/SPINE records, trust state, certificate or protocol-service identity, endpoints, or candidate state. |
 
@@ -61,45 +61,32 @@ create a second eeBUS runtime namespace. Stable public MCP stays read-only.
 
 ## Operator Pairing Sequence
 
-Every valid first-trust path begins with the shared prelude:
+The valid first-trust sequence preserves the later MSP-052 selected-candidate
+inbound boundary:
 
 1. An authenticated owner opens one bounded pairing window. Opening the window
    changes local `register=true`; it does not select a peer, dial, or trust.
-2. The coordinator admits at most one current TLS-bound candidate for that
-   window and generation. The path to that candidate is one of the following
-   two explicit branches.
-
-The **outbound discovered branch** is:
-
-1. Passive discovery adds a `discovered` observation. Discovery grants no
+2. Passive discovery adds a `discovered` observation. Discovery grants no
    authority and cannot initiate a connection by itself.
-2. The owner selects the exact current observation and validates the expected
+3. The owner selects the exact current observation and validates the expected
    complete 40-character lowercase certificate short identifier from an
    independent OOB source.
-3. The owner explicitly initiates one bounded connection/binding attempt for
-   that exact selected observation. The resulting TLS connection may supply
-   the current candidate.
-
-The **inbound before discovery branch** is:
-
-1. An eligible inbound TLS attempt reaches the coordinator while the pairing
-   window is open.
-2. Its TLS-bound identity supplies the current candidate directly. This branch
-   requires no mDNS observation, performs no observation selection, and must
-   not fabricate an `observation_id`.
-
-Both branches then converge at the same confirmation and commit sequence:
-
-1. The gateway displays the complete observed certificate short identifier and
-   the current bindings. The owner confirms that exact complete value against
-   the single server-held current candidate. Prefix, suffix, shortened,
+4. Exactly one TLS path may win for that selected observation and current
+   generation: either the owner starts the bounded outbound attempt, or an
+   inbound callback binds only when its TLS identity equals the already
+   selected observation. An inbound peer that arrives before selection, has a
+   different identity, loses the winner reservation, or uses a stale generation
+   is rejected without creating or replacing a candidate.
+5. The gateway displays the complete TLS-bound certificate short identifier and
+   current bindings. The owner confirms that exact complete value against the
+   single server-held selected candidate. Prefix, suffix, shortened,
    case-folded, separator-bearing, or whitespace-bearing matches fail closed.
-2. The coordinator may create transient runtime trust for that exact live
+6. The coordinator may create transient runtime trust for that exact live
    connection generation. It writes no durable association yet.
-3. Only matching same-generation protocol completion and a non-empty
+7. Only matching same-generation protocol completion and a non-empty
    `remote_ship_id` value may commit the association atomically. Persistence
    failure is terminal and cannot be presented as trusted.
-4. Reconnect uses only the durable identity anchors plus fresh discovery. It
+8. Reconnect uses only the durable identity anchors plus fresh discovery. It
    never restores a volatile selection or endpoint from before restart.
 
 Every mutating request is owner-authenticated, authorized for its exact action,
@@ -112,12 +99,10 @@ No step auto-trusts a peer. An allowlist, visible service, remembered endpoint,
 open window, or prior failed attempt cannot stand in for explicit complete
 certificate-identity approval.
 
-Outbound selection remains bound to an exact current discovery observation.
-Inbound first trust may reach the candidate callback before mDNS and therefore
-has no `observation_id`; admission, presentation, and confirmation use only its
-TLS-bound server-held candidate bindings. The two paths converge at the same
-OOB confirmation and durable-commit state machine without synthesizing an
-observation.
+This contract does not amend MSP-052 inbound eligibility. Outbound and inbound
+TLS evidence converge only after the same exact observation has already been
+selected. The inbound callback cannot select a candidate, and no path
+synthesizes an observation.
 
 ## SHIP Partner Browser
 
@@ -211,17 +196,12 @@ it cannot read the `candidate` view or raw SPINE, confirm/revoke trust, or
 complete first trust. A browser cannot substitute that credential, and
 machine-authenticated requests do not accept ambient browser cookies.
 
-An HA user action that needs `confirm` or `untrust` first redirects the owner to
-the Portal boundary. The owner-authenticated same-origin session performs the
-OOB comparison and issues one short-lived opaque approval grant. Every grant
-binds the exact action, state revision, idempotency key, config-entry principal,
-and expiry. Select/connect additionally bind the exact observation identifier,
-observation revision, and expected complete certificate identity; candidate
-and partner actions bind their hidden server-side generation and identity.
-HA can forward that grant once without seeing candidate identity. A grant with
-any changed binding, cross-observation substitution, replay, or expiry fails
-closed before the coordinator receives a command. The result surfaces the
-sanitized audit request identifier.
+An HA user action that needs pairing, confirmation, retry, or untrust opens an
+owner-action link to the Portal boundary. HA sends no mutation and receives no
+grant or candidate data. The owner-authenticated same-origin Portal session
+performs the complete action directly, including OOB comparison. HA only polls
+its candidate-free status projection after the owner returns. The link carries
+no identity, action authority, token, candidate, partner, or endpoint value.
 
 The audit record contains action, authenticated principal class, request ID,
 idempotency outcome, prior and resulting state class, timestamp, and sanitized

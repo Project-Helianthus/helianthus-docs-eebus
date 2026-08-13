@@ -12,6 +12,7 @@ API_REL = "api/_candidate/post-m9-operator-admin-v1.md"
 ARCH = ROOT / ARCH_REL
 API = ROOT / API_REL
 M4B = ROOT / "architecture/_candidate/msp-04b-first-trust-admin-local.md"
+MSP052 = ROOT / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
 
 
 def read_markdown(path: Path) -> tuple[dict[str, str], str]:
@@ -127,17 +128,13 @@ class PostM9OperatorContractTest(unittest.TestCase):
         normalized = " ".join((architecture + api).split())
         required = (
             "Endpoint Authorization Matrix",
-            "`ha_integration` credential alone",
-            "`candidate` view | allow | deny | deny",
-            "Raw SPINE page | allow | deny | deny",
+            "`candidate` view | allow | deny",
+            "Raw SPINE page | allow | deny; open Portal instead",
             "Confirm candidate trust | allow after OOB comparison | deny",
             "Revoke durable trust | allow | deny",
-            "exact action, state revision, idempotency key, HA config-entry principal",
-            "exact `observation_id`, observation revision, and expected complete certificate short identifier",
-            "Substituting observation B on a grant approved for observation A",
-            "missing, replayed, expired, differently bound, or cross-observation grant",
-            "cannot issue or refresh a grant",
-            "without seeing candidate identity",
+            "There is no HA mutation grant, minting route, exchange route, mutation scope, or credential escalation",
+            "contains no query or fragment data and conveys no authority",
+            "owner performs every mutation directly in Portal",
             "`ha_integration` projection omits every candidate-derived field",
             "candidate count, presence, lifecycle state, expiry, identity, failure",
             "indistinguishable for zero versus one-or-more candidates",
@@ -149,20 +146,24 @@ class PostM9OperatorContractTest(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_inbound_confirmation_does_not_invent_discovery_observation(self) -> None:
+    def test_inbound_and_outbound_require_the_same_selected_observation(self) -> None:
         _, architecture = read_markdown(ARCH)
         _, api = read_markdown(API)
-        normalized = " ".join((architecture + api).split())
+        _, msp052 = read_markdown(MSP052)
+        normalized = " ".join((architecture + api + msp052).split())
         required = (
-            "outbound discovered branch",
-            "inbound before discovery branch",
-            "Both branches then converge at the same confirmation and commit sequence",
-            "eligible inbound candidate admitted before mDNS",
-            "no observation exists and none is fabricated",
+            "preserves the later MSP-052 selected-candidate inbound boundary",
+            "inbound callback binds only when its TLS identity equals the already selected observation",
+            "inbound peer that arrives before selection",
+            "rejected without creating or replacing a candidate",
+            "does not amend MSP-052 inbound eligibility",
+            "inbound callback cannot select a candidate",
             "does not require an observation identifier",
             "single server-held current candidate",
-            "Outbound selection remains bound to an exact current discovery observation",
-            "two paths converge at the same OOB confirmation and durable-commit state machine",
+            "no observation is fabricated",
+            "Inbound `register=true` remains a local advertisement for bounded registration",
+            "cannot select a candidate; it may bind TLS only for the exact already selected candidate",
+            "volatile inbound winner reservation",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -189,6 +190,21 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "URL, query string, request body, response, audit row, log, metric",
             "must never contain or echo",
             "never copied into application state, idempotency records, errors, or coordinator commands",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
+    def test_candidate_http_and_ui_state_is_ephemeral(self) -> None:
+        _, api = read_markdown(API)
+        normalized = " ".join(api.split())
+        required = (
+            "`Cache-Control: private, no-store`",
+            "`Pragma: no-cache`",
+            "`Expires: 0`",
+            "`Referrer-Policy: no-referrer`",
+            "service workers and offline caches must exclude the entire",
+            "clears them on candidate expiry or change, logout, navigation away, visibility loss",
+            "never enter local/session storage, IndexedDB, browser history, URL state",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
