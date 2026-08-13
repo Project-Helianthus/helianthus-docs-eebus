@@ -58,6 +58,10 @@ contract.
 The admin boundary is an owner control surface, not a public MCP graduation.
 Its version identifies the initial authenticated HTTP contract and does not
 create a second eeBUS runtime namespace. Stable public MCP stays read-only.
+If the authenticated boundary cannot be established, all admin reads and
+mutations fail closed as `admin_boundary_unavailable`; no unauthenticated admin
+status survives. The existing candidate-free public MCP reads are the only
+unchanged read-only fallback.
 
 ## Operator Pairing Sequence
 
@@ -147,10 +151,15 @@ device
 
 Every node carries its native address or identifier only in the authorized
 operator tier, plus the snapshot identity and a stable sort key. Features keep
-native role, type, description, function data, and raw/opaque unknown fields
-when the runtime captured them. Unknown values are preserved as typed opaque
-data; the browser must not silently drop them, rename them into semantics, or
-invent a normalized meaning.
+the full canonical raw-snapshot object, including device/entity/feature
+addresses, type, role, description, secondary digest, metadata, and opaque
+fields whenever the corresponding canonical type defines them. Use-case claims
+likewise retain context address, name, actor, resolved role, scenarios, version,
+availability, document subrevision, secondary digest, and opaque fields.
+Unknown values are preserved as typed opaque data; the browser must not
+silently drop them, rename them into semantics, or invent a normalized meaning.
+The lazy wrapper adds only tree identity and ordering; it never substitutes a
+reduced Portal DTO for the canonical raw object.
 
 Meta-issue #92 requests a live acceptance target of one device, eleven entities,
 twenty features, and use-case claims for VR940. This is a derived, falsifiable
@@ -191,8 +200,10 @@ session-bound CSRF proof. The gateway rejects missing or invalid Origin,
 Referer policy, CSRF token, content type, action scope, state revision, and
 idempotency binding before the coordinator receives a command. Cookies are
 `Secure`, `HttpOnly`, and `SameSite=Strict` where HTTPS termination supports
-them; deployments without a valid authenticated boundary expose read-only
-status only and all mutation routes fail closed.
+them. Deployments without a valid authenticated boundary deny every admin read
+and mutation as `admin_boundary_unavailable`, return no operator data, and do
+not invoke the coordinator. Only the separate candidate-free public MCP
+read-only surface remains available under its existing authorization rules.
 
 Home Assistant uses a non-cookie, least-privilege machine principal bound to
 the integration/config entry and explicit actions. That credential alone may

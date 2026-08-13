@@ -29,9 +29,11 @@ protocol claim, or a direct wrapper around the owner Unix socket. Stable MCP
 remains the single read-only `eebus.v1.*` namespace; no v2 or legacy alias is
 defined here.
 
-If the gateway cannot establish an authenticated admin boundary, every mutation
-below returns `admin_boundary_unavailable` without invoking the coordinator.
-Read-only public MCP behavior remains unchanged.
+If the gateway cannot establish an authenticated admin boundary, every read and
+mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable` with no
+`data`, without resolving an object or invoking the coordinator. There is no
+unauthenticated admin-status fallback. Read-only public MCP behavior remains
+unchanged.
 
 ## Authentication Profiles
 
@@ -83,7 +85,7 @@ the protected gateway admin origin.
 | --- | --- | --- |
 | `GET /admin/eebus/v1/status` | `eebus.admin.read` | None; returns local identity summary, pairing-window state, listener/discovery health, and sanitized degradation. |
 | `GET /admin/eebus/v1/partners?view=<view>` | `eebus.admin.read` | None; lists exactly one of `trusted`, `connected`, `discovered`, or `candidate`. |
-| `GET /admin/eebus/v1/partners/{partner_id}/spine` | `eebus.admin.raw.read` | None; returns one lazy raw snapshot page bound to auth scope and snapshot identity. |
+| `GET /admin/eebus/v1/partners/{partner_id}/spine?<closed-query>` | `eebus.admin.raw.read` | None; returns one lazy raw snapshot page bound to auth scope and snapshot identity. |
 | `POST /admin/eebus/v1/pairing-window:open` | `eebus.admin.pairing` | Opens one bounded window; never selects or dials. |
 | `POST /admin/eebus/v1/pairing-window:close` | `eebus.admin.pairing` | Closes the window and retires only window-owned volatile state. |
 | `POST /admin/eebus/v1/observations/{observation_id}:select` | `eebus.admin.pairing` | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
@@ -213,27 +215,62 @@ logout, navigation away, visibility loss, or replacement by a later response.
 
 ## Lazy SPINE Page
 
+The route accepts exactly one of these closed query shapes:
+
+```text
+request=root
+request=children&snapshot_id=<opaque>&parent_node_id=<opaque>
+request=continue&snapshot_id=<opaque>&parent_node_id=<opaque>&cursor=<opaque>
+```
+
+`request=root` is the only initial request and rejects every additional query
+parameter. `request=children` expands exactly one node in the named snapshot.
+`request=continue` advances the same parent page. Missing, duplicate, unknown,
+empty, or extra parameters return `invalid_request`; a cursor is never accepted
+as a child identifier. Page size is a fixed bounded server setting, not a
+caller-controlled parameter. An expired snapshot or cursor returns
+`snapshot_expired`; the client discards that tree and starts again with
+`request=root` rather than combining generations.
+
 The SPINE route returns one immutable snapshot page:
 
 ```text
 snapshot_id
 snapshot_hash
-parent_node_id
+parent_node_id: <opaque-or-null>
 nodes[]
 next_cursor?
 ```
 
-Each node has `node_id`, `parent_node_id`, `kind`, `native_address`, `sort_key`,
-and a kind-specific payload. The closed `kind` set is `device`, `entity`,
-`feature`, `use_case_claim`, and `opaque`. Feature payload retains native role,
-type, description, available function data, and opaque unknown fields. Use-case
-claims retain actor, support state, and scenarios. Unknown kind values fail the
-page closed rather than being reclassified as semantics.
+`parent_node_id` is `null` only for `request=root`; otherwise it equals the
+requested parent. `next_cursor` is omitted exactly when that parent's fixed
+ordering is exhausted. Each node has exactly `node_id`, `parent_node_id`,
+`kind`, `sort_key`, and `payload`. The closed `kind` set is `device`, `entity`,
+`feature`, `use_case_claim`, and `opaque`. The wrapper is only a lazy tree index:
+`payload` is the lossless JSON object from the canonical
+`helianthus.eebus.runtime.raw-snapshot.v1` inventory, with original field names,
+presence/omission, typed values, and opaque arrays preserved:
+
+| Kind | Canonical payload field inventory |
+| --- | --- |
+| `device` | `ski`, `ship_id?`, `address`, `type`, `description?`, `metadata?`, `secondary_digest?`, `opaque?` |
+| `entity` | `device_address`, `entity_address`, `type`, `description?`, `secondary_digest?`, `opaque?` |
+| `feature` | `device_address`, `entity_address`, `feature_address`, `type`, `role`, `description?`, `secondary_digest?`, `opaque?` |
+| `use_case_claim` | `context_address`, `name`, `actor`, `resolved_role?`, `scenarios?`, `version?`, `availability?`, `document_subrevision?`, `secondary_digest?`, `opaque?` |
+| `opaque` | `path`, `source`, `value` |
+
+The adapter may not replace, rename, synthesize, or discard any canonical
+payload field. `metadata`, `opaque`, and their typed nested values cross the
+boundary intact; the Portal renders unknown values as raw typed data rather
+than inferring semantics. Unknown kind values or a payload that cannot be
+represented by this lossless mapping fail the page closed.
 
 `snapshot_id` and `next_cursor` are opaque and bound to the effective auth
-scope, mask tier, runtime instance, contract, parent node, and snapshot hash.
-They expire and cannot be replayed after any binding changes. The gateway must
-not assemble the page from live mutable maps after issuing the snapshot ID.
+scope, mask tier, runtime instance, contract, partner, parent node, stable sort
+position, and snapshot hash. They expire and cannot be replayed after any
+binding changes. The gateway validates the parent against the same immutable
+snapshot before dereference and must not assemble a page from live mutable maps
+after issuing the snapshot ID.
 
 ## Errors
 
@@ -246,6 +283,7 @@ forbidden
 csrf_rejected
 invalid_request
 state_conflict
+snapshot_expired
 idempotency_conflict
 pairing_closed
 observation_stale

@@ -102,6 +102,42 @@ class PostM9OperatorContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, normalized)
 
+    def test_lazy_spine_wire_shape_is_closed_lossless_and_snapshot_bound(self) -> None:
+        _, body = read_markdown(API)
+        normalized = " ".join(body.split())
+        required = (
+            "request=root",
+            "request=children&snapshot_id=<opaque>&parent_node_id=<opaque>",
+            "request=continue&snapshot_id=<opaque>&parent_node_id=<opaque>&cursor=<opaque>",
+            "Missing, duplicate, unknown, empty, or extra parameters return `invalid_request`",
+            "Page size is a fixed bounded server setting",
+            "An expired snapshot or cursor returns `snapshot_expired`",
+            "`next_cursor` is omitted exactly when that parent's fixed ordering is exhausted",
+            "`helianthus.eebus.runtime.raw-snapshot.v1` inventory",
+            "original field names, presence/omission, typed values, and opaque arrays preserved",
+            "`device` | `ski`, `ship_id?`, `address`, `type`, `description?`, `metadata?`, `secondary_digest?`, `opaque?`",
+            "`feature` | `device_address`, `entity_address`, `feature_address`, `type`, `role`, `description?`, `secondary_digest?`, `opaque?`",
+            "`use_case_claim` | `context_address`, `name`, `actor`, `resolved_role?`, `scenarios?`, `version?`, `availability?`, `document_subrevision?`, `secondary_digest?`, `opaque?`",
+            "may not replace, rename, synthesize, or discard any canonical payload field",
+            "partner, parent node, stable sort position, and snapshot hash",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
+    def test_missing_admin_auth_boundary_denies_reads_and_mutations(self) -> None:
+        _, architecture = read_markdown(ARCH)
+        _, api = read_markdown(API)
+        normalized = " ".join((architecture + api).split())
+        required = (
+            "every read and mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable`",
+            "There is no unauthenticated admin-status fallback",
+            "all admin reads and mutations fail closed as `admin_boundary_unavailable`",
+            "return no operator data, and do not invoke the coordinator",
+            "candidate-free public MCP reads are the only unchanged read-only fallback",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
     def test_admin_api_is_closed_authenticated_csrf_safe_and_non_disclosing(self) -> None:
         _, body = read_markdown(API)
         normalized = " ".join(body.split())
