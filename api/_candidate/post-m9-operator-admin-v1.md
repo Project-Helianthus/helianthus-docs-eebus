@@ -133,10 +133,16 @@ projection omits every candidate-derived field, including candidate count,
 presence, lifecycle state, expiry, identity, failure, and any aggregate whose
 value would change merely because a candidate exists. Its response is
 therefore indistinguishable for zero versus one-or-more candidates when all
-non-candidate runtime facts are equal. HA receives only pairing-window,
-listener/discovery health, trusted/connected/discovered counts, sanitized
-degradation, and `state_revision`; the revision is not advanced or partitioned
-solely to signal a candidate-visible change to that principal.
+non-candidate runtime facts are equal. HA receives only the closed
+pairing-window enum `open | closed`, listener/discovery health,
+trusted/connected/discovered counts, sanitized degradation, and
+`state_revision`. Internal coordinator states such as `CANDIDATE_PENDING`,
+`TRANSIENT_TRUSTED`, or `COMMITTING` all project to `open` until the owner
+window closes. Candidate admission or lifecycle alone changes no HA-visible
+field: the revision is not advanced or partitioned solely to signal a
+candidate-visible change to that principal, and the complete HA JSON projection
+is byte-identical for zero versus one-or-more candidates when all non-candidate
+facts are equal.
 
 Each partner row is the closed object:
 
@@ -168,9 +174,18 @@ Candidate rows additionally return only the bindings needed for the current
 OOB decision: the complete observed certificate short identifier, expiry,
 connection-bound state, and
 sanitized outcome. Candidate nonce and coordinator/store generations remain
-server-side. Confirmation carries the exact complete certificate short identifier, current
-`state_revision`, and the selected observation identifier; the gateway binds
-the hidden coordinator values atomically.
+server-side. Confirmation carries the exact complete certificate short
+identifier, current `state_revision`, and idempotency key. It does not require
+an observation identifier. The gateway atomically binds those inputs to the
+single server-held current candidate, including its connection and store
+generations.
+
+For an outbound path, earlier selection still requires the exact current
+`observation_id` and its revision; that selection is retained only as a hidden
+server binding. For an eligible inbound candidate admitted before mDNS, no
+observation exists and none is fabricated. Both paths confirm the same current
+TLS-bound candidate and otherwise use identical OOB, expiry, generation, and
+persistence rules.
 
 Candidate rows and complete candidate certificate identity are returned only
 to `portal_owner`. The HA response shape omits them and cannot distinguish an

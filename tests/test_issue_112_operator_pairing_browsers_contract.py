@@ -141,6 +141,24 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "candidate count, presence, lifecycle state, expiry, identity, failure",
             "indistinguishable for zero versus one-or-more candidates",
             "revision is not advanced or partitioned solely to signal a candidate-visible change",
+            "closed pairing-window enum `open | closed`",
+            "`CANDIDATE_PENDING`, `TRANSIENT_TRUSTED`, or `COMMITTING` all project to `open`",
+            "complete HA JSON projection is byte-identical",
+        )
+        for phrase in required:
+            self.assertIn(phrase, normalized)
+
+    def test_inbound_confirmation_does_not_invent_discovery_observation(self) -> None:
+        _, architecture = read_markdown(ARCH)
+        _, api = read_markdown(API)
+        normalized = " ".join((architecture + api).split())
+        required = (
+            "eligible inbound candidate admitted before mDNS",
+            "no observation exists and none is fabricated",
+            "does not require an observation identifier",
+            "single server-held current candidate",
+            "Outbound selection remains bound to an exact current discovery observation",
+            "two paths converge at the same OOB confirmation and durable-commit state machine",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)

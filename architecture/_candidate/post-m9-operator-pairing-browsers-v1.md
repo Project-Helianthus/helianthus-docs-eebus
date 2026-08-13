@@ -73,7 +73,9 @@ The only valid first-trust sequence is:
 4. The owner explicitly initiates a bounded connection/binding attempt, or an
    eligible inbound attempt supplies the exact current TLS-bound candidate.
 5. The gateway displays the complete observed certificate short identifier and
-   the current bindings. The owner confirms that exact complete value. Prefix,
+   the current bindings. The owner confirms that exact complete value against
+   the single server-held current candidate; confirmation does not require or
+   fabricate a discovery observation. Prefix,
    suffix, shortened, case-folded,
    separator-bearing, or whitespace-bearing matches fail closed.
 6. The coordinator may create transient runtime trust for that exact live
@@ -94,6 +96,13 @@ a deterministic non-mutating rejection.
 No step auto-trusts a peer. An allowlist, visible service, remembered endpoint,
 open window, or prior failed attempt cannot stand in for explicit complete
 certificate-identity approval.
+
+Outbound selection remains bound to an exact current discovery observation.
+Inbound first trust may reach the candidate callback before mDNS and therefore
+has no `observation_id`; admission, presentation, and confirmation use only its
+TLS-bound server-held candidate bindings. The two paths converge at the same
+OOB confirmation and durable-commit state machine without synthesizing an
+observation.
 
 ## SHIP Partner Browser
 
