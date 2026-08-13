@@ -5,7 +5,7 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260720-001,EV-20260811-001"
+evidence_ids: "EV-20260720-001,EV-20260809-001,EV-20260811-001"
 hypothesis_status: "draft"
 falsifier: "A reviewed implementation or bounded owner-authorized run shows that a consumer can safely mutate pairing without the gateway-owned authenticated boundary; that discovery alone can authorize trust or a dial; that exact complete certificate-identity approval, connection generation, and store generation are unnecessary; that raw SHIP/SPINE inspection requires a second topology model; or that the closed state and secret-exclusion rules cannot represent a reachable operator outcome."
 stable_navigation: "false"
@@ -152,9 +152,14 @@ when the runtime captured them. Unknown values are preserved as typed opaque
 data; the browser must not silently drop them, rename them into semantics, or
 invent a normalized meaning.
 
-The initial VR940 live acceptance fixture contains one device, eleven entities,
-twenty features, and its observed use-case claims. Those counts are an
-acceptance shape, not a universal VR940 or SPINE cardinality rule.
+Meta-issue #92 requests a live acceptance target of one device, eleven entities,
+twenty features, and use-case claims for VR940. This is a derived, falsifiable
+target awaiting the final owner-authorized live run, not an evidence-backed
+claim that every VR940 has that cardinality. `EV-20260809-001` supports the
+redacted public topology shape only; because its public device family is
+redacted, it does not bind those counts to VR940. The target must be corrected
+or rejected if the final protected live evidence does not establish both the
+device identity and the shape.
 
 Raw facts and promoted semantic facts are visually and structurally separate.
 The raw tree must not enter `ebus.v1`, unrelated GraphQL fields, or the semantic
@@ -235,9 +240,10 @@ reconnect, and rebuild raw topology without restoring a volatile candidate.
 The final live gate must show discovery, exact complete certificate-identity
 comparison, approval,
 durable trust, connection, untrust, reconnect, and persistence for VR940 while
-the existing eBUS runtime remains operational. The raw SPINE tree must retain
-the observed one-device, eleven-entity, twenty-feature shape and use-case
-claims without leaking it into semantic or eBUS surfaces.
+the existing eBUS runtime remains operational. The raw SPINE tree must test the
+derived one-device, eleven-entity, twenty-feature target and use-case claims
+without leaking it into semantic or eBUS surfaces; only that run may establish
+whether the target is valid for this VR940.
 
 ## Amendment To The M4B Local Admin Boundary
 

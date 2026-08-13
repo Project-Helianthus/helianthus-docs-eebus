@@ -5,7 +5,7 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260720-001,EV-20260811-001"
+evidence_ids: "EV-20260720-001,EV-20260809-001,EV-20260811-001"
 hypothesis_status: "draft"
 falsifier: "A reviewed gateway implementation shows that the closed operations, authentication profiles, state-revision and idempotency bindings, or sanitized response models cannot represent the architecture contract without exposing coordinator/store internals or adding a second public eeBUS namespace."
 stable_navigation: "false"
@@ -131,16 +131,16 @@ projection omits every candidate-derived field, including candidate count,
 presence, lifecycle state, expiry, identity, failure, and any aggregate whose
 value would change merely because a candidate exists. Its response is
 therefore indistinguishable for zero versus one-or-more candidates when all
-non-candidate runtime facts are equal. HA receives only the closed
-pairing-window enum `open | closed`, listener/discovery health,
-trusted/connected/discovered counts, sanitized degradation, and
-`state_revision`. Internal coordinator states such as `CANDIDATE_PENDING`,
-`TRANSIENT_TRUSTED`, or `COMMITTING` all project to `open` until the owner
-window closes. Candidate admission or lifecycle alone changes no HA-visible
-field: the revision is not advanced or partitioned solely to signal a
-candidate-visible change to that principal, and the complete HA JSON projection
-is byte-identical for zero versus one-or-more candidates when all non-candidate
-facts are equal.
+non-candidate runtime facts are equal. HA receives only listener/discovery
+health, trusted/connected/discovered counts, sanitized degradation, and
+`state_revision`. It receives no pairing-window state, deadline, `register`
+state, or owner-intent derivative. Candidate admission, automatic window close,
+commit failure, or any other candidate lifecycle event alone changes no
+HA-visible field: the revision is not advanced or partitioned solely to signal
+a candidate-visible change to that principal, and the complete HA JSON
+projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`,
+`TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states when all permitted
+non-candidate facts are equal.
 
 Each partner row is the closed object:
 

@@ -96,7 +96,9 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "eleven entities",
             "twenty features",
             "use-case claims",
-            "acceptance shape, not a universal",
+            "derived, falsifiable target awaiting the final owner-authorized live run",
+            "not an evidence-backed claim that every VR940 has that cardinality",
+            "does not bind those counts to VR940",
         ):
             self.assertIn(phrase, normalized)
 
@@ -139,9 +141,9 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "candidate count, presence, lifecycle state, expiry, identity, failure",
             "indistinguishable for zero versus one-or-more candidates",
             "revision is not advanced or partitioned solely to signal a candidate-visible change",
-            "closed pairing-window enum `open | closed`",
-            "`CANDIDATE_PENDING`, `TRANSIENT_TRUSTED`, or `COMMITTING` all project to `open`",
-            "complete HA JSON projection is byte-identical",
+            "receives no pairing-window state, deadline, `register` state, or owner-intent derivative",
+            "automatic window close, commit failure, or any other candidate lifecycle event alone changes no HA-visible field",
+            "complete HA JSON projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`, `TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
