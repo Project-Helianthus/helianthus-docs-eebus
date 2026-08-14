@@ -79,6 +79,19 @@ class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
         text = normalized(API)
         self.assertIn("| Cancel current candidate | allow | deny |", text)
 
+    def test_ha_revision_cannot_signal_candidate_lifecycle(self) -> None:
+        text = normalized(API) + " " + normalized(ARCH)
+        for phrase in (
+            "`portal_owner` envelope carries `state_revision`",
+            "`ha_integration` envelope carries `projection_revision` and omits `state_revision` and `request_id`",
+            "advances only when the complete permitted HA `data` object changes",
+            "candidate admission, cancellation, expiry, and transient trust",
+            "complete HA envelope remains byte-identical",
+            "owner/admin revision still advances",
+            "stale owner mutations return `state_conflict`",
+        ):
+            self.assertIn(phrase, text)
+
 
 if __name__ == "__main__":
     unittest.main()
