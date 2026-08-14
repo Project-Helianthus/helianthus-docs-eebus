@@ -24,9 +24,14 @@ def load_workflow(path: Path) -> dict[str, Any]:
 
 def workflow_pr_sources() -> list[Path]:
     sources: list[Path] = []
-    for path in sorted(WORKFLOWS.glob("*.yml")):
+    workflow_paths = set(WORKFLOWS.glob("*.yml")) | set(WORKFLOWS.glob("*.yaml"))
+    for path in sorted(workflow_paths):
         triggers = load_workflow(path).get("on", {})
-        if isinstance(triggers, dict) and "pull_request" in triggers:
+        if (
+            triggers == "pull_request"
+            or isinstance(triggers, list) and "pull_request" in triggers
+            or isinstance(triggers, dict) and "pull_request" in triggers
+        ):
             sources.append(path)
     return sources
 
@@ -91,6 +96,14 @@ class Issue118CISplitContractTests(unittest.TestCase):
         self.assertIn("scripts/validate_msp_055_api_freeze.py", docs_fast_text)
         self.assertIn("test_issue_118_ci_split_contract", docs_fast_text)
         self.assertIn("MSP055APIFreezeStaticContractTests", docs_fast_text)
+        for direct_contract in (
+            "test_issue_112_operator_pairing_browsers_contract",
+            "test_issue_114_operator_admin_v1_boundary",
+            "test_issue_116_spine_entity_usecase_contract",
+            "test_msp_036_raw_view_contract",
+            "test_msp_06_mcp_wire_contract",
+        ):
+            self.assertIn(direct_contract, docs_fast_text)
 
     def test_validator_selftest_is_relevant_only_and_local_ci_stays_focused(self) -> None:
         workflow = load_workflow(WORKFLOWS / "docs-ci.yml")

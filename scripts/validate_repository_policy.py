@@ -7543,6 +7543,35 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         ):
             errors.append(".github/workflows/docs-ci.yml: validator-selftest must be relevant-only and bounded")
 
+    workflow_root = root / ".github" / "workflows"
+    workflow_paths = (
+        set(workflow_root.glob("*.yml")) | set(workflow_root.glob("*.yaml"))
+        if workflow_root.is_dir()
+        else set()
+    )
+    for candidate_workflow in sorted(workflow_paths):
+        if candidate_workflow == workflow or candidate_workflow.is_symlink():
+            continue
+        try:
+            candidate_data = yaml.safe_load(_read(candidate_workflow))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        candidate_triggers = (
+            candidate_data.get("on", candidate_data.get(True))
+            if isinstance(candidate_data, dict)
+            else None
+        )
+        has_pull_request = (
+            candidate_triggers == "pull_request"
+            or isinstance(candidate_triggers, list)
+            and "pull_request" in candidate_triggers
+            or isinstance(candidate_triggers, dict)
+            and "pull_request" in candidate_triggers
+        )
+        if has_pull_request:
+            rel = candidate_workflow.relative_to(root).as_posix()
+            errors.append(f"{rel}: additional pull_request workflow is forbidden")
+
     requirements = root / "requirements-ci.txt"
     if requirements in symlinks or not requirements.exists():
         errors.append("requirements-ci.txt: missing pinned validator dependencies")

@@ -82,6 +82,30 @@ python3 scripts/validate_msp_055_api_freeze.py --source-checkout "$MSP055_SOURCE
 echo "==> run direct workflow and frozen-publication contracts"
 python3 -m unittest \
   tests.test_issue_118_ci_split_contract \
-  tests.test_msp_055_api_freeze.MSP055APIFreezeStaticContractTests
+  tests.test_msp_055_api_freeze.MSP055APIFreezeStaticContractTests \
+  tests.test_issue_102_m8_coexistence_cross_seed \
+  tests.test_issue_104_ha_addon_runtime_wiring \
+  tests.test_issue_106_outdoor_temperature_promotion_evidence \
+  tests.test_issue_108_vr940_multi_leaf_source_inventory \
+  tests.test_issue_112_operator_pairing_browsers_contract \
+  tests.test_issue_114_operator_admin_v1_boundary \
+  tests.test_issue_116_spine_entity_usecase_contract \
+  tests.test_issue_48_ship_identity_contract \
+  tests.test_issue_50_strict_inbound_current_schema_contract \
+  tests.test_issue_64_ship_endpoint_order_contract \
+  tests.test_issue_66_successful_attempt_trust_projection_contract \
+  tests.test_issue_68_raw_operator_redaction_contract \
+  tests.test_issue_76_m625_raw_feature_contract \
+  tests.test_issue_96_spine13_hvac_model_erratum_contract \
+  tests.test_issue_98_m65_live_redacted_source_contract \
+  tests.test_msp_036_raw_view_contract \
+  tests.test_msp_045_trust_admin_projection_contract \
+  tests.test_msp_04b_first_trust_contract \
+  tests.test_msp_04c_restore_quarantine_contract \
+  tests.test_msp_055_api_candidate \
+  tests.test_msp_05a_gateway_config_contract \
+  tests.test_msp_05p_production_activation_contract \
+  tests.test_msp_06_mcp_wire_contract \
+  tests.test_msp_docs_e2r_publish_red
 
 echo "==> docs-eebus fast CI passed"

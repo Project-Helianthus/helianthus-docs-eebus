@@ -86,6 +86,24 @@ def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
 
 
 class PolicyValidatorTests(unittest.TestCase):
+    def test_additional_yaml_pull_request_workflow_fails(self) -> None:
+        triggers = ("on:\n  pull_request:\n", "on: [push, pull_request]\n")
+        for trigger in triggers:
+            with self.subTest(trigger=trigger), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                extra = repo / ".github" / "workflows" / "extra.yaml"
+                extra.write_text(
+                    f"name: Extra\n{trigger}jobs:\n  noop:\n"
+                    '    runs-on: ubuntu-latest\n    steps:\n      - run: true\n',
+                    encoding="utf-8",
+                )
+                result = run_validator(repo)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(
+                    ".github/workflows/extra.yaml: additional pull_request workflow is forbidden",
+                    result.stderr,
+                )
+
     def test_current_repository_passes_policy_validator(self) -> None:
         result = run_validator(REPO)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -978,6 +996,7 @@ class PolicyValidatorTests(unittest.TestCase):
             ),
             "missing dependency install": lambda text: text.replace(
                 "      - name: Install policy validator dependencies\n"
+                "        working-directory: docs\n"
                 "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n",
                 "",
                 1,
