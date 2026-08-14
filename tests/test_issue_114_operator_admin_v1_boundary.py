@@ -14,16 +14,19 @@ def normalized(path: Path) -> str:
 
 
 class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
-    def test_runtime_stays_candidate_free_and_accessor_is_separate(self) -> None:
+    def test_runtime_stays_candidate_free_and_capability_is_creation_only(self) -> None:
         text = normalized(ARCH)
         for phrase in (
-            "`OperatorAdminV1(Runtime) (AdminV1, error)`",
-            "package-private provider",
-            "does not add a method to the public `Runtime` interface",
+            "`NewOperatorRuntimeV1(Config) (Runtime, AdminV1, error)`",
+            "Existing `New(Config)` callers continue to receive only the candidate-free public `Runtime`",
+            "there is no exported accessor that accepts an existing runtime",
+            "does not implement `AdminV1` or any exported admin-provider interface",
+            "cannot recover the capability through a helper call or type assertion",
             "ordinary `Runtime.Snapshot`, `Runtime.PairingState`, raw MCP, GraphQL, Home Assistant",
             "cannot reach or serialize `AdminV1`",
         ):
             self.assertIn(phrase, text)
+        self.assertNotIn("OperatorAdminV1(Runtime)", text)
 
     def test_every_mutation_has_closed_idempotency_and_revision_preconditions(self) -> None:
         text = normalized(API)
