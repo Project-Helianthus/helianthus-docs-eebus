@@ -150,6 +150,7 @@ the protected gateway admin origin.
 | Raw SPINE page | allow | deny; open Portal instead |
 | Open/close pairing window; select/connect/retry | allow | deny |
 | Confirm candidate trust | allow after OOB comparison | deny |
+| Cancel current candidate | allow | deny |
 | Revoke durable trust | allow | deny |
 
 There is no HA mutation grant, minting route, exchange route, mutation scope, or
