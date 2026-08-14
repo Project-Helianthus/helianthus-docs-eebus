@@ -11,6 +11,8 @@ from pathlib import Path
 
 import yaml
 
+from tests.policy_test_support import check_repository_result, materialize_policy_fixture
+
 
 REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
@@ -48,23 +50,11 @@ def synthetic_ipv6(*groups: str) -> str:
 
 
 def copy_repo(tmp_path: Path) -> Path:
-    destination = tmp_path / "repo"
-    shutil.copytree(
-        REPO,
-        destination,
-        ignore=shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__"),
-    )
-    return destination
+    return materialize_policy_fixture(tmp_path / "repo")
 
 
-def run_validator(repo: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(VALIDATOR), "--repo", str(repo)],
-        cwd=repo,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
+def run_validator(repo: Path):
+    return check_repository_result(repo)
 
 
 def replace_front_matter(page: Path, **updates: str) -> None:

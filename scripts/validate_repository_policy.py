@@ -13,6 +13,7 @@ import sys
 import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -1287,7 +1288,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "b802f3ec2ea3dbf462cc7d1cf35e98a" "95ad1e08de5d6848b065f4cecadcffe02"
+CI_LOCAL_SHA256 = "93e43f5a9d22d8c88893ce40a46e97fd" "85a424173956147a2cdf1d7376274bf9"
 LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
 LOCKED_REQUIREMENTS = (
     "PyYAML==6.0.3 \\\n"
@@ -2022,6 +2023,7 @@ def _read(path: Path) -> str:
     return path.read_bytes().decode("utf-8")
 
 
+@lru_cache(maxsize=2048)
 def _front_matter(text: str) -> tuple[dict[str, str] | None, str | None]:
     if not text.startswith("---\n"):
         return None, "missing YAML front matter"
@@ -2729,6 +2731,7 @@ def _noncurrent_schema_transition_violation(sentence: str) -> bool:
     )
 
 
+@lru_cache(maxsize=2048)
 def _semantic_contract_errors(
     body: str,
     classifier: Callable[[str], bool],
@@ -2736,7 +2739,7 @@ def _semantic_contract_errors(
     path: str,
     rule: str,
     adjacent_classifier: Callable[[str, str], bool] | None = None,
-) -> list[str]:
+) -> tuple[str, ...]:
     errors: list[str] = []
     units = _semantic_units(body)
     classified = [classifier(sentence) for _, sentence in units]
@@ -2746,7 +2749,7 @@ def _semantic_contract_errors(
             errors.append(f"{path}:{line}: forbidden {rule}")
 
     if adjacent_classifier is None:
-        return errors
+        return tuple(errors)
 
     for index, ((offset, sentence), (_, next_sentence)) in enumerate(
         zip(units, units[1:], strict=False)
@@ -2760,7 +2763,7 @@ def _semantic_contract_errors(
         if adjacent_classifier(sentence, next_sentence):
             line = body.count("\n", 0, offset) + 1
             errors.append(f"{path}:{line}: forbidden {rule}")
-    return errors
+    return tuple(errors)
 
 
 def outbound_pairing_contract_errors(root: Path) -> list[str]:
@@ -3260,6 +3263,7 @@ def _decode_raw_unicode_escapes(value: str) -> str:
     return UNICODE_ESCAPE_PATTERN.sub(decode_bmp, paired)
 
 
+@lru_cache(maxsize=4096)
 def _fully_decode_reference(value: str) -> str:
     """Normalize nested reference encodings to a fixed point."""
     decoded = value
@@ -3272,7 +3276,8 @@ def _fully_decode_reference(value: str) -> str:
         decoded = next_value
 
 
-def _reference_text_variants(text: str) -> set[str]:
+@lru_cache(maxsize=2048)
+def _reference_text_variants(text: str) -> frozenset[str]:
     """Return decoded text plus JSON string values embedded in serializations."""
     variants = {text, _fully_decode_reference(text)}
     pending = list(variants)
@@ -3289,7 +3294,7 @@ def _reference_text_variants(text: str) -> set[str]:
             if decoded not in variants:
                 variants.add(decoded)
                 pending.append(decoded)
-    return variants
+    return frozenset(variants)
 
 
 def _github_repository_relative_path(value: str) -> str | None:
@@ -3636,6 +3641,7 @@ def _inline_visible_text(
     return "".join(visible)
 
 
+@lru_cache(maxsize=2048)
 def _visible_markdown_text(text: str) -> str:
     """Return rendered prose from a CommonMark parse, excluding code and images."""
     visible: list[str] = []
@@ -3655,7 +3661,8 @@ def _visible_markdown_text(text: str) -> str:
     return "".join(visible)
 
 
-def _visible_link_destinations(text: str) -> list[str]:
+@lru_cache(maxsize=2048)
+def _visible_link_destinations_cached(text: str) -> tuple[str, ...]:
     """Extract CommonMark links and HTML anchors, excluding images and code."""
     destinations: list[str] = []
     html_parser = _HTMLDestinationParser()
@@ -3675,10 +3682,16 @@ def _visible_link_destinations(text: str) -> list[str]:
             _feed_html(html_parser, token.content)
             destinations.extend(html_parser.destinations[before:])
     _close_html(html_parser)
-    return destinations
+    return tuple(destinations)
 
 
-def _visible_headings(text: str) -> set[str]:
+def _visible_link_destinations(text: str) -> list[str]:
+    """Return a fresh list while reusing the immutable CommonMark parse result."""
+    return list(_visible_link_destinations_cached(text))
+
+
+@lru_cache(maxsize=2048)
+def _visible_headings(text: str) -> frozenset[str]:
     headings: set[str] = set()
     html_parser = _HTMLDestinationParser()
     in_heading = False
@@ -3695,7 +3708,7 @@ def _visible_headings(text: str) -> set[str]:
         elif token.type == "heading_close":
             in_heading = False
     _close_html(html_parser)
-    return headings
+    return frozenset(headings)
 
 
 def _markdown_table_cells(line: str) -> list[str]:
@@ -3796,8 +3809,9 @@ def _contains_summary_normative_requirements(text: str) -> bool:
     )
 
 
-def _policy_text_variants(text: str, *, markdown: bool) -> set[str]:
-    variants = _reference_text_variants(text)
+@lru_cache(maxsize=4096)
+def _policy_text_variants(text: str, *, markdown: bool) -> frozenset[str]:
+    variants = set(_reference_text_variants(text))
     if markdown:
         variants.update(
             {
@@ -3805,7 +3819,21 @@ def _policy_text_variants(text: str, *, markdown: bool) -> set[str]:
                 _visible_markdown_text(_fully_decode_reference(text)),
             }
         )
-    return variants
+    return frozenset(variants)
+
+
+@lru_cache(maxsize=2048)
+def _platform_copy_fingerprints(value: str) -> frozenset[str] | None:
+    words = re.findall(r"[a-z0-9]+", _visible_markdown_text(value).casefold())
+    result: set[str] = set()
+    for index in range(len(words) - MIN_PLATFORM_COPY_WORDS + 1):
+        window = " ".join(words[index : index + MIN_PLATFORM_COPY_WORDS])
+        if len(window) < MIN_PLATFORM_COPY_CHARACTERS:
+            continue
+        result.add(hashlib.sha256(window.encode("utf-8")).hexdigest())
+        if len(result) > MAX_PLATFORM_FINGERPRINT_WINDOWS:
+            return None
+    return frozenset(result)
 
 
 def _platform_normative_copy_targets(
@@ -3815,24 +3843,12 @@ def _platform_normative_copy_targets(
     if platform_snapshot is None:
         return set()
 
-    def fingerprints(value: str) -> set[str] | None:
-        words = re.findall(r"[a-z0-9]+", _visible_markdown_text(value).casefold())
-        result: set[str] = set()
-        for index in range(len(words) - MIN_PLATFORM_COPY_WORDS + 1):
-            window = " ".join(words[index : index + MIN_PLATFORM_COPY_WORDS])
-            if len(window) < MIN_PLATFORM_COPY_CHARACTERS:
-                continue
-            result.add(hashlib.sha256(window.encode("utf-8")).hexdigest())
-            if len(result) > MAX_PLATFORM_FINGERPRINT_WINDOWS:
-                return None
-        return result
-
-    page_fingerprints = fingerprints(_markdown_body(text))
+    page_fingerprints = _platform_copy_fingerprints(_markdown_body(text))
     if page_fingerprints is None:
         return set(platform_snapshot["source_contents"])
     copied: set[str] = set()
     for target, source_content in platform_snapshot["source_contents"].items():
-        source_fingerprints = fingerprints(source_content)
+        source_fingerprints = _platform_copy_fingerprints(source_content)
         if source_fingerprints is None or page_fingerprints & source_fingerprints:
             copied.add(target)
     return copied
@@ -3975,7 +3991,10 @@ def _provenance_fingerprint_exempt_spans(
     return tuple(sorted(spans))
 
 
-def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list[str]:
+@lru_cache(maxsize=8192)
+def _privacy_errors(
+    text: str, rel: str, *, category_only: bool = False
+) -> tuple[str, ...]:
     errors: list[str] = []
     structured_fingerprint_variants = {text, _fully_decode_reference(text)}
 
@@ -4069,17 +4088,18 @@ def _privacy_errors(text: str, rel: str, *, category_only: bool = False) -> list
                     else None
                 )
                 add("private or local IPv6 address found", line)
-    return errors
+    return tuple(errors)
 
 
+@lru_cache(maxsize=8192)
 def _restricted_source_errors(
     text: str,
     rel: str,
     *,
     category_only: bool = False,
-) -> list[str]:
+) -> tuple[str, ...]:
     if rel in SCAFFOLD_PAGES:
-        return []
+        return ()
     errors: list[str] = []
     markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
     for variant in _policy_text_variants(text, markdown=markdown):
@@ -4095,10 +4115,11 @@ def _restricted_source_errors(
                 else f"{rel}:{line_number}"
             )
             errors.append(f"{location}: restric" "ted-source contamination marker found")
-    return errors
+    return tuple(errors)
 
 
-def _premature_claim_errors(text: str, rel: str) -> list[str]:
+@lru_cache(maxsize=4096)
+def _premature_claim_errors(text: str, rel: str) -> tuple[str, ...]:
     markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
     variants = _policy_text_variants(text, markdown=markdown)
     errors: list[str] = []
@@ -4106,9 +4127,10 @@ def _premature_claim_errors(text: str, rel: str) -> list[str]:
         errors.append(f"{rel}: premature docs milestone or code-doc absence claim")
     if any(PREMATURE_CONSUMER_PATTERN.search(variant) for variant in variants):
         errors.append(f"{rel}: premature gateway or consumer availability claim")
-    return errors
+    return tuple(errors)
 
 
+@lru_cache(maxsize=4096)
 def _has_forbidden_control(text: str) -> bool:
     return any(
         unicodedata.category(char) == "Cc" and char != "\n"
@@ -4116,7 +4138,8 @@ def _has_forbidden_control(text: str) -> bool:
     )
 
 
-def _machine_artifact_errors(text: str, rel: str) -> list[str]:
+@lru_cache(maxsize=4096)
+def _machine_artifact_errors(text: str, rel: str) -> tuple[str, ...]:
     allow_sentinel = rel == MALFORMED_API_FIXTURE
     result = decode_machine_json(
         text.encode("utf-8"),
@@ -4167,7 +4190,7 @@ def _machine_artifact_errors(text: str, rel: str) -> list[str]:
     ]
     if result.status not in {expected_status, NESTING_TOO_DEEP}:
         errors.append(f"{rel}: machine publication boundary")
-    return errors
+    return tuple(errors)
 
 
 def _lexical_publication_reference(value: str) -> bool:
@@ -7421,6 +7444,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if not isinstance(triggers, dict) or "pull_request" not in triggers:
             errors.append(".github/workflows/docs-ci.yml: pull_request trigger is required")
         else:
+            if "pull_request_target" in triggers:
+                errors.append(
+                    ".github/workflows/docs-ci.yml: pull_request_target trigger is forbidden"
+                )
             if triggers.get("pull_request") not in (None, {}):
                 errors.append(
                     ".github/workflows/docs-ci.yml: pull_request trigger must be unconditional"
@@ -7432,12 +7459,9 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 ):
                     errors.append(".github/workflows/docs-ci.yml: path filters are forbidden")
             push_trigger = triggers.get("push")
-            if not isinstance(push_trigger, dict) or push_trigger.get("branches") != [
-                "main",
-                "issue/**",
-            ]:
+            if not isinstance(push_trigger, dict) or push_trigger.get("branches") != ["main"]:
                 errors.append(
-                    ".github/workflows/docs-ci.yml: push branches must be main and issue/**"
+                    ".github/workflows/docs-ci.yml: push branches must be main only"
                 )
         jobs = workflow_data.get("jobs") if isinstance(workflow_data, dict) else None
         run_commands = []
@@ -7445,18 +7469,28 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             "contents": "read"
         }:
             errors.append(".github/workflows/docs-ci.yml: permissions must be contents read")
-        docs_job = jobs.get("docs-checks") if isinstance(jobs, dict) else None
+        concurrency = workflow_data.get("concurrency") if isinstance(workflow_data, dict) else None
+        if not isinstance(concurrency, dict) or concurrency.get("cancel-in-progress") is not True:
+            errors.append(".github/workflows/docs-ci.yml: cancelable concurrency is required")
+        elif not all(
+            token in str(concurrency.get("group", ""))
+            for token in ("github.workflow", "github.event.pull_request.number", "github.ref")
+        ):
+            errors.append(".github/workflows/docs-ci.yml: concurrency must bind workflow and PR/ref")
+        docs_job = jobs.get("docs-fast") if isinstance(jobs, dict) else None
         if not isinstance(docs_job, dict):
-            errors.append(".github/workflows/docs-ci.yml: docs-checks job is required")
+            errors.append(".github/workflows/docs-ci.yml: docs-fast job is required")
         else:
             if any(key in docs_job for key in ("if", "continue-on-error", "needs")):
                 errors.append(
-                    ".github/workflows/docs-ci.yml: docs-checks job must be unconditional"
+                    ".github/workflows/docs-ci.yml: docs-fast job must be unconditional"
                 )
             if docs_job.get("runs-on") != "ubuntu-latest":
                 errors.append(
-                    ".github/workflows/docs-ci.yml: docs-checks must run on ubuntu-latest"
+                    ".github/workflows/docs-ci.yml: docs-fast must run on ubuntu-latest"
                 )
+            if docs_job.get("timeout-minutes") != 5:
+                errors.append(".github/workflows/docs-ci.yml: docs-fast timeout must be five minutes")
             steps = docs_job.get("steps")
             if isinstance(steps, list):
                 for step in steps:
@@ -7468,7 +7502,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     if isinstance(step, dict) and isinstance(step.get("run"), str):
                         run_commands.append(step["run"].strip())
                         if step["run"].strip() in {
-                            "./scripts/ci_local.sh",
+                            "./scripts/ci_docs_fast.sh",
                             "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt",
                         } and any(key in step for key in ("if", "continue-on-error", "shell")):
                             errors.append(
@@ -7494,8 +7528,8 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     errors.append(".github/workflows/docs-ci.yml: checkout credentials must not persist")
                 if setup_python.get("with", {}).get("python-version") != "3.12.10":
                     errors.append(".github/workflows/docs-ci.yml: Python must be exactly 3.12.10")
-        if "./scripts/ci_local.sh" not in run_commands:
-            errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_local.sh exactly")
+        if "./scripts/ci_docs_fast.sh" not in run_commands:
+            errors.append(".github/workflows/docs-ci.yml: must invoke ./scripts/ci_docs_fast.sh exactly")
         if (
             "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt"
             not in run_commands
@@ -7503,6 +7537,76 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             errors.append(
                 ".github/workflows/docs-ci.yml: must install hash-locked validator dependencies"
             )
+        selftest_job = jobs.get("validator-selftest") if isinstance(jobs, dict) else None
+        if not isinstance(selftest_job, dict):
+            errors.append(".github/workflows/docs-ci.yml: validator-selftest job is required")
+        elif (
+            selftest_job.get("timeout-minutes") != 10
+            or not isinstance(selftest_job.get("if"), str)
+            or selftest_job.get("needs") != "changes"
+        ):
+            errors.append(".github/workflows/docs-ci.yml: validator-selftest must be relevant-only and bounded")
+        else:
+            expected_selftest_steps = (
+                {
+                    "name": "Checkout",
+                    "uses": (
+                        "actions/checkout@34e114876b0b11c390a5"
+                        "6381ad16ebd13914f8d5"
+                    ),
+                    "with": {"persist-credentials": False},
+                },
+                {
+                    "name": "Set up Python",
+                    "uses": (
+                        "actions/setup-python@a26af69be951a213d495a"
+                        "4c3e4e4022e16d87065"
+                    ),
+                    "with": {"python-version": "3.12.10"},
+                },
+                {
+                    "name": "Install policy validator dependencies",
+                    "run": "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt",
+                },
+                {
+                    "name": "Run validator self-tests",
+                    "run": "./scripts/ci_validator_selftest.sh",
+                },
+            )
+            if tuple(selftest_job.get("steps", ())) != expected_selftest_steps:
+                errors.append(
+                    ".github/workflows/docs-ci.yml: validator-selftest steps must be exact and immutable"
+                )
+
+    workflow_root = root / ".github" / "workflows"
+    workflow_paths = (
+        set(workflow_root.glob("*.yml")) | set(workflow_root.glob("*.yaml"))
+        if workflow_root.is_dir()
+        else set()
+    )
+    for candidate_workflow in sorted(workflow_paths):
+        if candidate_workflow == workflow or candidate_workflow.is_symlink():
+            continue
+        try:
+            candidate_data = yaml.safe_load(_read(candidate_workflow))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        candidate_triggers = (
+            candidate_data.get("on", candidate_data.get(True))
+            if isinstance(candidate_data, dict)
+            else None
+        )
+        pr_triggers = {"pull_request", "pull_request_target"}
+        has_pull_request = (
+            isinstance(candidate_triggers, str) and candidate_triggers in pr_triggers
+            or isinstance(candidate_triggers, list)
+            and bool(pr_triggers.intersection(candidate_triggers))
+            or isinstance(candidate_triggers, dict)
+            and bool(pr_triggers.intersection(candidate_triggers))
+        )
+        if has_pull_request:
+            rel = candidate_workflow.relative_to(root).as_posix()
+            errors.append(f"{rel}: additional pull_request workflow is forbidden")
 
     requirements = root / "requirements-ci.txt"
     if requirements in symlinks or not requirements.exists():

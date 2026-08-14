@@ -662,14 +662,14 @@ def _wiring_errors(root: Path) -> set[str]:
         workflow = yaml.safe_load(
             (root / ".github/workflows/docs-ci.yml").read_text(encoding="utf-8")
         )
-        steps = workflow["jobs"]["docs-checks"]["steps"]
-        ci_text = (root / "scripts/ci_local.sh").read_text(encoding="utf-8")
+        steps = workflow["jobs"]["docs-fast"]["steps"]
+        ci_text = (root / "scripts/ci_docs_fast.sh").read_text(encoding="utf-8")
     except (OSError, KeyError, TypeError, yaml.YAMLError):
         return {"offline: ci-wiring"}
     source_steps = [step for step in steps if step.get("name") == "Checkout exact MSP-055 source"]
     docs_steps = [step for step in steps if step.get("name") == "Checkout"]
     go_steps = [step for step in steps if step.get("name") == "Set up exact MSP-055 Go"]
-    ci_steps = [step for step in steps if step.get("name") == "Run local docs CI"]
+    ci_steps = [step for step in steps if step.get("name") == "Run fast docs CI"]
     online_steps = [step for step in steps if step.get("name") == "Verify MSP-055 online provenance"]
     if len(docs_steps) != 1 or docs_steps[0] != {
         "name": "Checkout",
@@ -706,7 +706,7 @@ def _wiring_errors(root: Path) -> set[str]:
     if (
         len(ci_steps) != 1
         or ci_steps[0].get("working-directory") != "docs"
-        or ci_steps[0].get("run") != "./scripts/ci_local.sh"
+        or ci_steps[0].get("run") != "./scripts/ci_docs_fast.sh"
         or _value(ci_steps[0], "env", "MSP055_SOURCE_CHECKOUT")
         != "${{ github.workspace }}/source"
     ):

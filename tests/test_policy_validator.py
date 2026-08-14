@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +8,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
+
+from tests.policy_test_support import check_repository_result, materialize_policy_fixture
+from validate_repository_policy import check_repository
 
 
 def assignment(label: str, value: str) -> str:
@@ -29,19 +30,11 @@ def synthetic_mac() -> str:
 
 
 def copy_repo(tmp_path: Path) -> Path:
-    dst = tmp_path / "repo"
-    ignore = shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__")
-    shutil.copytree(REPO, dst, ignore=ignore)
-    return dst
+    return materialize_policy_fixture(tmp_path / "repo")
 
 
-def run_validator(repo: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(VALIDATOR), "--repo", str(repo)],
-        check=False,
-        text=True,
-        capture_output=True,
-    )
+def run_validator(repo: Path):
+    return check_repository_result(repo)
 
 
 def reassign_front_matter_value(text: str, key: str, value: str) -> str:
@@ -93,6 +86,28 @@ def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
 
 
 class PolicyValidatorTests(unittest.TestCase):
+    def test_additional_yaml_pull_request_workflow_fails(self) -> None:
+        triggers = ("on:\n  pull_request:\n", "on: [push, pull_request]\n")
+        triggers += (
+            "on:\n  pull_request_target:\n",
+            "on: [push, pull_request_target]\n",
+        )
+        for trigger in triggers:
+            with self.subTest(trigger=trigger), tempfile.TemporaryDirectory() as tmp:
+                repo = copy_repo(Path(tmp))
+                extra = repo / ".github" / "workflows" / "extra.yaml"
+                extra.write_text(
+                    f"name: Extra\n{trigger}jobs:\n  noop:\n"
+                    '    runs-on: ubuntu-latest\n    steps:\n      - run: true\n',
+                    encoding="utf-8",
+                )
+                result = run_validator(repo)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(
+                    ".github/workflows/extra.yaml: additional pull_request workflow is forbidden",
+                    result.stderr,
+                )
+
     def test_current_repository_passes_policy_validator(self) -> None:
         result = run_validator(REPO)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -931,9 +946,19 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_workflow_semantic_bypasses_fail(self) -> None:
         mutations = {
+            "selftest command replaced": lambda text: text.replace(
+                "        run: ./scripts/ci_validator_selftest.sh\n",
+                "        run: true\n",
+                1,
+            ),
+            "pull request target": lambda text: text.replace(
+                '"on":\n  pull_request:\n',
+                '"on":\n  pull_request:\n  pull_request_target:\n',
+                1,
+            ),
             "fake command": lambda text: text.replace(
-                "run: ./scripts/ci_local.sh",
-                "run: echo docs-only # ./scripts/ci_local.sh",
+                "run: ./scripts/ci_docs_fast.sh",
+                "run: echo docs-only # ./scripts/ci_docs_fast.sh",
                 1,
             ),
             "inline paths": lambda text: text.replace(
@@ -953,28 +978,28 @@ class PolicyValidatorTests(unittest.TestCase):
                 1,
             ),
             "job condition": lambda text: text.replace(
-                "    name: Docs Checks\n",
-                "    name: Docs Checks\n    if: ${{ false }}\n",
+                "    name: Docs fast checks\n",
+                "    name: Docs fast checks\n    if: ${{ false }}\n",
                 1,
             ),
             "job continue": lambda text: text.replace(
-                "    name: Docs Checks\n",
-                "    name: Docs Checks\n    continue-on-error: true\n",
+                "    name: Docs fast checks\n",
+                "    name: Docs fast checks\n    continue-on-error: true\n",
                 1,
             ),
             "step condition": lambda text: text.replace(
-                "        run: ./scripts/ci_local.sh\n",
-                "        if: ${{ false }}\n        run: ./scripts/ci_local.sh\n",
+                "        run: ./scripts/ci_docs_fast.sh\n",
+                "        if: ${{ false }}\n        run: ./scripts/ci_docs_fast.sh\n",
                 1,
             ),
             "job needs": lambda text: text.replace(
-                "    name: Docs Checks\n",
-                "    name: Docs Checks\n    needs: never-runs\n",
+                "    name: Docs fast checks\n",
+                "    name: Docs fast checks\n    needs: never-runs\n",
                 1,
             ),
             "step shell": lambda text: text.replace(
-                "        run: ./scripts/ci_local.sh\n",
-                "        shell: custom {0}\n        run: ./scripts/ci_local.sh\n",
+                "        run: ./scripts/ci_docs_fast.sh\n",
+                "        shell: custom {0}\n        run: ./scripts/ci_docs_fast.sh\n",
                 1,
             ),
             "dependency condition": lambda text: text.replace(
@@ -986,13 +1011,13 @@ class PolicyValidatorTests(unittest.TestCase):
             "missing dependency install": lambda text: text.replace(
                 "      - name: Install policy validator dependencies\n"
                 "        working-directory: docs\n"
-                "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n\n",
+                "        run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'\n",
                 "",
                 1,
             ),
             "wrong runner": lambda text: text.replace(
-                "    runs-on: ubuntu-latest\n",
-                "    runs-on: self-hosted\n",
+                "  docs-fast:\n    name: Docs fast checks\n    runs-on: ubuntu-latest\n",
+                "  docs-fast:\n    name: Docs fast checks\n    runs-on: self-hosted\n",
                 1,
             ),
         }

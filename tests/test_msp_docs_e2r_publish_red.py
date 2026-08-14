@@ -192,7 +192,7 @@ def completion_token_command(repo: Path, base_oid: str, head_oid: str,
 class MspDocsE2RPublishRedTests(unittest.TestCase):
     def test_ci_is_immutable_least_privilege_hash_locked_and_post_merge(self) -> None:
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-        steps = workflow["jobs"]["docs-checks"]["steps"]
+        steps = workflow["jobs"]["docs-fast"]["steps"]
         errors: list[str] = []
         if workflow.get("permissions") != {"contents": "read"}:
             errors.append("workflow permissions must be exactly contents: read")
