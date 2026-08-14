@@ -135,7 +135,7 @@ the protected gateway admin origin.
 | `POST /admin/eebus/v1/pairing-window:open` | `eebus.admin.pairing` | Opens one bounded window; never selects or dials. |
 | `POST /admin/eebus/v1/pairing-window:close` | `eebus.admin.pairing` | Closes the window and retires only window-owned volatile state. |
 | `POST /admin/eebus/v1/observations/{observation_id}:select` | `eebus.admin.pairing` | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
-| `POST /admin/eebus/v1/observations/{observation_id}:connect` | `eebus.admin.pairing` | Starts one bounded authorized attempt for the selected current observation. |
+| `POST /admin/eebus/v1/selections/{selection_id}:connect` | `eebus.admin.pairing` | Resolves only the current selection capability and starts its one bounded authorized attempt. |
 | `POST /admin/eebus/v1/candidate:confirm` | `eebus.admin.trust` | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
 | `POST /admin/eebus/v1/candidate:cancel` | `eebus.admin.pairing` | Retires only the exact current volatile candidate and selection; never changes durable trust. |
 | `POST /admin/eebus/v1/partners/{partner_id}:retry` | `eebus.admin.pairing` | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
@@ -159,10 +159,21 @@ fragment data and conveys no authority. The authenticated owner performs every
 mutation directly in Portal. After return, HA resumes polling only its
 candidate-free read projection.
 
-`partner_id` and `observation_id` are opaque, bounded, and non-authoritative.
-Every operation resolves them under the current state revision. No response or
-request contains `candidate_ref`, store generation bytes, filesystem path, or
-socket framing.
+`partner_id`, `observation_id`, and `selection_id` are opaque, bounded, and
+non-authoritative. Every operation resolves them under the current state
+revision. No response or request contains `candidate_ref`, store generation
+bytes, filesystem path, or socket framing.
+
+The successful select response returns one opaque `selection_id` plus the
+resulting `state_revision`. In the gateway, that identifier creates a bounded
+server-side record that maps only to the returned in-process selection handle
+and is bound to the same authenticated Portal session and principal, runtime
+instance, issuing revision, and expiry. It is not the serialized in-process
+handle token. Connect accepts no observation identifier, expected SKI,
+endpoint, or reconstructed candidate input; it resolves that exact record and
+invokes `AdminV1.Connect` with only the stored selection handle and common
+precondition. Missing, expired, cross-session, cross-principal, wrong-runtime,
+or stale-revision selection identifiers reject without a transport effect.
 
 ## Status And Partner Models
 
@@ -232,11 +243,11 @@ single server-held current candidate, including its connection and store
 generations.
 
 Earlier selection requires the exact current `observation_id` and its revision;
-that selection is retained only as a hidden server binding. Outbound TLS or an
-eligible inbound callback may then bind only that already selected identity and
-generation. An inbound callback cannot select a candidate, and no observation
-is fabricated. Both TLS paths otherwise use identical OOB, expiry, generation,
-and persistence rules.
+the returned selection is retained only in the authenticated server-side
+mapping described above. Outbound TLS or an eligible inbound callback may then
+bind only that already selected identity and generation. An inbound callback
+cannot select a candidate, and no observation is fabricated. Both TLS paths
+otherwise use identical OOB, expiry, generation, and persistence rules.
 
 At the in-process boundary, select consumes only an observation handle and the
 complete expected SKI, and returns a selection handle without dialing or
