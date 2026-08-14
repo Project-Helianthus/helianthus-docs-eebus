@@ -70,7 +70,8 @@ Mutations require:
 - the profile-specific authentication and CSRF checks; and
 - a bounded request body with unknown fields rejected.
 
-Successful and failed responses use one closed envelope:
+The `portal_owner` envelope carries `state_revision` and uses this closed
+shape for reads and mutations:
 
 ```json
 {
@@ -87,6 +88,27 @@ does not encode identity, endpoint, time, or store generation. A mutation
 replayed with the same idempotency key and identical bindings returns the same
 logical terminal result. Reuse with different bindings returns
 `idempotency_conflict` and performs no effect.
+
+The read-only `ha_integration` envelope carries `projection_revision` and
+omits `state_revision` and `request_id`:
+
+```json
+{
+  "contract": "helianthus.eebus.operator-admin.v1",
+  "projection_revision": 17,
+  "data": {},
+  "error": null
+}
+```
+
+Its independent revision starts at 1 after the permitted HA projection is
+available and advances only when the complete permitted HA `data` object
+changes. The events candidate admission, cancellation, expiry, and transient
+trust do not change that object or revision. With all permitted non-candidate
+facts equal, the complete HA envelope remains byte-identical across those
+transitions. HA has no mutation route, so `projection_revision` is never
+accepted as an admin precondition and cannot be exchanged for
+`state_revision`.
 
 Every typed in-process mutation request embeds the closed
 `MutationPreconditionV1` object:
@@ -195,17 +217,18 @@ therefore indistinguishable for zero versus one-or-more candidates when all
 non-candidate runtime facts are equal. HA receives only listener/discovery
 health, trusted/discovered counts, a connected count restricted to sessions
 already backed by an independently usable durable association, sanitized
-degradation, and `state_revision`. Candidate-bound, connected-untrusted, and
+degradation, and `projection_revision`. Candidate-bound, connected-untrusted, and
 transient-trust sessions are absent from every HA row, count, revision input,
 and degradation input until durable commit independently permits them. HA
 receives no pairing-window state, deadline, `register`
 state, or owner-intent derivative. Candidate admission, automatic window close,
 commit failure, or any other candidate lifecycle event alone changes no
-HA-visible field: the revision is not advanced or partitioned solely to signal
-a candidate-visible change to that principal, and the complete HA JSON
+HA-visible field: its projection revision is not advanced or partitioned solely
+to signal a candidate-visible change to that principal. The complete HA JSON
 projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`,
 `TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states when all permitted
-non-candidate facts are equal.
+non-candidate facts are equal; because the HA envelope contains no per-request
+or owner revision field, the complete HA envelope is byte-identical as well.
 
 Each partner row is the closed object:
 

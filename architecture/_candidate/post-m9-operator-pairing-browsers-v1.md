@@ -294,6 +294,14 @@ expiry and idempotency replay lookup before revision comparison, resolves the
 typed handle, reserves the transition, and only then releases its lock for a
 transport or persistence effect.
 
+The owner/admin revision still advances for candidate admission,
+cancellation, expiry, transient trust, and every other distinct owner-visible
+transition; stale owner mutations return `state_conflict`. The gateway derives
+the HA read-only projection through a separate reducer whose revision advances
+only when an HA-permitted serialized fact changes. It neither consumes nor
+mirrors the owner revision, so a candidate-only transition cannot become an HA
+side channel.
+
 The capability uses four distinct opaque handle kinds: partner, observation,
 selection, and candidate. Each handle is generated with cryptographically
 secure randomness and is bound server-side to the runtime instance, kind,
