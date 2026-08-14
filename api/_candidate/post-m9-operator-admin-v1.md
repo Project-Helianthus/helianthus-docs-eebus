@@ -29,6 +29,18 @@ protocol claim, or a direct wrapper around the owner Unix socket. Stable MCP
 remains the single read-only `eebus.v1.*` namespace; no v2 or legacy alias is
 defined here.
 
+The in-process adapter contract is additive and separate from the public
+runtime interface. `NewOperatorRuntimeV1(Config) (Runtime, AdminV1, error)`
+returns the candidate-free runtime and its separate typed owner capability
+together only to the creating gateway composition root. Existing `New(Config)`
+callers receive only `Runtime`, and there is no exported accessor that accepts
+an existing `Runtime`. The runtime concrete value does not implement
+`AdminV1` or an exported admin-provider interface, so a holder of an already
+distributed runtime cannot recover the capability through a type assertion or
+helper call. The capability is not serializable, is not an authorization
+grant, and is retained only by the gateway composition. Construction failure
+maps to `admin_boundary_unavailable` before request object resolution.
+
 If the gateway cannot establish an authenticated admin boundary, every read and
 mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable` with no
 `data`, without resolving an object or invoking the coordinator. There is no
@@ -58,7 +70,8 @@ Mutations require:
 - the profile-specific authentication and CSRF checks; and
 - a bounded request body with unknown fields rejected.
 
-Successful and failed responses use one closed envelope:
+The `portal_owner` envelope carries `state_revision` and uses this closed
+shape for reads and mutations:
 
 ```json
 {
@@ -76,6 +89,61 @@ replayed with the same idempotency key and identical bindings returns the same
 logical terminal result. Reuse with different bindings returns
 `idempotency_conflict` and performs no effect.
 
+The read-only `ha_integration` envelope carries `projection_revision` and
+omits `state_revision` and `request_id`:
+
+```json
+{
+  "contract": "helianthus.eebus.operator-admin.v1",
+  "projection_revision": 17,
+  "data": {},
+  "error": null
+}
+```
+
+Its independent revision starts at 1 after the permitted HA projection is
+available and advances only when the complete permitted HA `data` object
+changes. The events candidate admission, cancellation, expiry, and transient
+trust do not change that object or revision. With all permitted non-candidate
+facts equal, the complete HA envelope remains byte-identical across those
+transitions. HA has no mutation route, so `projection_revision` is never
+accepted as an admin precondition and cannot be exchanged for
+`state_revision`.
+
+Every typed in-process mutation request embeds the closed
+`MutationPreconditionV1` object:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `idempotency_key` | string | 1..128 UTF-8 bytes; empty, malformed, or over-limit values are `invalid_request`. |
+| `expected_state_revision` | unsigned integer | non-zero and exactly equal to the current operator revision after replay lookup. |
+
+Within one operator serializer, replay lookup precedes revision comparison.
+The same key with the identical operation, runtime instance, handle, expected
+revision, and argument binding returns the same logical terminal result with
+`replayed=true` and does not execute a second effect. The same key with a
+changed operation, handle, revision, or argument binding returns
+`idempotency_conflict` and does not execute a second effect. A stale revision
+with an unseen key returns `state_conflict` without retaining a replay entry.
+
+The in-process operation set is closed:
+
+```text
+Snapshot(context, AdminSnapshotRequestV1) -> AdminSnapshotV1
+OpenPairingWindow(context, OpenPairingWindowRequestV1) -> AdminMutationResultV1
+ClosePairingWindow(context, ClosePairingWindowRequestV1) -> AdminMutationResultV1
+Select(context, SelectRequestV1) -> AdminSelectionResultV1
+Connect(context, ConnectRequestV1) -> AdminMutationResultV1
+Confirm(context, ConfirmRequestV1) -> AdminMutationResultV1
+Cancel(context, CancelRequestV1) -> AdminMutationResultV1
+RetryTrusted(context, RetryTrustedRequestV1) -> AdminMutationResultV1
+Untrust(context, UntrustRequestV1) -> AdminMutationResultV1
+```
+
+`AdminMutationResultV1` contains only `state_revision`, a closed outcome, and
+`replayed`. `AdminSelectionResultV1` adds one opaque selection handle. There is
+no generic action handle and no caller-controlled transport coordinate.
+
 ## Closed Operations
 
 The route spellings below are the candidate wire shape. They are relative to
@@ -89,8 +157,9 @@ the protected gateway admin origin.
 | `POST /admin/eebus/v1/pairing-window:open` | `eebus.admin.pairing` | Opens one bounded window; never selects or dials. |
 | `POST /admin/eebus/v1/pairing-window:close` | `eebus.admin.pairing` | Closes the window and retires only window-owned volatile state. |
 | `POST /admin/eebus/v1/observations/{observation_id}:select` | `eebus.admin.pairing` | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
-| `POST /admin/eebus/v1/observations/{observation_id}:connect` | `eebus.admin.pairing` | Starts one bounded authorized attempt for the selected current observation. |
+| `POST /admin/eebus/v1/selections/{selection_id}:connect` | `eebus.admin.pairing` | Resolves only the current selection capability and starts its one bounded authorized attempt. |
 | `POST /admin/eebus/v1/candidate:confirm` | `eebus.admin.trust` | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
+| `POST /admin/eebus/v1/candidate:cancel` | `eebus.admin.pairing` | Retires only the exact current volatile candidate and selection; never changes durable trust. |
 | `POST /admin/eebus/v1/partners/{partner_id}:retry` | `eebus.admin.pairing` | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
 | `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | `eebus.admin.trust` | Revokes the exact durable association and current runtime trust through the coordinator. |
 
@@ -103,6 +172,7 @@ the protected gateway admin origin.
 | Raw SPINE page | allow | deny; open Portal instead |
 | Open/close pairing window; select/connect/retry | allow | deny |
 | Confirm candidate trust | allow after OOB comparison | deny |
+| Cancel current candidate | allow | deny |
 | Revoke durable trust | allow | deny |
 
 There is no HA mutation grant, minting route, exchange route, mutation scope, or
@@ -112,10 +182,21 @@ fragment data and conveys no authority. The authenticated owner performs every
 mutation directly in Portal. After return, HA resumes polling only its
 candidate-free read projection.
 
-`partner_id` and `observation_id` are opaque, bounded, and non-authoritative.
-Every operation resolves them under the current state revision. No response or
-request contains `candidate_ref`, store generation bytes, filesystem path, or
-socket framing.
+`partner_id`, `observation_id`, and `selection_id` are opaque, bounded, and
+non-authoritative. Every operation resolves them under the current state
+revision. No response or request contains `candidate_ref`, store generation
+bytes, filesystem path, or socket framing.
+
+The successful select response returns one opaque `selection_id` plus the
+resulting `state_revision`. In the gateway, that identifier creates a bounded
+server-side record that maps only to the returned in-process selection handle
+and is bound to the same authenticated Portal session and principal, runtime
+instance, issuing revision, and expiry. It is not the serialized in-process
+handle token. Connect accepts no observation identifier, expected SKI,
+endpoint, or reconstructed candidate input; it resolves that exact record and
+invokes `AdminV1.Connect` with only the stored selection handle and common
+precondition. Missing, expired, cross-session, cross-principal, wrong-runtime,
+or stale-revision selection identifiers reject without a transport effect.
 
 ## Status And Partner Models
 
@@ -136,17 +217,18 @@ therefore indistinguishable for zero versus one-or-more candidates when all
 non-candidate runtime facts are equal. HA receives only listener/discovery
 health, trusted/discovered counts, a connected count restricted to sessions
 already backed by an independently usable durable association, sanitized
-degradation, and `state_revision`. Candidate-bound, connected-untrusted, and
+degradation, and `projection_revision`. Candidate-bound, connected-untrusted, and
 transient-trust sessions are absent from every HA row, count, revision input,
 and degradation input until durable commit independently permits them. HA
 receives no pairing-window state, deadline, `register`
 state, or owner-intent derivative. Candidate admission, automatic window close,
 commit failure, or any other candidate lifecycle event alone changes no
-HA-visible field: the revision is not advanced or partitioned solely to signal
-a candidate-visible change to that principal, and the complete HA JSON
+HA-visible field: its projection revision is not advanced or partitioned solely
+to signal a candidate-visible change to that principal. The complete HA JSON
 projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`,
 `TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states when all permitted
-non-candidate facts are equal.
+non-candidate facts are equal; because the HA envelope contains no per-request
+or owner revision field, the complete HA envelope is byte-identical as well.
 
 Each partner row is the closed object:
 
@@ -185,11 +267,30 @@ single server-held current candidate, including its connection and store
 generations.
 
 Earlier selection requires the exact current `observation_id` and its revision;
-that selection is retained only as a hidden server binding. Outbound TLS or an
-eligible inbound callback may then bind only that already selected identity and
-generation. An inbound callback cannot select a candidate, and no observation
-is fabricated. Both TLS paths otherwise use identical OOB, expiry, generation,
-and persistence rules.
+the returned selection is retained only in the authenticated server-side
+mapping described above. Outbound TLS or an eligible inbound callback may then
+bind only that already selected identity and generation. An inbound callback
+cannot select a candidate, and no observation is fabricated. Both TLS paths
+otherwise use identical OOB, expiry, generation, and persistence rules.
+
+At the in-process boundary, select consumes only an observation handle and the
+complete expected SKI, and returns a selection handle without dialing or
+trusting; connect consumes only that selection handle and the exact current
+revision; retry accepts only a partner handle and never an endpoint. SHIP owns
+fresh discovery, endpoint validation, gate admission, and the single outbound
+attempt; untrust resolves association, manifest, control, and store bindings
+internally before durable revocation; none of those bindings are accepted from
+the caller or exposed in a result.
+
+Operator snapshots request exactly one closed view: `trusted`, `connected`,
+`discovered`, or `candidate`. Each response contains one non-zero operator
+revision, capture time, sanitized status, and only the selected typed row set.
+Partner, observation, selection, and candidate handles are process-local,
+opaque, non-serializable capabilities. They expire after at most two minutes,
+are capped at 128 live handles per kind and 512 live handles in total, and are
+invalidated on every admin revision change. Capacity exhaustion never evicts a
+still-valid handle and returns `admin_boundary_unavailable` without partial
+output.
 
 Candidate rows and complete candidate certificate identity are returned only
 to `portal_owner`. The HA response shape omits them and cannot distinguish an

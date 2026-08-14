@@ -257,6 +257,69 @@ derived one-device, eleven-entity, twenty-feature target and use-case claims
 without leaking it into semantic or eBUS surfaces; only that run may establish
 whether the target is valid for this VR940.
 
+## In-Process Operator Capability
+
+The gateway obtains the coordinator-owned operator capability only while it
+creates the runtime through
+`NewOperatorRuntimeV1(Config) (Runtime, AdminV1, error)`. This composition
+constructor returns two separate values to the creator. Existing `New(Config)`
+callers continue to receive only the candidate-free public `Runtime`, and
+there is no exported accessor that accepts an existing runtime.
+
+The concrete runtime does not implement `AdminV1` or any exported
+admin-provider interface. A holder of a previously distributed `Runtime`
+therefore cannot recover the capability through a helper call or type
+assertion. The gateway composition retains the separate `AdminV1` value and
+passes only `Runtime` to ordinary MCP, GraphQL, semantic, and Home Assistant
+components.
+
+This is capability plumbing, not authentication. Only the gateway composition
+retains the returned value; the gateway-owned HTTP adapter still performs
+authentication, authorization, CSRF validation, request bounding, and
+principal-specific projection before invoking it. Portal and Home Assistant
+never receive the capability and never open the trust store or same-UID admin
+socket.
+
+The ordinary `Runtime.Snapshot`, `Runtime.PairingState`, raw MCP, GraphQL, Home
+Assistant, semantic registry, logging, metrics, diagnostics, and shareable
+evidence cannot reach or serialize `AdminV1`. Their existing contracts and
+revisions do not change solely because an owner-only candidate exists. The
+operator capability owns a separate instance-scoped reducer and revision.
+
+That reducer is the single linearization point for snapshots and mutations.
+Its revision starts at 1 only after the backend and coordinator are ready,
+never exposes zero, advances once for each distinct sanitized owner-visible
+transition, and must fail closed before unsigned 64-bit wrap. It performs
+expiry and idempotency replay lookup before revision comparison, resolves the
+typed handle, reserves the transition, and only then releases its lock for a
+transport or persistence effect.
+
+The owner/admin revision still advances for candidate admission,
+cancellation, expiry, transient trust, and every other distinct owner-visible
+transition; stale owner mutations return `state_conflict`. The gateway derives
+the HA read-only projection through a separate reducer whose revision advances
+only when an HA-permitted serialized fact changes. It neither consumes nor
+mirrors the owner revision, so a candidate-only transition cannot become an HA
+side channel.
+
+The capability uses four distinct opaque handle kinds: partner, observation,
+selection, and candidate. Each handle is generated with cryptographically
+secure randomness and is bound server-side to the runtime instance, kind,
+target, issuing revision, and expiry. A handle lives for at most two minutes;
+selection and candidate handles also expire at the earlier owning window or
+candidate deadline. The reducer permits at most 128 live handles per kind and
+512 live handles in total. It prunes expired values first and never evicts a
+still-valid handle to make space.
+
+All handles are invalidated on every admin revision change, runtime shutdown,
+backend replacement, process restart, or an earlier target-specific close or
+expiry. A snapshot may reuse the current-revision handle for the same target;
+no handle survives into a later revision. Zero, malformed, expired,
+wrong-kind, cross-instance, or stale-revision handles reject without an
+effect. The generic JSON, text, formatting, logging, metrics, diagnostics, and
+shareable evidence reveal neither handle tokens nor operator identity or
+endpoint wrappers.
+
 ## Amendment To The M4B Local Admin Boundary
 
 This post-M9 candidate narrowly amends the candidate-free clauses in
