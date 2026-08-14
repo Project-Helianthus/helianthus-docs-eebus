@@ -75,6 +75,10 @@ class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
 
+    def test_candidate_cancel_authorization_is_closed(self) -> None:
+        text = normalized(API)
+        self.assertIn("| Cancel current candidate | allow | deny |", text)
+
 
 if __name__ == "__main__":
     unittest.main()
