@@ -41,7 +41,7 @@ jobs:
             exit 0
           fi
           changed="$(git diff --name-only "$base" "${{ github.sha }}")"
-          if grep -Eq '^((tests/)|(.github/workflows/.*\.(yml|yaml)$)|(requirements-ci\.txt$)|(scripts/ci_(docs_fast|validator_selftest|local)\.sh$)|(scripts/validate_[^/]+\.py$)|(scripts/machine_publication_policy\.py$))' <<<"$changed"; then
+          if grep -Eq '^((tests/)|(.github/workflows/.*\.(yml|yaml)$)|(requirements-ci\.txt$)|(scripts/))' <<<"$changed"; then
             echo 'validator_selftest=true' >> "$GITHUB_OUTPUT"
           else
             echo 'validator_selftest=false' >> "$GITHUB_OUTPUT"

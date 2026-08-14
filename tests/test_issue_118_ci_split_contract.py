@@ -122,8 +122,7 @@ class Issue118CISplitContractTests(unittest.TestCase):
         for relevant_boundary in (
             "tests/",
             ".github/workflows/",
-            "scripts/validate_",
-            "scripts/machine_publication_policy",
+            "scripts/",
             "requirements-ci",
         ):
             self.assertIn(
@@ -144,6 +143,17 @@ class Issue118CISplitContractTests(unittest.TestCase):
             self.assertIsNotNone(
                 re.search(classifier.group(1), workflow_path),
                 f"workflow change must route to validator-selftest: {workflow_path}",
+            )
+        script_paths = [
+            path.relative_to(REPO).as_posix()
+            for path in sorted(DOCS_FAST.parent.iterdir())
+            if path.is_file()
+        ]
+        script_paths.append("scripts/future_policy_tool.py")
+        for script_path in script_paths:
+            self.assertIsNotNone(
+                re.search(classifier.group(1), script_path),
+                f"policy/tool change must route to validator-selftest: {script_path}",
             )
 
         steps = selftest.get("steps", [])
