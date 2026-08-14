@@ -573,7 +573,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        return workflow["jobs"]["docs-checks"]["steps"]
+        return workflow["jobs"]["docs-fast"]["steps"]
 
     def test_workflow_checks_out_exact_merged_source(self) -> None:
         steps = self.workflow_steps()
@@ -586,7 +586,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                     "actions/checkout@34e114876b0b11c390a5"
                     "6381ad16ebd13914f8d5"
                 ),
-                "with": {"path": "docs", "persist-credentials": False},
+                "with": {"persist-credentials": False},
             },
         )
         source_steps = [
@@ -612,7 +612,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             },
         )
 
-    def test_workflow_pins_go_and_wires_source_checkout_into_local_ci(self) -> None:
+    def test_workflow_pins_go_and_wires_source_checkout_into_fast_ci(self) -> None:
         steps = self.workflow_steps()
         go_steps = [step for step in steps if step.get("name") == "Set up exact MSP-055 Go"]
         self.assertEqual(len(go_steps), 1, "workflow missing pinned MSP-055 Go setup")
@@ -624,9 +624,8 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             go_steps[0]["with"],
             {"go-version": GO_VERSION, "check-latest": False, "cache": False},
         )
-        ci_step = next(step for step in steps if step.get("name") == "Run local docs CI")
-        self.assertEqual(ci_step["working-directory"], "docs")
-        self.assertEqual(ci_step["run"], "./scripts/ci_local.sh")
+        ci_step = next(step for step in steps if step.get("name") == "Run fast docs CI")
+        self.assertEqual(ci_step["run"], "./scripts/ci_docs_fast.sh")
         self.assertEqual(
             ci_step["env"]["MSP055_SOURCE_CHECKOUT"],
             "${{ github.workspace }}/source",
@@ -637,7 +636,6 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             step for step in steps
             if step.get("name") == "Verify MSP-055 online provenance"
         )
-        self.assertEqual(online_step["working-directory"], "docs")
         self.assertEqual(
             online_step["run"],
             "python3 scripts/validate_msp_055_api_freeze.py "
@@ -653,7 +651,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
         self.assertLess(steps.index(ci_step), steps.index(online_step))
 
     def test_local_ci_invokes_freeze_validator_with_exact_source_checkout(self) -> None:
-        text = require_file(self, REPO, Path("scripts/ci_local.sh")).read_text(encoding="utf-8")
+        text = require_file(self, REPO, Path("scripts/ci_docs_fast.sh")).read_text(encoding="utf-8")
         self.assertIn("MSP055_SOURCE_CHECKOUT", text)
         self.assertRegex(
             text,

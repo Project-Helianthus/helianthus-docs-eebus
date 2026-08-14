@@ -89,6 +89,8 @@ class Issue118CISplitContractTests(unittest.TestCase):
         )
         self.assertIn("scripts/validate_api_surface_v1.py", docs_fast_text)
         self.assertIn("scripts/validate_msp_055_api_freeze.py", docs_fast_text)
+        self.assertIn("test_issue_118_ci_split_contract", docs_fast_text)
+        self.assertIn("MSP055APIFreezeStaticContractTests", docs_fast_text)
 
     def test_validator_selftest_is_relevant_only_and_local_ci_stays_focused(self) -> None:
         workflow = load_workflow(WORKFLOWS / "docs-ci.yml")
@@ -103,6 +105,7 @@ class Issue118CISplitContractTests(unittest.TestCase):
         workflow_text = (WORKFLOWS / "docs-ci.yml").read_text(encoding="utf-8")
         for relevant_path in (
             "scripts/validate_repository_policy.py",
+            "scripts/validate_msp_055_api_freeze.py",
             "scripts/machine_publication_policy.py",
             "tests/test_policy_validator.py",
             "tests/policy_test_support.py",
@@ -119,7 +122,15 @@ class Issue118CISplitContractTests(unittest.TestCase):
         self.assertIn("60", local_ci, "focused local CI must document its 60-second bound")
 
         selftest_text = require_executable(self, VALIDATOR_SELFTEST)
-        self.assertIn("test_policy_validator", selftest_text)
+        for test_module in (
+            "test_policy_validator",
+            "test_machine_publication_policy",
+            "test_api_surface_v1",
+            "test_msp_docs_e2_red",
+            "test_msp_docs_e2_remediation",
+            "test_msp_055_api_freeze",
+        ):
+            self.assertIn(test_module, selftest_text)
 
         policy_tests = (REPO / "tests" / "test_policy_validator.py").read_text(
             encoding="utf-8"
@@ -127,6 +138,22 @@ class Issue118CISplitContractTests(unittest.TestCase):
         self.assertIn("from validate_repository_policy import", policy_tests)
         self.assertIn("check_repository", policy_tests)
         self.assertIn("policy_test_support", policy_tests)
+
+        fixture_driven_tests = (
+            "test_policy_validator.py",
+            "test_machine_publication_policy.py",
+            "test_api_surface_v1.py",
+            "test_msp_docs_e2_red.py",
+            "test_msp_docs_e2_remediation.py",
+        )
+        for filename in fixture_driven_tests:
+            source = (REPO / "tests" / filename).read_text(encoding="utf-8")
+            self.assertNotIn(
+                "shutil.copytree",
+                source,
+                f"{filename} must use the minimal imported policy fixture",
+            )
+            self.assertIn("materialize_policy_fixture", source)
 
 
 if __name__ == "__main__":

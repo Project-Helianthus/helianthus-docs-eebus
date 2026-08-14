@@ -28,6 +28,12 @@ from validate_api_surface_v1 import (  # noqa: E402
     document_diagnostics,
 )
 from machine_publication_policy import MAX_MACHINE_JSON_DEPTH  # noqa: E402
+from tests.policy_test_support import (
+    check_api_document_result,
+    check_api_repository_result,
+    check_repository_result,
+    materialize_policy_fixture,
+)
 
 
 POLICY_VALIDATOR = SCRIPTS / "validate_repository_policy.py"
@@ -107,50 +113,19 @@ def load_first_json_value(path: Path) -> tuple[Any, str]:
 
 
 def copy_repo(tmp_path: Path) -> Path:
-    destination = tmp_path / "repo"
-    shutil.copytree(
-        REPO,
-        destination,
-        ignore=shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__"),
-    )
-    return destination
+    return materialize_policy_fixture(tmp_path / "repo")
 
 
-def run_validator(repo: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(API_VALIDATOR), "--repo", str(repo)],
-        cwd=repo,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
+def run_validator(repo: Path):
+    return check_api_repository_result(repo)
 
 
-def run_document_validator(
-    path: Path,
-    *,
-    corpus: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    command = [sys.executable, str(API_VALIDATOR), "--document", str(path)]
-    if corpus:
-        command.append("--corpus")
-    return subprocess.run(
-        command,
-        cwd=REPO,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
+def run_document_validator(path: Path, *, corpus: bool = False):
+    return check_api_document_result(path, corpus=corpus)
 
 
-def run_policy_validator(repo: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(POLICY_VALIDATOR), "--repo", str(repo)],
-        cwd=repo,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
+def run_policy_validator(repo: Path):
+    return check_repository_result(repo)
 
 
 def run_go_probe(path: Path) -> subprocess.CompletedProcess[str]:
@@ -2310,18 +2285,13 @@ class APISurfaceV1ContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("api/schema/extra.json: path is not in the API machine artifact allowlist", result.stderr)
 
-    def test_ci_local_runs_api_validator_before_unit_tests(self) -> None:
-        lines = (REPO / "scripts" / "ci_local.sh").read_text(encoding="utf-8").splitlines()
-        commands = [
-            (index, shlex.split(line))
-            for index, line in enumerate(lines)
-            if line.strip() and not line.lstrip().startswith("#")
-        ]
-        validator_lines = [index for index, command in commands if "scripts/validate_api_surface_v1.py" in command]
-        test_lines = [index for index, command in commands if command[:3] == ["python3", "-m", "unittest"]]
-        self.assertEqual(len(validator_lines), 1)
-        self.assertEqual(len(test_lines), 1)
-        self.assertLess(validator_lines[0], test_lines[0])
+    def test_fast_ci_runs_api_validator_before_direct_contracts(self) -> None:
+        text = (REPO / "scripts" / "ci_docs_fast.sh").read_text(encoding="utf-8")
+        validator = "python3 scripts/validate_api_surface_v1.py"
+        contracts = "python3 -m unittest"
+        self.assertEqual(text.count(validator), 1)
+        self.assertEqual(text.count(contracts), 1)
+        self.assertLess(text.index(validator), text.index(contracts))
 
 
 if __name__ == "__main__":

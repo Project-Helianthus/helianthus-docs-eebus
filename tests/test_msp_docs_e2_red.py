@@ -3,14 +3,14 @@ from __future__ import annotations
 import copy
 import json
 import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from tests.policy_test_support import check_repository_result, materialize_policy_fixture
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -21,30 +21,11 @@ PLATFORM_COMMIT = "9cede4c61a4f73019142b7418cf6f875" "37cf645c"
 
 
 def copy_repo(tmp_path: Path) -> Path:
-    destination = tmp_path / "repo"
-    shutil.copytree(
-        REPO,
-        destination,
-        ignore=shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__"),
-    )
-    return destination
+    return materialize_policy_fixture(tmp_path / "repo")
 
 
-def run_validator(
-    repo: Path,
-    *,
-    fixture_mode: bool = True,
-) -> subprocess.CompletedProcess[str]:
-    command = [sys.executable, str(VALIDATOR), "--repo", str(repo)]
-    if fixture_mode:
-        command.append("--fixture-mode")
-    return subprocess.run(
-        command,
-        cwd=repo,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
+def run_validator(repo: Path, *, fixture_mode: bool = True):
+    return check_repository_result(repo, fixture_mode=fixture_mode)
 
 
 def load_contract() -> dict[str, Any]:
