@@ -41,23 +41,7 @@ jobs:
             exit 0
           fi
           changed="$(git diff --name-only "$base" "${{ github.sha }}")"
-          if grep -Fxq \
-            -e scripts/validate_repository_policy.py \
-            -e scripts/validate_api_surface_v1.py \
-            -e scripts/validate_msp_055_api_freeze.py \
-            -e scripts/machine_publication_policy.py \
-            -e .github/workflows/docs-ci.yml \
-            -e scripts/ci_docs_fast.sh \
-            -e scripts/ci_validator_selftest.sh \
-            -e scripts/ci_local.sh \
-            -e tests/policy_test_support.py \
-            -e tests/test_policy_validator.py \
-            -e tests/test_api_surface_v1.py \
-            -e tests/test_msp_055_api_freeze.py \
-            -e tests/test_machine_publication_policy.py \
-            -e tests/test_msp_docs_e2_red.py \
-            -e tests/test_msp_docs_e2_remediation.py \
-            -e tests/test_issue_118_ci_split_contract.py <<<"$changed"; then
+          if grep -Eq '^((tests/)|(.github/workflows/docs-ci\.yml$)|(requirements-ci\.txt$)|(scripts/ci_(docs_fast|validator_selftest|local)\.sh$)|(scripts/validate_[^/]+\.py$)|(scripts/machine_publication_policy\.py$))' <<<"$changed"; then
             echo 'validator_selftest=true' >> "$GITHUB_OUTPUT"
           else
             echo 'validator_selftest=false' >> "$GITHUB_OUTPUT"

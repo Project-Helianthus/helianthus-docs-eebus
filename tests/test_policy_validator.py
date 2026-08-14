@@ -88,6 +88,10 @@ def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
 class PolicyValidatorTests(unittest.TestCase):
     def test_additional_yaml_pull_request_workflow_fails(self) -> None:
         triggers = ("on:\n  pull_request:\n", "on: [push, pull_request]\n")
+        triggers += (
+            "on:\n  pull_request_target:\n",
+            "on: [push, pull_request_target]\n",
+        )
         for trigger in triggers:
             with self.subTest(trigger=trigger), tempfile.TemporaryDirectory() as tmp:
                 repo = copy_repo(Path(tmp))
@@ -942,6 +946,11 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_workflow_semantic_bypasses_fail(self) -> None:
         mutations = {
+            "pull request target": lambda text: text.replace(
+                '"on":\n  pull_request:\n',
+                '"on":\n  pull_request:\n  pull_request_target:\n',
+                1,
+            ),
             "fake command": lambda text: text.replace(
                 "run: ./scripts/ci_docs_fast.sh",
                 "run: echo docs-only # ./scripts/ci_docs_fast.sh",

@@ -7444,6 +7444,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if not isinstance(triggers, dict) or "pull_request" not in triggers:
             errors.append(".github/workflows/docs-ci.yml: pull_request trigger is required")
         else:
+            if "pull_request_target" in triggers:
+                errors.append(
+                    ".github/workflows/docs-ci.yml: pull_request_target trigger is forbidden"
+                )
             if triggers.get("pull_request") not in (None, {}):
                 errors.append(
                     ".github/workflows/docs-ci.yml: pull_request trigger must be unconditional"
@@ -7561,12 +7565,13 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             if isinstance(candidate_data, dict)
             else None
         )
+        pr_triggers = {"pull_request", "pull_request_target"}
         has_pull_request = (
-            candidate_triggers == "pull_request"
+            isinstance(candidate_triggers, str) and candidate_triggers in pr_triggers
             or isinstance(candidate_triggers, list)
-            and "pull_request" in candidate_triggers
+            and bool(pr_triggers.intersection(candidate_triggers))
             or isinstance(candidate_triggers, dict)
-            and "pull_request" in candidate_triggers
+            and bool(pr_triggers.intersection(candidate_triggers))
         )
         if has_pull_request:
             rel = candidate_workflow.relative_to(root).as_posix()

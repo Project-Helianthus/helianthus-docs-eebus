@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import stat
 import unittest
 from pathlib import Path
@@ -27,10 +28,11 @@ def workflow_pr_sources() -> list[Path]:
     workflow_paths = set(WORKFLOWS.glob("*.yml")) | set(WORKFLOWS.glob("*.yaml"))
     for path in sorted(workflow_paths):
         triggers = load_workflow(path).get("on", {})
+        pr_triggers = {"pull_request", "pull_request_target"}
         if (
-            triggers == "pull_request"
-            or isinstance(triggers, list) and "pull_request" in triggers
-            or isinstance(triggers, dict) and "pull_request" in triggers
+            isinstance(triggers, str) and triggers in pr_triggers
+            or isinstance(triggers, list) and bool(pr_triggers.intersection(triggers))
+            or isinstance(triggers, dict) and bool(pr_triggers.intersection(triggers))
         ):
             sources.append(path)
     return sources
@@ -57,6 +59,7 @@ class Issue118CISplitContractTests(unittest.TestCase):
         workflow = load_workflow(WORKFLOWS / "docs-ci.yml")
         triggers = workflow["on"]
         self.assertIn("pull_request", triggers)
+        self.assertNotIn("pull_request_target", triggers)
         self.assertEqual(
             triggers.get("push", {}).get("branches"),
             ["main"],
@@ -116,18 +119,23 @@ class Issue118CISplitContractTests(unittest.TestCase):
         self.assertIn("if", selftest, "validator self-tests must be path-filtered")
 
         workflow_text = (WORKFLOWS / "docs-ci.yml").read_text(encoding="utf-8")
-        for relevant_path in (
-            "scripts/validate_repository_policy.py",
-            "scripts/validate_msp_055_api_freeze.py",
-            "scripts/machine_publication_policy.py",
-            "tests/test_policy_validator.py",
-            "tests/policy_test_support.py",
+        for relevant_boundary in (
+            "tests/",
+            "scripts/validate_",
+            "scripts/machine_publication_policy",
+            "requirements-ci",
         ):
             self.assertIn(
-                relevant_path,
+                relevant_boundary,
                 workflow_text,
-                f"validator-selftest routing must include {relevant_path}",
+                f"validator-selftest routing must include {relevant_boundary}",
             )
+        classifier = re.search(r"grep -Eq '([^']+)'", workflow_text)
+        self.assertIsNotNone(classifier, "missing validator-selftest path classifier")
+        self.assertIsNotNone(
+            re.search(classifier.group(1), "tests/test_future_validator_regression.py"),
+            "every current or future test module must route to validator-selftest",
+        )
 
         local_ci = require_executable(self, LOCAL_CI)
         self.assertIn("scripts/ci_docs_fast.sh", local_ci)
