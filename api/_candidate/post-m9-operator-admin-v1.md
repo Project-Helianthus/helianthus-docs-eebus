@@ -5,7 +5,7 @@ license: "AGPL-3.0-only"
 publication_status: "candidate"
 claim_status: "evidence-backed"
 source_class: "derived_inference"
-evidence_ids: "EV-20260720-001,EV-20260809-001,EV-20260811-001"
+evidence_ids: "EV-20260720-001,EV-20260809-001,EV-20260811-001,EV-20260814-001"
 hypothesis_status: "draft"
 falsifier: "A reviewed gateway implementation shows that the closed operations, authentication profiles, state-revision and idempotency bindings, or sanitized response models cannot represent the architecture contract without exposing coordinator/store internals or adding a second public eeBUS namespace."
 stable_navigation: "false"
@@ -359,6 +359,17 @@ presence/omission, typed values, and opaque arrays preserved:
 | `feature` | `device_address`, `entity_address`, `feature_address`, `type`, `role`, `description?`, `secondary_digest?`, `opaque?` |
 | `use_case_claim` | `context_address`, `name`, `actor`, `resolved_role?`, `scenarios?`, `version?`, `availability?`, `document_subrevision?`, `secondary_digest?`, `opaque?` |
 | `opaque` | `path`, `source`, `value` |
+
+Use-case claims preserve the scope carried by their canonical
+`context_address`. Parent resolution is closed and deterministic: an exact
+feature-address match makes the claim a child of that feature; otherwise an
+exact entity-address match makes it a child of that entity. The second form is
+an entity-scoped claim, not a missing feature. The wrapper does not synthesize
+a feature, rewrite `context_address`, or copy an entity-scoped claim onto every
+feature. If a claim belongs to the selected partner but matches neither one
+exact feature address nor one exact entity address in the same immutable
+snapshot, the snapshot fails closed as `admin_boundary_unavailable`. Claims
+for another partner remain excluded by the existing partner filter.
 
 The adapter may not replace, rename, synthesize, or discard any canonical
 payload field. `metadata`, `opaque`, and their typed nested values cross the
