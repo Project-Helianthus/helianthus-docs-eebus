@@ -946,6 +946,11 @@ class PolicyValidatorTests(unittest.TestCase):
 
     def test_workflow_semantic_bypasses_fail(self) -> None:
         mutations = {
+            "selftest command replaced": lambda text: text.replace(
+                "        run: ./scripts/ci_validator_selftest.sh\n",
+                "        run: true\n",
+                1,
+            ),
             "pull request target": lambda text: text.replace(
                 '"on":\n  pull_request:\n',
                 '"on":\n  pull_request:\n  pull_request_target:\n',

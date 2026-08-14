@@ -7546,6 +7546,37 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             or selftest_job.get("needs") != "changes"
         ):
             errors.append(".github/workflows/docs-ci.yml: validator-selftest must be relevant-only and bounded")
+        else:
+            expected_selftest_steps = (
+                {
+                    "name": "Checkout",
+                    "uses": (
+                        "actions/checkout@34e114876b0b11c390a5"
+                        "6381ad16ebd13914f8d5"
+                    ),
+                    "with": {"persist-credentials": False},
+                },
+                {
+                    "name": "Set up Python",
+                    "uses": (
+                        "actions/setup-python@a26af69be951a213d495a"
+                        "4c3e4e4022e16d87065"
+                    ),
+                    "with": {"python-version": "3.12.10"},
+                },
+                {
+                    "name": "Install policy validator dependencies",
+                    "run": "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt",
+                },
+                {
+                    "name": "Run validator self-tests",
+                    "run": "./scripts/ci_validator_selftest.sh",
+                },
+            )
+            if tuple(selftest_job.get("steps", ())) != expected_selftest_steps:
+                errors.append(
+                    ".github/workflows/docs-ci.yml: validator-selftest steps must be exact and immutable"
+                )
 
     workflow_root = root / ".github" / "workflows"
     workflow_paths = (

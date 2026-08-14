@@ -121,6 +121,7 @@ class Issue118CISplitContractTests(unittest.TestCase):
         workflow_text = (WORKFLOWS / "docs-ci.yml").read_text(encoding="utf-8")
         for relevant_boundary in (
             "tests/",
+            ".github/workflows/",
             "scripts/validate_",
             "scripts/machine_publication_policy",
             "requirements-ci",
@@ -136,6 +137,25 @@ class Issue118CISplitContractTests(unittest.TestCase):
             re.search(classifier.group(1), "tests/test_future_validator_regression.py"),
             "every current or future test module must route to validator-selftest",
         )
+        for workflow_path in (
+            ".github/workflows/future-push-only.yml",
+            ".github/workflows/future-push-only.yaml",
+        ):
+            self.assertIsNotNone(
+                re.search(classifier.group(1), workflow_path),
+                f"workflow change must route to validator-selftest: {workflow_path}",
+            )
+
+        steps = selftest.get("steps", [])
+        run_steps = [step for step in steps if step.get("run") == "./scripts/ci_validator_selftest.sh"]
+        self.assertEqual(len(run_steps), 1, "selftest job must invoke its exact bounded script")
+        install_steps = [
+            step
+            for step in steps
+            if step.get("run")
+            == "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt"
+        ]
+        self.assertEqual(len(install_steps), 1, "selftest dependencies must remain hash-locked")
 
         local_ci = require_executable(self, LOCAL_CI)
         self.assertIn("scripts/ci_docs_fast.sh", local_ci)
