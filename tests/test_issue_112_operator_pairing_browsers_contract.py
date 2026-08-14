@@ -95,7 +95,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "eleven entities",
             "twenty features",
             "use-case claims",
-            "derived, falsifiable target awaiting the final owner-authorized live run",
+            "derived, falsifiable target awaiting the final operator-confirmed live run",
             "not an evidence-backed claim that every VR940 has that cardinality",
             "does not bind those counts to VR940",
         ):
@@ -143,7 +143,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "helianthus.eebus.operator-admin.v1",
             "Idempotency-Key",
             "state_revision",
-            "eebus.admin.trust",
+            "confirm candidate",
             "candidate:confirm",
             "DELETE /admin/eebus/v1/partners/{partner_id}/trust",
             "No response or request contains `candidate_ref`",
@@ -160,7 +160,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
         _, api = read_markdown(API)
         normalized = " ".join((architecture + api).split())
         required = (
-            "Endpoint Authorization Matrix",
+            "Endpoint Operations Matrix",
             "| `candidate` view | allow | allow |",
             "| Raw SPINE page | allow | allow |",
             "| Open/close pairing window; select/connect/retry | allow | allow |",
@@ -215,7 +215,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
         _, api = read_markdown(API)
         normalized = " ".join(api.split())
         required = (
-            "live pairing confirmation at action time is an operational control, not an authentication mechanism",
+            "Live pairing confirmation at action time is an operational control, not an authentication mechanism",
             "URL, query string, request body, response, audit row, log, metric",
             "must never contain or echo",
             "never copied into application state, idempotency records, errors, or coordinator commands",
@@ -236,7 +236,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "never enter local/session storage, IndexedDB, browser history, URL state",
             "server and client lifetimes are distinct and both bounded",
             "request/response buffers clear candidate identity immediately after response completion",
-            "only in the currently visible active OOB view long enough for the owner comparison",
+            "only in the currently visible active OOB view long enough for the operator comparison",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)

@@ -44,7 +44,7 @@ class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
     def test_select_connect_cancel_retry_and_untrust_are_distinct(self) -> None:
         text = normalized(API)
         for phrase in (
-            "observation handle and the complete expected SKI",
+            "observation handle and the complete expected certificate short identifier",
             "returns a selection handle without dialing or trusting",
             "connect consumes only that selection handle",
             "POST /admin/eebus/v1/selections/{selection_id}:connect",
