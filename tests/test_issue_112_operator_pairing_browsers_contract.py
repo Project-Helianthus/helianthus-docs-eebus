@@ -57,7 +57,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "stable raw MCP namespace remains exactly `eebus.v1.*`",
             "No `eebus.v2.*`",
             "Stable public MCP stays read-only",
-            "Gateway authenticated admin boundary",
+            "Gateway typed operator boundary",
             "Direct trust-store access",
             "eeBUS operator socket",
             "never creates a Portal or Home Assistant model of protocol truth",
@@ -78,7 +78,6 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "same-generation protocol completion",
             "non-empty `remote_ship_id` value",
             "Persistence failure is terminal",
-            "CSRF proof",
             "idempotency binding",
             "deterministic non-mutating rejection",
         )
@@ -124,28 +123,24 @@ class PostM9OperatorContractTest(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_missing_admin_auth_boundary_denies_reads_and_mutations(self) -> None:
+    def test_eebus_specific_auth_is_not_a_pairing_prerequisite(self) -> None:
         _, architecture = read_markdown(ARCH)
         _, api = read_markdown(API)
         normalized = " ".join((architecture + api).split())
         required = (
-            "every read and mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable`",
-            "There is no unauthenticated admin-status fallback",
-            "all admin reads and mutations fail closed as `admin_boundary_unavailable`",
-            "return no operator data, and do not invoke the coordinator",
-            "candidate-free public MCP reads are the only unchanged read-only fallback",
+            "eeBUS-specific authentication is out of scope",
+            "does not define a login, session, cookie, CSRF token, owner credential, HA credential, or reauthentication flow",
+            "Existing Portal and Home Assistant authentication lifecycles are outside this contract",
+            "must not withhold pairing mutations pending a separate Portal authentication change",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_admin_api_is_closed_authenticated_csrf_safe_and_non_disclosing(self) -> None:
+    def test_operator_api_is_closed_non_disclosing_and_not_an_auth_profile(self) -> None:
         _, body = read_markdown(API)
         normalized = " ".join(body.split())
         required = (
             "helianthus.eebus.operator-admin.v1",
-            "portal_owner",
-            "ha_integration",
-            "Mandatory session-bound CSRF token",
             "Idempotency-Key",
             "state_revision",
             "eebus.admin.trust",
@@ -160,28 +155,20 @@ class PostM9OperatorContractTest(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_ha_credential_cannot_autonomously_read_or_mutate_trust(self) -> None:
+    def test_portal_and_ha_have_the_same_closed_pairing_actions(self) -> None:
         _, architecture = read_markdown(ARCH)
         _, api = read_markdown(API)
         normalized = " ".join((architecture + api).split())
         required = (
             "Endpoint Authorization Matrix",
-            "`candidate` view | allow | deny",
-            "Raw SPINE page | allow | deny; open Portal instead",
-            "Confirm candidate trust | allow after OOB comparison | deny",
-            "Revoke durable trust | allow | deny",
-            "There is no HA mutation grant, minting route, exchange route, mutation scope, or credential escalation",
-            "contains no query or fragment data and conveys no authority",
-            "owner performs every mutation directly in Portal",
-            "`ha_integration` projection omits every candidate-derived field",
-            "candidate count, presence, lifecycle state, expiry, identity, failure",
-            "indistinguishable for zero versus one-or-more candidates",
-            "revision is not advanced or partitioned solely to signal a candidate-visible change",
-            "receives no pairing-window state, deadline, `register` state, or owner-intent derivative",
-            "automatic window close, commit failure, or any other candidate lifecycle event alone changes no HA-visible field",
-            "complete HA JSON projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`, `TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states",
-            "Candidate-bound, connected-untrusted, and transient-trust sessions are absent from every HA row, count, revision input, and degradation input",
-            "`connected` includes only rows already backed by an independently usable durable association",
+            "| `candidate` view | allow | allow |",
+            "| Raw SPINE page | allow | allow |",
+            "| Open/close pairing window; select/connect/retry | allow | allow |",
+            "| Confirm candidate trust | allow after OOB comparison | allow after OOB comparison |",
+            "| Cancel current candidate | allow | allow |",
+            "| Revoke durable trust | allow | allow |",
+            "Home Assistant performs the same typed closed operations through the gateway boundary",
+            "does not receive a trust-store handle or an operator socket",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
@@ -214,7 +201,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
         required = (
             "supersedes M4B's no-capture/no-share rule only to the minimum extent",
             "bounded request-lifetime memory",
-            "transmit it once in the authenticated Portal response",
+            "transmit it once in the Portal response",
             "continuation of M4B's sole private candidate-read exception",
             "MUST NOT be logged, metriced, traced, persisted",
             "request/response buffers clear it immediately after the response completes",
@@ -224,11 +211,11 @@ class PostM9OperatorContractTest(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, normalized)
 
-    def test_authentication_material_uses_only_designated_transport_fields(self) -> None:
+    def test_action_time_confirmation_is_operational_not_login(self) -> None:
         _, api = read_markdown(API)
         normalized = " ".join(api.split())
         required = (
-            "designated secure session cookie, CSRF header, or HA authorization header",
+            "live pairing confirmation at action time is an operational control, not an authentication mechanism",
             "URL, query string, request body, response, audit row, log, metric",
             "must never contain or echo",
             "never copied into application state, idempotency records, errors, or coordinator commands",
@@ -266,9 +253,9 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "Public `Runtime`, MCP, GraphQL, Portal, and Home Assistant surfaces remain candidate-free",
             "does not add an MCP tool/resource, GraphQL mutation, Portal action, Home Assistant service",
             "same-UID AF_UNIX transport remains the private coordinator command",
-            "authenticated `portal_owner` adapter",
+            "typed Portal and Home Assistant adapters",
             "The amendment does not expose `candidate_nonce`",
-            "Home Assistant remains candidate-free",
+            "Home Assistant may invoke the same typed pairing operations",
             "public Runtime, MCP, GraphQL",
             "Every other M4B confidentiality, same-generation confirmation, persistence, and restart rule continues unchanged",
         )
