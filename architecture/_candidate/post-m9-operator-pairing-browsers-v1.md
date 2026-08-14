@@ -257,6 +257,54 @@ derived one-device, eleven-entity, twenty-feature target and use-case claims
 without leaking it into semantic or eBUS surfaces; only that run may establish
 whether the target is valid for this VR940.
 
+## In-Process Operator Capability
+
+The gateway obtains the coordinator-owned operator capability only through the
+exported free accessor `OperatorAdminV1(Runtime) (AdminV1, error)`. The
+accessor resolves a package-private provider implemented by the package-owned
+runtime implementation. It does not add a method to the public `Runtime`
+interface, and an external wrapper cannot implement or recover the private
+provider method.
+
+This is capability plumbing, not authentication. Only the gateway composition
+retains the returned value; the gateway-owned HTTP adapter still performs
+authentication, authorization, CSRF validation, request bounding, and
+principal-specific projection before invoking it. Portal and Home Assistant
+never receive the capability and never open the trust store or same-UID admin
+socket.
+
+The ordinary `Runtime.Snapshot`, `Runtime.PairingState`, raw MCP, GraphQL, Home
+Assistant, semantic registry, logging, metrics, diagnostics, and shareable
+evidence cannot reach or serialize `AdminV1`. Their existing contracts and
+revisions do not change solely because an owner-only candidate exists. The
+operator capability owns a separate instance-scoped reducer and revision.
+
+That reducer is the single linearization point for snapshots and mutations.
+Its revision starts at 1 only after the backend and coordinator are ready,
+never exposes zero, advances once for each distinct sanitized owner-visible
+transition, and must fail closed before unsigned 64-bit wrap. It performs
+expiry and idempotency replay lookup before revision comparison, resolves the
+typed handle, reserves the transition, and only then releases its lock for a
+transport or persistence effect.
+
+The capability uses four distinct opaque handle kinds: partner, observation,
+selection, and candidate. Each handle is generated with cryptographically
+secure randomness and is bound server-side to the runtime instance, kind,
+target, issuing revision, and expiry. A handle lives for at most two minutes;
+selection and candidate handles also expire at the earlier owning window or
+candidate deadline. The reducer permits at most 128 live handles per kind and
+512 live handles in total. It prunes expired values first and never evicts a
+still-valid handle to make space.
+
+All handles are invalidated on every admin revision change, runtime shutdown,
+backend replacement, process restart, or an earlier target-specific close or
+expiry. A snapshot may reuse the current-revision handle for the same target;
+no handle survives into a later revision. Zero, malformed, expired,
+wrong-kind, cross-instance, or stale-revision handles reject without an
+effect. The generic JSON, text, formatting, logging, metrics, diagnostics, and
+shareable evidence reveal neither handle tokens nor operator identity or
+endpoint wrappers.
+
 ## Amendment To The M4B Local Admin Boundary
 
 This post-M9 candidate narrowly amends the candidate-free clauses in

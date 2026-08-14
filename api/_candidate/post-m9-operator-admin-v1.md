@@ -29,6 +29,14 @@ protocol claim, or a direct wrapper around the owner Unix socket. Stable MCP
 remains the single read-only `eebus.v1.*` namespace; no v2 or legacy alias is
 defined here.
 
+The in-process adapter contract is additive and separate from the public
+runtime interface. `OperatorAdminV1(Runtime) (AdminV1, error)` returns the one
+typed owner capability through a package-private provider while leaving the
+public `Runtime` method set unchanged and candidate-free. The capability is
+not serializable, is not an authorization grant, and is held only by the
+gateway composition. Failure to obtain it maps to
+`admin_boundary_unavailable` before request object resolution.
+
 If the gateway cannot establish an authenticated admin boundary, every read and
 mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable` with no
 `data`, without resolving an object or invoking the coordinator. There is no
@@ -76,6 +84,40 @@ replayed with the same idempotency key and identical bindings returns the same
 logical terminal result. Reuse with different bindings returns
 `idempotency_conflict` and performs no effect.
 
+Every typed in-process mutation request embeds the closed
+`MutationPreconditionV1` object:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `idempotency_key` | string | 1..128 UTF-8 bytes; empty, malformed, or over-limit values are `invalid_request`. |
+| `expected_state_revision` | unsigned integer | non-zero and exactly equal to the current operator revision after replay lookup. |
+
+Within one operator serializer, replay lookup precedes revision comparison.
+The same key with the identical operation, runtime instance, handle, expected
+revision, and argument binding returns the same logical terminal result with
+`replayed=true` and does not execute a second effect. The same key with a
+changed operation, handle, revision, or argument binding returns
+`idempotency_conflict` and does not execute a second effect. A stale revision
+with an unseen key returns `state_conflict` without retaining a replay entry.
+
+The in-process operation set is closed:
+
+```text
+Snapshot(context, AdminSnapshotRequestV1) -> AdminSnapshotV1
+OpenPairingWindow(context, OpenPairingWindowRequestV1) -> AdminMutationResultV1
+ClosePairingWindow(context, ClosePairingWindowRequestV1) -> AdminMutationResultV1
+Select(context, SelectRequestV1) -> AdminSelectionResultV1
+Connect(context, ConnectRequestV1) -> AdminMutationResultV1
+Confirm(context, ConfirmRequestV1) -> AdminMutationResultV1
+Cancel(context, CancelRequestV1) -> AdminMutationResultV1
+RetryTrusted(context, RetryTrustedRequestV1) -> AdminMutationResultV1
+Untrust(context, UntrustRequestV1) -> AdminMutationResultV1
+```
+
+`AdminMutationResultV1` contains only `state_revision`, a closed outcome, and
+`replayed`. `AdminSelectionResultV1` adds one opaque selection handle. There is
+no generic action handle and no caller-controlled transport coordinate.
+
 ## Closed Operations
 
 The route spellings below are the candidate wire shape. They are relative to
@@ -91,6 +133,7 @@ the protected gateway admin origin.
 | `POST /admin/eebus/v1/observations/{observation_id}:select` | `eebus.admin.pairing` | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
 | `POST /admin/eebus/v1/observations/{observation_id}:connect` | `eebus.admin.pairing` | Starts one bounded authorized attempt for the selected current observation. |
 | `POST /admin/eebus/v1/candidate:confirm` | `eebus.admin.trust` | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
+| `POST /admin/eebus/v1/candidate:cancel` | `eebus.admin.pairing` | Retires only the exact current volatile candidate and selection; never changes durable trust. |
 | `POST /admin/eebus/v1/partners/{partner_id}:retry` | `eebus.admin.pairing` | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
 | `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | `eebus.admin.trust` | Revokes the exact durable association and current runtime trust through the coordinator. |
 
@@ -190,6 +233,25 @@ eligible inbound callback may then bind only that already selected identity and
 generation. An inbound callback cannot select a candidate, and no observation
 is fabricated. Both TLS paths otherwise use identical OOB, expiry, generation,
 and persistence rules.
+
+At the in-process boundary, select consumes only an observation handle and the
+complete expected SKI, and returns a selection handle without dialing or
+trusting; connect consumes only that selection handle and the exact current
+revision; retry accepts only a partner handle and never an endpoint. SHIP owns
+fresh discovery, endpoint validation, gate admission, and the single outbound
+attempt; untrust resolves association, manifest, control, and store bindings
+internally before durable revocation; none of those bindings are accepted from
+the caller or exposed in a result.
+
+Operator snapshots request exactly one closed view: `trusted`, `connected`,
+`discovered`, or `candidate`. Each response contains one non-zero operator
+revision, capture time, sanitized status, and only the selected typed row set.
+Partner, observation, selection, and candidate handles are process-local,
+opaque, non-serializable capabilities. They expire after at most two minutes,
+are capped at 128 live handles per kind and 512 live handles in total, and are
+invalidated on every admin revision change. Capacity exhaustion never evicts a
+still-valid handle and returns `admin_boundary_unavailable` without partial
+output.
 
 Candidate rows and complete candidate certificate identity are returned only
 to `portal_owner`. The HA response shape omits them and cannot distinguish an
