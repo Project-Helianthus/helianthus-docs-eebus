@@ -47,11 +47,18 @@ class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
             "observation handle and the complete expected SKI",
             "returns a selection handle without dialing or trusting",
             "connect consumes only that selection handle",
+            "POST /admin/eebus/v1/selections/{selection_id}:connect",
+            "select response returns one opaque `selection_id`",
+            "maps only to the returned in-process selection handle",
+            "same authenticated Portal session and principal",
             "POST /admin/eebus/v1/candidate:cancel",
             "retry accepts only a partner handle and never an endpoint",
             "untrust resolves association, manifest, control, and store bindings internally",
         ):
             self.assertIn(phrase, text)
+        self.assertNotIn(
+            "POST /admin/eebus/v1/observations/{observation_id}:connect", text
+        )
 
     def test_handles_and_admin_revision_are_bounded_and_non_serializable(self) -> None:
         text = normalized(ARCH) + " " + normalized(API)
