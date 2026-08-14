@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260720-001,EV-20260809-001,EV-20260811-001,EV-20260814-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed gateway implementation shows that the closed operations, authentication profiles, state-revision and idempotency bindings, or sanitized response models cannot represent the architecture contract without exposing coordinator/store internals or adding a second public eeBUS namespace."
+falsifier: "A reviewed gateway implementation shows that the closed operations, state-revision and idempotency bindings, or sanitized response models cannot represent the architecture contract without exposing coordinator/store internals or adding a second public eeBUS namespace."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -23,41 +23,31 @@ candidate_output_path: "api/_candidate/post-m9-operator-admin-v1.md"
 
 Contract identity: `helianthus.eebus.operator-admin.v1`.
 
-This is the initial gateway-owned authenticated admin HTTP contract for Portal
-and Home Assistant. It is not MCP, GraphQL, a public Internet API, an eeBUS
+This is the initial gateway-owned typed operator HTTP contract for Portal and
+Home Assistant. It is not MCP, GraphQL, a public Internet API, an eeBUS
 protocol claim, or a direct wrapper around the owner Unix socket. Stable MCP
 remains the single read-only `eebus.v1.*` namespace; no v2 or legacy alias is
 defined here.
 
 The in-process adapter contract is additive and separate from the public
 runtime interface. `NewOperatorRuntimeV1(Config) (Runtime, AdminV1, error)`
-returns the candidate-free runtime and its separate typed owner capability
+returns the candidate-free runtime and its separate typed operator capability
 together only to the creating gateway composition root. Existing `New(Config)`
 callers receive only `Runtime`, and there is no exported accessor that accepts
 an existing `Runtime`. The runtime concrete value does not implement
 `AdminV1` or an exported admin-provider interface, so a holder of an already
 distributed runtime cannot recover the capability through a type assertion or
-helper call. The capability is not serializable, is not an authorization
-grant, and is retained only by the gateway composition. Construction failure
-maps to `admin_boundary_unavailable` before request object resolution.
+helper call. The capability is not serializable and is retained only by the
+gateway composition. Construction failure maps to `admin_boundary_unavailable`
+before request object resolution.
 
-If the gateway cannot establish an authenticated admin boundary, every read and
-mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable` with no
-`data`, without resolving an object or invoking the coordinator. There is no
-unauthenticated admin-status fallback. Read-only public MCP behavior remains
-unchanged.
-
-## Authentication Profiles
-
-| Profile | Authentication | CSRF rule | Allowed use |
-| --- | --- | --- | --- |
-| `portal_owner` | Owner-authenticated, same-origin gateway session. | Mandatory session-bound CSRF token plus strict Origin/Referer and JSON content-type validation. | Read operator views and invoke explicitly authorized pairing actions. |
-| `ha_integration` | Non-cookie least-privilege machine credential bound to one HA config entry. | Browser CSRF does not apply; ambient cookies and browser-origin requests are rejected. | Read sanitized status and non-candidate partner views only. Every mutation, candidate view, and raw view is denied. |
-
-Authentication and authorization run before request decoding can reveal whether
-a partner, observation, trust record, or snapshot exists. Errors are category
-only. Neither profile grants filesystem, trust-store, private-key, or operator-
-socket access.
+eeBUS-specific authentication is out of scope. This contract does not define a
+login, session, cookie, CSRF token, owner credential, HA credential, or
+reauthentication flow. Existing Portal and Home Assistant authentication
+lifecycles are outside this contract and remain unchanged. Pairing mutations
+must not be withheld pending a separate Portal authentication change. Neither
+Portal nor HA receives filesystem, trust-store, private-key, or operator-socket
+access.
 
 ## Common Request And Response Rules
 
@@ -66,12 +56,14 @@ Mutations require:
 - `Content-Type: application/json`;
 - a bounded `Idempotency-Key`;
 - the last observed `state_revision`;
-- an action-specific authorization scope;
-- the profile-specific authentication and CSRF checks; and
 - a bounded request body with unknown fields rejected.
 
-The `portal_owner` envelope carries `state_revision` and uses this closed
-shape for reads and mutations:
+Every Portal and HA mutation supplies the expected state revision and
+idempotency key defined below. Live pairing confirmation at action time is an
+operational control, not an authentication mechanism.
+
+Portal and HA use the same envelope with `state_revision` for reads and
+mutations:
 
 ```json
 {
@@ -88,27 +80,6 @@ does not encode identity, endpoint, time, or store generation. A mutation
 replayed with the same idempotency key and identical bindings returns the same
 logical terminal result. Reuse with different bindings returns
 `idempotency_conflict` and performs no effect.
-
-The read-only `ha_integration` envelope carries `projection_revision` and
-omits `state_revision` and `request_id`:
-
-```json
-{
-  "contract": "helianthus.eebus.operator-admin.v1",
-  "projection_revision": 17,
-  "data": {},
-  "error": null
-}
-```
-
-Its independent revision starts at 1 after the permitted HA projection is
-available and advances only when the complete permitted HA `data` object
-changes. The events candidate admission, cancellation, expiry, and transient
-trust do not change that object or revision. With all permitted non-candidate
-facts equal, the complete HA envelope remains byte-identical across those
-transitions. HA has no mutation route, so `projection_revision` is never
-accepted as an admin precondition and cannot be exchanged for
-`state_revision`.
 
 Every typed in-process mutation request embeds the closed
 `MutationPreconditionV1` object:
@@ -147,40 +118,40 @@ no generic action handle and no caller-controlled transport coordinate.
 ## Closed Operations
 
 The route spellings below are the candidate wire shape. They are relative to
-the protected gateway admin origin.
+the typed gateway operator origin.
 
-| Method and path | Scope | Coordinator effect |
+| Method and path | Typed operation | Coordinator effect |
 | --- | --- | --- |
-| `GET /admin/eebus/v1/status` | `eebus.admin.read` | None; returns local identity summary, pairing-window state, listener/discovery health, and sanitized degradation. |
-| `GET /admin/eebus/v1/partners?view=<view>` | `eebus.admin.read` | None; lists exactly one of `trusted`, `connected`, `discovered`, or `candidate`. |
-| `GET /admin/eebus/v1/partners/{partner_id}/spine?<closed-query>` | `eebus.admin.raw.read` | None; returns one lazy raw snapshot page bound to auth scope and snapshot identity. |
-| `POST /admin/eebus/v1/pairing-window:open` | `eebus.admin.pairing` | Opens one bounded window; never selects or dials. |
-| `POST /admin/eebus/v1/pairing-window:close` | `eebus.admin.pairing` | Closes the window and retires only window-owned volatile state. |
-| `POST /admin/eebus/v1/observations/{observation_id}:select` | `eebus.admin.pairing` | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
-| `POST /admin/eebus/v1/selections/{selection_id}:connect` | `eebus.admin.pairing` | Resolves only the current selection capability and starts its one bounded authorized attempt. |
-| `POST /admin/eebus/v1/candidate:confirm` | `eebus.admin.trust` | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
-| `POST /admin/eebus/v1/candidate:cancel` | `eebus.admin.pairing` | Retires only the exact current volatile candidate and selection; never changes durable trust. |
-| `POST /admin/eebus/v1/partners/{partner_id}:retry` | `eebus.admin.pairing` | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
-| `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | `eebus.admin.trust` | Revokes the exact durable association and current runtime trust through the coordinator. |
+| `GET /admin/eebus/v1/status` | status | None; returns local identity summary, pairing-window state, listener/discovery health, and sanitized degradation. |
+| `GET /admin/eebus/v1/partners?view=<view>` | partner view | None; lists exactly one of `trusted`, `connected`, `discovered`, or `candidate`. |
+| `GET /admin/eebus/v1/partners/{partner_id}/spine?<closed-query>` | raw SPINE page | None; returns one lazy raw snapshot page bound to runtime and snapshot identity. |
+| `POST /admin/eebus/v1/pairing-window:open` | open window | Opens one bounded window; never selects or dials. |
+| `POST /admin/eebus/v1/pairing-window:close` | close window | Closes the window and retires only window-owned volatile state. |
+| `POST /admin/eebus/v1/observations/{observation_id}:select` | select observation | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
+| `POST /admin/eebus/v1/selections/{selection_id}:connect` | connect selection | Resolves only the current selection capability and starts its one bounded attempt. |
+| `POST /admin/eebus/v1/candidate:confirm` | confirm candidate | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
+| `POST /admin/eebus/v1/candidate:cancel` | cancel candidate | Retires only the exact current volatile candidate and selection; never changes durable trust. |
+| `POST /admin/eebus/v1/partners/{partner_id}:retry` | retry trusted partner | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
+| `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | untrust partner | Revokes the exact durable association and current runtime trust through the coordinator. |
 
-### Endpoint Authorization Matrix
+### Endpoint Operations Matrix
 
-| Operation | `portal_owner` | `ha_integration` |
+| Operation | Portal | Home Assistant |
 | --- | --- | --- |
-| Status; `trusted`, `connected`, `discovered` views | allow | allow, sanitized; `connected` includes only rows already backed by an independently usable durable association |
-| `candidate` view | allow | deny |
-| Raw SPINE page | allow | deny; open Portal instead |
-| Open/close pairing window; select/connect/retry | allow | deny |
-| Confirm candidate trust | allow after OOB comparison | deny |
-| Cancel current candidate | allow | deny |
-| Revoke durable trust | allow | deny |
+| Status; `trusted`, `connected`, `discovered` views | allow | allow |
+| `candidate` view | allow | allow |
+| Raw SPINE page | allow | allow |
+| Open/close pairing window; select/connect/retry | allow | allow |
+| Confirm candidate trust | allow after OOB comparison | allow after OOB comparison |
+| Cancel current candidate | allow | allow |
+| Revoke durable trust | allow | allow |
 
-There is no HA mutation grant, minting route, exchange route, mutation scope, or
-credential escalation. HA setup/options/repair may display one fixed
-same-origin Portal path such as `/portal/eebus`; it contains no query or
-fragment data and conveys no authority. The authenticated owner performs every
-mutation directly in Portal. After return, HA resumes polling only its
-candidate-free read projection.
+Home Assistant performs the same typed closed operations through the gateway
+boundary. It does not define an eeBUS credential or reauthentication flow and
+does not receive a trust-store handle or an operator socket. Portal and HA both
+enter the complete expected certificate short identifier independently for the
+typed selection and confirmation flow; neither input can provide an endpoint or
+store binding.
 
 `partner_id`, `observation_id`, and `selection_id` are opaque, bounded, and
 non-authoritative. Every operation resolves them under the current state
@@ -190,45 +161,23 @@ bytes, filesystem path, or socket framing.
 The successful select response returns one opaque `selection_id` plus the
 resulting `state_revision`. In the gateway, that identifier creates a bounded
 server-side record that maps only to the returned in-process selection handle
-and is bound to the same authenticated Portal session and principal, runtime
-instance, issuing revision, and expiry. It is not the serialized in-process
-handle token. Connect accepts no observation identifier, expected SKI,
+and is bound to the same gateway runtime instance, issuing revision, and
+expiry. It is not the serialized in-process
+handle token. Connect accepts no observation identifier, expected certificate
+short identifier,
 endpoint, or reconstructed candidate input; it resolves that exact record and
 invokes `AdminV1.Connect` with only the stored selection handle and common
-precondition. Missing, expired, cross-session, cross-principal, wrong-runtime,
-or stale-revision selection identifiers reject without a transport effect.
+precondition. Missing, expired, wrong-runtime, or stale-revision selection
+identifiers reject without a transport effect.
 
 ## Status And Partner Models
 
-Status contains only:
-
-- local protocol-service identity display fields permitted for the authenticated owner;
-- pairing-window state, deadline, and `register` state;
-- listener and discovery health;
-- aggregate counts for trusted, connected, discovered, and candidate views;
-- one closed degraded-state code; and
-- `state_revision`.
-
-That complete status object is `portal_owner` only. The `ha_integration`
-projection omits every candidate-derived field, including candidate count,
-presence, lifecycle state, expiry, identity, failure, and any aggregate whose
-value would change merely because a candidate exists. Its response is
-therefore indistinguishable for zero versus one-or-more candidates when all
-non-candidate runtime facts are equal. HA receives only listener/discovery
-health, trusted/discovered counts, a connected count restricted to sessions
-already backed by an independently usable durable association, sanitized
-degradation, and `projection_revision`. Candidate-bound, connected-untrusted, and
-transient-trust sessions are absent from every HA row, count, revision input,
-and degradation input until durable commit independently permits them. HA
-receives no pairing-window state, deadline, `register`
-state, or owner-intent derivative. Candidate admission, automatic window close,
-commit failure, or any other candidate lifecycle event alone changes no
-HA-visible field: its projection revision is not advanced or partitioned solely
-to signal a candidate-visible change to that principal. The complete HA JSON
-projection is byte-identical across `OPEN_EMPTY`, `CANDIDATE_PENDING`,
-`TRANSIENT_TRUSTED`, `COMMITTING`, and failed-closed states when all permitted
-non-candidate facts are equal; because the HA envelope contains no per-request
-or owner revision field, the complete HA envelope is byte-identical as well.
+Status for both host operator surfaces contains local protocol-service identity
+display fields, pairing-window state and deadline, `register` state, listener
+and discovery health, trusted/connected/discovered/candidate view counts, a
+closed degraded-state code, and `state_revision`. Candidate lifecycle is
+visible only through this typed operator boundary; it never enters public MCP,
+GraphQL, `ebus.v1`, the semantic registry, or HA entity attributes.
 
 Each partner row is the closed object:
 
@@ -250,7 +199,7 @@ degraded_reason?
 ```
 
 The `remote_ski` field is the complete normalized 40-character lowercase value
-for the authenticated owner. It is never shortened for comparison. The
+for the host operator surfaces. It is never shortened for comparison. The
 `remote_ship_id` field,
 endpoint, and last-seen are present only when the owning runtime fact exists;
 one view cannot synthesize them from another. The public/shareable formatter
@@ -267,14 +216,14 @@ single server-held current candidate, including its connection and store
 generations.
 
 Earlier selection requires the exact current `observation_id` and its revision;
-the returned selection is retained only in the authenticated server-side
-mapping described above. Outbound TLS or an eligible inbound callback may then
+the returned selection is retained only in the server-side mapping described
+above. Outbound TLS or an eligible inbound callback may then
 bind only that already selected identity and generation. An inbound callback
 cannot select a candidate, and no observation is fabricated. Both TLS paths
 otherwise use identical OOB, expiry, generation, and persistence rules.
 
 At the in-process boundary, select consumes only an observation handle and the
-complete expected SKI, and returns a selection handle without dialing or
+complete expected certificate short identifier, and returns a selection handle without dialing or
 trusting; connect consumes only that selection handle and the exact current
 revision; retry accepts only a partner handle and never an endpoint. SHIP owns
 fresh discovery, endpoint validation, gate admission, and the single outbound
@@ -292,27 +241,27 @@ invalidated on every admin revision change. Capacity exhaustion never evicts a
 still-valid handle and returns `admin_boundary_unavailable` without partial
 output.
 
-Candidate rows and complete candidate certificate identity are returned only
-to `portal_owner`. The HA response shape omits them and cannot distinguish an
-absent candidate from one that exists but is unauthorized. HA cannot confirm,
-forward, or relay a candidate action.
+Candidate rows and complete candidate certificate identity are returned only to
+the host operator surfaces. Portal and HA can inspect them and invoke the same
+typed confirm, cancel, retry, and untrust actions, but neither can forward a
+trust-store handle, raw socket, or server-side capability token.
 
 Every response containing candidate-derived data includes `Cache-Control:
 private, no-store`, `Pragma: no-cache`, `Expires: 0`, and `Referrer-Policy:
 no-referrer`. Portal service workers and offline caches must exclude the entire
-`/admin/eebus/v1/` path. Portal holds candidate fields only in request-lifetime
-memory and the active view model; it clears them on candidate expiry or change,
-logout, navigation away, visibility loss, and replacement by any later
-response. Candidate fields never enter local/session storage, IndexedDB,
+`/admin/eebus/v1/` path. Portal and HA hold candidate fields only in
+request-lifetime memory and the active view model; each clears them on candidate
+expiry or change, logout, navigation away, visibility loss, and replacement by
+any later response. Candidate fields never enter local/session storage, IndexedDB,
 browser history, URL state, telemetry, crash capture, or reusable application
 cache.
 
 The server and client lifetimes are distinct and both bounded. Gateway and
 intermediary request/response buffers clear candidate identity immediately
-after response completion. The Portal client may keep it only in the currently
-visible active OOB view long enough for the owner comparison; it clears the
+after response completion. A host client may keep it only in the currently
+visible active OOB view long enough for the operator comparison; it clears the
 view on confirmation/cancel, candidate expiry or change, connection close,
-logout, navigation away, visibility loss, or replacement by a later response.
+navigation away, visibility loss, or replacement by a later response.
 
 ## Lazy SPINE Page
 
@@ -377,8 +326,8 @@ boundary intact; the Portal renders unknown values as raw typed data rather
 than inferring semantics. Unknown kind values or a payload that cannot be
 represented by this lossless mapping fail the page closed.
 
-`snapshot_id` and `next_cursor` are opaque and bound to the effective auth
-scope, mask tier, runtime instance, contract, partner, parent node, stable sort
+`snapshot_id` and `next_cursor` are opaque and bound to the effective operator
+view, mask tier, runtime instance, contract, partner, parent node, stable sort
 position, and snapshot hash. They expire and cannot be replayed after any
 binding changes. The gateway validates the parent against the same immutable
 snapshot before dereference and must not assemble a page from live mutable maps
@@ -390,9 +339,6 @@ The closed category set is:
 
 ```text
 admin_boundary_unavailable
-unauthenticated
-forbidden
-csrf_rejected
 invalid_request
 state_conflict
 snapshot_expired
@@ -414,22 +360,20 @@ persistence_failure
 unknown_state
 ```
 
-Errors do not reveal which certificate-identity byte differed, whether an unauthorized partner
-exists, store contents, private paths, or coordinator internals. Unknown
-runtime outcomes map to `unknown_state` and deny mutation.
+Errors do not reveal which certificate-identity byte differed, whether a
+partner exists, store contents, private paths, or coordinator internals. Unknown
+runtime outcomes map to `unknown_state` and reject mutation.
 
 ## Non-Disclosure And Anti-Leak Rules
 
-Authentication material is accepted only in the designated secure session
-cookie, CSRF header, or HA authorization header defined by the deployment
-profile. A URL, query string, request body, response, audit row, log, metric,
-trace, diagnostic bundle, or shareable screenshot must never contain or echo a
-private key, private PEM, token, credential, trust-store bytes, candidate nonce,
-store internals, or raw socket frame. Authentication headers/cookies are
-consumed before application logging and are never copied into application
-state, idempotency records, errors, or coordinator commands.
+This contract defines no eeBUS-specific authentication material. A URL, query
+string, request body, response, audit row, log, metric, trace, diagnostic
+bundle, or shareable screenshot must never contain or echo a private key,
+private PEM, token, trust-store bytes, candidate nonce, store internals, or raw
+socket frame. Those values are never copied into application state, idempotency
+records, errors, or coordinator commands.
 Complete certificate short identifiers, protocol service identifiers,
-endpoints, native SPINE addresses, and raw/opaque fields are owner-only
+endpoints, native SPINE addresses, and raw/opaque fields are host-operator
 operational data and are removed from public/shareable output.
 
 The admin API never writes raw eeBUS data into `ebus.v1`, unrelated GraphQL,

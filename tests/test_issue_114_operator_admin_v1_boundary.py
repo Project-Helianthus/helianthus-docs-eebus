@@ -44,13 +44,13 @@ class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
     def test_select_connect_cancel_retry_and_untrust_are_distinct(self) -> None:
         text = normalized(API)
         for phrase in (
-            "observation handle and the complete expected SKI",
+            "observation handle and the complete expected certificate short identifier",
             "returns a selection handle without dialing or trusting",
             "connect consumes only that selection handle",
             "POST /admin/eebus/v1/selections/{selection_id}:connect",
             "select response returns one opaque `selection_id`",
             "maps only to the returned in-process selection handle",
-            "same authenticated Portal session and principal",
+            "same gateway runtime instance",
             "POST /admin/eebus/v1/candidate:cancel",
             "retry accepts only a partner handle and never an endpoint",
             "untrust resolves association, manifest, control, and store bindings internally",
@@ -77,20 +77,30 @@ class OperatorAdminV1BoundaryContractTest(unittest.TestCase):
 
     def test_candidate_cancel_authorization_is_closed(self) -> None:
         text = normalized(API)
-        self.assertIn("| Cancel current candidate | allow | deny |", text)
+        self.assertIn("| Cancel current candidate | allow | allow |", text)
 
-    def test_ha_revision_cannot_signal_candidate_lifecycle(self) -> None:
+    def test_ha_can_observe_and_act_without_eebus_credential_or_reauth(self) -> None:
         text = normalized(API) + " " + normalized(ARCH)
         for phrase in (
-            "`portal_owner` envelope carries `state_revision`",
-            "`ha_integration` envelope carries `projection_revision` and omits `state_revision` and `request_id`",
-            "advances only when the complete permitted HA `data` object changes",
-            "candidate admission, cancellation, expiry, and transient trust",
-            "complete HA envelope remains byte-identical",
-            "owner/admin revision still advances",
-            "stale owner mutations return `state_conflict`",
+            "Home Assistant performs the same typed closed operations through the gateway boundary",
+            "does not define an eeBUS credential or reauthentication flow",
+            "candidate view, pairing-window state, and sanitized operation outcomes",
+            "expected state revision",
+            "idempotency key",
+            "stale mutations return `state_conflict`",
         ):
             self.assertIn(phrase, text)
+
+    def test_eebus_specific_authentication_material_is_absent(self) -> None:
+        text = (normalized(API) + " " + normalized(ARCH)).lower()
+        for forbidden in (
+            "portal_owner",
+            "ha_integration",
+            "owner-authenticated",
+            "session-bound csrf",
+            "authentication profiles",
+        ):
+            self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":
