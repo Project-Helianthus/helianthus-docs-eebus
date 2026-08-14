@@ -118,7 +118,7 @@ no generic action handle and no caller-controlled transport coordinate.
 ## Closed Operations
 
 The route spellings below are the candidate wire shape. They are relative to
-the protected gateway admin origin.
+the typed gateway operator origin.
 
 | Method and path | Typed operation | Coordinator effect |
 | --- | --- | --- |

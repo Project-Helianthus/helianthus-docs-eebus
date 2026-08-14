@@ -39,7 +39,7 @@ boundary.
 | Gateway typed operator boundary | Idempotency, revision checks, bounded opaque capabilities, audit outcomes, translation to coordinator commands, and sanitized operator views. | Trust-store parsing, private-key export, duplicate SHIP/SPINE state, or automatic trust policy. |
 | Portal | Full operator workflow, SHIP partner browser, lazy SPINE tree, explicit OOB comparison, and deterministic status presentation. | Direct trust-store access, the eeBUS operator socket, transport ownership, or hidden automatic retry/trust. |
 | Home Assistant integration | HA-native setup/options/repair UX, the same typed operator workflow, SHIP partner browser, and lazy SPINE tree. | Direct trust-store access, the eeBUS operator socket, transport state, or a second pairing FSM. |
-| Stable public MCP | Existing read-only `eebus.v1.*` runtime, service, session, pairing-status, topology, and snapshot inspection. | Pairing mutations, candidate selection, trust writes, or legacy/v2 aliases. |
+| Stable raw MCP | Existing read-only `eebus.v1.*` runtime, service, session, pairing-status, topology, and snapshot inspection for the host operator. | Pairing mutations, candidate selection, trust writes, or legacy/v2 aliases. |
 | Semantic consumers | Promoted protocol-neutral facts only. | Raw SHIP/SPINE records, trust state, certificate or protocol-service identity, endpoints, or candidate state. |
 
 The Portal and Home Assistant are clients of one gateway-owned API. They never
@@ -51,13 +51,15 @@ its typed command boundary and does not reinterpret store bytes.
 
 The stable raw MCP namespace remains exactly `eebus.v1.*`. No `eebus.v2.*`,
 legacy alias, duplicate public mutation tool, or parallel Portal-only topology
-contract is introduced. Pairing mutations live only on the typed operator
-boundary defined by the companion candidate operator API contract.
+contract is introduced. `eebus.v1.*` is a host operator inspection surface, not
+an anonymous, semantic, or public Internet API. Pairing mutations live only on
+the typed operator boundary defined by the companion candidate operator API
+contract.
 
 The operator boundary is not a public MCP graduation. Its version does not
-create a second eeBUS runtime namespace. Stable public MCP stays read-only.
+create a second eeBUS runtime namespace. Stable raw MCP stays read-only.
 Coordinator, revision, handle, and input failures fail closed; they never
-substitute a public MCP mutation.
+substitute an MCP mutation.
 
 eeBUS-specific authentication is out of scope. This contract does not define a
 login, session, cookie, CSRF token, owner credential, HA credential, or
@@ -318,21 +320,24 @@ and Home Assistant responses defined here.
 
 The amendment does not expose `candidate_nonce`, connection generation, store
 generation, or socket framing to Portal or HA. Those bindings stay server-side.
-Home Assistant may invoke the same typed pairing operations, and the public Runtime, MCP, GraphQL,
-semantic, logging, metrics, diagnostics, and shareable evidence boundaries
-remain candidate-free. Where M4B says all Portal surfaces are candidate-free or
-that no HTTP handler/Portal action exists, this section supersedes only those
-statements for typed Portal and Home Assistant adapters. It also supersedes
-M4B's no-capture/no-share rule only to the minimum extent needed for the gateway
-service and admin adapter to hold the complete comparison identity in bounded
-request-lifetime memory and transmit it once in the Portal response. That
-end-to-end relay remains the continuation of M4B's sole private
-candidate-read exception, not a second candidate source or public response.
+Home Assistant may invoke the same typed pairing operations, and the public
+Runtime, MCP, GraphQL, semantic, logging, metrics, diagnostics, and shareable
+evidence boundaries remain candidate-free. Where M4B says all Portal surfaces
+are candidate-free or that no HTTP handler/Portal action exists, this section
+supersedes only those statements for typed Portal and Home Assistant adapters.
+It replaces the earlier relay restriction and supersedes M4B's
+no-capture/no-share rule only to the minimum extent needed for the gateway
+service and adapter to hold the complete comparison identity in bounded
+request-lifetime memory. Both host operator surfaces may receive the
+complete comparison identity via the typed boundary once for the active OOB
+view. That relay remains the continuation of M4B's sole private candidate-read
+exception, not a second candidate source or public response.
 
 The identity still MUST NOT be logged, metriced, traced, persisted, included in
-diagnostics/tests/shareable capture, or sent to HA. Gateway and intermediary
+diagnostics/tests/shareable capture, or included in public MCP, GraphQL,
+`ebus.v1`, the semantic registry, or shareable output. Gateway and intermediary
 request/response buffers clear it immediately after the response completes.
-The Portal client may retain it only in the bounded active OOB view lifetime
+Each host client may retain it only in the bounded active OOB view lifetime
 defined by the API contract, then clears it on every specified terminal or UI
 event. Every other M4B confidentiality, same-generation confirmation,
 persistence, and restart rule continues unchanged.

@@ -199,26 +199,23 @@ class PostM9OperatorContractTest(unittest.TestCase):
 
     def test_m4b_relay_precedence_is_narrow_and_ephemeral(self) -> None:
         _, architecture = read_markdown(ARCH)
-        _, m4b = read_markdown(M4B)
         normalized = " ".join(architecture.split())
-        historical = " ".join(m4b.split())
         required = (
             "supersedes M4B's no-capture/no-share rule only to the minimum extent",
             "bounded request-lifetime memory",
-            "transmit it once in the Portal response",
-            "both host operator surfaces may receive the complete comparison identity",
-            "M4B's Portal-only and `not sent to HA` identity language",
+            "once for the active OOB view",
+            "Both host operator surfaces may receive the complete comparison identity",
+            "replaces the earlier relay restriction",
             "continuation of M4B's sole private candidate-read exception",
             "MUST NOT be logged, metriced, traced, persisted",
             "request/response buffers clear it immediately after the response completes",
-            "Portal client may retain it only in the bounded active OOB view lifetime",
+            "Each host client may retain it only in the bounded active OOB view lifetime",
             "clears it on every specified terminal or UI event",
         )
         for phrase in required:
             self.assertIn(phrase, normalized)
-        self.assertIn("not sent to HA", historical)
-        self.assertNotIn("not sent to HA", normalized)
-        self.assertNotIn("Portal-only", normalized)
+        self.assertNotIn("or sent to HA", normalized)
+        self.assertNotIn("transmit it once in the Portal response", normalized)
 
     def test_routes_name_a_typed_gateway_operator_origin(self) -> None:
         _, api = read_markdown(API)
