@@ -586,7 +586,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                     "actions/checkout@34e114876b0b11c390a5"
                     "6381ad16ebd13914f8d5"
                 ),
-                "with": {"persist-credentials": False},
+                "with": {"path": "docs", "persist-credentials": False},
             },
         )
         source_steps = [
@@ -625,6 +625,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             {"go-version": GO_VERSION, "check-latest": False, "cache": False},
         )
         ci_step = next(step for step in steps if step.get("name") == "Run fast docs CI")
+        self.assertEqual(ci_step["working-directory"], "docs")
         self.assertEqual(ci_step["run"], "./scripts/ci_docs_fast.sh")
         self.assertEqual(
             ci_step["env"]["MSP055_SOURCE_CHECKOUT"],
@@ -636,6 +637,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
             step for step in steps
             if step.get("name") == "Verify MSP-055 online provenance"
         )
+        self.assertEqual(online_step["working-directory"], "docs")
         self.assertEqual(
             online_step["run"],
             "python3 scripts/validate_msp_055_api_freeze.py "

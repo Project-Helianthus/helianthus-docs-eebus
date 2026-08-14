@@ -677,7 +677,7 @@ def _wiring_errors(root: Path) -> set[str]:
             "actions/checkout@34e114876b0b11c390a5"
             "6381ad16ebd13914f8d5"
         ),
-        "with": {"persist-credentials": False},
+        "with": {"path": "docs", "persist-credentials": False},
     }:
         errors.add("offline: ci-wiring")
     if len(source_steps) != 1 or source_steps[0] != {
@@ -705,6 +705,7 @@ def _wiring_errors(root: Path) -> set[str]:
         errors.add("offline: ci-wiring")
     if (
         len(ci_steps) != 1
+        or ci_steps[0].get("working-directory") != "docs"
         or ci_steps[0].get("run") != "./scripts/ci_docs_fast.sh"
         or _value(ci_steps[0], "env", "MSP055_SOURCE_CHECKOUT")
         != "${{ github.workspace }}/source"
@@ -712,6 +713,7 @@ def _wiring_errors(root: Path) -> set[str]:
         errors.add("offline: ci-wiring")
     if len(online_steps) != 1 or online_steps[0] != {
         "name": "Verify MSP-055 online provenance",
+        "working-directory": "docs",
         "run": (
             "python3 scripts/validate_msp_055_api_freeze.py "
             '--source-checkout "$MSP055_SOURCE_CHECKOUT" --online'
