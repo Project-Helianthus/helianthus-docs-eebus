@@ -259,12 +259,19 @@ whether the target is valid for this VR940.
 
 ## In-Process Operator Capability
 
-The gateway obtains the coordinator-owned operator capability only through the
-exported free accessor `OperatorAdminV1(Runtime) (AdminV1, error)`. The
-accessor resolves a package-private provider implemented by the package-owned
-runtime implementation. It does not add a method to the public `Runtime`
-interface, and an external wrapper cannot implement or recover the private
-provider method.
+The gateway obtains the coordinator-owned operator capability only while it
+creates the runtime through
+`NewOperatorRuntimeV1(Config) (Runtime, AdminV1, error)`. This composition
+constructor returns two separate values to the creator. Existing `New(Config)`
+callers continue to receive only the candidate-free public `Runtime`, and
+there is no exported accessor that accepts an existing runtime.
+
+The concrete runtime does not implement `AdminV1` or any exported
+admin-provider interface. A holder of a previously distributed `Runtime`
+therefore cannot recover the capability through a helper call or type
+assertion. The gateway composition retains the separate `AdminV1` value and
+passes only `Runtime` to ordinary MCP, GraphQL, semantic, and Home Assistant
+components.
 
 This is capability plumbing, not authentication. Only the gateway composition
 retains the returned value; the gateway-owned HTTP adapter still performs

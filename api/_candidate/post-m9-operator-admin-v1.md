@@ -30,12 +30,16 @@ remains the single read-only `eebus.v1.*` namespace; no v2 or legacy alias is
 defined here.
 
 The in-process adapter contract is additive and separate from the public
-runtime interface. `OperatorAdminV1(Runtime) (AdminV1, error)` returns the one
-typed owner capability through a package-private provider while leaving the
-public `Runtime` method set unchanged and candidate-free. The capability is
-not serializable, is not an authorization grant, and is held only by the
-gateway composition. Failure to obtain it maps to
-`admin_boundary_unavailable` before request object resolution.
+runtime interface. `NewOperatorRuntimeV1(Config) (Runtime, AdminV1, error)`
+returns the candidate-free runtime and its separate typed owner capability
+together only to the creating gateway composition root. Existing `New(Config)`
+callers receive only `Runtime`, and there is no exported accessor that accepts
+an existing `Runtime`. The runtime concrete value does not implement
+`AdminV1` or an exported admin-provider interface, so a holder of an already
+distributed runtime cannot recover the capability through a type assertion or
+helper call. The capability is not serializable, is not an authorization
+grant, and is retained only by the gateway composition. Construction failure
+maps to `admin_boundary_unavailable` before request object resolution.
 
 If the gateway cannot establish an authenticated admin boundary, every read and
 mutation under `/admin/eebus/v1/` returns `admin_boundary_unavailable` with no
