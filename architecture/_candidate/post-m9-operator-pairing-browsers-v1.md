@@ -94,8 +94,11 @@ inbound boundary:
 7. Only matching same-generation protocol completion and a non-empty
    `remote_ship_id` value may commit the association atomically. Persistence
    failure is terminal and cannot be presented as trusted.
-8. Reconnect uses only the durable identity anchors plus fresh discovery. It
-   never restores a volatile selection or endpoint from before restart.
+8. Reconnect outside the retry-control product uses only the durable identity
+   anchors plus fresh discovery. Fresh discovery alone does not authorize
+   reconnect in the `RETRY_READY` / `RETRYABLE_FAILURE` product; that product
+   requires the typed retry admission below. Reconnect never restores a
+   volatile selection or endpoint from before restart.
 
 Every mutating request carries the current revision and an idempotency binding,
 is evaluated against its closed coordinator state, and is auditable without
@@ -119,7 +122,7 @@ does not infer trust from connectivity or connectivity from discovery.
 
 | View | Source fact | Minimum operator fields | Authority |
 | --- | --- | --- | --- |
-| `trusted` | One usable current-lineage durable association. | Complete certificate short identifier, protocol service identifier when available, brand, device type, model, trust state, connection state, and last-seen time. | May reconnect after fresh discovery; does not imply currently connected. |
+| `trusted` | One usable current-lineage durable association. | Complete certificate short identifier, protocol service identifier when available, brand, device type, model, trust state, connection state, and last-seen time. | Durable trust may reconnect after fresh discovery only when no retry-control admission is required; it does not imply currently connected. |
 | `connected` | One current live session generation. | Complete certificate short identifier, protocol service identifier when available, peer metadata, endpoint, connection state, generation-safe last-seen time. | May expose raw SPINE for the current session; does not imply durable trust. |
 | `discovered` | One current passive discovery observation. | Complete certificate short identifier when advertised, protocol service identifier, brand, device type, model, endpoint, observation revision, and last-seen time. | Read-only until typed selection; never authorizes a dial. |
 | `candidate` | One coordinator-owned volatile candidate for the current pairing window. | Complete TLS-bound certificate short identifier, lifecycle state, expiry, connection binding, and sanitized failure state. | Operator-surface only; never public, persisted, logged, metriced, traced, or included in shareable evidence. |
@@ -178,6 +181,33 @@ Raw facts and promoted semantic facts are visually and structurally separate.
 The raw tree must not enter `ebus.v1`, unrelated GraphQL fields, or the semantic
 registry. Portal may link between views but cannot copy raw identity or native
 addresses into semantic payloads.
+
+## Retry-Ready Recovery-Only Startup
+
+The exact product `RETRY_READY` / `RETRYABLE_FAILURE` with one usable
+current-lineage durable association is a retry-control degradation, not a
+structural or terminal trust denial. On restart, the listener and discovery may
+start so AdminV1 remains available and can obtain a library-owned current
+discovery observation. Startup does not launch an automatic outbound attempt,
+does not erase or rewrite durable trust, and does not restore a caller endpoint
+or a volatile pre-restart selection.
+
+The automatic mDNS reconnect remains denied in this product. Only
+`AdminV1.RetryTrusted` arms exactly one retry for the complete trusted-partner
+identity after the current revision and opaque partner handle resolve. The
+attempt uses the library-owned current discovery observation and no
+caller-supplied endpoint. The volatile admission is consumed by that one
+attempt; a failed synchronous retry releases the volatile admission. A later
+retry therefore requires another current typed operation and cannot inherit
+authority from the earlier request.
+
+This recovery-only exception is exact. `BACKOFF_ACTIVE`, `ADMIN_HOLD`,
+`REVOKED`, `CORRUPT_STORE`, `NO_LOCAL_IDENTITY`, structural quarantine, and
+terminal security quarantine cannot start transport effects or arm retry.
+Missing, duplicated, stale, tombstoned, or otherwise unusable durable
+association bindings also remain fail closed. Listener/discovery availability
+in the exact retry-ready product does not widen candidate, trust, store,
+socket, raw-data, or semantic authority.
 
 ## Closed Operator Outcomes
 

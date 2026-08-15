@@ -215,6 +215,24 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, normalized)
 
+    def test_retry_ready_is_excluded_from_generic_trusted_reconnect(self) -> None:
+        contract = compact(
+            read("architecture/_candidate/msp-052-outbound-pairing-contract.md")
+        )
+        for required in (
+            "A persisted-trusted remote in the `RETRY_READY` / `RETRYABLE_FAILURE` product is not eligible for generic reconnect",
+            "Only an explicit identity-bound `AdminV1.RetryTrusted` admission may authorize one attempt",
+            "Fresh mDNS discovery cannot supply or replace that admission",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, contract)
+        for forbidden in (
+            "The current remote service must be either persisted-trusted for reconnect or an actively authorized queued pairing candidate",
+            "After restart, a trusted reconnect starts with fresh mDNS discovery",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, contract)
+
     def test_policy_rejects_automatic_or_discovery_driven_outbound_routes(self) -> None:
         policy = load_policy_module()
         validator = getattr(policy, "outbound_pairing_contract_errors")

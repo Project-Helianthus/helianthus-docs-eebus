@@ -89,9 +89,11 @@ selected SKI and fail closed if selection or window authority has expired.
 
 SHIP Hub establishes the eligible authority before endpoint planning.
 
-The current remote service must be either persisted-trusted for reconnect or
-an actively authorized queued pairing candidate. A passive mDNS callback
-grants no authority and cannot create either eligibility state.
+The current remote service must be either persisted-trusted and not subject to
+retry-control admission, or an actively authorized queued pairing candidate.
+A persisted-trusted remote in the `RETRY_READY` / `RETRYABLE_FAILURE` product
+is not eligible for generic reconnect. A passive mDNS callback grants no
+authority and cannot create either eligibility state.
 
 When either eligibility state already exists, that callback may trigger or
 schedule connection initiation from the current snapshot. Every resulting dial
@@ -127,8 +129,9 @@ Before every dial, the outbound attempt gate revalidates the current Hub
 authority and authorizes the exact endpoint and exact path from that frozen
 snapshot or the explicit empty path. Authorization and permit for
 the observed path do not transfer to the empty path, and authorization for one
-endpoint cannot authorize the next address or the hostname. On a
-persisted-trusted reconnect, authority comes from the current trusted service.
+endpoint cannot authorize the next address or the hostname. For such an
+eligible generic trusted reconnect, authority comes from the current trusted
+service.
 On a queued first-trust attempt, the gate must also retain the exact currently
 selected candidate SKI and stricter eebusreg trust/admin authorization.
 Endpoint order does not weaken that first-trust boundary or let mDNS discovery
@@ -238,10 +241,14 @@ to the exact currently selected candidate SKI and requires its own fresh
 reservation and launch authorization for the endpoint/path supplied by that
 same frozen discovery attempt.
 
-After restart, a trusted reconnect starts with fresh mDNS discovery. It may use
-only the persisted identity anchors (`persisted_ski` and `persisted_ship_id`) to
-recognize a newly observed matching peer; it never restores a candidate reference, queued
-attempt, previous endpoint, or in-flight handshake. An unresolved journal
+After restart, a generic trusted reconnect that requires no retry-control
+admission starts with fresh mDNS discovery. It may use only the persisted
+identity anchors (`persisted_ski` and `persisted_ship_id`) to recognize a newly
+observed matching peer; it never restores a candidate reference, queued
+attempt, previous endpoint, or in-flight handshake. The `RETRY_READY` /
+`RETRYABLE_FAILURE` product is recovery-only. Only an explicit identity-bound
+`AdminV1.RetryTrusted` admission may authorize one attempt. Fresh mDNS discovery
+cannot supply or replace that admission. An unresolved journal
 reservation is settled as a synthetic failure before runtime effects are
 enabled; the stored endpoint/path is removed and is never used to reconnect.
 The successful-retirement durability-unknown case below is the sole exception:
