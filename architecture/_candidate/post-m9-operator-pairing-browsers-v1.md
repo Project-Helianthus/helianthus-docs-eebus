@@ -179,6 +179,33 @@ The raw tree must not enter `ebus.v1`, unrelated GraphQL fields, or the semantic
 registry. Portal may link between views but cannot copy raw identity or native
 addresses into semantic payloads.
 
+## Retry-Ready Recovery-Only Startup
+
+The exact product `RETRY_READY` / `RETRYABLE_FAILURE` with one usable
+current-lineage durable association is a retry-control degradation, not a
+structural or terminal trust denial. On restart, the listener and discovery may
+start so AdminV1 remains available and can obtain a library-owned current
+discovery observation. Startup does not launch an automatic outbound attempt,
+does not erase or rewrite durable trust, and does not restore a caller endpoint
+or a volatile pre-restart selection.
+
+The automatic mDNS reconnect remains denied in this product. Only
+`AdminV1.RetryTrusted` arms exactly one retry for the complete trusted-partner
+identity after the current revision and opaque partner handle resolve. The
+attempt uses the library-owned current discovery observation and no
+caller-supplied endpoint. The volatile admission is consumed by that one
+attempt; a failed synchronous retry releases the volatile admission. A later
+retry therefore requires another current typed operation and cannot inherit
+authority from the earlier request.
+
+This recovery-only exception is exact. `BACKOFF_ACTIVE`, `ADMIN_HOLD`,
+`REVOKED`, `CORRUPT_STORE`, `NO_LOCAL_IDENTITY`, structural quarantine, and
+terminal security quarantine cannot start transport effects or arm retry.
+Missing, duplicated, stale, tombstoned, or otherwise unusable durable
+association bindings also remain fail closed. Listener/discovery availability
+in the exact retry-ready product does not widen candidate, trust, store,
+socket, raw-data, or semantic authority.
+
 ## Closed Operator Outcomes
 
 | Code | Meaning | Required behavior |

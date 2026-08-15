@@ -231,6 +231,25 @@ attempt; untrust resolves association, manifest, control, and store bindings
 internally before durable revocation; none of those bindings are accepted from
 the caller or exposed in a result.
 
+For the exact restart product `RETRY_READY` / `RETRYABLE_FAILURE` with one
+usable current-lineage durable association, the listener and discovery may
+start and AdminV1 remains available while automatic outbound transport remains
+closed. This recovery-only availability does not launch an automatic outbound
+attempt and does not erase or rewrite durable trust.
+
+`AdminV1.RetryTrusted` arms exactly one retry for the complete trusted-partner
+identity resolved from the current opaque partner handle and revision. It
+accepts no caller-supplied endpoint and uses only the library-owned current
+discovery observation. The automatic mDNS reconnect remains denied until that
+typed operation succeeds in arming the attempt. A failed synchronous retry
+releases the volatile admission; it cannot be reused by a later automatic or
+operator request.
+
+`BACKOFF_ACTIVE`, `ADMIN_HOLD`, `REVOKED`, `CORRUPT_STORE`,
+`NO_LOCAL_IDENTITY`, structural quarantine, terminal security quarantine, or
+an absent/non-current durable association cannot start transport effects or arm
+retry. They retain their existing fail-closed error mapping.
+
 Operator snapshots request exactly one closed view: `trusted`, `connected`,
 `discovered`, or `candidate`. Each response contains one non-zero operator
 revision, capture time, sanitized status, and only the selected typed row set.
