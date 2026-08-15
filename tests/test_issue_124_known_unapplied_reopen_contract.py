@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ARCH = ROOT / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
 API = ROOT / "api/_candidate/post-m9-operator-admin-v1.md"
+PAIRING_API = ROOT / "api/_candidate/msp-052-outbound-pairing-api.md"
 
 
 def normalized(path: Path) -> str:
@@ -15,7 +16,7 @@ def normalized(path: Path) -> str:
 
 class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
     def test_exact_previous_selected_target_absent_is_reconciled_at_reopen(self) -> None:
-        text = normalized(ARCH) + " " + normalized(API)
+        text = normalized(ARCH) + " " + normalized(API) + " " + normalized(PAIRING_API)
         for phrase in (
             "`attempt_prepare`",
             "`exact_previous_selected_and_target_absent`",
@@ -27,7 +28,7 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_ambiguous_or_applied_publication_remains_fail_closed(self) -> None:
-        text = normalized(ARCH) + " " + normalized(API)
+        text = normalized(ARCH) + " " + normalized(API) + " " + normalized(PAIRING_API)
         for phrase in (
             "exact target selected",
             "ambiguous observation",
@@ -39,7 +40,7 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_reconciliation_does_not_create_outbound_authority(self) -> None:
-        text = normalized(ARCH) + " " + normalized(API)
+        text = normalized(ARCH) + " " + normalized(API) + " " + normalized(PAIRING_API)
         for phrase in (
             "does not synthesize failure",
             "does not launch an automatic outbound attempt",
@@ -47,6 +48,18 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
             "one retry",
         ):
             self.assertIn(phrase, text)
+
+    def test_all_normative_surfaces_define_the_same_exception(self) -> None:
+        for path in (ARCH, API, PAIRING_API):
+            text = normalized(path)
+            for phrase in (
+                "`attempt_prepare`",
+                "`exact_previous_selected_and_target_absent`",
+                "compare-and-clear",
+                "`DURABILITY_UNKNOWN`",
+                "does not launch an automatic outbound attempt",
+            ):
+                self.assertIn(phrase, text, path)
 
 
 if __name__ == "__main__":

@@ -171,9 +171,20 @@ The private attempt-gate dependency may journal an opaque reservation and that
 reservation's exact frozen discovered endpoint/path. It must not journal
 `candidate_ref` or expose the endpoint/path through admin inspection. No
 `RuntimeConfig`, static endpoint, configured root path, public API argument, or
-consumer field can supply fallback authority. Restart consumes an unresolved
-reservation as one synthetic failure before serving requests; it does not
-restore a candidate capability or reconnect route.
+consumer field can supply fallback authority. Restart normally consumes an
+unresolved reservation as one synthetic failure before serving requests; it
+does not restore a candidate capability or reconnect route. The sole
+known-unapplied exception is an interrupted `attempt_prepare` observed as
+`exact_previous_selected_and_target_absent`. Before listener or discovery
+startup, reopen performs protected-anchor compare-and-clear, preserves the
+unchanged selected store, does not synthesize failure, and resumes normal
+recovery classification. The denied result set is: exact target selected,
+ambiguous observation, descriptor mismatch, or compare-and-clear failure.
+
+Each denied result remains `DURABILITY_UNKNOWN` and cannot start transport
+effects. A durably cleared exact `RETRY_READY` / `RETRYABLE_FAILURE` recovery
+still does not launch an automatic outbound attempt; only
+`AdminV1.RetryTrusted` may arm one retry.
 
 That durable outbound attempt-journal reservation is distinct from the
 volatile inbound winner reservation. The winner reservation is discarded on
