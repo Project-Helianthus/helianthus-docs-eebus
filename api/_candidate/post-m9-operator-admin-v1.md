@@ -237,6 +237,18 @@ start and AdminV1 remains available while automatic outbound transport remains
 closed. This recovery-only availability does not launch an automatic outbound
 attempt and does not erase or rewrite durable trust.
 
+Before listener or discovery startup, reopen may resolve only an interrupted
+`attempt_prepare` whose store observation is exactly
+`exact_previous_selected_and_target_absent`. Protected-anchor
+compare-and-clear must complete durably, preserve the unchanged selected store,
+and then use normal recovery classification. It does not synthesize failure or
+launch an automatic outbound attempt. The denied result set is: exact target
+selected, ambiguous observation, descriptor mismatch, or compare-and-clear
+failure.
+
+Each denied result remains `DURABILITY_UNKNOWN` and cannot start transport
+effects.
+
 `AdminV1.RetryTrusted` arms exactly one retry for the complete trusted-partner
 identity resolved from the current opaque partner handle and revision. It
 accepts no caller-supplied endpoint and uses only the library-owned current
