@@ -56,10 +56,16 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
                 "`attempt_prepare`",
                 "`exact_previous_selected_and_target_absent`",
                 "compare-and-clear",
+                "terminal durable release-retry receipt",
                 "`DURABILITY_UNKNOWN`",
                 "does not launch an automatic outbound attempt",
             ):
                 self.assertIn(phrase, text, path)
+
+        self.assertNotIn(
+            "successful-retirement durability-unknown case below is the sole exception",
+            normalized(ARCH).lower(),
+        )
 
 
 if __name__ == "__main__":

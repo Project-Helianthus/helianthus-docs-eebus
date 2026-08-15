@@ -183,7 +183,8 @@ ambiguous observation, descriptor mismatch, or compare-and-clear failure.
 
 Each denied result remains `DURABILITY_UNKNOWN` and cannot start transport
 effects. A durably cleared exact `RETRY_READY` / `RETRYABLE_FAILURE` recovery
-still does not launch an automatic outbound attempt; only
+with one terminal durable release-retry receipt still does not launch an
+automatic outbound attempt; only
 `AdminV1.RetryTrusted` may arm one retry.
 
 That durable outbound attempt-journal reservation is distinct from the

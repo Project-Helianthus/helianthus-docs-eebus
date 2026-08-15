@@ -253,8 +253,10 @@ The `RETRY_READY` /
 cannot supply or replace that admission. An unresolved journal
 reservation is settled as a synthetic failure before runtime effects are
 enabled; the stored endpoint/path is removed and is never used to reconnect.
-The successful-retirement durability-unknown case below is the sole exception:
-reopen/reconciliation owns it and may not reinterpret it as synthetic failure.
+The successful-retirement durability-unknown case below is the ambiguous
+exception: reopen/reconciliation owns it and may not reinterpret it as
+synthetic failure. The exact known-unapplied `attempt_prepare` branch below is
+the separate deterministic exception.
 
 Reopen also owns one deterministic known-unapplied branch before listener or
 discovery startup. When an interrupted `attempt_prepare` descriptor observes
@@ -263,7 +265,8 @@ target absent (`exact_previous_selected_and_target_absent`), reopen performs a
 protected-anchor compare-and-clear. A durable clear preserves the unchanged
 selected store, does not synthesize failure, and resumes normal recovery
 classification. It grants no outbound authority: an otherwise exact
-`RETRY_READY` / `RETRYABLE_FAILURE` product still requires
+`RETRY_READY` / `RETRYABLE_FAILURE` product with one terminal durable
+release-retry receipt still requires
 `AdminV1.RetryTrusted` to arm one retry and does not launch an automatic
 outbound attempt. The denied result set is: exact target selected, ambiguous
 observation, descriptor mismatch, or compare-and-clear failure.

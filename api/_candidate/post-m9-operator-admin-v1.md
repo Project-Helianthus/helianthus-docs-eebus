@@ -232,10 +232,12 @@ internally before durable revocation; none of those bindings are accepted from
 the caller or exposed in a result.
 
 For the exact restart product `RETRY_READY` / `RETRYABLE_FAILURE` with one
-usable current-lineage durable association, the listener and discovery may
-start and AdminV1 remains available while automatic outbound transport remains
-closed. This recovery-only availability does not launch an automatic outbound
-attempt and does not erase or rewrite durable trust.
+usable current-lineage durable association and one terminal durable
+release-retry receipt, the listener and discovery may start and AdminV1 remains
+available while automatic outbound transport remains closed. This recovery-only
+availability does not launch an automatic outbound attempt and does not erase
+or rewrite durable trust. The receipt is internal control evidence and is never
+exposed through AdminV1.
 
 Before listener or discovery startup, reopen may resolve only an interrupted
 `attempt_prepare` whose store observation is exactly
