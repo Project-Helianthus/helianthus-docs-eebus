@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ARCH = ROOT / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
 API = ROOT / "api/_candidate/post-m9-operator-admin-v1.md"
 PAIRING_API = ROOT / "api/_candidate/msp-052-outbound-pairing-api.md"
+PAIRING_BROWSER = ROOT / "architecture/_candidate/post-m9-operator-pairing-browsers-v1.md"
 
 
 def normalized(path: Path) -> str:
@@ -61,6 +62,16 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
                 "does not launch an automatic outbound attempt",
             ):
                 self.assertIn(phrase, text, path)
+
+        browser = normalized(PAIRING_BROWSER)
+        for phrase in (
+            "`RETRY_READY` / `RETRYABLE_FAILURE`",
+            "one usable current-lineage durable association",
+            "one terminal durable release-retry receipt",
+            "does not launch an automatic outbound attempt",
+            "cannot start transport effects",
+        ):
+            self.assertIn(phrase, browser, PAIRING_BROWSER)
 
         self.assertNotIn(
             "successful-retirement durability-unknown case below is the sole exception",
