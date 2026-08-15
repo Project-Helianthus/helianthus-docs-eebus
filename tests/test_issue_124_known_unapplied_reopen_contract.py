@@ -9,6 +9,7 @@ ARCH = ROOT / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
 API = ROOT / "api/_candidate/post-m9-operator-admin-v1.md"
 PAIRING_API = ROOT / "api/_candidate/msp-052-outbound-pairing-api.md"
 PAIRING_BROWSER = ROOT / "architecture/_candidate/post-m9-operator-pairing-browsers-v1.md"
+NORMATIVE_SURFACES = (ARCH, API, PAIRING_API, PAIRING_BROWSER)
 
 
 def normalized(path: Path) -> str:
@@ -76,6 +77,41 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
         self.assertNotIn(
             "successful-retirement durability-unknown case below is the sole exception",
             normalized(ARCH).lower(),
+        )
+
+    def test_all_normative_surfaces_preserve_ordinary_retry_ready_classification(self) -> None:
+        for path in NORMATIVE_SURFACES:
+            with self.subTest(path=path):
+                text = normalized(path)
+                for phrase in (
+                    "ordinary first-trust commit/reset",
+                    "`repair_sequence=0`",
+                    "no release-retry receipt",
+                    "unrelated repair receipts",
+                    "ordinary paired classification",
+                    "exact journaled reconnect",
+                ):
+                    self.assertIn(phrase, text, path)
+
+    def test_all_normative_surfaces_bound_recovery_only_exception_to_release_repair(self) -> None:
+        for path in NORMATIVE_SURFACES:
+            with self.subTest(path=path):
+                text = normalized(path)
+                for phrase in (
+                    "nonzero `repair_sequence`",
+                    "repair-receipt ledger cardinality matches `repair_sequence`",
+                    "exactly one terminal `release_retry_quarantine` / `repaired_unpaired` receipt",
+                    "nonzero operation and binding identifiers",
+                    "malformed or otherwise non-exact release-repair receipt",
+                    "inconsistent repair-receipt ledger",
+                    "`DURABILITY_UNKNOWN`",
+                ):
+                    self.assertIn(phrase, text, path)
+
+    def test_browser_does_not_turn_missing_release_evidence_into_global_denial(self) -> None:
+        self.assertNotIn(
+            "A missing, duplicated, or non-terminal release-retry receipt is not this exact product and cannot start transport effects.",
+            normalized(PAIRING_BROWSER),
         )
 
 

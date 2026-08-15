@@ -231,13 +231,25 @@ attempt; untrust resolves association, manifest, control, and store bindings
 internally before durable revocation; none of those bindings are accepted from
 the caller or exposed in a result.
 
-For the exact restart product `RETRY_READY` / `RETRYABLE_FAILURE` with one
-usable current-lineage durable association and one terminal durable
-release-retry receipt, the listener and discovery may start and AdminV1 remains
-available while automatic outbound transport remains closed. This recovery-only
-availability does not launch an automatic outbound attempt and does not erase
-or rewrite durable trust. The receipt is internal control evidence and is never
-exposed through AdminV1.
+The recovery-only exception is the exact release-repair restart product:
+`RETRY_READY` / `RETRYABLE_FAILURE` with one usable current-lineage durable
+association, nonzero `repair_sequence`, repair-receipt ledger cardinality
+matches `repair_sequence`, and one terminal durable release-retry receipt:
+exactly one terminal `release_retry_quarantine` / `repaired_unpaired` receipt
+with nonzero operation and binding identifiers. The listener and discovery may
+start and AdminV1 remains available while automatic outbound transport remains
+closed. This recovery-only availability does not launch an automatic outbound
+attempt and does not erase or rewrite durable trust. The receipt is internal
+control evidence and is never exposed through AdminV1.
+
+Not every persisted `RETRY_READY` / `RETRYABLE_FAILURE` record is that
+exception. An ordinary first-trust commit/reset may persist one usable
+association with `repair_sequence=0` and no release-retry receipt, or may
+coexist with unrelated repair receipts when their ledger cardinality is
+consistent. Without an exact release-repair marker, ordinary paired
+classification and its exact journaled reconnect gate remain valid. A
+malformed or otherwise non-exact release-repair receipt, or an inconsistent
+repair-receipt ledger, remains `DURABILITY_UNKNOWN`.
 
 Before listener or discovery startup, reopen may resolve only an interrupted
 `attempt_prepare` whose store observation is exactly

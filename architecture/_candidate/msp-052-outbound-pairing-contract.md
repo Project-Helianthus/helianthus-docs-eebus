@@ -247,12 +247,26 @@ identity anchors (`persisted_ski` and `persisted_ship_id`) to recognize a newly
 observed matching peer; it never restores a candidate reference, queued
 attempt, previous endpoint, or in-flight handshake.
 
-The `RETRY_READY` /
-`RETRYABLE_FAILURE` product is recovery-only. Only an explicit identity-bound
-`AdminV1.RetryTrusted` admission may authorize one attempt. Fresh mDNS discovery
-cannot supply or replace that admission. An unresolved journal
-reservation is settled as a synthetic failure before runtime effects are
-enabled; the stored endpoint/path is removed and is never used to reconnect.
+The recovery-only exception is the exact release-repair product:
+`RETRY_READY` / `RETRYABLE_FAILURE` with one usable current-lineage durable
+association, nonzero `repair_sequence`, repair-receipt ledger cardinality
+matches `repair_sequence`, and one terminal durable release-retry receipt:
+exactly one terminal `release_retry_quarantine` / `repaired_unpaired` receipt
+with nonzero operation and binding identifiers. Not every persisted
+`RETRY_READY` / `RETRYABLE_FAILURE` record is that exception. An ordinary
+first-trust commit/reset may persist one usable association with
+`repair_sequence=0` and no release-retry receipt, or may coexist with unrelated
+repair receipts when their ledger cardinality is consistent. Without an exact
+release-repair marker, ordinary paired classification and its exact journaled
+reconnect gate remain valid. A malformed or otherwise non-exact release-repair
+receipt, or an inconsistent repair-receipt ledger, remains
+`DURABILITY_UNKNOWN`.
+
+Only an explicit identity-bound `AdminV1.RetryTrusted` admission may authorize
+one attempt in the recovery-only exception. Fresh mDNS discovery cannot supply
+or replace that admission. An unresolved journal reservation is settled as a
+synthetic failure before runtime effects are enabled; the stored endpoint/path
+is removed and is never used to reconnect.
 The successful-retirement durability-unknown case below is the ambiguous
 exception: reopen/reconciliation owns it and may not reinterpret it as
 synthetic failure. The exact known-unapplied `attempt_prepare` branch below is
@@ -265,8 +279,8 @@ target absent (`exact_previous_selected_and_target_absent`), reopen performs a
 protected-anchor compare-and-clear. A durable clear preserves the unchanged
 selected store, does not synthesize failure, and resumes normal recovery
 classification. It grants no outbound authority: an otherwise exact
-`RETRY_READY` / `RETRYABLE_FAILURE` product with one terminal durable
-release-retry receipt still requires
+release-repair `RETRY_READY` / `RETRYABLE_FAILURE` product with one terminal
+durable release-retry receipt still requires
 `AdminV1.RetryTrusted` to arm one retry and does not launch an automatic
 outbound attempt. The denied result set is: exact target selected, ambiguous
 observation, descriptor mismatch, or compare-and-clear failure.
