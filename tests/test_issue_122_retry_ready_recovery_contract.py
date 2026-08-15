@@ -38,6 +38,22 @@ class RetryReadyRecoveryContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
 
+    def test_generic_trusted_reconnect_rules_exclude_retry_ready(self) -> None:
+        architecture = normalized(ARCH)
+        for phrase in (
+            "Fresh discovery alone does not authorize reconnect in the `RETRY_READY` / `RETRYABLE_FAILURE` product",
+            "may reconnect after fresh discovery only when no retry-control admission is required",
+        ):
+            self.assertIn(phrase, architecture)
+        self.assertNotIn(
+            "Reconnect uses only the durable identity anchors plus fresh discovery.",
+            architecture,
+        )
+        self.assertNotIn(
+            "May reconnect after fresh discovery; does not imply currently connected.",
+            architecture,
+        )
+
     def test_every_other_recovery_product_remains_fail_closed(self) -> None:
         text = normalized(ARCH) + " " + normalized(API)
         for state in (
