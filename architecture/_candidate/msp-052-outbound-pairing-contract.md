@@ -245,14 +245,34 @@ After restart, a generic trusted reconnect that requires no retry-control
 admission starts with fresh mDNS discovery. It may use only the persisted
 identity anchors (`persisted_ski` and `persisted_ship_id`) to recognize a newly
 observed matching peer; it never restores a candidate reference, queued
-attempt, previous endpoint, or in-flight handshake. The `RETRY_READY` /
+attempt, previous endpoint, or in-flight handshake.
+
+The `RETRY_READY` /
 `RETRYABLE_FAILURE` product is recovery-only. Only an explicit identity-bound
 `AdminV1.RetryTrusted` admission may authorize one attempt. Fresh mDNS discovery
 cannot supply or replace that admission. An unresolved journal
 reservation is settled as a synthetic failure before runtime effects are
 enabled; the stored endpoint/path is removed and is never used to reconnect.
-The successful-retirement durability-unknown case below is the sole exception:
-reopen/reconciliation owns it and may not reinterpret it as synthetic failure.
+The successful-retirement durability-unknown case below is the ambiguous
+exception: reopen/reconciliation owns it and may not reinterpret it as
+synthetic failure. The exact known-unapplied `attempt_prepare` branch below is
+the separate deterministic exception.
+
+Reopen also owns one deterministic known-unapplied branch before listener or
+discovery startup. When an interrupted `attempt_prepare` descriptor observes
+its exact previous generation and control epoch still selected and its exact
+target absent (`exact_previous_selected_and_target_absent`), reopen performs a
+protected-anchor compare-and-clear. A durable clear preserves the unchanged
+selected store, does not synthesize failure, and resumes normal recovery
+classification. It grants no outbound authority: an otherwise exact
+`RETRY_READY` / `RETRYABLE_FAILURE` product with one terminal durable
+release-retry receipt still requires
+`AdminV1.RetryTrusted` to arm one retry and does not launch an automatic
+outbound attempt. The denied result set is: exact target selected, ambiguous
+observation, descriptor mismatch, or compare-and-clear failure.
+
+Each denied result remains `DURABILITY_UNKNOWN` and cannot start transport
+effects.
 
 ## Successful Attempt And Session Close
 

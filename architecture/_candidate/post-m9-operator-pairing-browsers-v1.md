@@ -185,12 +185,13 @@ addresses into semantic payloads.
 ## Retry-Ready Recovery-Only Startup
 
 The exact product `RETRY_READY` / `RETRYABLE_FAILURE` with one usable
-current-lineage durable association is a retry-control degradation, not a
-structural or terminal trust denial. On restart, the listener and discovery may
-start so AdminV1 remains available and can obtain a library-owned current
-discovery observation. Startup does not launch an automatic outbound attempt,
-does not erase or rewrite durable trust, and does not restore a caller endpoint
-or a volatile pre-restart selection.
+current-lineage durable association and one terminal durable release-retry
+receipt is a retry-control degradation, not a structural or terminal trust
+denial. On restart, the listener and discovery may start so AdminV1 remains
+available and can obtain a library-owned current discovery observation. Startup
+does not launch an automatic outbound attempt, does not erase or rewrite
+durable trust, and does not restore a caller endpoint or a volatile pre-restart
+selection.
 
 The automatic mDNS reconnect remains denied in this product. Only
 `AdminV1.RetryTrusted` arms exactly one retry for the complete trusted-partner
@@ -205,9 +206,11 @@ This recovery-only exception is exact. `BACKOFF_ACTIVE`, `ADMIN_HOLD`,
 `REVOKED`, `CORRUPT_STORE`, `NO_LOCAL_IDENTITY`, structural quarantine, and
 terminal security quarantine cannot start transport effects or arm retry.
 Missing, duplicated, stale, tombstoned, or otherwise unusable durable
-association bindings also remain fail closed. Listener/discovery availability
-in the exact retry-ready product does not widen candidate, trust, store,
-socket, raw-data, or semantic authority.
+association bindings also remain fail closed. A missing, duplicated, or
+non-terminal release-retry receipt is not this exact product and cannot start
+transport effects. Listener/discovery availability in the exact retry-ready
+product does not widen candidate, trust, store, socket, raw-data, or semantic
+authority.
 
 ## Closed Operator Outcomes
 
