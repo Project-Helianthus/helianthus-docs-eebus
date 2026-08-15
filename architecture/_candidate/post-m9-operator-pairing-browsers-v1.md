@@ -184,14 +184,24 @@ addresses into semantic payloads.
 
 ## Retry-Ready Recovery-Only Startup
 
-The exact product `RETRY_READY` / `RETRYABLE_FAILURE` with one usable
-current-lineage durable association and one terminal durable release-retry
-receipt is a retry-control degradation, not a structural or terminal trust
-denial. On restart, the listener and discovery may start so AdminV1 remains
-available and can obtain a library-owned current discovery observation. Startup
-does not launch an automatic outbound attempt, does not erase or rewrite
-durable trust, and does not restore a caller endpoint or a volatile pre-restart
-selection.
+The recovery-only exception is the exact release-repair product:
+`RETRY_READY` / `RETRYABLE_FAILURE` with one usable current-lineage durable
+association, nonzero `repair_sequence`, repair-receipt ledger cardinality
+matches `repair_sequence`, and one terminal durable release-retry receipt:
+exactly one terminal `release_retry_quarantine` / `repaired_unpaired` receipt
+with nonzero operation and binding identifiers. It is a retry-control
+degradation, not a structural or terminal trust denial. On restart, the
+listener and discovery may start so AdminV1 remains available and can obtain a
+library-owned current discovery observation. Startup does not launch an
+automatic outbound attempt, does not erase or rewrite durable trust, and does
+not restore a caller endpoint or a volatile pre-restart selection.
+
+Not every persisted `RETRY_READY` / `RETRYABLE_FAILURE` record is that
+exception. An ordinary first-trust commit/reset may persist one usable
+association with `repair_sequence=0` and no release-retry receipt, or may
+coexist with unrelated repair receipts when their ledger cardinality is
+consistent. Without an exact release-repair marker, ordinary paired
+classification and its exact journaled reconnect gate remain valid.
 
 The automatic mDNS reconnect remains denied in this product. Only
 `AdminV1.RetryTrusted` arms exactly one retry for the complete trusted-partner
@@ -206,11 +216,14 @@ This recovery-only exception is exact. `BACKOFF_ACTIVE`, `ADMIN_HOLD`,
 `REVOKED`, `CORRUPT_STORE`, `NO_LOCAL_IDENTITY`, structural quarantine, and
 terminal security quarantine cannot start transport effects or arm retry.
 Missing, duplicated, stale, tombstoned, or otherwise unusable durable
-association bindings also remain fail closed. A missing, duplicated, or
-non-terminal release-retry receipt is not this exact product and cannot start
-transport effects. Listener/discovery availability in the exact retry-ready
-product does not widen candidate, trust, store, socket, raw-data, or semantic
-authority.
+association bindings also remain fail closed. A malformed or otherwise
+non-exact release-repair receipt, including a duplicated or non-terminal one,
+or an inconsistent repair-receipt ledger remains `DURABILITY_UNKNOWN` and
+cannot start transport effects. A missing release-repair receipt alone means
+only that the record is not this recovery-only exception; the ordinary
+classification above still applies. Listener/discovery availability in the
+exact retry-ready product does not widen candidate, trust, store, socket,
+raw-data, or semantic authority.
 
 ## Closed Operator Outcomes
 
