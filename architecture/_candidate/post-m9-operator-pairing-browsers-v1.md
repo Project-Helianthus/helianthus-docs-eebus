@@ -94,8 +94,11 @@ inbound boundary:
 7. Only matching same-generation protocol completion and a non-empty
    `remote_ship_id` value may commit the association atomically. Persistence
    failure is terminal and cannot be presented as trusted.
-8. Reconnect uses only the durable identity anchors plus fresh discovery. It
-   never restores a volatile selection or endpoint from before restart.
+8. Reconnect outside the retry-control product uses only the durable identity
+   anchors plus fresh discovery. Fresh discovery alone does not authorize
+   reconnect in the `RETRY_READY` / `RETRYABLE_FAILURE` product; that product
+   requires the typed retry admission below. Reconnect never restores a
+   volatile selection or endpoint from before restart.
 
 Every mutating request carries the current revision and an idempotency binding,
 is evaluated against its closed coordinator state, and is auditable without
@@ -119,7 +122,7 @@ does not infer trust from connectivity or connectivity from discovery.
 
 | View | Source fact | Minimum operator fields | Authority |
 | --- | --- | --- | --- |
-| `trusted` | One usable current-lineage durable association. | Complete certificate short identifier, protocol service identifier when available, brand, device type, model, trust state, connection state, and last-seen time. | May reconnect after fresh discovery; does not imply currently connected. |
+| `trusted` | One usable current-lineage durable association. | Complete certificate short identifier, protocol service identifier when available, brand, device type, model, trust state, connection state, and last-seen time. | Durable trust may reconnect after fresh discovery only when no retry-control admission is required; it does not imply currently connected. |
 | `connected` | One current live session generation. | Complete certificate short identifier, protocol service identifier when available, peer metadata, endpoint, connection state, generation-safe last-seen time. | May expose raw SPINE for the current session; does not imply durable trust. |
 | `discovered` | One current passive discovery observation. | Complete certificate short identifier when advertised, protocol service identifier, brand, device type, model, endpoint, observation revision, and last-seen time. | Read-only until typed selection; never authorizes a dial. |
 | `candidate` | One coordinator-owned volatile candidate for the current pairing window. | Complete TLS-bound certificate short identifier, lifecycle state, expiry, connection binding, and sanitized failure state. | Operator-surface only; never public, persisted, logged, metriced, traced, or included in shareable evidence. |
