@@ -78,6 +78,37 @@ class KnownUnappliedAttemptReopenContractTest(unittest.TestCase):
             normalized(ARCH).lower(),
         )
 
+    def test_browser_preserves_ordinary_retry_ready_classification(self) -> None:
+        browser = normalized(PAIRING_BROWSER)
+        for phrase in (
+            "ordinary first-trust commit/reset",
+            "`repair_sequence=0`",
+            "no release-retry receipt",
+            "unrelated repair receipts",
+            "ordinary paired classification",
+            "exact journaled reconnect",
+        ):
+            self.assertIn(phrase, browser, PAIRING_BROWSER)
+
+    def test_browser_bounds_recovery_only_exception_to_release_repair(self) -> None:
+        browser = normalized(PAIRING_BROWSER)
+        for phrase in (
+            "nonzero `repair_sequence`",
+            "repair-receipt ledger cardinality matches `repair_sequence`",
+            "exactly one terminal `release_retry_quarantine` / `repaired_unpaired` receipt",
+            "nonzero operation and binding identifiers",
+            "malformed or otherwise non-exact release-repair receipt",
+            "inconsistent repair-receipt ledger",
+            "`DURABILITY_UNKNOWN`",
+        ):
+            self.assertIn(phrase, browser, PAIRING_BROWSER)
+
+    def test_browser_does_not_turn_missing_release_evidence_into_global_denial(self) -> None:
+        self.assertNotIn(
+            "A missing, duplicated, or non-terminal release-retry receipt is not this exact product and cannot start transport effects.",
+            normalized(PAIRING_BROWSER),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
