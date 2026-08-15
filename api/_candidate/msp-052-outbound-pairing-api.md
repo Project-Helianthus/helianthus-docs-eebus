@@ -182,10 +182,23 @@ recovery classification. The denied result set is: exact target selected,
 ambiguous observation, descriptor mismatch, or compare-and-clear failure.
 
 Each denied result remains `DURABILITY_UNKNOWN` and cannot start transport
-effects. A durably cleared exact `RETRY_READY` / `RETRYABLE_FAILURE` recovery
-with one terminal durable release-retry receipt still does not launch an
-automatic outbound attempt; only
+effects. After a durable clear, the recovery-only exception is the exact
+release-repair `RETRY_READY` / `RETRYABLE_FAILURE` product with one usable
+current-lineage durable association, nonzero `repair_sequence`, repair-receipt
+ledger cardinality matches `repair_sequence`, and one terminal durable
+release-retry receipt: exactly one terminal `release_retry_quarantine` /
+`repaired_unpaired` receipt with nonzero operation and binding identifiers. It
+still does not launch an automatic outbound attempt; only
 `AdminV1.RetryTrusted` may arm one retry.
+
+Not every persisted `RETRY_READY` / `RETRYABLE_FAILURE` record is that
+exception. An ordinary first-trust commit/reset may persist one usable
+association with `repair_sequence=0` and no release-retry receipt, or may
+coexist with unrelated repair receipts when their ledger cardinality is
+consistent. Without an exact release-repair marker, ordinary paired
+classification and its exact journaled reconnect gate remain valid. A
+malformed or otherwise non-exact release-repair receipt, or an inconsistent
+repair-receipt ledger, remains `DURABILITY_UNKNOWN`.
 
 That durable outbound attempt-journal reservation is distinct from the
 volatile inbound winner reservation. The winner reservation is discarded on
