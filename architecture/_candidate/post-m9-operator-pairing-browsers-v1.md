@@ -176,10 +176,11 @@ diagnostics, entities, registries, or reusable application storage. HA renders
 only the same sanitized state/category supplied by the gateway; it cannot
 retry, reconstruct, or infer a PIN.
 
-Portal and HA render the same six action-local categories: `pin_required` and
-`pin_optional` return to the input decision, `pin_busy` asks for a fresh
-explicit action, `pin_rejected` clears the active form, and `pin_unavailable`
-or `pin_protocol_error` offers generic availability repair. This is a
+Portal and HA render the same six action-local categories: `pin_required`
+returns to the input decision, `pin_optional` permits the existing no-PIN
+Connect action, `pin_busy` asks for a fresh explicit action, `pin_rejected`
+clears the active form, and `pin_unavailable` or `pin_protocol_error` offers
+generic availability repair. This is a
 presentation mapping only: neither client associates a terminal PIN outcome
 with a SKI-bearing partner/candidate row or retains it after the active action.
 
@@ -396,7 +397,11 @@ live effect after a terminal result.
 | `pairing_closed` | No bounded operator window is open. | Candidate admission and first-trust launch are denied. |
 | `endpoint_scope_unavailable` | A link-local observation has no one current discovery-owned interface scope. | Reject before dial; never accept or guess a caller scope. |
 | `pin_required` | The current closed coordinator state requires a transient PIN and no value was supplied. | Reject before protocol progress; never persist or echo the value. |
+| `pin_optional` | The selected current observation permits the optional/restricted no-PIN path. | Continue only through the existing selected Connect action; retain no PIN or identity-bearing terminal result. |
+| `pin_busy` | The current PIN admission is busy. | Do not launch or wait for a peer; clear the active form and require a fresh explicit Connect action. |
 | `pin_rejected` | The peer rejected the transient PIN without a more specific safe category. | Retire only the current attempt; never echo, persist, or identify which value element differed. |
+| `pin_unavailable` | The local PIN facility is unavailable before protocol progress. | Do not launch; retain no secret and offer only generic availability repair. |
+| `pin_protocol_error` | The protocol returned only a safe PIN-failure category. | Retire only the current attempt, expose no peer detail, and offer generic availability repair. |
 | `identity_mismatch` | The supplied complete certificate short identifier does not exactly match the TLS-bound candidate. | No transient trust, persistence, or candidate replacement. |
 | `trust_denied` | Policy or a terminal trust state denies the peer. | No connection launch or trust write; report the sanitized reason class. |
 | `attempt_timeout` | The bounded attempt expired. | Retire only that attempt and apply bounded retry policy. |
