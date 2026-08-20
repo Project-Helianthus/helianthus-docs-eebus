@@ -125,6 +125,20 @@ class PostM9ClosureContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, combined)
 
+    def test_active_candidate_survives_unrelated_responses(self) -> None:
+        api = normalized(API)
+        for phrase in (
+            "Unrelated status, partner, discovery, selection, and readiness responses never clear or replace the active candidate",
+            "Only a candidate response for a newer candidate generation may replace it",
+            "Confirm terminal success or failure, Cancel terminal success or failure, candidate expiry, pairing-window close, connection close, generation change, navigation away, visibility loss, or explicit flow abort clears the active candidate",
+        ):
+            self.assertIn(phrase, api)
+        for forbidden in (
+            "replacement by any later response",
+            "replacement by a later response",
+        ):
+            self.assertNotIn(forbidden, api)
+
     def test_build_identity_and_readiness_dimensions_are_not_conflated(self) -> None:
         api = normalized(API)
         for phrase in (
