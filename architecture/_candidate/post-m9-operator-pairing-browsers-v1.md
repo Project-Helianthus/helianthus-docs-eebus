@@ -184,6 +184,15 @@ generic availability repair. This is a
 presentation mapping only: neither client associates a terminal PIN outcome
 with a SKI-bearing partner/candidate row or retains it after the active action.
 
+After `200 connection_started`, each client polls `active_action` and
+correlates only by `action_id`. Portal and HA render only its bounded kind, state,
+identity-free outcome, retryability, and expiry; neither client joins it to a
+SKI, selection, partner, candidate, endpoint, or PIN. The client clears the
+action state on terminal observation, expiry, abandonment, or restart. A
+missing or mismatched action ID is not a candidate lookup and cannot be
+reconstructed from another view. This volatile action card is separate from
+partner/candidate rows, durable trust, and semantic data.
+
 Implementation follows this dependency order exactly: SHIP `.16` -> eebus-go
 bridge -> eebusreg -> gateway/Portal -> Home Assistant. The SHIP lane owns
 protocol admission and transient consumption; each later layer passes only the

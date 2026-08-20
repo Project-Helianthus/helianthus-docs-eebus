@@ -187,6 +187,25 @@ the accepted `POST` returns `200 connection_started`; it has no peer timing on
 POST and does not wait for or reveal peer timing. A replay returns that same
 logical accepted result.
 
+`200 connection_started` includes one opaque `action_id`; same idempotency
+replay returns the same `action_id` and does not relaunch the attempt. GET
+status returns exactly one bounded identity-free `active_action` while that
+action is live, keyed only by that `action_id`. Its closed fields are
+`action_id`, `kind`, `state`, `outcome`, `retryable`, and `expiry`; `kind` is
+the operation class, `state` is pending or terminal, `outcome` is nullable
+until terminal, and `retryable` is an admission result rather than a client
+grant. It is volatile only: the bounded record expires no later than two
+minutes after acceptance and clears on terminal observation, expiry, explicit
+flow abandonment, or process restart.
+
+`active_action` must not include SKI, selection, partner, candidate, endpoint,
+or PIN. It is neither a partner/candidate row nor a durable trust, discovery,
+or semantic fact. A status response without a current action omits
+`active_action`; it never substitutes an old terminal result or another
+operator's action. The ordinary current partner and candidate projections keep
+their existing identity, revision, retention, durable-denial, and withdrawal
+rules independently.
+
 The selection keeps the identity-bound requirement/baseline
 `REQUIRED | OPTIONAL | NOT_APPLICABLE`; it is evidence about that selected
 observation, not a peer result. Each terminal result is instead an action-local
