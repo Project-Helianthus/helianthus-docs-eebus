@@ -61,3 +61,41 @@ def test_pairing_ui_and_durable_lifecycle_remain_separate_from_pin() -> None:
         "SHIP `.16` -> eebus-go bridge -> eebusreg -> gateway/Portal -> Home Assistant",
     ):
         assert required in browser
+
+
+def test_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local() -> None:
+    admin = _normalized(ADMIN)
+    browser = _normalized(BROWSER)
+    for text in (admin, browser):
+        for required in (
+            "identity-bound requirement/baseline",
+            "action-local identity-free terminal outcome",
+            "pin_required",
+            "pin_optional",
+            "pin_busy",
+            "pin_rejected",
+            "pin_unavailable",
+            "pin_protocol_error",
+        ):
+            assert required in text
+
+    partner_rows = admin.split("Each partner row is the closed object:", 1)[1].split(
+        "The `remote_ski` field", 1
+    )[0]
+    for forbidden in (
+        "pin_outcome",
+        "BUSY",
+        "REJECTED",
+        "UNAVAILABLE",
+        "PROTOCOL",
+        "pin_required",
+        "pin_optional",
+        "pin_busy",
+        "pin_rejected",
+        "pin_unavailable",
+        "pin_protocol_error",
+    ):
+        assert forbidden not in partner_rows
+
+    for text in (admin, browser):
+        assert "must not appear in a partner or candidate row" in text
