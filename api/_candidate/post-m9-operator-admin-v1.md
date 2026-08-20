@@ -310,6 +310,19 @@ navigation away, visibility loss, or replacement by a later response.
 
 ## Lazy SPINE Page
 
+Only a capability issued by the current `connected` view can open a SPINE
+root. A `trusted` capability is a durable-association handle, not a live-session
+handle. A root request with a trusted-but-offline capability returns
+`disconnected` and must not read the raw snapshot provider. The client directs
+the operator to the separate SHIP Retry action; the read-only SPINE request
+never retries or connects implicitly.
+
+After a connected capability resolves, a valid raw snapshot with no matching
+current partner device inventory returns `spine_topology_unavailable`. This
+distinguishes a live session whose canonical topology is not ready from both a
+trusted-but-offline relationship and a genuine `admin_boundary_unavailable`
+construction/provider/capacity failure. No case returns a partial tree.
+
 The route accepts exactly one of these closed query shapes:
 
 ```text
@@ -399,6 +412,7 @@ listener_unavailable
 discovery_unavailable
 attempt_timeout
 disconnected
+spine_topology_unavailable
 backoff_active
 terminal_quarantine
 persistence_failure

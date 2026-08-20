@@ -115,6 +115,40 @@ TLS evidence converge only after the same exact observation has already been
 selected. The inbound callback cannot select a candidate, and no path
 synthesizes an observation.
 
+## Operator Workspace Information Architecture
+
+The eeBUS Portal area has exactly three nested workspaces: `Pairing`, `SHIP`,
+and `SPINE`. They share one read-only health strip and one gateway-owned typed
+AdminV1 client, but they do not share presentation authority or volatile UI
+state.
+
+- Pairing owns every first-trust mutation: pairing-window control, discovery,
+  independent OOB SKI input, observation selection, connection, exact
+  TLS-bound candidate confirmation, and cancellation.
+- SHIP owns durable trust and live-session inspection. It presents trusted
+  associations and connected sessions as overlapping facts and owns explicit
+  retry and untrust actions.
+- SPINE is read-only and issues only `GET` requests. It selects a current live
+  SHIP session and lazily inspects one immutable raw topology snapshot.
+
+Browse SPINE never retries, connects, selects, confirms, or otherwise starts
+transport. A trusted-but-offline association appears in SHIP as
+`Disconnected — Reconnect required`; it is not a selectable SPINE peer. The
+operator may explicitly invoke Retry in SHIP, then refresh the connected view
+before entering SPINE.
+
+The scoped `disconnected` and `spine_topology_unavailable` outcomes do not
+degrade the shared boundary. `admin_boundary_unavailable` is reserved for a
+genuine AdminV1 construction, raw-provider, entropy, or bounded-capacity
+failure.
+
+Leaving Pairing clears selection, candidate, OOB input, and Pairing-scoped
+pending state; leaving SHIP clears armed untrust state; leaving SPINE clears
+partner, snapshot, cursors, and every rendered raw node. The local workspace
+selection does not place SKI, endpoint, partner capability, snapshot
+identifier, or cursor in URL or browser history. Visibility loss retains the
+same fail-closed clearing rules.
+
 ## SHIP Partner Browser
 
 The operator view classifies each row from coordinator and runtime facts; it
@@ -236,6 +270,7 @@ raw-data, or semantic authority.
 | `trust_denied` | Policy or a terminal trust state denies the peer. | No connection launch or trust write; report the sanitized reason class. |
 | `attempt_timeout` | The bounded attempt expired. | Retire only that attempt and apply bounded retry policy. |
 | `disconnected` | A current session ended. | Preserve durable trust when present; clear only connection-owned state. |
+| `spine_topology_unavailable` | The raw provider returned a valid snapshot, but it contains no matching current-partner device inventory. | Keep the session visible, expose a read-only refresh action, and do not retry or start transport. An unavailable or invalid raw-provider result is `admin_boundary_unavailable`. |
 | `backoff_active` | Retry is quarantined until a known deadline. | Expose the deadline; do not bypass it through Portal or HA. |
 | `terminal_quarantine` | Security or structural state requires repair/admin action. | Deny pairing and retry until the coordinator clears the condition. |
 | `persistence_failure` | Durable association publication did not complete safely. | Never report trusted; enter the coordinator's repair/reopen path. |
