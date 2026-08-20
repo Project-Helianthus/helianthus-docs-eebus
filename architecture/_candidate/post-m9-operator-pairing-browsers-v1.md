@@ -270,7 +270,7 @@ raw-data, or semantic authority.
 | `trust_denied` | Policy or a terminal trust state denies the peer. | No connection launch or trust write; report the sanitized reason class. |
 | `attempt_timeout` | The bounded attempt expired. | Retire only that attempt and apply bounded retry policy. |
 | `disconnected` | A current session ended. | Preserve durable trust when present; clear only connection-owned state. |
-| `spine_topology_unavailable` | A current connected session has no valid raw topology snapshot yet. | Keep the session visible, expose a read-only refresh action, and do not retry or start transport. |
+| `spine_topology_unavailable` | The raw provider returned a valid snapshot, but it contains no matching current-partner device inventory. | Keep the session visible, expose a read-only refresh action, and do not retry or start transport. An unavailable or invalid raw-provider result is `admin_boundary_unavailable`. |
 | `backoff_active` | Retry is quarantined until a known deadline. | Expose the deadline; do not bypass it through Portal or HA. |
 | `terminal_quarantine` | Security or structural state requires repair/admin action. | Deny pairing and retry until the coordinator clears the condition. |
 | `persistence_failure` | Durable association publication did not complete safely. | Never report trusted; enter the coordinator's repair/reopen path. |

@@ -33,6 +33,8 @@ class PairingShipSpineWorkspaceContractTests(unittest.TestCase):
             self.assertIn("`admin_boundary_unavailable`", document)
         self.assertIn("Only a capability issued by the current `connected` view can open a SPINE root", api)
         self.assertIn("must not read the raw snapshot provider", api)
+        self.assertIn("raw provider returned a valid snapshot, but it contains no matching current-partner device inventory", arch)
+        self.assertIn("An unavailable or invalid raw-provider result is `admin_boundary_unavailable`", arch)
 
     def test_workspace_lifetimes_remain_fail_closed(self) -> None:
         arch = normalized(ARCH)
