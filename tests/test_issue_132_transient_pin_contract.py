@@ -38,9 +38,17 @@ def test_connect_pin_replay_is_secret_safe_and_process_local() -> None:
         "must not enter the generic JSON/canonical-body replay cache",
         "Cache-Control: no-store",
         "no peer timing on POST",
-        "pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`, and `pin_protocol_error`",
     ):
         assert required in text
+    for category in (
+        "pin_required",
+        "pin_optional",
+        "pin_busy",
+        "pin_rejected",
+        "pin_unavailable",
+        "pin_protocol_error",
+    ):
+        assert category in text
 
 
 def test_pairing_ui_and_durable_lifecycle_remain_separate_from_pin() -> None:

@@ -158,7 +158,7 @@ with an unseen key returns `state_conflict` without retaining a replay entry.
 Omitting `pin` preserves the
 existing PIN-free connect flow. The contract does not add an arm operation, PIN
 store, or second connect operation. A supplied value is admitted only for the
-current selection whose `pin_state` is `REQUIRED` or `OPTIONAL`; supplying it
+current selection whose `pin_requirement` is `REQUIRED` or `OPTIONAL`; supplying it
 for `NOT_APPLICABLE` is `invalid_request`.
 
 The input is accepted only when it is exactly 8 through 16 ASCII hexadecimal
@@ -185,11 +185,21 @@ generic error contains the value or its HMAC.
 Connect is asynchronous. After all local validation and idempotency checks,
 the accepted `POST` returns `200 connection_started`; it has no peer timing on
 POST and does not wait for or reveal peer timing. A replay returns that same
-logical accepted result. The
-later identity-free status/error projection is limited to
-`pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`,
-and `pin_protocol_error`; it carries no value, byte position, peer timing, or
-transport detail.
+logical accepted result.
+
+The selection keeps the identity-bound requirement/baseline
+`REQUIRED | OPTIONAL | NOT_APPLICABLE`; it is evidence about that selected
+observation, not a peer result. Each terminal result is instead an action-local
+identity-free terminal outcome: `pin_required`, `pin_optional`, `pin_busy`,
+`pin_rejected`, `pin_unavailable`, or `pin_protocol_error`. The six categories
+mean, respectively: required input was omitted; optional/restricted admission
+continued without input; the current PIN admission was busy; the peer rejected
+the attempt; the local PIN facility was unavailable; or the protocol returned
+only a safe error class. They contain no value, byte position, peer timing,
+identity, endpoint, candidate handle, or transport detail, and must not appear
+in a partner or candidate row. The gateway retains them only in the active
+action result long enough to complete the requesting flow; they are neither a
+new durable fact nor a candidate lifecycle state.
 
 The in-process operation set is closed:
 
@@ -341,7 +351,7 @@ endpoint?
 trust_state
 connection_state: `connected | idle`
 partner_readiness: `disconnected | session_connected | topology_ready`
-pin_state: `REQUIRED | OPTIONAL | BUSY | REJECTED | UNAVAILABLE | PROTOCOL | NOT_APPLICABLE`?
+pin_requirement: `REQUIRED | OPTIONAL | NOT_APPLICABLE`?
 retry_state: `RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD`?
 retry_deadline?
 retry_admitted
@@ -389,17 +399,19 @@ never accepts a caller-supplied scope or endpoint. If the current observation
 has no one valid scope, resolution returns `endpoint_scope_unavailable` before
 dial and consumes no attempt admission.
 
-The selection record binds only the observed `pin_state`, never a PIN. A missing
-PIN for `REQUIRED` returns `pin_required`; `OPTIONAL` without one follows the
-peer-negotiated allowed path. `BUSY`, `REJECTED`, `UNAVAILABLE`, and `PROTOCOL`
-map respectively to `pin_busy`, `pin_rejected`, `pin_unavailable`, and
-`pin_protocol_error`, with no identity or protocol detail. The current attempt
-may retain no PIN after it terminates. PIN handling does not change candidate
-retention: it neither confirms, replaces, persists, nor revokes a candidate;
-the canonical durable-denial-first order, durable tombstone, and rule that an
-incomplete withdrawal remains revoked are unchanged. This protocol PIN is not
-an eeBUS-specific login, session, cookie, CSRF token, credential, or
-reauthentication mechanism.
+The selection record binds only the observed identity-bound requirement/baseline
+`pin_requirement`, never a PIN or outcome. A missing PIN for `REQUIRED`
+returns the action-local `pin_required`; `OPTIONAL` without one is the
+action-local `pin_optional` path. `pin_busy`, `pin_rejected`,
+`pin_unavailable`, and `pin_protocol_error` are likewise action-local
+identity-free terminal outcomes. No terminal PIN outcome may be stored in or
+returned from a partner/candidate row: it must not appear in a partner or
+candidate row. The current attempt may retain no PIN after it terminates. PIN
+handling does not change candidate retention: it neither confirms, replaces,
+persists, nor revokes a candidate; the canonical durable-denial-first order,
+durable tombstone, and rule that an incomplete withdrawal remains revoked are
+unchanged. This protocol PIN is not an eeBUS-specific login, session, cookie,
+CSRF token, credential, or reauthentication mechanism.
 
 At the in-process boundary, select consumes only an observation handle and the
 complete expected certificate short identifier, and returns a selection handle without dialing or

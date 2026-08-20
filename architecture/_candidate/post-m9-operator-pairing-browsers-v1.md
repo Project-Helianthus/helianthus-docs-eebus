@@ -148,14 +148,15 @@ attempt as `endpoint_scope_unavailable` before a socket effect. Global IPv6 and
 IPv4 observations keep their existing validation; link-local scope is not
 copied into a durable trust anchor.
 
-The requirement baseline remains exactly `REQUIRED`, `OPTIONAL`, or
-`NOT_APPLICABLE`; the identity-free terminal projection adds `BUSY`, `REJECTED`,
-`UNAVAILABLE`, and `PROTOCOL`. The pairing view never exposes a PIN value.
-`REQUIRED` without a current
-value rejects as `pin_required`; `OPTIONAL` may proceed without one. The later
-sanitized categories are `pin_required`, `pin_optional`, `pin_busy`,
-`pin_rejected`, `pin_unavailable`, and `pin_protocol_error`; none identifies a
-peer, a byte, or attempt timing.
+The identity-bound requirement/baseline remains exactly `REQUIRED`, `OPTIONAL`,
+or `NOT_APPLICABLE` for the active selected observation. It is not a terminal
+peer result. The six action-local identity-free terminal outcome categories are
+`pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`,
+and `pin_protocol_error`: required input omitted; optional/restricted admission
+without input; busy admission; peer rejection; local unavailability; and a
+sanitized protocol failure. None identifies a peer, byte, endpoint, candidate,
+or attempt timing, and a terminal outcome must not appear in a partner or
+candidate row. The Pairing view never exposes a PIN value.
 
 Portal renders an optional password field only in the active Pairing Connect
 step. It sends exact 8--16 ASCII hexadecimal bytes without normalization and
@@ -174,6 +175,13 @@ clears it after submit, and never writes it into a config entry, service data,
 diagnostics, entities, registries, or reusable application storage. HA renders
 only the same sanitized state/category supplied by the gateway; it cannot
 retry, reconstruct, or infer a PIN.
+
+Portal and HA render the same six action-local categories: `pin_required` and
+`pin_optional` return to the input decision, `pin_busy` asks for a fresh
+explicit action, `pin_rejected` clears the active form, and `pin_unavailable`
+or `pin_protocol_error` offers generic availability repair. This is a
+presentation mapping only: neither client associates a terminal PIN outcome
+with a SKI-bearing partner/candidate row or retains it after the active action.
 
 Implementation follows this dependency order exactly: SHIP `.16` -> eebus-go
 bridge -> eebusreg -> gateway/Portal -> Home Assistant. The SHIP lane owns
