@@ -92,6 +92,7 @@ python3 -m unittest \
   tests.test_issue_116_spine_entity_usecase_contract \
   tests.test_issue_122_retry_ready_recovery_contract \
   tests.test_issue_124_known_unapplied_reopen_contract \
+  tests.test_issue_130_post_m9_closure_contract \
   tests.test_issue_48_ship_identity_contract \
   tests.test_issue_50_strict_inbound_current_schema_contract \
   tests.test_issue_64_ship_endpoint_order_contract \

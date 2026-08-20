@@ -61,9 +61,18 @@ operator-selected, observation-bound outbound-pairing candidate contract.
 
 Revocation first closes local pairing and denies the exact association in
 memory. It then publishes one durable generation that deactivates the
-association and appends an effective tombstone. Success is returned only after
-the store outcome is durable and the live facade has completed disconnect and
-unregister effects or returned an authoritative already-absent result.
+association and appends an effective tombstone. That durable denial and
+effective tombstone precede every live disconnect or unregister effect. A
+same-generation disconnect ACK is completion evidence, never authorization for
+revocation.
+
+After durability, an authoritative already-absent live result completes
+withdrawal without synthesizing a disconnect. A current connected generation
+instead receives one bounded disconnect/unregister request; only its own ACK or
+authoritative completion can make the whole operation successful. A missing,
+late, foreign-generation, or ambiguous completion reports
+`revocation_withdrawal_incomplete`. The association remains denied and
+tombstoned, and restart cannot restore it.
 
 An incomplete or ambiguous withdrawal remains denied and reports
 `revocation_withdrawal_incomplete`. Restart cannot clear the tombstone,

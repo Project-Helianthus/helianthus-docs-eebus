@@ -67,6 +67,29 @@ reauthentication flow. Existing Portal and Home Assistant authentication
 lifecycles are outside this contract and remain unchanged. The gateway must not
 withhold pairing mutations pending a separate Portal authentication change.
 
+## Driver Startup Isolation And Bounded Recovery
+
+The eeBUS driver is an optional protocol-adapter startup lane. Failure while
+loading eeBUS configuration, local identity, listener, runtime factory, or
+AdminV1 construction must not terminate or de-admit eBUS, Modbus, MCP,
+GraphQL, Portal, or the gateway health API. The gateway process remains
+available, the eeBUS lane reports `eebus_readiness=DEGRADED` with one sanitized
+closed reason, and eeBUS-dependent actions fail closed. A disabled eeBUS lane
+is distinct from a configured lane that failed startup.
+
+The gateway owns one bounded restart schedule for a failed eeBUS lane. It has
+finite attempts per window, a nonzero backoff, one outstanding restart timer,
+and shutdown cancellation. It is never a tight retry loop and it never restarts
+unrelated protocol runtimes or API listeners. Successful reconstruction
+replaces the failed lane once and advances the operator revision; failure
+retains the truthful degraded state without erasing durable associations.
+
+If AdminV1 construction itself fails, the shared gateway health surface still
+reports the eeBUS startup degradation and the typed admin origin returns
+`admin_boundary_unavailable`. No handler obtains a partial capability. This is
+product startup isolation, not a claim that the eeBUS protocol defines process
+readiness or restart policy.
+
 ## Operator Pairing Sequence
 
 The valid first-trust sequence preserves the later MSP-052 selected-candidate
@@ -114,6 +137,26 @@ This contract does not amend MSP-052 inbound eligibility. Outbound and inbound
 TLS evidence converge only after the same exact observation has already been
 selected. The inbound callback cannot select a candidate, and no path
 synthesizes an observation.
+
+## Scoped Link-Local Endpoints And Transient PIN
+
+An IPv6 link-local endpoint requires the discovery-owned interface scope that
+was observed with that endpoint. The runtime never accepts a caller-supplied
+scope or endpoint, never guesses a default interface, and never dials the same
+address on another interface. Missing, stale, or ambiguous scope rejects the
+attempt as `endpoint_scope_unavailable` before a socket effect. Global IPv6 and
+IPv4 observations keep their existing validation; link-local scope is not
+copied into a durable trust anchor.
+
+The pairing view exposes only the closed PIN requirement `REQUIRED`, `OPTIONAL`,
+or `NOT_APPLICABLE`; it never exposes the PIN value. `REQUIRED` without a
+current value rejects as `pin_required`. `OPTIONAL` may proceed without a value.
+When a closed coordinator state permits PIN input, the gateway relays it once
+in request-lifetime memory to that exact current attempt and clears it on
+return, timeout, cancellation, disconnect, generation change, or restart. The
+PIN value never enters a response, replay record, durable store, log, metric,
+trace, diagnostic, URL, or browser storage. Idempotent replay returns the
+sanitized prior result and never retains or replays the secret.
 
 ## Operator Workspace Information Architecture
 
@@ -216,6 +259,33 @@ The raw tree must not enter `ebus.v1`, unrelated GraphQL fields, or the semantic
 registry. Portal may link between views but cannot copy raw identity or native
 addresses into semantic payloads.
 
+## Connected-Generation Topology Replacement
+
+Raw SPINE topology belongs only to the current connected generation. Each
+accepted complete runtime topology refresh carries that generation and performs
+exact replacement, never a merge, of the device, entity, feature, use-case, and
+opaque sets for that generation. A stale-generation callback is discarded
+without changing the current tree.
+
+A disconnect, current-device removal, or a complete current-generation refresh
+with no devices publishes an empty raw topology and invalidates every snapshot
+and cursor from the earlier generation. An entity or feature add/remove triggers
+a complete refreshed live graph from the active current-generation remote; its
+exact replacement preserves every unrelated node still present. The event delta
+itself is never treated as a complete empty graph.
+
+A reduced reconnect publishes exactly the reduced device/entity/feature sets;
+nodes from the prior connection cannot survive by union, cache fill, or
+last-seen inference. While a current connection has no matching device
+inventory, the browser reports `spine_topology_unavailable` rather than
+displaying the previous generation.
+
+Semantic last-known-good retention is a separate consumer fact. It may retain
+already promoted semantic values with explicit age and provenance, but it must
+never repopulate the raw SPINE tree, establish current connectivity, or keep a
+removed raw node visible. Raw topology and semantic LKG therefore have separate
+generation and freshness authorities.
+
 ## Retry-Ready Recovery-Only Startup
 
 The recovery-only exception is the exact release-repair product:
@@ -259,6 +329,29 @@ classification above still applies. Listener/discovery availability in the
 exact retry-ready product does not widen candidate, trust, store, socket,
 raw-data, or semantic authority.
 
+## Untrust Durable Denial And Withdrawal
+
+Untrust remains subordinate to the
+[canonical M4C durable-denial-first invariant](msp-04c-restore-revocation-quarantine-repair.md).
+Inside the coordinator serializer it first closes local pairing and denies the
+association in memory before publishing the durable tombstone. The durable
+generation deactivates the association; durable denial and tombstone precede
+live withdrawal.
+
+With no current connected generation, an authoritative already-absent result
+completes as `revoked` after durability. With a connected generation, the live
+facade then performs one bounded disconnect/unregister request. Its
+same-generation disconnect ACK classifies withdrawal completeness, never trust
+state. A missing, late, foreign-generation, or ambiguous result returns
+`revocation_withdrawal_incomplete`; the association remains revoked and
+tombstoned and cannot reconnect or revive after restart. Only durable denial
+plus completed withdrawal returns the terminal success `revoked`.
+
+A persistence error before the tombstone becomes durable returns
+`persistence_failure` and cannot be rendered as successful revocation. Replay
+uses the original idempotency binding and never performs a second durable or
+live effect after a terminal result.
+
 ## Closed Operator Outcomes
 
 | Code | Meaning | Required behavior |
@@ -266,6 +359,9 @@ raw-data, or semantic authority.
 | `discovery_unavailable` | No usable discovery source is running. | Show degraded read state; do not synthesize partners or dial. |
 | `listener_unavailable` | The scoped protocol listener is not bound. | Pairing mutation fails closed; existing durable trust is not erased. |
 | `pairing_closed` | No bounded operator window is open. | Candidate admission and first-trust launch are denied. |
+| `endpoint_scope_unavailable` | A link-local observation has no one current discovery-owned interface scope. | Reject before dial; never accept or guess a caller scope. |
+| `pin_required` | The current closed coordinator state requires a transient PIN and no value was supplied. | Reject before protocol progress; never persist or echo the value. |
+| `pin_rejected` | The peer rejected the transient PIN without a more specific safe category. | Retire only the current attempt; never echo, persist, or identify which value element differed. |
 | `identity_mismatch` | The supplied complete certificate short identifier does not exactly match the TLS-bound candidate. | No transient trust, persistence, or candidate replacement. |
 | `trust_denied` | Policy or a terminal trust state denies the peer. | No connection launch or trust write; report the sanitized reason class. |
 | `attempt_timeout` | The bounded attempt expired. | Retire only that attempt and apply bounded retry policy. |
@@ -273,6 +369,7 @@ raw-data, or semantic authority.
 | `spine_topology_unavailable` | The raw provider returned a valid snapshot, but it contains no matching current-partner device inventory. | Keep the session visible, expose a read-only refresh action, and do not retry or start transport. An unavailable or invalid raw-provider result is `admin_boundary_unavailable`. |
 | `backoff_active` | Retry is quarantined until a known deadline. | Expose the deadline; do not bypass it through Portal or HA. |
 | `terminal_quarantine` | Security or structural state requires repair/admin action. | Deny pairing and retry until the coordinator clears the condition. |
+| `revocation_withdrawal_incomplete` | Durable revocation succeeded, but live disconnect/unregister did not complete authoritatively within its bound. | Keep the association revoked and tombstoned; report incomplete withdrawal and deny reconnect. |
 | `persistence_failure` | Durable association publication did not complete safely. | Never report trusted; enter the coordinator's repair/reopen path. |
 
 Unknown future state values map to one fail-closed `unknown_state` outcome.
@@ -292,6 +389,27 @@ any coordinator state that does not permit the requested operation before the
 coordinator effect. Live pairing confirmation at action time is an operational
 control, not an authentication mechanism. It requires the explicit current
 operator confirmation only for the live mutation; it is not a login substitute.
+
+Home Assistant presents this boundary through an HA-native config/options/repair
+flow and ephemeral action forms. After Select succeeds, it clears observation
+and entered identity input, then keeps only `selection_id` and its issuing
+revision in the volatile active flow. The `Select` response does not clear that
+volatile selection: it remains only until Connect reaches a terminal result or
+the selection expires, unless the operator abandons the flow earlier.
+
+Once a TLS-bound candidate exists, candidate comparison data remains only until
+confirm, cancel, candidate expiry, connection close, generation change, or
+active-flow abandonment. PIN exists only for the current Connect request. HA
+does not persist SKI or candidate identity in a config entry, entity registry,
+device registry, issue registry, diagnostics, or reusable application storage.
+Only a sanitized closed status/error code and a non-secret retry deadline may
+be shown in an HA repair issue.
+
+This flow creates no eeBUS-specific login, session, cookie, CSRF token,
+credential, or reauthentication. Existing HA authentication and lifecycle stay
+outside this contract, and action-time confirmation remains an operational
+control only. HA never derives retry authority from a button press: the current
+AdminV1 row must report admission, and the coordinator remains authoritative.
 
 The audit record contains action, request ID, idempotency outcome, prior and
 resulting state class, timestamp, and sanitized reason. It never contains
@@ -327,6 +445,12 @@ the existing eBUS runtime remains operational. The raw SPINE tree must test the
 derived one-device, eleven-entity, twenty-feature target and use-case claims
 without leaking it into semantic or eBUS surfaces; only that run may establish
 whether the target is valid for this VR940.
+
+Physically disconnected eBUS participants and an offline VR940F are
+environment observations only. They may explain why a particular protected
+acceptance run cannot proceed, but they must not be encoded as product behavior
+or generic protocol evidence, and they do not falsify the nonfatal startup
+contract without an in-scope product failure.
 
 ## In-Process Operator Capability
 
