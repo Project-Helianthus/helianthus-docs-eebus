@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+ARCH = ROOT / "architecture/_candidate/post-m9-operator-pairing-browsers-v1.md"
+API = ROOT / "api/_candidate/post-m9-operator-admin-v1.md"
+
+
+def normalized(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").split())
+
+
+class PostM9ClosureContractTests(unittest.TestCase):
+    def test_eebus_driver_failure_is_nonfatal_and_restart_is_bounded(self) -> None:
+        arch = normalized(ARCH)
+        for phrase in (
+            "optional protocol-adapter startup lane",
+            "configuration, local identity, listener, runtime factory, or AdminV1 construction",
+            "must not terminate or de-admit eBUS, Modbus, MCP, GraphQL, Portal, or the gateway health API",
+            "`eebus_readiness=DEGRADED`",
+            "bounded restart schedule",
+            "never a tight retry loop",
+        ):
+            self.assertIn(phrase, arch)
+
+    def test_untrust_orders_offline_revocation_and_connected_ack(self) -> None:
+        arch = normalized(ARCH)
+        api = normalized(API)
+        combined = f"{arch} {api}"
+        for phrase in (
+            "no current connected generation",
+            "returns `revoked` only after durable revocation commits",
+            "waits for the bounded disconnect ACK from that same generation",
+            "durable revocation starts only after that ACK",
+            "`disconnect_ack_timeout`",
+            "must not report `revoked`",
+        ):
+            self.assertIn(phrase, combined)
+
+    def test_raw_topology_exact_replaces_each_connected_generation(self) -> None:
+        arch = normalized(ARCH)
+        api = normalized(API)
+        combined = f"{arch} {api}"
+        for phrase in (
+            "current connected generation",
+            "exact replacement, never a merge",
+            "remove or empty current-generation snapshot publishes an empty raw topology",
+            "reduced reconnect publishes exactly the reduced device/entity/feature sets",
+            "invalidates every snapshot and cursor from the earlier generation",
+            "Semantic last-known-good retention is a separate consumer fact",
+            "must never repopulate the raw SPINE tree",
+        ):
+            self.assertIn(phrase, combined)
+
+    def test_link_local_scope_and_pin_are_transient_secret_safe(self) -> None:
+        arch = normalized(ARCH)
+        api = normalized(API)
+        combined = f"{arch} {api}"
+        for phrase in (
+            "IPv6 link-local endpoint requires the discovery-owned interface scope",
+            "never accepts a caller-supplied scope or endpoint",
+            "`endpoint_scope_unavailable`",
+            "`REQUIRED`, `OPTIONAL`, or `NOT_APPLICABLE`",
+            "`pin_required`",
+            "request-lifetime memory",
+            "PIN value never enters a response, replay record, durable store, log, metric, trace, diagnostic, URL, or browser storage",
+        ):
+            self.assertIn(phrase, combined)
+
+    def test_admin_status_and_partner_retry_fields_are_closed(self) -> None:
+        api = normalized(API)
+        for phrase in (
+            "local_ski",
+            "local_ship_id",
+            "brand?",
+            "device_type?",
+            "model?",
+            "endpoint?",
+            "connection_state",
+            "retry_state: `RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD`",
+            "retry_deadline?",
+            "retry_admitted",
+            "true only for a currently admitted `RETRY_READY` row",
+            "`BACKOFF_ACTIVE` requires a future retry deadline",
+            "`ADMIN_HOLD` is terminal quarantine",
+            "Retry rejects unless `retry_admitted=true`",
+        ):
+            self.assertIn(phrase, api)
+
+    def test_home_assistant_flow_is_native_ephemeral_and_error_closed(self) -> None:
+        arch = normalized(ARCH)
+        api = normalized(API)
+        combined = f"{arch} {api}"
+        for phrase in (
+            "HA-native config/options/repair flow",
+            "closed sanitized action-error table",
+            "does not persist SKI or candidate identity",
+            "config entry, entity registry, device registry, issue registry, diagnostics, or reusable application storage",
+            "no eeBUS-specific login, session, cookie, CSRF token, credential, or reauthentication",
+            "action-time confirmation remains an operational control only",
+        ):
+            self.assertIn(phrase, combined)
+
+    def test_build_identity_and_readiness_dimensions_are_not_conflated(self) -> None:
+        api = normalized(API)
+        for phrase in (
+            "one immutable build-info object",
+            "`release_version` and `build_id`",
+            "Portal health, `eebus.v1.runtime.status.get`, and `runtime_state.meta`",
+            "process readiness, eeBUS driver readiness, and partner/session readiness are three independent dimensions",
+            "An eeBUS `DEGRADED` state does not rewrite process readiness",
+            "a disconnected partner does not rewrite eeBUS driver readiness",
+        ):
+            self.assertIn(phrase, api)
+
+    def test_environment_absence_is_not_product_behavior(self) -> None:
+        arch = normalized(ARCH)
+        for phrase in (
+            "physically disconnected eBUS participants",
+            "an offline VR940F",
+            "environment observations only",
+            "must not be encoded as product behavior or generic protocol evidence",
+        ):
+            self.assertIn(phrase, arch)
+
+
+if __name__ == "__main__":
+    unittest.main()
