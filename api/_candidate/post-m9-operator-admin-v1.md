@@ -227,7 +227,7 @@ Snapshot(context, AdminSnapshotRequestV1) -> AdminSnapshotV1
 OpenPairingWindow(context, OpenPairingWindowRequestV1) -> AdminMutationResultV1
 ClosePairingWindow(context, ClosePairingWindowRequestV1) -> AdminMutationResultV1
 Select(context, SelectRequestV1) -> AdminSelectionResultV1
-Connect(context, ConnectRequestV1) -> AdminMutationResultV1
+Connect(context, ConnectRequestV1) -> ConnectResultV1
 Confirm(context, ConfirmRequestV1) -> AdminMutationResultV1
 Cancel(context, CancelRequestV1) -> AdminMutationResultV1
 RetryTrusted(context, RetryTrustedRequestV1) -> AdminMutationResultV1
@@ -235,8 +235,22 @@ Untrust(context, UntrustRequestV1) -> AdminMutationResultV1
 ```
 
 `AdminMutationResultV1` contains only `state_revision`, a closed outcome, and
-`replayed`. `AdminSelectionResultV1` adds one opaque selection handle. There is
-no generic action handle and no caller-controlled transport coordinate.
+`replayed`; every mutation above other than Connect retains that exact result.
+ConnectResultV1 is the closed object:
+
+```text
+state_revision
+outcome
+replayed
+action_id
+additionalProperties: false
+```
+
+It carries the canonical mutation-result fields plus the one opaque
+`action_id`; no undocumented field injection is allowed. The action ID follows
+the same-idempotency replay/no-relaunch and volatile expiry/clear rules defined
+above. `AdminSelectionResultV1` adds one opaque selection handle. There is no
+generic action handle and no caller-controlled transport coordinate.
 
 ## Closed Operations
 
@@ -337,6 +351,7 @@ admin:
   discovered_count
   candidate_count
   state_revision
+  active_action?
 ```
 
 The in-process `AdminSnapshotV1` owns the `admin` portion, including
@@ -347,6 +362,24 @@ Public/shareable output redacts them. If local identity prevents AdminV1
 construction, shared gateway health keeps `build` and `readiness` available,
 while the typed admin origin returns `admin_boundary_unavailable` and exposes
 no partial `admin` object.
+
+`AdminSnapshotV1` / `StatusDataV1` is a closed shape with
+`additionalProperties: false`; `active_action?` is its only optional async
+action field. ActiveActionV1 is the closed optional status type:
+
+```text
+action_id
+kind
+state
+outcome?
+retryable
+expiry
+additionalProperties: false
+```
+
+The optional object repeats only the action contract above. Its expiry is the
+same bounded volatile TTL, and its terminal/expiry/abandonment/restart clear
+rules are not writable or extensible through status data.
 
 Candidate lifecycle is visible only through this typed operator boundary; it
 never enters public MCP, GraphQL, `ebus.v1`, the semantic registry, or HA entity

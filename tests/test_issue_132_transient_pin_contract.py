@@ -172,7 +172,10 @@ def _assert_connect_and_status_types_are_closed_and_exact() -> None:
     ):
         assert outputs[operation] == "AdminMutationResultV1"
 
-    result = text.split("ConnectResultV1 is the closed object:", 1)[1].split("```", 1)[0]
+    result = text.split("ConnectResultV1 is the closed object:", 1)[1].split(
+        "```", 1
+    )[1].split("```", 1)[0]
+    result = result.removeprefix("text\n")
     result_fields = set(re.findall(r"^([a-z_]+)$", result, flags=re.MULTILINE))
     assert result_fields == {"state_revision", "outcome", "replayed", "action_id"}
     assert "additionalProperties: false" in result
@@ -200,7 +203,8 @@ def _assert_connect_and_status_types_are_closed_and_exact() -> None:
 
     active = text.split("ActiveActionV1 is the closed optional status type:", 1)[1].split(
         "```", 1
-    )[0]
+    )[1].split("```", 1)[0]
+    active = active.removeprefix("text\n")
     active_fields = set(re.findall(r"^([a-z_]+)\??$", active, flags=re.MULTILINE))
     assert active_fields == {"action_id", "kind", "state", "outcome", "retryable", "expiry"}
     assert "additionalProperties: false" in active
