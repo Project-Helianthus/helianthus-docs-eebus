@@ -26,19 +26,26 @@ class PostM9ClosureContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, arch)
 
-    def test_untrust_orders_offline_revocation_and_connected_ack(self) -> None:
+    def test_untrust_preserves_m4c_durable_denial_before_withdrawal(self) -> None:
         arch = normalized(ARCH)
         api = normalized(API)
         combined = f"{arch} {api}"
         for phrase in (
-            "no current connected generation",
-            "returns `revoked` only after durable revocation commits",
-            "waits for the bounded disconnect ACK from that same generation",
-            "Durable revocation starts only after that ACK",
-            "`disconnect_ack_timeout`",
-            "must not report `revoked`",
+            "canonical M4C durable-denial-first invariant",
+            "denies the association in memory before publishing the durable tombstone",
+            "durable denial and tombstone precede live withdrawal",
+            "already-absent result completes as `revoked` after durability",
+            "same-generation disconnect ACK classifies withdrawal completeness, never trust state",
+            "`revocation_withdrawal_incomplete`",
+            "remains revoked and tombstoned",
         ):
             self.assertIn(phrase, combined)
+        for forbidden in (
+            "Durable revocation starts only after that ACK",
+            "`disconnect_ack_timeout`, leaves durable trust unchanged",
+            "preserves the durable association",
+        ):
+            self.assertNotIn(forbidden, combined)
 
     def test_raw_topology_exact_replaces_each_connected_generation(self) -> None:
         arch = normalized(ARCH)
@@ -47,13 +54,20 @@ class PostM9ClosureContractTests(unittest.TestCase):
         for phrase in (
             "current connected generation",
             "exact replacement, never a merge",
-            "disconnect, remove, or empty current-generation snapshot publishes an empty raw topology",
+            "disconnect, current-device removal, or a complete current-generation refresh with no devices publishes an empty raw topology",
+            "entity or feature add/remove triggers a complete refreshed live graph",
+            "exact replacement preserves every unrelated node still present",
             "reduced reconnect publishes exactly the reduced device/entity/feature sets",
             "invalidates every snapshot and cursor from the earlier generation",
             "Semantic last-known-good retention is a separate consumer fact",
             "must never repopulate the raw SPINE tree",
         ):
             self.assertIn(phrase, combined)
+        for forbidden in (
+            "disconnect, remove, or empty current-generation snapshot publishes an empty raw topology",
+            "A remove or empty current-generation publication therefore produces no nodes",
+        ):
+            self.assertNotIn(forbidden, combined)
 
     def test_link_local_scope_and_pin_are_transient_secret_safe(self) -> None:
         arch = normalized(ARCH)
@@ -100,6 +114,10 @@ class PostM9ClosureContractTests(unittest.TestCase):
         for phrase in (
             "HA-native config/options/repair flow",
             "closed sanitized action-error table",
+            "keeps only `selection_id` and its issuing revision in the volatile active flow",
+            "The `Select` response does not clear that volatile selection",
+            "until Connect reaches a terminal result or the selection expires",
+            "candidate comparison data remains only until confirm, cancel, candidate expiry",
             "does not persist SKI or candidate identity",
             "config entry, entity registry, device registry, issue registry, diagnostics, or reusable application storage",
             "no eeBUS-specific login, session, cookie, CSRF token, credential, or reauthentication",
@@ -118,6 +136,11 @@ class PostM9ClosureContractTests(unittest.TestCase):
             "`AdminSnapshotV1` owns the `admin` portion",
             "does not own gateway build or process readiness",
             "Process readiness, eeBUS driver readiness, and partner/session readiness are three independent dimensions",
+            "process_readiness: `READY | NOT_READY`",
+            "eebus_readiness: `DISABLED | STARTING | READY | DEGRADED`",
+            "`CONFIGURATION_INVALID | LOCAL_IDENTITY_UNAVAILABLE | LISTENER_UNAVAILABLE | RUNTIME_FACTORY_UNAVAILABLE | ADMIN_BOUNDARY_UNAVAILABLE | UNKNOWN_STARTUP_FAILURE`",
+            "An unknown startup failure maps to `DEGRADED / UNKNOWN_STARTUP_FAILURE`",
+            "eeBUS startup failure alone never maps process readiness to `NOT_READY`",
             "An eeBUS `DEGRADED` state does not rewrite process readiness",
             "A disconnected partner does not rewrite eeBUS driver readiness",
         ):

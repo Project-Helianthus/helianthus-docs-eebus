@@ -74,6 +74,16 @@ class MSP04CRestoreQuarantineContractTests(unittest.TestCase):
         ):
             self.assertIn(required, self.text)
 
+    def test_revocation_durably_denies_before_live_withdrawal(self) -> None:
+        for required in (
+            "durable denial and effective tombstone precede every live disconnect or unregister effect",
+            "same-generation disconnect ACK is completion evidence, never authorization for revocation",
+            "`revocation_withdrawal_incomplete`",
+            "association remains denied and tombstoned",
+            "restart cannot restore it",
+        ):
+            self.assertIn(required, self.compact)
+
 
 if __name__ == "__main__":
     unittest.main()
