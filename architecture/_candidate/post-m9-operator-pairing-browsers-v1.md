@@ -148,15 +148,42 @@ attempt as `endpoint_scope_unavailable` before a socket effect. Global IPv6 and
 IPv4 observations keep their existing validation; link-local scope is not
 copied into a durable trust anchor.
 
-The pairing view exposes only the closed PIN requirement `REQUIRED`, `OPTIONAL`,
-or `NOT_APPLICABLE`; it never exposes the PIN value. `REQUIRED` without a
-current value rejects as `pin_required`. `OPTIONAL` may proceed without a value.
-When a closed coordinator state permits PIN input, the gateway relays it once
-in request-lifetime memory to that exact current attempt and clears it on
-return, timeout, cancellation, disconnect, generation change, or restart. The
-PIN value never enters a response, replay record, durable store, log, metric,
-trace, diagnostic, URL, or browser storage. Idempotent replay returns the
-sanitized prior result and never retains or replays the secret.
+The requirement baseline remains exactly `REQUIRED`, `OPTIONAL`, or
+`NOT_APPLICABLE`; the identity-free terminal projection adds `BUSY`, `REJECTED`,
+`UNAVAILABLE`, and `PROTOCOL`. The pairing view never exposes a PIN value.
+`REQUIRED` without a current
+value rejects as `pin_required`; `OPTIONAL` may proceed without one. The later
+sanitized categories are `pin_required`, `pin_optional`, `pin_busy`,
+`pin_rejected`, `pin_unavailable`, and `pin_protocol_error`; none identifies a
+peer, a byte, or attempt timing.
+
+Portal renders an optional password field only in the active Pairing Connect
+step. It sends exact 8--16 ASCII hexadecimal bytes without normalization and
+clears it immediately after submit, before rendering either a response or an
+error. The page never reconstructs it for replay, history, autofill,
+telemetry, or local/session storage. The gateway accepts it only in the
+existing selected-candidate Connect request, holds ephemeral mutable bytes in
+request-lifetime memory for
+one attempt, and returns `200 connection_started` without waiting for peer
+timing. The field is not an arm operation, PIN store, second connection action,
+or eeBUS-specific authentication.
+
+The generic Home Assistant service remains PIN-free. Its guided native pairing
+or repair flow may hold the password only in the volatile current action form,
+clears it after submit, and never writes it into a config entry, service data,
+diagnostics, entities, registries, or reusable application storage. HA renders
+only the same sanitized state/category supplied by the gateway; it cannot
+retry, reconstruct, or infer a PIN.
+
+Implementation follows this dependency order exactly: SHIP `.16` -> eebus-go
+bridge -> eebusreg -> gateway/Portal -> Home Assistant. The SHIP lane owns
+protocol admission and transient consumption; each later layer passes only the
+bounded optional request field and sanitized state. No layer promotes it into
+durable candidate/trust state, raw MCP, GraphQL, semantics, or generic HA
+service surface.
+
+The PIN value never enters a response, replay record, durable store, log,
+metric, trace, diagnostic, URL, or browser storage.
 
 ## Operator Workspace Information Architecture
 

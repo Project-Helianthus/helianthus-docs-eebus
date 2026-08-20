@@ -153,15 +153,43 @@ changed operation, handle, revision, or argument binding returns
 `idempotency_conflict` and does not execute a second effect. A stale revision
 with an unseen key returns `state_conflict` without retaining a replay entry.
 
-`ConnectRequestV1` adds one optional sensitive `pin` field. It is accepted only
-when the selected current observation reports `pin_state=REQUIRED` or
-`pin_state=OPTIONAL`; supplying it for `NOT_APPLICABLE` is `invalid_request`.
-The gateway passes the value once to the exact selected attempt. It keeps no
-plaintext replay copy. A process-local keyed digest may bind the idempotency
-record so an identical replay returns the prior sanitized result without
-resubmitting the PIN, while a different value is `idempotency_conflict`. The
-digest is non-serializable, never emitted, and expires with the bounded replay
-record.
+`ConnectRequestV1` has one optional sensitive `pin` field. It has an optional
+`pin` field only on the existing selected-candidate `ConnectRequestV1`.
+Omitting `pin` preserves the
+existing PIN-free connect flow. The contract does not add an arm operation, PIN
+store, or second connect operation. A supplied value is admitted only for the
+current selection whose `pin_state` is `REQUIRED` or `OPTIONAL`; supplying it
+for `NOT_APPLICABLE` is `invalid_request`.
+
+The input is accepted only when it is exactly 8 through 16 ASCII hexadecimal
+bytes. Validation does not trim, case-normalize, Unicode-normalize, decode, or
+otherwise rewrite the bytes. The HTTP decoder gives the selected attempt
+ephemeral mutable bytes; it must never create an immutable plaintext copy.
+The gateway uses them once for that exact current attempt and best-effort clears
+every buffer it owns on return, rejection, timeout, cancellation, disconnect,
+generation replacement, and process exit. A PIN is never persisted, logged,
+echoed, audited, metriced, traced, diagnosed, or exposed through MCP, GraphQL,
+semantic registry, or Home Assistant entity.
+
+The Connect idempotency binding additionally contains a process-local keyed
+HMAC over the exact PIN bytes plus presence. The replay record retains only the
+HMAC, never PIN bytes or a canonical plaintext body. The same exact request
+replays without a second launch or write; the same ordinary binding with a
+different PIN presence or value is `idempotency_conflict`. A process restart
+invalidates every PIN-bearing replay entry. The sensitive field must not enter
+the generic JSON/canonical-body replay cache: the gateway special-cases decoder
+and replay admission before generic body retention. Connect responses carry
+`Cache-Control: no-store`; no response, redirect, referrer, audit row, or
+generic error contains the value or its HMAC.
+
+Connect is asynchronous. After all local validation and idempotency checks,
+the accepted `POST` returns `200 connection_started`; it has no peer timing on
+POST and does not wait for or reveal peer timing. A replay returns that same
+logical accepted result. The
+later identity-free status/error projection is limited to
+`pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`,
+and `pin_protocol_error`; it carries no value, byte position, peer timing, or
+transport detail.
 
 The in-process operation set is closed:
 
@@ -313,7 +341,7 @@ endpoint?
 trust_state
 connection_state: `connected | idle`
 partner_readiness: `disconnected | session_connected | topology_ready`
-pin_state: `REQUIRED | OPTIONAL | NOT_APPLICABLE`?
+pin_state: `REQUIRED | OPTIONAL | BUSY | REJECTED | UNAVAILABLE | PROTOCOL | NOT_APPLICABLE`?
 retry_state: `RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD`?
 retry_deadline?
 retry_admitted
@@ -361,15 +389,17 @@ never accepts a caller-supplied scope or endpoint. If the current observation
 has no one valid scope, resolution returns `endpoint_scope_unavailable` before
 dial and consumes no attempt admission.
 
-The selection record also binds the observed `pin_state`. A missing PIN for
-`REQUIRED` returns `pin_required`; a wrong PIN returns the sanitized
-`pin_rejected` outcome. `OPTIONAL` without a PIN follows the peer-negotiated
-allowed path. The value exists only in request-lifetime memory for that exact
-attempt and is zeroed or released on return. A PIN value never enters a
-response, replay record, durable store, log, metric, trace, diagnostic, URL, or
-browser storage; only the categorical PIN outcome may enter the sanitized
-audit row. This protocol PIN is not an eeBUS-specific login, session, cookie,
-CSRF token, credential, or reauthentication mechanism.
+The selection record binds only the observed `pin_state`, never a PIN. A missing
+PIN for `REQUIRED` returns `pin_required`; `OPTIONAL` without one follows the
+peer-negotiated allowed path. `BUSY`, `REJECTED`, `UNAVAILABLE`, and `PROTOCOL`
+map respectively to `pin_busy`, `pin_rejected`, `pin_unavailable`, and
+`pin_protocol_error`, with no identity or protocol detail. The current attempt
+may retain no PIN after it terminates. PIN handling does not change candidate
+retention: it neither confirms, replaces, persists, nor revokes a candidate;
+the canonical durable-denial-first order, durable tombstone, and rule that an
+incomplete withdrawal remains revoked are unchanged. This protocol PIN is not
+an eeBUS-specific login, session, cookie, CSRF token, credential, or
+reauthentication mechanism.
 
 At the in-process boundary, select consumes only an observation handle and the
 complete expected certificate short identifier, and returns a selection handle without dialing or
@@ -591,7 +621,11 @@ observation_stale
 endpoint_scope_unavailable
 identity_mismatch
 pin_required
+pin_optional
+pin_busy
 pin_rejected
+pin_unavailable
+pin_protocol_error
 association_incomplete
 candidate_expired
 candidate_busy
@@ -623,7 +657,7 @@ maps to the last row and never falls through to success:
 | `state_conflict`, `snapshot_expired`, `observation_stale`, `candidate_expired`, `candidate_busy` | Refresh status and require a new explicit action. | None after the active flow closes. |
 | `pairing_closed` | Return to the pairing-window step. | Sanitized category only. |
 | `endpoint_scope_unavailable`, `listener_unavailable`, `discovery_unavailable`, `admin_boundary_unavailable` | Create or refresh a generic availability repair. | Category and non-secret readiness state only. |
-| `identity_mismatch`, `pin_required`, `pin_rejected`, `trust_denied` | Show a form error without echoing identity or PIN. | Category only; no submitted value. |
+| `identity_mismatch`, `pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`, `pin_protocol_error`, `trust_denied` | Show a form/error state without echoing identity or PIN; `pin_unavailable` and `pin_protocol_error` may instead offer generic repair. | Category only; no submitted value. |
 | `attempt_timeout`, `disconnected`, `spine_topology_unavailable` | Refresh the SHIP/SPINE status view. | Category only. |
 | `backoff_active` | Disable Retry until the server deadline, then refresh; the client clock grants no admission. | Category and non-secret retry deadline only. |
 | `revocation_withdrawal_incomplete`, `terminal_quarantine`, `persistence_failure`, `association_incomplete`, `unknown_state` | Create or refresh a fail-closed repair; an incomplete withdrawal remains revoked and is never offered as Retry. | Category and request ID only. |
