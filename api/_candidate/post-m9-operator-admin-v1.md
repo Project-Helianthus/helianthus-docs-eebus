@@ -74,6 +74,37 @@ session does not make a failed driver or process ready. AdminV1 reports these
 dimensions; consumers display them without collapsing them into one `ok`
 boolean.
 
+The closed readiness enums are:
+
+```text
+process_readiness: `READY | NOT_READY`
+eebus_readiness: `DISABLED | STARTING | READY | DEGRADED`
+eebus_degraded_reason:
+  `CONFIGURATION_INVALID | LOCAL_IDENTITY_UNAVAILABLE | LISTENER_UNAVAILABLE |
+   RUNTIME_FACTORY_UNAVAILABLE | ADMIN_BOUNDARY_UNAVAILABLE |
+   UNKNOWN_STARTUP_FAILURE`
+```
+
+`DISABLED`, `STARTING`, and `READY` carry no degradation reason. `DEGRADED`
+requires exactly one reason. The ordered startup mapping is:
+
+| First failed eeBUS startup stage | `eebus_readiness` | Reason |
+| --- | --- | --- |
+| Configuration validation | `DEGRADED` | `CONFIGURATION_INVALID` |
+| Local identity load/validation | `DEGRADED` | `LOCAL_IDENTITY_UNAVAILABLE` |
+| Listener construction/bind | `DEGRADED` | `LISTENER_UNAVAILABLE` |
+| Runtime factory construction | `DEGRADED` | `RUNTIME_FACTORY_UNAVAILABLE` |
+| AdminV1 construction | `DEGRADED` | `ADMIN_BOUNDARY_UNAVAILABLE` |
+| Unclassified or future startup failure | `DEGRADED` | `UNKNOWN_STARTUP_FAILURE` |
+
+An unknown startup failure maps to `DEGRADED / UNKNOWN_STARTUP_FAILURE`; an
+unknown eeBUS readiness token is treated the same way by consumers. A configured
+lane is `STARTING` only while one bounded construction attempt is active and is
+`READY` only when its runtime, listener, and required operator boundary are
+usable. A deliberately disabled lane is `DISABLED`. eeBUS startup failure alone
+never maps process readiness to `NOT_READY`; that process state is reserved for
+failure of the shared gateway/API readiness gate.
+
 ## Common Request And Response Rules
 
 Mutations require:
@@ -167,7 +198,7 @@ the typed gateway operator origin.
 | `POST /admin/eebus/v1/candidate:confirm` | confirm candidate | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
 | `POST /admin/eebus/v1/candidate:cancel` | cancel candidate | Retires only the exact current volatile candidate and selection; never changes durable trust. |
 | `POST /admin/eebus/v1/partners/{partner_id}:retry` | retry trusted partner | Requests retry only when the current coordinator row is explicitly admitted; Portal/HA deadlines do not grant authority. |
-| `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | untrust partner | Offline: durable revoke then success. Connected: same-generation disconnect ACK, then durable revoke and success. |
+| `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | untrust partner | Durable denial/tombstone first; then authoritative already-absent or bounded same-generation live withdrawal determines complete versus incomplete outcome. |
 
 ### Endpoint Operations Matrix
 
@@ -204,6 +235,19 @@ endpoint, or reconstructed candidate input; it resolves that exact record and
 invokes `AdminV1.Connect` with only the stored selection handle and common
 precondition. Missing, expired, wrong-runtime, or stale-revision selection
 identifiers reject without a transport effect.
+
+The host client keeps only `selection_id` and its issuing revision in the
+volatile active flow after Select. It clears the independently entered SKI and
+observation data immediately. The `Select` response does not clear that
+volatile selection; Connect terminal success/failure, selection expiry,
+pairing-window close, navigation away, visibility loss, or explicit flow abort
+does. No selection field enters persistent client storage.
+
+Candidate comparison identity begins only when the candidate view is returned.
+It remains only through the active comparison until confirm, cancel, candidate
+expiry, connection close, generation change, navigation away, visibility loss,
+or explicit flow abort. Neither Portal nor HA persists selection or candidate
+fields.
 
 ## Status And Partner Models
 
@@ -384,15 +428,21 @@ the serializer and performs an effect only while `retry_admitted=true`;
 `ADMIN_HOLD` and every terminal security/structural quarantine return
 `terminal_quarantine` without a deadline or transport effect.
 
-`AdminV1.Untrust` has two serialized completion paths. If there is no current
-connected generation, it commits durable revocation directly and returns
-`revoked` only after the durable write succeeds. If a connected generation
-exists when the operation is admitted, it sends disconnect and waits for the
-bounded same-generation ACK; only that ACK permits the durable revocation
-write. A missing, late, or different-generation ACK returns
-`disconnect_ack_timeout`, preserves the durable association, and must not
-report `revoked`. A durable-write error on either eligible path returns
-`persistence_failure`.
+`AdminV1.Untrust` preserves the canonical M4C durable-denial-first invariant
+inside one serializer. It closes local pairing and denies the association in
+memory before publishing a durable generation that deactivates the association
+and appends its effective tombstone. Only after that durable result may the live
+facade withdraw a current session.
+
+With no connected generation, an authoritative already-absent result completes
+as `revoked` after durability. With a connected generation, one bounded
+same-generation disconnect/unregister completion determines only whether live
+withdrawal is complete. A missing, late, foreign-generation, or ambiguous ACK
+returns `revocation_withdrawal_incomplete`; the association remains revoked and
+tombstoned, is excluded from retry admission, and cannot revive after restart.
+Only completed live withdrawal returns `revoked`. A durable-write error before
+the tombstone is effective returns `persistence_failure` and starts no live
+withdrawal.
 
 Operator snapshots request exactly one closed view: `trusted`, `connected`,
 `discovered`, or `candidate`. Each response contains one non-zero operator
@@ -444,10 +494,14 @@ construction/provider/capacity failure. No case returns a partial tree.
 The connected capability and every returned snapshot/cursor are bound to the
 current connected generation. A disconnect or generation change invalidates
 them before dereference. For one generation the raw provider publishes an exact
-replacement, never a merge. A remove or empty current-generation publication
-therefore produces no nodes; a reduced reconnect returns only the reduced
-device/entity/feature sets. The adapter never fills missing raw nodes from a
-prior generation or from semantic last-known-good state.
+replacement, never a merge. A disconnect, current-device removal, or a complete
+current-generation refresh with no devices produces no nodes. An incremental
+entity or feature add/remove first triggers a complete refreshed live graph
+from the active remote; exact replacement preserves every unrelated node still
+present. The event delta is not itself a complete graph. A reduced reconnect
+returns only the reduced device/entity/feature sets. The adapter never fills
+missing raw nodes from a prior generation or from semantic last-known-good
+state.
 
 The route accepts exactly one of these closed query shapes:
 
@@ -542,7 +596,7 @@ discovery_unavailable
 attempt_timeout
 disconnected
 spine_topology_unavailable
-disconnect_ack_timeout
+revocation_withdrawal_incomplete
 backoff_active
 terminal_quarantine
 persistence_failure
@@ -567,7 +621,7 @@ maps to the last row and never falls through to success:
 | `identity_mismatch`, `pin_required`, `pin_rejected`, `trust_denied` | Show a form error without echoing identity or PIN. | Category only; no submitted value. |
 | `attempt_timeout`, `disconnected`, `spine_topology_unavailable` | Refresh the SHIP/SPINE status view. | Category only. |
 | `backoff_active` | Disable Retry until the server deadline, then refresh; the client clock grants no admission. | Category and non-secret retry deadline only. |
-| `disconnect_ack_timeout`, `terminal_quarantine`, `persistence_failure`, `association_incomplete`, `unknown_state` | Create or refresh a fail-closed repair; require a new operator decision after status refresh. | Category and request ID only. |
+| `revocation_withdrawal_incomplete`, `terminal_quarantine`, `persistence_failure`, `association_incomplete`, `unknown_state` | Create or refresh a fail-closed repair; an incomplete withdrawal remains revoked and is never offered as Retry. | Category and request ID only. |
 
 The table is presentation mapping, not a second state machine. HA invokes only
 the typed gateway actions, does not persist SKI or candidate identity, and does

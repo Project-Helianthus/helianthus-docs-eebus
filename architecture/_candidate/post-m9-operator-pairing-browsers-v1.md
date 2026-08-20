@@ -262,18 +262,23 @@ addresses into semantic payloads.
 ## Connected-Generation Topology Replacement
 
 Raw SPINE topology belongs only to the current connected generation. Each
-accepted runtime topology callback carries that generation and performs exact
-replacement, never a merge, of the device, entity, feature, use-case, and opaque
-sets for that generation. A stale-generation callback is discarded without
-changing the current tree.
+accepted complete runtime topology refresh carries that generation and performs
+exact replacement, never a merge, of the device, entity, feature, use-case, and
+opaque sets for that generation. A stale-generation callback is discarded
+without changing the current tree.
 
-A disconnect, remove, or empty current-generation snapshot publishes an empty
-raw topology and invalidates every snapshot and cursor from the earlier
-generation. A reduced reconnect publishes exactly the reduced
-device/entity/feature sets; nodes from the prior connection cannot survive by
-union, cache fill, or last-seen inference. While a current connection has no
-matching device inventory, the browser reports `spine_topology_unavailable`
-rather than displaying the previous generation.
+A disconnect, current-device removal, or a complete current-generation refresh
+with no devices publishes an empty raw topology and invalidates every snapshot
+and cursor from the earlier generation. An entity or feature add/remove triggers
+a complete refreshed live graph from the active current-generation remote; its
+exact replacement preserves every unrelated node still present. The event delta
+itself is never treated as a complete empty graph.
+
+A reduced reconnect publishes exactly the reduced device/entity/feature sets;
+nodes from the prior connection cannot survive by union, cache fill, or
+last-seen inference. While a current connection has no matching device
+inventory, the browser reports `spine_topology_unavailable` rather than
+displaying the previous generation.
 
 Semantic last-known-good retention is a separate consumer fact. It may retain
 already promoted semantic values with explicit age and provenance, but it must
@@ -324,21 +329,28 @@ classification above still applies. Listener/discovery availability in the
 exact retry-ready product does not widen candidate, trust, store, socket,
 raw-data, or semantic authority.
 
-## Untrust Completion Ordering
+## Untrust Durable Denial And Withdrawal
 
-Untrust resolves the current durable association and connected generation
-inside the coordinator serializer. With no current connected generation, the
-offline path performs the durable revocation directly and returns `revoked`
-only after durable revocation commits. A persistence error returns
-`persistence_failure`; it cannot be rendered as a successful removal.
+Untrust remains subordinate to the
+[canonical M4C durable-denial-first invariant](msp-04c-restore-revocation-quarantine-repair.md).
+Inside the coordinator serializer it first closes local pairing and denies the
+association in memory before publishing the durable tombstone. The durable
+generation deactivates the association; durable denial and tombstone precede
+live withdrawal.
 
-When a connected generation exists at admission, untrust requests protocol
-disconnect and waits for the bounded disconnect ACK from that same generation.
-Durable revocation starts only after that ACK. A disconnect, reconnect, or ACK
-from another generation cannot satisfy the request. Timeout returns
-`disconnect_ack_timeout`, leaves durable trust unchanged, and must not report
-`revoked`. Retry uses the original idempotency binding and never performs a
-second disconnect or revocation after a terminal replay result.
+With no current connected generation, an authoritative already-absent result
+completes as `revoked` after durability. With a connected generation, the live
+facade then performs one bounded disconnect/unregister request. Its
+same-generation disconnect ACK classifies withdrawal completeness, never trust
+state. A missing, late, foreign-generation, or ambiguous result returns
+`revocation_withdrawal_incomplete`; the association remains revoked and
+tombstoned and cannot reconnect or revive after restart. Only durable denial
+plus completed withdrawal returns the terminal success `revoked`.
+
+A persistence error before the tombstone becomes durable returns
+`persistence_failure` and cannot be rendered as successful revocation. Replay
+uses the original idempotency binding and never performs a second durable or
+live effect after a terminal result.
 
 ## Closed Operator Outcomes
 
@@ -357,7 +369,7 @@ second disconnect or revocation after a terminal replay result.
 | `spine_topology_unavailable` | The raw provider returned a valid snapshot, but it contains no matching current-partner device inventory. | Keep the session visible, expose a read-only refresh action, and do not retry or start transport. An unavailable or invalid raw-provider result is `admin_boundary_unavailable`. |
 | `backoff_active` | Retry is quarantined until a known deadline. | Expose the deadline; do not bypass it through Portal or HA. |
 | `terminal_quarantine` | Security or structural state requires repair/admin action. | Deny pairing and retry until the coordinator clears the condition. |
-| `disconnect_ack_timeout` | Connected untrust did not receive the same-generation disconnect ACK within its bound. | Preserve durable trust and do not report revoked. |
+| `revocation_withdrawal_incomplete` | Durable revocation succeeded, but live disconnect/unregister did not complete authoritatively within its bound. | Keep the association revoked and tombstoned; report incomplete withdrawal and deny reconnect. |
 | `persistence_failure` | Durable association publication did not complete safely. | Never report trusted; enter the coordinator's repair/reopen path. |
 
 Unknown future state values map to one fail-closed `unknown_state` outcome.
@@ -379,9 +391,15 @@ control, not an authentication mechanism. It requires the explicit current
 operator confirmation only for the live mutation; it is not a login substitute.
 
 Home Assistant presents this boundary through an HA-native config/options/repair
-flow and ephemeral action forms. It reads current status immediately before an
-action, submits one closed typed request, then discards SKI, PIN, observation,
-selection, and candidate fields when the view ends or the result arrives. It
+flow and ephemeral action forms. After Select succeeds, it clears observation
+and entered identity input, then keeps only `selection_id` and its issuing
+revision in the volatile active flow. The `Select` response does not clear that
+volatile selection: it remains only until Connect reaches a terminal result or
+the selection expires, unless the operator abandons the flow earlier.
+
+Once a TLS-bound candidate exists, candidate comparison data remains only until
+confirm, cancel, candidate expiry, connection close, generation change, or
+active-flow abandonment. PIN exists only for the current Connect request. HA
 does not persist SKI or candidate identity in a config entry, entity registry,
 device registry, issue registry, diagnostics, or reusable application storage.
 Only a sanitized closed status/error code and a non-secret retry deadline may
