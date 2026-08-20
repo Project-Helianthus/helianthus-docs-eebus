@@ -1,4 +1,5 @@
 import re
+import unittest
 from pathlib import Path
 
 
@@ -11,7 +12,7 @@ def _normalized(path: Path) -> str:
     return " ".join(path.read_text(encoding="utf-8").split())
 
 
-def test_connect_pin_is_optional_exact_and_secret_bounded() -> None:
+def _assert_connect_pin_is_optional_exact_and_secret_bounded() -> None:
     text = _normalized(ADMIN)
     for required in (
         "optional `pin` field",
@@ -27,7 +28,7 @@ def test_connect_pin_is_optional_exact_and_secret_bounded() -> None:
         assert required in text
 
 
-def test_connect_pin_replay_is_secret_safe_and_process_local() -> None:
+def _assert_connect_pin_replay_is_secret_safe_and_process_local() -> None:
     text = _normalized(ADMIN)
     for required in (
         "process-local keyed HMAC",
@@ -52,7 +53,7 @@ def test_connect_pin_replay_is_secret_safe_and_process_local() -> None:
         assert category in text
 
 
-def test_pairing_ui_and_durable_lifecycle_remain_separate_from_pin() -> None:
+def _assert_pairing_ui_and_durable_lifecycle_remain_separate_from_pin() -> None:
     admin = _normalized(ADMIN)
     browser = _normalized(BROWSER)
     for required in (
@@ -72,7 +73,7 @@ def test_pairing_ui_and_durable_lifecycle_remain_separate_from_pin() -> None:
         assert required in browser
 
 
-def test_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local() -> None:
+def _assert_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local() -> None:
     admin = _normalized(ADMIN)
     browser = _normalized(BROWSER)
     for text in (admin, browser):
@@ -110,7 +111,7 @@ def test_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local(
         assert "must not appear in a partner or candidate row" in text
 
 
-def test_portal_closed_outcomes_table_has_exact_pin_category_parity() -> None:
+def _assert_portal_closed_outcomes_table_has_exact_pin_category_parity() -> None:
     text = BROWSER.read_text(encoding="utf-8")
     table = text.split("## Closed Operator Outcomes", 1)[1].split(
         "Unknown future state values", 1
@@ -124,3 +125,46 @@ def test_portal_closed_outcomes_table_has_exact_pin_category_parity() -> None:
         "pin_unavailable",
         "pin_protocol_error",
     }
+
+
+def _assert_async_connect_action_is_identity_free_and_correlatable() -> None:
+    admin = _normalized(ADMIN)
+    browser = _normalized(BROWSER)
+    for required in (
+        "`200 connection_started` includes one opaque `action_id`",
+        "same idempotency replay returns the same `action_id` and does not relaunch",
+        "GET status returns exactly one bounded identity-free `active_action`",
+        "kind`, `state`, `outcome`, `retryable`, and `expiry`",
+        "volatile only",
+        "clears on terminal observation, expiry, explicit flow abandonment, or process restart",
+        "must not include SKI, selection, partner, candidate, endpoint, or PIN",
+    ):
+        assert required in admin
+    for required in (
+        "polls `active_action`",
+        "correlates only by `action_id`",
+        "clears the action state on terminal observation, expiry, abandonment, or restart",
+    ):
+        assert required in browser
+
+
+class TransientPinContractTests(unittest.TestCase):
+    def test_connect_pin_is_optional_exact_and_secret_bounded(self) -> None:
+        _assert_connect_pin_is_optional_exact_and_secret_bounded()
+
+    def test_connect_pin_replay_is_secret_safe_and_process_local(self) -> None:
+        _assert_connect_pin_replay_is_secret_safe_and_process_local()
+
+    def test_pairing_ui_and_durable_lifecycle_remain_separate_from_pin(self) -> None:
+        _assert_pairing_ui_and_durable_lifecycle_remain_separate_from_pin()
+
+    def test_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local(
+        self,
+    ) -> None:
+        _assert_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local()
+
+    def test_portal_closed_outcomes_table_has_exact_pin_category_parity(self) -> None:
+        _assert_portal_closed_outcomes_table_has_exact_pin_category_parity()
+
+    def test_async_connect_action_is_identity_free_and_correlatable(self) -> None:
+        _assert_async_connect_action_is_identity_free_and_correlatable()
