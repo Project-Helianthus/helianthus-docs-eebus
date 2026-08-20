@@ -148,6 +148,64 @@ def _assert_async_connect_action_is_identity_free_and_correlatable() -> None:
         assert required in browser
 
 
+def _assert_connect_and_status_types_are_closed_and_exact() -> None:
+    text = ADMIN.read_text(encoding="utf-8")
+    operations = text.split("The in-process operation set is closed:", 1)[1].split(
+        "`AdminMutationResultV1`", 1
+    )[0]
+    outputs = dict(
+        re.findall(
+            r"^(OpenPairingWindow|ClosePairingWindow|Connect|Confirm|Cancel|RetryTrusted|Untrust)"
+            r"\(context, [^)]+\) -> (\w+)$",
+            operations,
+            flags=re.MULTILINE,
+        )
+    )
+    assert outputs["Connect"] == "ConnectResultV1"
+    for operation in (
+        "OpenPairingWindow",
+        "ClosePairingWindow",
+        "Confirm",
+        "Cancel",
+        "RetryTrusted",
+        "Untrust",
+    ):
+        assert outputs[operation] == "AdminMutationResultV1"
+
+    result = text.split("ConnectResultV1 is the closed object:", 1)[1].split("```", 1)[0]
+    result_fields = set(re.findall(r"^([a-z_]+)$", result, flags=re.MULTILINE))
+    assert result_fields == {"state_revision", "outcome", "replayed", "action_id"}
+    assert "additionalProperties: false" in result
+
+    status = text.split("The `GET /admin/eebus/v1/status` response", 1)[1].split(
+        "The in-process `AdminSnapshotV1`", 1
+    )[0]
+    admin_shape = status.split("admin:\n", 1)[1].split("```", 1)[0]
+    status_fields = set(re.findall(r"^  ([a-z_]+)\??$", admin_shape, flags=re.MULTILINE))
+    assert status_fields == {
+        "local_ski",
+        "local_ship_id",
+        "pairing_window_state",
+        "pairing_window_deadline",
+        "register",
+        "listener_health",
+        "discovery_health",
+        "trusted_count",
+        "connected_count",
+        "discovered_count",
+        "candidate_count",
+        "state_revision",
+        "active_action",
+    }
+
+    active = text.split("ActiveActionV1 is the closed optional status type:", 1)[1].split(
+        "```", 1
+    )[0]
+    active_fields = set(re.findall(r"^([a-z_]+)\??$", active, flags=re.MULTILINE))
+    assert active_fields == {"action_id", "kind", "state", "outcome", "retryable", "expiry"}
+    assert "additionalProperties: false" in active
+
+
 class TransientPinContractTests(unittest.TestCase):
     def test_connect_pin_is_optional_exact_and_secret_bounded(self) -> None:
         _assert_connect_pin_is_optional_exact_and_secret_bounded()
@@ -168,3 +226,6 @@ class TransientPinContractTests(unittest.TestCase):
 
     def test_async_connect_action_is_identity_free_and_correlatable(self) -> None:
         _assert_async_connect_action_is_identity_free_and_correlatable()
+
+    def test_connect_and_status_types_are_closed_and_exact(self) -> None:
+        _assert_connect_and_status_types_are_closed_and_exact()
