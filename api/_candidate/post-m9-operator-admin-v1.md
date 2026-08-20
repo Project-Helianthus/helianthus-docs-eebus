@@ -153,15 +153,72 @@ changed operation, handle, revision, or argument binding returns
 `idempotency_conflict` and does not execute a second effect. A stale revision
 with an unseen key returns `state_conflict` without retaining a replay entry.
 
-`ConnectRequestV1` adds one optional sensitive `pin` field. It is accepted only
-when the selected current observation reports `pin_state=REQUIRED` or
-`pin_state=OPTIONAL`; supplying it for `NOT_APPLICABLE` is `invalid_request`.
-The gateway passes the value once to the exact selected attempt. It keeps no
-plaintext replay copy. A process-local keyed digest may bind the idempotency
-record so an identical replay returns the prior sanitized result without
-resubmitting the PIN, while a different value is `idempotency_conflict`. The
-digest is non-serializable, never emitted, and expires with the bounded replay
-record.
+`ConnectRequestV1` has one optional sensitive `pin` field. It has an optional
+`pin` field only on the existing selected-candidate `ConnectRequestV1`.
+Omitting `pin` preserves the
+existing PIN-free connect flow. The contract does not add an arm operation, PIN
+store, or second connect operation. A supplied value is admitted only for the
+current selection whose `pin_requirement` is `REQUIRED` or `OPTIONAL`; supplying it
+for `NOT_APPLICABLE` is `invalid_request`.
+
+The input is accepted only when it is exactly 8 through 16 ASCII hexadecimal
+bytes. Validation does not trim, case-normalize, Unicode-normalize, decode, or
+otherwise rewrite the bytes. The HTTP decoder gives the selected attempt
+ephemeral mutable bytes; it must never create an immutable plaintext copy.
+The gateway uses them once for that exact current attempt and best-effort clears
+every buffer it owns on return, rejection, timeout, cancellation, disconnect,
+generation replacement, and process exit. A PIN is never persisted, logged,
+echoed, audited, metriced, traced, diagnosed, or exposed through MCP, GraphQL,
+semantic registry, or Home Assistant entity.
+
+The Connect idempotency binding additionally contains a process-local keyed
+HMAC over the exact PIN bytes plus presence. The replay record retains only the
+HMAC, never PIN bytes or a canonical plaintext body. The same exact request
+replays without a second launch or write; the same ordinary binding with a
+different PIN presence or value is `idempotency_conflict`. A process restart
+invalidates every PIN-bearing replay entry. The sensitive field must not enter
+the generic JSON/canonical-body replay cache: the gateway special-cases decoder
+and replay admission before generic body retention. Connect responses carry
+`Cache-Control: no-store`; no response, redirect, referrer, audit row, or
+generic error contains the value or its HMAC.
+
+Connect is asynchronous. After all local validation and idempotency checks,
+the accepted `POST` returns `200 connection_started`; it has no peer timing on
+POST and does not wait for or reveal peer timing. A replay returns that same
+logical accepted result.
+
+`200 connection_started` includes one opaque `action_id`; same idempotency
+replay returns the same `action_id` and does not relaunch the attempt. GET
+status returns exactly one bounded identity-free `active_action` while that
+action is live, keyed only by that `action_id`. Its closed fields are
+`action_id`, `kind`, `state`, `outcome`, `retryable`, and `expiry`; `kind` is
+the operation class, `state` is pending or terminal, `outcome` is nullable
+until terminal, and `retryable` is an admission result rather than a client
+grant. It is volatile only: the bounded record expires no later than two
+minutes after acceptance and clears on terminal observation, expiry, explicit
+flow abandonment, or process restart.
+
+`active_action` must not include SKI, selection, partner, candidate, endpoint,
+or PIN. It is neither a partner/candidate row nor a durable trust, discovery,
+or semantic fact. A status response without a current action omits
+`active_action`; it never substitutes an old terminal result or another
+operator's action. The ordinary current partner and candidate projections keep
+their existing identity, revision, retention, durable-denial, and withdrawal
+rules independently.
+
+The selection keeps the identity-bound requirement/baseline
+`REQUIRED | OPTIONAL | NOT_APPLICABLE`; it is evidence about that selected
+observation, not a peer result. Each terminal result is instead an action-local
+identity-free terminal outcome: `pin_required`, `pin_optional`, `pin_busy`,
+`pin_rejected`, `pin_unavailable`, or `pin_protocol_error`. The six categories
+mean, respectively: required input was omitted; optional/restricted admission
+continued without input; the current PIN admission was busy; the peer rejected
+the attempt; the local PIN facility was unavailable; or the protocol returned
+only a safe error class. They contain no value, byte position, peer timing,
+identity, endpoint, candidate handle, or transport detail, and must not appear
+in a partner or candidate row. The gateway retains them only in the active
+action result long enough to complete the requesting flow; they are neither a
+new durable fact nor a candidate lifecycle state.
 
 The in-process operation set is closed:
 
@@ -170,7 +227,7 @@ Snapshot(context, AdminSnapshotRequestV1) -> AdminSnapshotV1
 OpenPairingWindow(context, OpenPairingWindowRequestV1) -> AdminMutationResultV1
 ClosePairingWindow(context, ClosePairingWindowRequestV1) -> AdminMutationResultV1
 Select(context, SelectRequestV1) -> AdminSelectionResultV1
-Connect(context, ConnectRequestV1) -> AdminMutationResultV1
+Connect(context, ConnectRequestV1) -> ConnectResultV1
 Confirm(context, ConfirmRequestV1) -> AdminMutationResultV1
 Cancel(context, CancelRequestV1) -> AdminMutationResultV1
 RetryTrusted(context, RetryTrustedRequestV1) -> AdminMutationResultV1
@@ -178,8 +235,22 @@ Untrust(context, UntrustRequestV1) -> AdminMutationResultV1
 ```
 
 `AdminMutationResultV1` contains only `state_revision`, a closed outcome, and
-`replayed`. `AdminSelectionResultV1` adds one opaque selection handle. There is
-no generic action handle and no caller-controlled transport coordinate.
+`replayed`; every mutation above other than Connect retains that exact result.
+ConnectResultV1 is the closed object:
+
+```text
+state_revision
+outcome
+replayed
+action_id
+additionalProperties: false
+```
+
+It carries the canonical mutation-result fields plus the one opaque
+`action_id`; no undocumented field injection is allowed. The action ID follows
+the same-idempotency replay/no-relaunch and volatile expiry/clear rules defined
+above. `AdminSelectionResultV1` adds one opaque selection handle. There is no
+generic action handle and no caller-controlled transport coordinate.
 
 ## Closed Operations
 
@@ -280,6 +351,7 @@ admin:
   discovered_count
   candidate_count
   state_revision
+  active_action?
 ```
 
 The in-process `AdminSnapshotV1` owns the `admin` portion, including
@@ -290,6 +362,24 @@ Public/shareable output redacts them. If local identity prevents AdminV1
 construction, shared gateway health keeps `build` and `readiness` available,
 while the typed admin origin returns `admin_boundary_unavailable` and exposes
 no partial `admin` object.
+
+`AdminSnapshotV1` / `StatusDataV1` is a closed shape with
+`additionalProperties: false`; `active_action?` is its only optional async
+action field. ActiveActionV1 is the closed optional status type:
+
+```text
+action_id
+kind
+state
+outcome?
+retryable
+expiry
+additionalProperties: false
+```
+
+The optional object repeats only the action contract above. Its expiry is the
+same bounded volatile TTL, and its terminal/expiry/abandonment/restart clear
+rules are not writable or extensible through status data.
 
 Candidate lifecycle is visible only through this typed operator boundary; it
 never enters public MCP, GraphQL, `ebus.v1`, the semantic registry, or HA entity
@@ -313,7 +403,7 @@ endpoint?
 trust_state
 connection_state: `connected | idle`
 partner_readiness: `disconnected | session_connected | topology_ready`
-pin_state: `REQUIRED | OPTIONAL | NOT_APPLICABLE`?
+pin_requirement: `REQUIRED | OPTIONAL | NOT_APPLICABLE`?
 retry_state: `RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD`?
 retry_deadline?
 retry_admitted
@@ -361,14 +451,18 @@ never accepts a caller-supplied scope or endpoint. If the current observation
 has no one valid scope, resolution returns `endpoint_scope_unavailable` before
 dial and consumes no attempt admission.
 
-The selection record also binds the observed `pin_state`. A missing PIN for
-`REQUIRED` returns `pin_required`; a wrong PIN returns the sanitized
-`pin_rejected` outcome. `OPTIONAL` without a PIN follows the peer-negotiated
-allowed path. The value exists only in request-lifetime memory for that exact
-attempt and is zeroed or released on return. A PIN value never enters a
-response, replay record, durable store, log, metric, trace, diagnostic, URL, or
-browser storage; only the categorical PIN outcome may enter the sanitized
-audit row. This protocol PIN is not an eeBUS-specific login, session, cookie,
+The selection record binds only the observed identity-bound requirement/baseline
+`pin_requirement`, never a PIN or outcome. A missing PIN for `REQUIRED`
+returns the action-local `pin_required`; `OPTIONAL` without one is the
+action-local `pin_optional` path. `pin_busy`, `pin_rejected`,
+`pin_unavailable`, and `pin_protocol_error` are likewise action-local
+identity-free terminal outcomes. No terminal PIN outcome may be stored in or
+returned from a partner/candidate row: it must not appear in a partner or
+candidate row. The current attempt may retain no PIN after it terminates. PIN
+handling does not change candidate retention: it neither confirms, replaces,
+persists, nor revokes a candidate; the canonical durable-denial-first order,
+durable tombstone, and rule that an incomplete withdrawal remains revoked are
+unchanged. This protocol PIN is not an eeBUS-specific login, session, cookie,
 CSRF token, credential, or reauthentication mechanism.
 
 At the in-process boundary, select consumes only an observation handle and the
@@ -591,7 +685,11 @@ observation_stale
 endpoint_scope_unavailable
 identity_mismatch
 pin_required
+pin_optional
+pin_busy
 pin_rejected
+pin_unavailable
+pin_protocol_error
 association_incomplete
 candidate_expired
 candidate_busy
@@ -623,7 +721,7 @@ maps to the last row and never falls through to success:
 | `state_conflict`, `snapshot_expired`, `observation_stale`, `candidate_expired`, `candidate_busy` | Refresh status and require a new explicit action. | None after the active flow closes. |
 | `pairing_closed` | Return to the pairing-window step. | Sanitized category only. |
 | `endpoint_scope_unavailable`, `listener_unavailable`, `discovery_unavailable`, `admin_boundary_unavailable` | Create or refresh a generic availability repair. | Category and non-secret readiness state only. |
-| `identity_mismatch`, `pin_required`, `pin_rejected`, `trust_denied` | Show a form error without echoing identity or PIN. | Category only; no submitted value. |
+| `identity_mismatch`, `pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`, `pin_protocol_error`, `trust_denied` | Show a form/error state without echoing identity or PIN; `pin_unavailable` and `pin_protocol_error` may instead offer generic repair. | Category only; no submitted value. |
 | `attempt_timeout`, `disconnected`, `spine_topology_unavailable` | Refresh the SHIP/SPINE status view. | Category only. |
 | `backoff_active` | Disable Retry until the server deadline, then refresh; the client clock grants no admission. | Category and non-secret retry deadline only. |
 | `revocation_withdrawal_incomplete`, `terminal_quarantine`, `persistence_failure`, `association_incomplete`, `unknown_state` | Create or refresh a fail-closed repair; an incomplete withdrawal remains revoked and is never offered as Retry. | Category and request ID only. |

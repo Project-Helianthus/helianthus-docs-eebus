@@ -148,15 +148,60 @@ attempt as `endpoint_scope_unavailable` before a socket effect. Global IPv6 and
 IPv4 observations keep their existing validation; link-local scope is not
 copied into a durable trust anchor.
 
-The pairing view exposes only the closed PIN requirement `REQUIRED`, `OPTIONAL`,
-or `NOT_APPLICABLE`; it never exposes the PIN value. `REQUIRED` without a
-current value rejects as `pin_required`. `OPTIONAL` may proceed without a value.
-When a closed coordinator state permits PIN input, the gateway relays it once
-in request-lifetime memory to that exact current attempt and clears it on
-return, timeout, cancellation, disconnect, generation change, or restart. The
-PIN value never enters a response, replay record, durable store, log, metric,
-trace, diagnostic, URL, or browser storage. Idempotent replay returns the
-sanitized prior result and never retains or replays the secret.
+The identity-bound requirement/baseline remains exactly `REQUIRED`, `OPTIONAL`,
+or `NOT_APPLICABLE` for the active selected observation. It is not a terminal
+peer result. The six action-local identity-free terminal outcome categories are
+`pin_required`, `pin_optional`, `pin_busy`, `pin_rejected`, `pin_unavailable`,
+and `pin_protocol_error`: required input omitted; optional/restricted admission
+without input; busy admission; peer rejection; local unavailability; and a
+sanitized protocol failure. None identifies a peer, byte, endpoint, candidate,
+or attempt timing, and a terminal outcome must not appear in a partner or
+candidate row. The Pairing view never exposes a PIN value.
+
+Portal renders an optional password field only in the active Pairing Connect
+step. It sends exact 8--16 ASCII hexadecimal bytes without normalization and
+clears it immediately after submit, before rendering either a response or an
+error. The page never reconstructs it for replay, history, autofill,
+telemetry, or local/session storage. The gateway accepts it only in the
+existing selected-candidate Connect request, holds ephemeral mutable bytes in
+request-lifetime memory for
+one attempt, and returns `200 connection_started` without waiting for peer
+timing. The field is not an arm operation, PIN store, second connection action,
+or eeBUS-specific authentication.
+
+The generic Home Assistant service remains PIN-free. Its guided native pairing
+or repair flow may hold the password only in the volatile current action form,
+clears it after submit, and never writes it into a config entry, service data,
+diagnostics, entities, registries, or reusable application storage. HA renders
+only the same sanitized state/category supplied by the gateway; it cannot
+retry, reconstruct, or infer a PIN.
+
+Portal and HA render the same six action-local categories: `pin_required`
+returns to the input decision, `pin_optional` permits the existing no-PIN
+Connect action, `pin_busy` asks for a fresh explicit action, `pin_rejected`
+clears the active form, and `pin_unavailable` or `pin_protocol_error` offers
+generic availability repair. This is a
+presentation mapping only: neither client associates a terminal PIN outcome
+with a SKI-bearing partner/candidate row or retains it after the active action.
+
+After `200 connection_started`, each client polls `active_action` and
+correlates only by `action_id`. Portal and HA render only its bounded kind, state,
+identity-free outcome, retryability, and expiry; neither client joins it to a
+SKI, selection, partner, candidate, endpoint, or PIN. The client clears the
+action state on terminal observation, expiry, abandonment, or restart. A
+missing or mismatched action ID is not a candidate lookup and cannot be
+reconstructed from another view. This volatile action card is separate from
+partner/candidate rows, durable trust, and semantic data.
+
+Implementation follows this dependency order exactly: SHIP `.16` -> eebus-go
+bridge -> eebusreg -> gateway/Portal -> Home Assistant. The SHIP lane owns
+protocol admission and transient consumption; each later layer passes only the
+bounded optional request field and sanitized state. No layer promotes it into
+durable candidate/trust state, raw MCP, GraphQL, semantics, or generic HA
+service surface.
+
+The PIN value never enters a response, replay record, durable store, log,
+metric, trace, diagnostic, URL, or browser storage.
 
 ## Operator Workspace Information Architecture
 
@@ -361,7 +406,11 @@ live effect after a terminal result.
 | `pairing_closed` | No bounded operator window is open. | Candidate admission and first-trust launch are denied. |
 | `endpoint_scope_unavailable` | A link-local observation has no one current discovery-owned interface scope. | Reject before dial; never accept or guess a caller scope. |
 | `pin_required` | The current closed coordinator state requires a transient PIN and no value was supplied. | Reject before protocol progress; never persist or echo the value. |
+| `pin_optional` | The selected current observation permits the optional/restricted no-PIN path. | Continue only through the existing selected Connect action; retain no PIN or identity-bearing terminal result. |
+| `pin_busy` | The current PIN admission is busy. | Do not launch or wait for a peer; clear the active form and require a fresh explicit Connect action. |
 | `pin_rejected` | The peer rejected the transient PIN without a more specific safe category. | Retire only the current attempt; never echo, persist, or identify which value element differed. |
+| `pin_unavailable` | The local PIN facility is unavailable before protocol progress. | Do not launch; retain no secret and offer only generic availability repair. |
+| `pin_protocol_error` | The protocol returned only a safe PIN-failure category. | Retire only the current attempt, expose no peer detail, and offer generic availability repair. |
 | `identity_mismatch` | The supplied complete certificate short identifier does not exactly match the TLS-bound candidate. | No transient trust, persistence, or candidate replacement. |
 | `trust_denied` | Policy or a terminal trust state denies the peer. | No connection launch or trust write; report the sanitized reason class. |
 | `attempt_timeout` | The bounded attempt expired. | Retire only that attempt and apply bounded retry policy. |
