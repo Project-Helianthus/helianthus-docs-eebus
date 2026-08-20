@@ -49,6 +49,31 @@ must not be withheld pending a separate Portal authentication change. Neither
 Portal nor HA receives filesystem, trust-store, private-key, or operator-socket
 access.
 
+## Build Identity And Readiness Dimensions
+
+The gateway constructs one immutable build-info object at process startup. It
+contains `release_version` and `build_id`; no eeBUS adapter, Portal asset, MCP
+handler, or runtime-state writer owns an independent version constant. Portal
+health reports `gateway_version=release_version` plus the same `build_id`, MCP
+initialize reports `serverInfo.version=release_version`, and
+`runtime_state.meta` records `addon_version=release_version` plus
+`gateway_build=build_id`. A mismatch is a packaging/startup defect, not a value
+that a consumer may reconcile or rewrite.
+
+This requirement does not add a field to a frozen stable `eebus.v1.*` tool and
+does not change its schema. It freezes the one BuildIdentity source/mapping
+across Portal health, MCP initialize `serverInfo.version`, and
+`runtime_state.meta`; the existing raw eeBUS MCP contract remains unchanged.
+
+Process readiness, eeBUS driver readiness, and partner/session readiness are
+three independent dimensions. An eeBUS `DEGRADED` state does not rewrite
+process readiness while the shared gateway APIs and other admitted protocol
+runtimes are healthy. A disconnected partner does not rewrite eeBUS driver
+readiness while listener/discovery are healthy. Conversely, a connected
+session does not make a failed driver or process ready. AdminV1 reports these
+dimensions; consumers display them without collapsing them into one `ok`
+boolean.
+
 ## Common Request And Response Rules
 
 Mutations require:
@@ -97,6 +122,16 @@ changed operation, handle, revision, or argument binding returns
 `idempotency_conflict` and does not execute a second effect. A stale revision
 with an unseen key returns `state_conflict` without retaining a replay entry.
 
+`ConnectRequestV1` adds one optional sensitive `pin` field. It is accepted only
+when the selected current observation reports `pin_state=REQUIRED` or
+`pin_state=OPTIONAL`; supplying it for `NOT_APPLICABLE` is `invalid_request`.
+The gateway passes the value once to the exact selected attempt. It keeps no
+plaintext replay copy. A process-local keyed digest may bind the idempotency
+record so an identical replay returns the prior sanitized result without
+resubmitting the PIN, while a different value is `idempotency_conflict`. The
+digest is non-serializable, never emitted, and expires with the bounded replay
+record.
+
 The in-process operation set is closed:
 
 ```text
@@ -122,17 +157,17 @@ the typed gateway operator origin.
 
 | Method and path | Typed operation | Coordinator effect |
 | --- | --- | --- |
-| `GET /admin/eebus/v1/status` | status | None; returns local identity summary, pairing-window state, listener/discovery health, and sanitized degradation. |
+| `GET /admin/eebus/v1/status` | status | None; returns build identity, independent readiness dimensions, local endpoint summary, pairing-window state, listener/discovery health, and sanitized degradation. |
 | `GET /admin/eebus/v1/partners?view=<view>` | partner view | None; lists exactly one of `trusted`, `connected`, `discovered`, or `candidate`. |
 | `GET /admin/eebus/v1/partners/{partner_id}/spine?<closed-query>` | raw SPINE page | None; returns one lazy raw snapshot page bound to runtime and snapshot identity. |
 | `POST /admin/eebus/v1/pairing-window:open` | open window | Opens one bounded window; never selects or dials. |
 | `POST /admin/eebus/v1/pairing-window:close` | close window | Closes the window and retires only window-owned volatile state. |
 | `POST /admin/eebus/v1/observations/{observation_id}:select` | select observation | Binds the exact current discovery revision and expected complete certificate short identifier; no dial or trust. |
-| `POST /admin/eebus/v1/selections/{selection_id}:connect` | connect selection | Resolves only the current selection capability and starts its one bounded attempt. |
+| `POST /admin/eebus/v1/selections/{selection_id}:connect` | connect selection | Resolves only the current selection capability and starts its one bounded attempt; accepts optional transient `pin` only for a selection bound to `REQUIRED` or `OPTIONAL`. |
 | `POST /admin/eebus/v1/candidate:confirm` | confirm candidate | Confirms the complete TLS-bound certificate short identifier and current candidate bindings; may create transient trust, never early persistence. |
 | `POST /admin/eebus/v1/candidate:cancel` | cancel candidate | Retires only the exact current volatile candidate and selection; never changes durable trust. |
-| `POST /admin/eebus/v1/partners/{partner_id}:retry` | retry trusted partner | Requests retry only when coordinator state is retry-ready and backoff has elapsed. |
-| `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | untrust partner | Revokes the exact durable association and current runtime trust through the coordinator. |
+| `POST /admin/eebus/v1/partners/{partner_id}:retry` | retry trusted partner | Requests retry only when the current coordinator row is explicitly admitted; Portal/HA deadlines do not grant authority. |
+| `DELETE /admin/eebus/v1/partners/{partner_id}/trust` | untrust partner | Offline: durable revoke then success. Connected: same-generation disconnect ACK, then durable revoke and success. |
 
 ### Endpoint Operations Matrix
 
@@ -172,12 +207,46 @@ identifiers reject without a transport effect.
 
 ## Status And Partner Models
 
-Status for both host operator surfaces contains local protocol-service identity
-display fields, pairing-window state and deadline, `register` state, listener
-and discovery health, trusted/connected/discovered/candidate view counts, a
-closed degraded-state code, and `state_revision`. Candidate lifecycle is
-visible only through this typed operator boundary; it never enters public MCP,
-GraphQL, `ebus.v1`, the semantic registry, or HA entity attributes.
+The `GET /admin/eebus/v1/status` response composes the immutable gateway
+build/readiness object with the closed protocol portion from `AdminSnapshotV1`:
+
+```text
+build:
+  release_version
+  build_id
+readiness:
+  process_readiness
+  eebus_readiness
+  eebus_degraded_reason?
+admin:
+  local_ski
+  local_ship_id
+  pairing_window_state
+  pairing_window_deadline?
+  register
+  listener_health
+  discovery_health
+  trusted_count
+  connected_count
+  discovered_count
+  candidate_count
+  state_revision
+```
+
+The in-process `AdminSnapshotV1` owns the `admin` portion, including
+`local_ski` and `local_ship_id`; it does not own gateway build or process
+readiness. Those two fields display the local protocol endpoint to the host operator
+surfaces; they are never private-key material or durable store handles.
+Public/shareable output redacts them. If local identity prevents AdminV1
+construction, shared gateway health keeps `build` and `readiness` available,
+while the typed admin origin returns `admin_boundary_unavailable` and exposes
+no partial `admin` object.
+
+Candidate lifecycle is visible only through this typed operator boundary; it
+never enters public MCP, GraphQL, `ebus.v1`, the semantic registry, or HA entity
+attributes. Process readiness, eeBUS readiness, and partner/session readiness
+remain separate; counts and connection rows cannot override either process or
+driver readiness.
 
 Each partner row is the closed object:
 
@@ -186,12 +255,19 @@ partner_id
 view
 remote_ski: <redacted>
 remote_ship_id: <redacted>
+name?
+identifier?
 brand?
 device_type?
 model?
 endpoint?
 trust_state
-connection_state
+connection_state: `connected | idle`
+partner_readiness: `disconnected | session_connected | topology_ready`
+pin_state: `REQUIRED | OPTIONAL | NOT_APPLICABLE`?
+retry_state: `RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD`?
+retry_deadline?
+retry_admitted
 last_seen?
 observation_revision?
 candidate_state?
@@ -204,6 +280,14 @@ for the host operator surfaces. It is never shortened for comparison. The
 endpoint, and last-seen are present only when the owning runtime fact exists;
 one view cannot synthesize them from another. The public/shareable formatter
 redacts all operational identity and endpoint fields.
+
+`retry_admitted` is true only for a currently admitted `RETRY_READY` row after
+the coordinator resolves the current durable binding, observation, revision,
+and retry gate. `BACKOFF_ACTIVE` requires a future retry deadline and always
+sets `retry_admitted=false`. `ADMIN_HOLD` is terminal quarantine, has no retry
+deadline, and sets `retry_admitted=false`. Retry rejects unless
+`retry_admitted=true`; Portal and HA cannot derive admission by comparing a
+clock or relabeling a terminal row.
 
 Candidate rows additionally return only the bindings needed for the current
 OOB decision: the complete observed certificate short identifier, expiry,
@@ -221,6 +305,22 @@ above. Outbound TLS or an eligible inbound callback may then
 bind only that already selected identity and generation. An inbound callback
 cannot select a candidate, and no observation is fabricated. Both TLS paths
 otherwise use identical OOB, expiry, generation, and persistence rules.
+
+For an IPv6 link-local observation, the server-side selection record contains
+the exact discovery-owned interface scope together with the endpoint. Connect
+never accepts a caller-supplied scope or endpoint. If the current observation
+has no one valid scope, resolution returns `endpoint_scope_unavailable` before
+dial and consumes no attempt admission.
+
+The selection record also binds the observed `pin_state`. A missing PIN for
+`REQUIRED` returns `pin_required`; a wrong PIN returns the sanitized
+`pin_rejected` outcome. `OPTIONAL` without a PIN follows the peer-negotiated
+allowed path. The value exists only in request-lifetime memory for that exact
+attempt and is zeroed or released on return. A PIN value never enters a
+response, replay record, durable store, log, metric, trace, diagnostic, URL, or
+browser storage; only the categorical PIN outcome may enter the sanitized
+audit row. This protocol PIN is not an eeBUS-specific login, session, cookie,
+CSRF token, credential, or reauthentication mechanism.
 
 At the in-process boundary, select consumes only an observation handle and the
 complete expected certificate short identifier, and returns a selection handle without dialing or
@@ -276,6 +376,24 @@ operator request.
 an absent/non-current durable association cannot start transport effects or arm
 retry. They retain their existing fail-closed error mapping.
 
+At snapshot time the adapter maps only the coordinator result to the closed
+`RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD` retry state. It never infers
+retry-ready from a disconnected row. `RetryTrusted` re-resolves admission under
+the serializer and performs an effect only while `retry_admitted=true`;
+`BACKOFF_ACTIVE` returns `backoff_active` with its non-secret deadline, while
+`ADMIN_HOLD` and every terminal security/structural quarantine return
+`terminal_quarantine` without a deadline or transport effect.
+
+`AdminV1.Untrust` has two serialized completion paths. If there is no current
+connected generation, it commits durable revocation directly and returns
+`revoked` only after the durable write succeeds. If a connected generation
+exists when the operation is admitted, it sends disconnect and waits for the
+bounded same-generation ACK; only that ACK permits the durable revocation
+write. A missing, late, or different-generation ACK returns
+`disconnect_ack_timeout`, preserves the durable association, and must not
+report `revoked`. A durable-write error on either eligible path returns
+`persistence_failure`.
+
 Operator snapshots request exactly one closed view: `trusted`, `connected`,
 `discovered`, or `candidate`. Each response contains one non-zero operator
 revision, capture time, sanitized status, and only the selected typed row set.
@@ -322,6 +440,14 @@ current partner device inventory returns `spine_topology_unavailable`. This
 distinguishes a live session whose canonical topology is not ready from both a
 trusted-but-offline relationship and a genuine `admin_boundary_unavailable`
 construction/provider/capacity failure. No case returns a partial tree.
+
+The connected capability and every returned snapshot/cursor are bound to the
+current connected generation. A disconnect or generation change invalidates
+them before dereference. For one generation the raw provider publishes an exact
+replacement, never a merge. A remove or empty current-generation publication
+therefore produces no nodes; a reduced reconnect returns only the reduced
+device/entity/feature sets. The adapter never fills missing raw nodes from a
+prior generation or from semantic last-known-good state.
 
 The route accepts exactly one of these closed query shapes:
 
@@ -403,7 +529,10 @@ snapshot_expired
 idempotency_conflict
 pairing_closed
 observation_stale
+endpoint_scope_unavailable
 identity_mismatch
+pin_required
+pin_rejected
 association_incomplete
 candidate_expired
 candidate_busy
@@ -413,6 +542,7 @@ discovery_unavailable
 attempt_timeout
 disconnected
 spine_topology_unavailable
+disconnect_ack_timeout
 backoff_active
 terminal_quarantine
 persistence_failure
@@ -422,6 +552,27 @@ unknown_state
 Errors do not reveal which certificate-identity byte differed, whether a
 partner exists, store contents, private paths, or coordinator internals. Unknown
 runtime outcomes map to `unknown_state` and reject mutation.
+
+### Home Assistant Closed Action Errors
+
+Home Assistant uses this closed sanitized action-error table; unknown input
+maps to the last row and never falls through to success:
+
+| AdminV1 category | HA-native result | Retained data |
+| --- | --- | --- |
+| `invalid_request`, `idempotency_conflict` | Abort the malformed/conflicting action. | Sanitized category and request ID for the active flow only. |
+| `state_conflict`, `snapshot_expired`, `observation_stale`, `candidate_expired`, `candidate_busy` | Refresh status and require a new explicit action. | None after the active flow closes. |
+| `pairing_closed` | Return to the pairing-window step. | Sanitized category only. |
+| `endpoint_scope_unavailable`, `listener_unavailable`, `discovery_unavailable`, `admin_boundary_unavailable` | Create or refresh a generic availability repair. | Category and non-secret readiness state only. |
+| `identity_mismatch`, `pin_required`, `pin_rejected`, `trust_denied` | Show a form error without echoing identity or PIN. | Category only; no submitted value. |
+| `attempt_timeout`, `disconnected`, `spine_topology_unavailable` | Refresh the SHIP/SPINE status view. | Category only. |
+| `backoff_active` | Disable Retry until the server deadline, then refresh; the client clock grants no admission. | Category and non-secret retry deadline only. |
+| `disconnect_ack_timeout`, `terminal_quarantine`, `persistence_failure`, `association_incomplete`, `unknown_state` | Create or refresh a fail-closed repair; require a new operator decision after status refresh. | Category and request ID only. |
+
+The table is presentation mapping, not a second state machine. HA invokes only
+the typed gateway actions, does not persist SKI or candidate identity, and does
+not store the action payload in a config entry, entity registry, device
+registry, issue registry, diagnostics, or reusable application storage.
 
 ## Non-Disclosure And Anti-Leak Rules
 

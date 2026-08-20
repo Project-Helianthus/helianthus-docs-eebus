@@ -18,7 +18,7 @@ class PostM9ClosureContractTests(unittest.TestCase):
         arch = normalized(ARCH)
         for phrase in (
             "optional protocol-adapter startup lane",
-            "configuration, local identity, listener, runtime factory, or AdminV1 construction",
+            "loading eeBUS configuration, local identity, listener, runtime factory, or AdminV1 construction",
             "must not terminate or de-admit eBUS, Modbus, MCP, GraphQL, Portal, or the gateway health API",
             "`eebus_readiness=DEGRADED`",
             "bounded restart schedule",
@@ -34,7 +34,7 @@ class PostM9ClosureContractTests(unittest.TestCase):
             "no current connected generation",
             "returns `revoked` only after durable revocation commits",
             "waits for the bounded disconnect ACK from that same generation",
-            "durable revocation starts only after that ACK",
+            "Durable revocation starts only after that ACK",
             "`disconnect_ack_timeout`",
             "must not report `revoked`",
         ):
@@ -47,7 +47,7 @@ class PostM9ClosureContractTests(unittest.TestCase):
         for phrase in (
             "current connected generation",
             "exact replacement, never a merge",
-            "remove or empty current-generation snapshot publishes an empty raw topology",
+            "disconnect, remove, or empty current-generation snapshot publishes an empty raw topology",
             "reduced reconnect publishes exactly the reduced device/entity/feature sets",
             "invalidates every snapshot and cursor from the earlier generation",
             "Semantic last-known-good retention is a separate consumer fact",
@@ -65,6 +65,8 @@ class PostM9ClosureContractTests(unittest.TestCase):
             "`endpoint_scope_unavailable`",
             "`REQUIRED`, `OPTIONAL`, or `NOT_APPLICABLE`",
             "`pin_required`",
+            "`pin_rejected`",
+            "optional sensitive `pin` field",
             "request-lifetime memory",
             "PIN value never enters a response, replay record, durable store, log, metric, trace, diagnostic, URL, or browser storage",
         ):
@@ -80,6 +82,7 @@ class PostM9ClosureContractTests(unittest.TestCase):
             "model?",
             "endpoint?",
             "connection_state",
+            "partner_readiness: `disconnected | session_connected | topology_ready`",
             "retry_state: `RETRY_READY | BACKOFF_ACTIVE | ADMIN_HOLD`",
             "retry_deadline?",
             "retry_admitted",
@@ -109,17 +112,21 @@ class PostM9ClosureContractTests(unittest.TestCase):
         for phrase in (
             "one immutable build-info object",
             "`release_version` and `build_id`",
-            "Portal health, `eebus.v1.runtime.status.get`, and `runtime_state.meta`",
-            "process readiness, eeBUS driver readiness, and partner/session readiness are three independent dimensions",
+            "Portal health, MCP initialize `serverInfo.version`, and `runtime_state.meta`",
+            "does not add a field to a frozen stable `eebus.v1.*` tool",
+            "existing raw eeBUS MCP contract remains unchanged",
+            "`AdminSnapshotV1` owns the `admin` portion",
+            "does not own gateway build or process readiness",
+            "Process readiness, eeBUS driver readiness, and partner/session readiness are three independent dimensions",
             "An eeBUS `DEGRADED` state does not rewrite process readiness",
-            "a disconnected partner does not rewrite eeBUS driver readiness",
+            "A disconnected partner does not rewrite eeBUS driver readiness",
         ):
             self.assertIn(phrase, api)
 
     def test_environment_absence_is_not_product_behavior(self) -> None:
         arch = normalized(ARCH)
         for phrase in (
-            "physically disconnected eBUS participants",
+            "Physically disconnected eBUS participants",
             "an offline VR940F",
             "environment observations only",
             "must not be encoded as product behavior or generic protocol evidence",
