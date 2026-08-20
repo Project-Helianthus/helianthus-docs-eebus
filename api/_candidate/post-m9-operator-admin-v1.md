@@ -243,11 +243,16 @@ volatile selection; Connect terminal success/failure, selection expiry,
 pairing-window close, navigation away, visibility loss, or explicit flow abort
 does. No selection field enters persistent client storage.
 
-Candidate comparison identity begins only when the candidate view is returned.
-It remains only through the active comparison until confirm, cancel, candidate
-expiry, connection close, generation change, navigation away, visibility loss,
-or explicit flow abort. Neither Portal nor HA persists selection or candidate
-fields.
+Candidate comparison identity begins only when the candidate view for its
+generation is returned. It remains through the active multi-step comparison.
+Unrelated status, partner, discovery, selection, and readiness responses never
+clear or replace the active candidate. Only a candidate response for a newer
+candidate generation may replace it. Confirm terminal success or failure,
+Cancel terminal success or failure, candidate expiry, pairing-window close,
+connection close, generation change, navigation away, visibility loss, or
+explicit flow abort clears the active candidate. Logout performs that explicit
+flow abort before client teardown. Neither Portal nor HA persists selection or
+candidate fields.
 
 ## Status And Partner Models
 
@@ -463,18 +468,18 @@ Every response containing candidate-derived data includes `Cache-Control:
 private, no-store`, `Pragma: no-cache`, `Expires: 0`, and `Referrer-Policy:
 no-referrer`. Portal service workers and offline caches must exclude the entire
 `/admin/eebus/v1/` path. Portal and HA hold candidate fields only in
-request-lifetime memory and the active view model; each clears them on candidate
-expiry or change, logout, navigation away, visibility loss, and replacement by
-any later response. Candidate fields never enter local/session storage, IndexedDB,
-browser history, URL state, telemetry, crash capture, or reusable application
-cache.
+request-lifetime memory and the active view model. The active view retains the
+current candidate across unrelated responses and applies only the closed
+terminal, abort, and newer-candidate-generation rules above. Candidate fields
+never enter local/session storage, IndexedDB, browser history, URL state,
+telemetry, crash capture, or reusable application cache.
 
 The server and client lifetimes are distinct and both bounded. Gateway and
 intermediary request/response buffers clear candidate identity immediately
 after response completion. A host client may keep it only in the currently
-visible active OOB view long enough for the operator comparison; it clears the
-view on confirmation/cancel, candidate expiry or change, connection close,
-navigation away, visibility loss, or replacement by a later response.
+visible active OOB view long enough for the operator comparison. It applies the
+same closed clearing and replacement rules above; an unrelated response cannot
+shorten that lifetime.
 
 ## Lazy SPINE Page
 
