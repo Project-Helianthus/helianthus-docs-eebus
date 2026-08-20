@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -107,3 +108,19 @@ def test_pin_requirement_is_identity_bound_but_terminal_outcome_is_action_local(
 
     for text in (admin, browser):
         assert "must not appear in a partner or candidate row" in text
+
+
+def test_portal_closed_outcomes_table_has_exact_pin_category_parity() -> None:
+    text = BROWSER.read_text(encoding="utf-8")
+    table = text.split("## Closed Operator Outcomes", 1)[1].split(
+        "Unknown future state values", 1
+    )[0]
+    actual = set(re.findall(r"^\| `(pin_[a-z_]+)` \|", table, flags=re.MULTILINE))
+    assert actual == {
+        "pin_required",
+        "pin_optional",
+        "pin_busy",
+        "pin_rejected",
+        "pin_unavailable",
+        "pin_protocol_error",
+    }
