@@ -78,7 +78,7 @@ The closed readiness enums are:
 
 ```text
 process_readiness: `READY | NOT_READY`
-eebus_readiness: `DISABLED | STARTING | READY | DEGRADED`
+eebus_readiness: `DISABLED | STARTING | READY | DEGRADED | FAILED`
 eebus_degraded_reason:
   `CONFIGURATION_INVALID | LOCAL_IDENTITY_UNAVAILABLE | LISTENER_UNAVAILABLE |
    RUNTIME_FACTORY_UNAVAILABLE | ADMIN_BOUNDARY_UNAVAILABLE |
@@ -86,24 +86,85 @@ eebus_degraded_reason:
 ```
 
 `DISABLED`, `STARTING`, and `READY` carry no degradation reason. `DEGRADED`
-requires exactly one reason. The ordered startup mapping is:
+and `FAILED` require exactly one reason; the existing
+`eebus_degraded_reason` wire name covers either unhealthy state and is not a
+claim that `FAILED` is usable. `DEGRADED` means that a current runtime exists
+but its operator capability or a runtime facility is reduced. `FAILED` means
+that no usable runtime is published after a rejected or exhausted bounded
+attempt. The ordered startup mapping is:
 
 | First failed eeBUS startup stage | `eebus_readiness` | Reason |
 | --- | --- | --- |
-| Configuration validation | `DEGRADED` | `CONFIGURATION_INVALID` |
-| Local identity load/validation | `DEGRADED` | `LOCAL_IDENTITY_UNAVAILABLE` |
-| Listener construction/bind | `DEGRADED` | `LISTENER_UNAVAILABLE` |
-| Runtime factory construction | `DEGRADED` | `RUNTIME_FACTORY_UNAVAILABLE` |
+| Configuration validation | `FAILED` | `CONFIGURATION_INVALID` |
+| Local identity load/validation | `FAILED` | `LOCAL_IDENTITY_UNAVAILABLE` |
+| Listener construction/bind | `FAILED` | `LISTENER_UNAVAILABLE` |
+| Runtime factory construction | `FAILED` | `RUNTIME_FACTORY_UNAVAILABLE` |
 | AdminV1 construction | `DEGRADED` | `ADMIN_BOUNDARY_UNAVAILABLE` |
-| Unclassified or future startup failure | `DEGRADED` | `UNKNOWN_STARTUP_FAILURE` |
+| Unclassified or future startup failure with no runtime | `FAILED` | `UNKNOWN_STARTUP_FAILURE` |
 
-An unknown startup failure maps to `DEGRADED / UNKNOWN_STARTUP_FAILURE`; an
-unknown eeBUS readiness token is treated the same way by consumers. A configured
-lane is `STARTING` only while one bounded construction attempt is active and is
-`READY` only when its runtime, listener, and required operator boundary are
-usable. A deliberately disabled lane is `DISABLED`. eeBUS startup failure alone
-never maps process readiness to `NOT_READY`; that process state is reserved for
-failure of the shared gateway/API readiness gate.
+An unknown startup failure with no usable runtime maps to
+`FAILED / UNKNOWN_STARTUP_FAILURE`; an unknown eeBUS readiness token is treated
+the same way by consumers. A configured lane is `STARTING` only while one
+bounded construction attempt is active and is `READY` only when its runtime,
+listener, discovery, and required operator boundary are usable. A deliberately
+disabled lane is `DISABLED`. `connected_count=0` is valid in `READY` whenever
+the listener and discovery are healthy; partner presence and SPINE topology are
+not driver-readiness gates. eeBUS startup failure alone never maps process
+readiness to `NOT_READY`; that process state is reserved for failure of the
+shared gateway/API readiness gate.
+
+## DriverManager Lifecycle Integration
+
+The generic DriverManager owns Start, Stop, and Restart. These are lifecycle
+operations on the eeBUS driver slot, not additions to the closed eeBUS
+`AdminV1` protocol operation set below. The stable gateway-owned admin/provider
+boundary remains registered throughout
+`DISABLED | STARTING | READY | DEGRADED | FAILED` and never requires a process
+restart to regain the operator boundary. The provider always returns build,
+process readiness, eeBUS readiness, and a sanitized reason when required. When
+no live `AdminV1` capability exists, protocol-specific reads or mutations fail
+with `admin_boundary_unavailable` before resolving a partner, selection, or
+request body; they do not expose a partial `admin` object.
+
+An eeBUS driver failure never terminates the eBUS or Modbus drivers and never
+removes the shared API, Portal, MCP, or GraphQL listeners. DriverManager reports
+that failure only on the eeBUS lane; it does not rewrite another driver's
+readiness or stop its transport.
+
+Start performs one bounded construction for a newly allocated runtime
+generation. It publishes the runtime and its private `AdminV1` capability
+together only after the required listener, discovery, and provider wiring are
+usable. A rejected attempt publishes `FAILED` without terminating the gateway,
+eBUS, Modbus, or shared API listeners. Start does not infer admission from a
+prior session, candidate, or retry deadline.
+
+Stop cancels the current transient pairing action, closes the pairing window,
+retires every process-local selection/candidate/snapshot/cursor capability, and
+stops listener and discovery. It preserves the durable local identity, trust
+store, and state root. The driver becomes `DISABLED` only after the published
+runtime generation is retired; late callbacks cannot delay or reverse that
+transition.
+
+Restart is one ordered Stop followed by one bounded Start and allocates a new
+runtime generation. A callback from an older generation cannot publish into
+the provider, action result, partner/candidate view, raw snapshot, or new
+runtime. A failed replacement remains `FAILED`; it never republishes the
+retired generation or clears durable identity/trust state.
+
+Start, Stop, and Restart never pair, retry, untrust, or confirm. They do not
+change durable trust and the lifecycle does not persist or replay a transient candidate.
+Every later pairing, retry,
+confirmation, or revocation requires a new explicit operator action. PIN and
+active-action confidentiality rules remain unchanged: Stop/restart clear the
+volatile action and every owned PIN buffer, no lifecycle result contains its
+identity or secret binding, and no lifecycle command grants retry admission.
+
+An add-on preflight may supply only a rejected eeBUS bootstrap with a
+categorized eeBUS configuration failure to this provider. Invalid eeBUS
+configuration must not exit the whole gateway process, silently coerce the
+rejected value, or disable another driver. It surfaces as
+`FAILED / CONFIGURATION_INVALID` until a valid explicit lifecycle request is
+admitted.
 
 ## Common Request And Response Rules
 

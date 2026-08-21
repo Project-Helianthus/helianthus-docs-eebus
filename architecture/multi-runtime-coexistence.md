@@ -37,3 +37,21 @@ separate from promoted eBUS output and stable consumer surfaces.
 M8 records no semantic promotion, protocol translation, write path, or new
 consumer exposure. It does not authorize M8.5 or M9, including GraphQL,
 Portal, Home Assistant, or command-routing rollout.
+
+## Driver Lifecycle Coexistence
+
+The DriverManager target presents eeBUS as an independently managed lane beside
+eBUS and Modbus. Driver state and process readiness remain separate dimensions,
+with shared consumer availability described independently from eeBUS listener,
+discovery, session, and partner state. The unpublished candidate operator-admin
+contract contains the lifecycle state, failure-isolation, generation,
+durable-state, and transient-action rules.
+
+Partner presence is not driver readiness. The current environmental acceptance
+may state `VR940 is physically offline`; this is operator-supplied lab context,
+not protocol evidence. In that condition `READY` with `connected_count=0` is
+valid when the eeBUS listener and discovery facilities are healthy. It is not a
+driver degradation, no SPINE topology is expected, and the condition does not
+authorize synthetic topology or automatic pairing. A connected partner may be
+useful later for live SHIP/SPINE acceptance, while independent driver lifecycle
+and process coexistence have a separate evidence boundary.
