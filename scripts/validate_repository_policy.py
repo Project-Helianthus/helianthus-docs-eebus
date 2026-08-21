@@ -1604,7 +1604,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
-    "e88d8ee888778b60f9e77d4e3f8f13df" "447e434b0c49309b45762b42155407ed": {
+    "24128acd1c7b21448df396bcb5dd252b" "77de9e2a324dc980decf368e483c97fc": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:"
             "architecture/multi-runtime-coexistence.md"

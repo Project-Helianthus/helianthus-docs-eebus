@@ -151,6 +151,23 @@ the provider, action result, partner/candidate view, raw snapshot, or new
 runtime. A failed replacement remains `FAILED`; it never republishes the
 retired generation or clears durable identity/trust state.
 
+Every asynchronous pairing, connection, and confirmation callback captures the
+runtime generation and cancellation state at admission. It re-resolves that
+captured runtime generation and cancellation state under the same operator
+serializer that owns the pending effect. The required revalidation occurs
+before every state or store mutation, including `commit_durable`. Validation
+and mutation form one serialized critical section: Stop or Restart cannot
+interleave between the check and the mutation, and the serializer remains held
+until that mutation finishes.
+
+A callback that is stale or cancelled exits before mutation. It cannot create
+durable trust, a candidate, or an active action; cannot alter the replacement
+generation; and cannot recreate any selection, window, or result cleared by
+Stop. Generation fencing therefore applies to persistence and in-memory state,
+not merely to later provider publication. This rule covers inbound and outbound
+pairing callbacks, confirmation continuations, transport completion, durable
+commit completion, and terminal action reporting.
+
 Start, Stop, and Restart never pair, retry, untrust, or confirm. They do not
 change durable trust and the lifecycle does not persist or replay a transient candidate.
 Every later pairing, retry,

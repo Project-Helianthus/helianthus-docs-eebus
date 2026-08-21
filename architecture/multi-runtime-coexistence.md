@@ -45,7 +45,8 @@ eBUS and Modbus. Driver state and process readiness remain separate dimensions,
 with shared consumer availability described independently from eeBUS listener,
 discovery, session, and partner state. The unpublished candidate operator-admin
 contract contains the lifecycle state, failure-isolation, generation,
-durable-state, and transient-action rules.
+durable-state, and transient-action rules. Its lifecycle generation boundary
+covers volatile and durable callback effects as well as response publication.
 
 Partner presence is not driver readiness. The current environmental acceptance
 may state `VR940 is physically offline`; this is operator-supplied lab context,
