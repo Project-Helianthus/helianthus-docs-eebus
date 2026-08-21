@@ -1604,6 +1604,38 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
+    "24128acd1c7b21448df396bcb5dd252b" "77de9e2a324dc980decf368e483c97fc": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:"
+            "architecture/multi-runtime-coexistence.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "publication_status": "active",
+        "claim_status": "evidence-backed",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical coexistence contract changes the M8 "
+            "authority, isolation, or scope boundaries summarized here."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-ebus:"
+            "docs/platform/multi-runtime-coexistence-no-drift-v1.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
+            "docs/platform/multi-runtime-coexistence-no-drift-v1.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
     "cdcac982cf559cf8dee4ae58ad1cacd0" "4a6419437b2788bc510ea73696fd5bc5": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:"
