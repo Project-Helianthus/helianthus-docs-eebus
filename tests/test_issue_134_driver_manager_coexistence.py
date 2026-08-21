@@ -38,6 +38,17 @@ class DriverManagerCoexistenceContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
 
+    def test_stale_callbacks_are_fenced_before_durable_or_volatile_mutation(self) -> None:
+        text = normalized(ADMIN)
+        for phrase in (
+            "under the same operator serializer that owns the pending effect",
+            "before every state or store mutation, including `commit_durable`",
+            "captured runtime generation and cancellation state",
+            "cannot create durable trust, a candidate, or an active action",
+            "cannot alter the replacement generation",
+        ):
+            self.assertIn(phrase, text)
+
     def test_lifecycle_never_smuggles_pairing_or_trust_effects(self) -> None:
         text = normalized(ADMIN)
         for phrase in (
