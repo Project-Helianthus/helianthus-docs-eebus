@@ -19,18 +19,28 @@ implementations. Cross-protocol contracts must name their explicit public owner.
    current integration branch.
 3. Keep the change within the issue acceptance criteria and add focused
    documentation validation when a new invariant needs enforcement.
-4. Run `./scripts/ci_local.sh` and `git diff --check` before pushing.
+4. In a standalone clone, install the hashed validator dependencies with
+   `python3 -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt`,
+   then run `python3 scripts/validate_repository_policy.py`,
+   `python3 scripts/validate_api_surface_v1.py`, and `git diff --check`.
+   These are the mandatory repository-local baseline checks.
 5. Open a linked pull request that records validation results, documentation
    scope, and residual risk.
 6. Obtain a fresh, exact-HEAD blocker review; resolve P0-P2 findings or record
    an independently validated by-design decision.
 7. Squash merge only when applicable checks and the exact-HEAD review are
-   green, then verify the remote integration branch. Never merge without the
-   requested authorization.
+   green, then verify the remote integration branch and stop at the requested
+   boundary.
+
+`./scripts/ci_local.sh` is the additional MSP-055 cross-repository provenance
+gate. It requires `MSP055_SOURCE_CHECKOUT` to identify the exact detached
+`helianthus-eebusreg` source revision. Run it when changing MSP-055 frozen API
+material or the gate itself; it is not a prerequisite for unrelated work in a
+standalone clone. GitHub CI provisions that checkout independently.
 
 ## Evidence and privacy
 
-- Treat [EEBUS specifications](https://www.eebus.org/en/downloads/) and other
+- Treat [EEBUS specifications](https://www.eebus.org/specifications-media/) and other
   publishable primary sources as evidence; clearly mark hypotheses and unknowns.
 - Preserve the distinction between observed native evidence, inference, and
   promoted public contract. Do not turn candidate data into a stable claim.
@@ -45,4 +55,4 @@ implementations. Cross-protocol contracts must name their explicit public owner.
 
 - [Helianthus eeBUS documentation](https://github.com/Project-Helianthus/helianthus-docs-eebus)
 - [EEBUS Initiative](https://www.eebus.org/)
-- [EEBUS specifications](https://www.eebus.org/en/downloads/)
+- [EEBUS specifications](https://www.eebus.org/specifications-media/)
