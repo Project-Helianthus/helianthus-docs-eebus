@@ -187,6 +187,34 @@ ISSUE68_RAW_SCHEMA_REL = Path(
     "api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json"
 )
 ISSUE68_RAW_SNAPSHOT_REL = Path("api/_candidate/raw-snapshot-view-v1.md")
+ISSUE138_SUCCESSOR_REL = Path("api/_candidate/msp-138-native-runtime-exposure-v1.md")
+ISSUE138_HISTORICAL_RELS = (
+    Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
+    Path("api/_candidate/raw-snapshot-view-v1.md"),
+    Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"),
+    Path("architecture/_candidate/ha-addon-runtime-wiring.md"),
+)
+ISSUE138_FROZEN_HISTORICAL_ARTIFACTS = {
+    **ISSUE68_M2_LOCKED_ARTIFACTS,
+    ISSUE68_G16_LOCKED_ARTIFACT: ISSUE68_G16_LOCKED_SHA256,
+    ISSUE68_STABLE_PROTOCOL: ISSUE68_STABLE_PROTOCOL_SHA256,
+    Path("api/_candidate/msp-06-eebus-mcp-v1.md"): (
+        "6a0b9a2c012cca480586b622691ee2e02"
+        "3096e4aa2e23877f074a16311f4247c"
+    ),
+    Path("api/_candidate/raw-snapshot-view-v1.md"): (
+        "0ddf41bb9dca47c90f50f09b6c0be7be"
+        "f3d664aa7575ace3f81faef82c59f954"
+    ),
+    Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"): (
+        "f1ae2a676ec688c44f330911682e12b7"
+        "08271ddf4022561ac8e7fd13d1b13a34"
+    ),
+    Path("architecture/_candidate/ha-addon-runtime-wiring.md"): (
+        "5f0ceb74ded96aaee446fc66c2a312bc"
+        "5883b9bd0cafb59932dd8a0ddb31c1ab"
+    ),
+}
 ISSUE68_OPAQUE_LIMITS = {
     "maxDepth": 3,
     "maxCanonicalBytesPerValue": 16384,
@@ -5136,6 +5164,43 @@ def issue_68_raw_operator_redaction_errors(root: Path) -> list[str]:
     return errors
 
 
+def issue_138_native_runtime_exposure_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    successor = root / ISSUE138_SUCCESSOR_REL
+    if not successor.is_file():
+        return [f"{ISSUE138_SUCCESSOR_REL}: native runtime exposure successor is missing"]
+
+    text = " ".join(_read(successor).split()).casefold()
+    required = (
+        "preserve implemented native payloads, identifiers, raw frames, registers, configuration, and other protocol data",
+        "protocol version, observation context, and source context",
+        "must not replace a native value with a digest",
+        "must not select, erase, or rewrite native data",
+        "semantic promotion is a separate selective projection",
+        "action-time operator confirmation",
+        "synthetic fixtures",
+    )
+    for marker in required:
+        if marker not in text:
+            errors.append(f"{ISSUE138_SUCCESSOR_REL}: missing native exposure marker: {marker}")
+
+    for historical in ISSUE138_HISTORICAL_RELS:
+        if not (root / historical).is_file():
+            errors.append(f"{ISSUE138_SUCCESSOR_REL}: missing historical contract: {historical}")
+        elif historical.as_posix() not in _read(successor):
+            errors.append(f"{ISSUE138_SUCCESSOR_REL}: does not supersede {historical}")
+
+    for rel, expected_sha256 in ISSUE138_FROZEN_HISTORICAL_ARTIFACTS.items():
+        path = root / rel
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256
+        ):
+            errors.append(f"{rel}: frozen historical publication artifact changed")
+    return errors
+
+
 def _issue_76_normalize_secret_key(name: str) -> str:
     normalized = unicodedata.normalize("NFKC", name)
     output: list[str] = []
@@ -8020,7 +8085,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(ship_identity_corpus_errors(root))
     errors.extend(outbound_pairing_contract_errors(root))
     errors.extend(strict_current_schema_errors(root))
-    errors.extend(issue_68_raw_operator_redaction_errors(root))
+    errors.extend(issue_138_native_runtime_exposure_errors(root))
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))
     errors.extend(issue_96_spine13_hvac_model_erratum_errors(root))
