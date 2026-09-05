@@ -66,18 +66,19 @@ references are not treated as a substitute for the exact EEBUS collection
 revision and are not pinned here; their own edition and applicability must be
 verified by the consumer that relies on them.
 
-## Implementation comparison: local Go forks
+## Implementation comparison: immutable public Go sources
 
-The following is an implementation snapshot taken on 2026-09-05 from accessible
-local source metadata. It is intentionally distinct from the ledger above.
-Module or repository versions express software release and dependency state;
-they do not establish the newest normative EEBUS specification.
+The following remote default-branch snapshot was verified on 2026-09-05. Each
+commit link is an immutable public reference; the linked README and `go.mod`
+files use the same commit. Module and repository versions express software
+release and dependency state. They do not establish the newest normative EEBUS
+specification.
 
-| Component | Local snapshot | Declared implementation target | Consequence |
+| Component | Remote branch and immutable source | Declared implementation target | Consequence |
 | --- | --- | --- | --- |
-| `helianthus-ship-go` | Checked-out repository tag: `v0.6.1-helianthus.15`. | Its README declares an implementation of SHIP 1.0.1. | This is a code declaration, not evidence that SHIP 1.0.1 is the authorised current revision. |
-| `helianthus-spine-go` | Checked-out repository tag: `v0.7.1-helianthus.9`. | Its README declares an implementation of SPINE 1.3. | This is a code declaration, not evidence that SPINE 1.3 is the authorised current revision. |
-| `helianthus-eebus-go` | Accessible local source declares its SHIP and SPINE module requirements. | `go.mod` references `helianthus-ship-go v0.6.1-helianthus.18` and `helianthus-spine-go v0.7.1-helianthus.9`; its README declares SHIP 1.0.1 and SPINE 1.3.0 support. | A consumer must resolve the actual build list and module sums at its own exact HEAD. Neither the module versions nor a local checkout close a normative-document gap. |
+| `helianthus-ship-go` | `helianthus-v0.6`; [commit](https://github.com/Project-Helianthus/helianthus-ship-go/commit/9d38bfe04d57e7c8c73c59c1ddfc9b521e5045b0/); [README](https://github.com/Project-Helianthus/helianthus-ship-go/blob/9d38bfe04d57e7c8c73c59c1ddfc9b521e5045b0/README.md). | Its README declares an implementation of SHIP 1.0.1. | This is a code declaration, not evidence that SHIP 1.0.1 is the authorised current revision. |
+| `helianthus-spine-go` | `helianthus-v0.7`; [commit](https://github.com/Project-Helianthus/helianthus-spine-go/commit/b0cdd8653ccc0c0d0133706172541e80179de818/); [README](https://github.com/Project-Helianthus/helianthus-spine-go/blob/b0cdd8653ccc0c0d0133706172541e80179de818/README.md). | Its README declares an implementation of SPINE 1.3. | This is a code declaration, not evidence that SPINE 1.3 is the authorised current revision. |
+| `helianthus-eebus-go` | `helianthus-v0.7`; [commit](https://github.com/Project-Helianthus/helianthus-eebus-go/commit/c68cb5ee5d6bd9b2f8063bc4160325d3d183430a/); [README](https://github.com/Project-Helianthus/helianthus-eebus-go/blob/c68cb5ee5d6bd9b2f8063bc4160325d3d183430a/README.md); [`go.mod`](https://github.com/Project-Helianthus/helianthus-eebus-go/blob/c68cb5ee5d6bd9b2f8063bc4160325d3d183430a/go.mod). | The README declares SHIP 1.0.1 and SPINE 1.3.0 support. Its `go.mod` consumes `v0.6.1-helianthus.18.0.20260904230526-9d38bfe04d57` and SPINE module `v0.7.1-helianthus.9`. | A consumer must resolve the actual build list and module sums at its own exact HEAD. Neither the module versions nor the immutable source snapshot close a normative-document gap. |
 
 The eebus-go README also records implementation limitations for parts of SHIP.
 They are product compatibility constraints, not a licence to recreate the
