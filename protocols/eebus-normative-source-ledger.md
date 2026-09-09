@@ -5,7 +5,7 @@ license: "CC0-1.0"
 publication_status: "publishable"
 claim_status: "evidence-backed"
 source_class: "vendor_public"
-evidence_ids: "EV-20260905-001"
+evidence_ids: "EV-20260905-001,EV-20260909-001"
 hypothesis_status: "publishable"
 falsifier: "An authorised inventory of the exact current document metadata, or a changed public EEBUS catalogue or licence, contradicts a ledger row."
 ---
@@ -29,6 +29,10 @@ revision as **unresolved**. It must not be read as a single "eeBUS version".
 The public catalogue evidence is recorded in
 [EV-20260905-001](../evidence/EV-20260905-001.md). The Matter draft is owned
 by its separate pin and is deliberately outside this ledger.
+
+The dated public installation-process dependency baseline is recorded in
+[EV-20260909-001](../evidence/EV-20260909-001.md). It is an additional public
+source record; it does not resolve a current corpus row.
 
 ## Source and redistribution boundary
 
@@ -65,6 +69,26 @@ The matrix also links families to external standardisation references. Those
 references are not treated as a substitute for the exact EEBUS collection
 revision and are not pinned here; their own edition and applicability must be
 verified by the consumer that relies on them.
+
+## Dated public installation-process dependency baseline
+
+The public EEBUS technical specification
+[S<wbr>HIP Requirements for Installation Process, version 1.0.0, dated
+2024-07-29](https://www.eebus.org/wp-content/uploads/2024/07/EEBUS_TS_S%68ipRequirementsForInstallationProcess_V1.0.0.pdf)
+records the following dependency metadata for that document:
+
+| Dependency | Baseline recorded by the 2024-07-29 public document | Status in this ledger |
+| --- | --- | --- |
+| S<wbr>HIP | minimum 1.0.1 | Dated installation-process dependency metadata; not a current S<wbr>HIP revision. |
+| S<wbr>HIP | recommended 1.1.0 | Dated installation-process dependency metadata; not a current S<wbr>HIP revision. |
+| SPINE | 1.3.0 | Dated installation-process dependency metadata; not a current SPINE revision. |
+
+This source does not establish a current S<wbr>HIP, SPINE, or use-case corpus
+revision; a use-case revision; an implementation conformance result; or a
+semantic mapping. The S<wbr>HIP, SPINE, E-Mobility / EVSE, Grid connection point,
+Inverter / PV and stationary BESS, and HVAC rows above therefore remain
+**unresolved**. The five cross-protocol mapping records remain
+`unknown_pending_std_01`; this source does not alter or promote them.
 
 ## Implementation comparison: immutable public Go sources
 
