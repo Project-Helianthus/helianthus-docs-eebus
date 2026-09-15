@@ -685,14 +685,20 @@ The route accepts exactly one of these closed query shapes:
 ```text
 request=root
 request=children&snapshot_id=<opaque>&parent_node_id=<opaque>
+request=continue&snapshot_id=<opaque>&cursor=<opaque>
 request=continue&snapshot_id=<opaque>&parent_node_id=<opaque>&cursor=<opaque>
 ```
 
 `request=root` is the only initial request and rejects every additional query
 parameter. `request=children` expands exactly one node in the named snapshot.
-`request=continue` advances the same parent page. Missing, duplicate, unknown,
-empty, or extra parameters return `invalid_request`; a cursor is never accepted
-as a child identifier. Page size is a fixed bounded server setting, not a
+`request=continue` without `parent_node_id` advances the root page; with
+`parent_node_id` it advances that exact child page. Cursors are bound to either
+root or one exact child-parent scope. A root cursor supplied with
+`parent_node_id`, or a child cursor supplied without its exact
+`parent_node_id`, returns `snapshot_expired`; the response does not disclose the
+cursor's valid scope. Missing, duplicate, unknown, empty,
+or extra parameters return `invalid_request`; a cursor is never accepted as
+a child identifier. Page size is a fixed bounded server setting, not a
 caller-controlled parameter. An expired snapshot or cursor returns
 `snapshot_expired`; the client discards that tree and starts again with
 `request=root` rather than combining generations.
@@ -707,9 +713,9 @@ nodes[]
 next_cursor?
 ```
 
-`parent_node_id` is `null` only for `request=root`; otherwise it equals the
-requested parent. `next_cursor` is omitted exactly when that parent's fixed
-ordering is exhausted. Each node has exactly `node_id`, `parent_node_id`,
+`parent_node_id` is `null` for `request=root` and root continuation; otherwise it
+equals the requested parent. `next_cursor` is omitted exactly when that scope's
+fixed ordering is exhausted. Each node has exactly `node_id`, `parent_node_id`,
 `kind`, `sort_key`, and `payload`. The closed `kind` set is `device`, `entity`,
 `feature`, `use_case_claim`, and `opaque`. The wrapper is only a lazy tree index:
 `payload` is the lossless JSON object from the canonical
