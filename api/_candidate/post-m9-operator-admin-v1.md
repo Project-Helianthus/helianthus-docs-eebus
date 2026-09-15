@@ -695,7 +695,8 @@ parameter. `request=children` expands exactly one node in the named snapshot.
 `parent_node_id` it advances that exact child page. Cursors are bound to either
 root or one exact child-parent scope. A root cursor supplied with
 `parent_node_id`, or a child cursor supplied without its exact
-`parent_node_id`, returns `invalid_request`. Missing, duplicate, unknown, empty,
+`parent_node_id`, returns `snapshot_expired`; the response does not disclose the
+cursor's valid scope. Missing, duplicate, unknown, empty,
 or extra parameters return `invalid_request`; a cursor is never accepted as
 a child identifier. Page size is a fixed bounded server setting, not a
 caller-controlled parameter. An expired snapshot or cursor returns

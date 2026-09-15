@@ -114,6 +114,7 @@ class PostM9OperatorContractTest(unittest.TestCase):
             "root cursor supplied with `parent_node_id`",
             "child cursor supplied without its exact `parent_node_id`",
             "Cursors are bound to either root or one exact child-parent scope",
+            "returns `snapshot_expired`; the response does not disclose the cursor's valid scope",
             "Missing, duplicate, unknown, empty, or extra parameters return `invalid_request`",
             "Page size is a fixed bounded server setting",
             "An expired snapshot or cursor returns `snapshot_expired`",
