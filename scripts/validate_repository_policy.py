@@ -7679,6 +7679,18 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     ),
                 },
                 {
+                    "name": "Set up Go for producer probes",
+                    "uses": (
+                        "actions/setup-go@924ae3a1cded613372ab"
+                        "5595356fb5720e22ba16"
+                    ),
+                    "with": {
+                        "go-version": "1.24.13",
+                        "check-latest": False,
+                        "cache": False,
+                    },
+                },
+                {
                     "name": "Install policy validator dependencies",
                     "run": "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt",
                 },
