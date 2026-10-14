@@ -184,10 +184,19 @@ def _default_runner(
 def _completed(
     runner: CommandRunner, args: Sequence[str], **kwargs: Any
 ) -> subprocess.CompletedProcess[str] | None:
+    command = tuple(str(part) for part in args)
     try:
-        return runner(tuple(str(part) for part in args), **kwargs)
-    except (OSError, subprocess.SubprocessError):
+        completed = runner(command, **kwargs)
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"command failed to start: {' '.join(command[:3])}: {error}", file=sys.stderr)
         return None
+    if getattr(completed, "returncode", 0) != 0:
+        print(
+            f"command failed ({completed.returncode}): {' '.join(command[:3])}: "
+            f"{str(getattr(completed, 'stderr', '') or '').strip()[:500]}",
+            file=sys.stderr,
+        )
+    return completed
 
 
 def _json_result(
@@ -677,7 +686,7 @@ def _wiring_errors(root: Path) -> set[str]:
             "actions/checkout@34e114876b0b11c390a5"
             "6381ad16ebd13914f8d5"
         ),
-        "with": {"path": "docs", "persist-credentials": False},
+        "with": {"path": "docs", "persist-credentials": False, "clean": True},
     }:
         errors.add("offline: ci-wiring")
     if len(source_steps) != 1 or source_steps[0] != {
@@ -691,6 +700,7 @@ def _wiring_errors(root: Path) -> set[str]:
             "ref": SOURCE_COMMIT,
             "path": "source",
             "persist-credentials": False,
+            "clean": True,
         },
     }:
         errors.add("offline: ci-wiring")
@@ -709,6 +719,16 @@ def _wiring_errors(root: Path) -> set[str]:
         or ci_steps[0].get("run") != "./scripts/ci_docs_fast.sh"
         or _value(ci_steps[0], "env", "MSP055_SOURCE_CHECKOUT")
         != "${{ github.workspace }}/source"
+    ):
+        errors.add("offline: ci-wiring")
+    gh_steps = [step for step in steps if step.get("name") == "Install pinned GitHub CLI"]
+    gh_run = gh_steps[0].get("run", "") if len(gh_steps) == 1 else ""
+    if (
+        len(gh_steps) != 1
+        or "version=2.102.0" not in gh_run
+        or "sha256=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386" not in gh_run
+        or "sha256sum --check --strict" not in gh_run
+        or steps.index(gh_steps[0]) > steps.index(online_steps[0] if online_steps else gh_steps[0])
     ):
         errors.add("offline: ci-wiring")
     if len(online_steps) != 1 or online_steps[0] != {

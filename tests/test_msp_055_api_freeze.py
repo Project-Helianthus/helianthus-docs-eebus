@@ -586,7 +586,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                     "actions/checkout@34e114876b0b11c390a5"
                     "6381ad16ebd13914f8d5"
                 ),
-                "with": {"path": "docs", "persist-credentials": False},
+                "with": {"path": "docs", "persist-credentials": False, "clean": True},
             },
         )
         source_steps = [
@@ -609,6 +609,7 @@ class MSP055APIFreezeStaticContractTests(unittest.TestCase):
                 "ref": SOURCE_COMMIT,
                 "path": "source",
                 "persist-credentials": False,
+                "clean": True,
             },
         )
 

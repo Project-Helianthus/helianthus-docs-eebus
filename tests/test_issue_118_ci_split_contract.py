@@ -76,7 +76,10 @@ class Issue118CISplitContractTests(unittest.TestCase):
             "concurrency key must distinguish a pull request from other refs",
         )
         self.assertIn("github.ref", group)
-        self.assertEqual(concurrency.get("cancel-in-progress"), "true")
+        self.assertEqual(
+            concurrency.get("cancel-in-progress"),
+            "${{ github.event_name == 'pull_request' }}",
+        )
 
     def test_docs_fast_is_unconditional_and_keeps_current_publication_checks(self) -> None:
         workflow = load_workflow(WORKFLOWS / "docs-ci.yml")
@@ -84,8 +87,8 @@ class Issue118CISplitContractTests(unittest.TestCase):
         docs_fast = jobs.get("docs-fast", {})
         self.assertEqual(
             docs_fast.get("timeout-minutes"),
-            "5",
-            "docs-fast must be bounded to five minutes",
+            "20",
+            "docs-fast must be bounded to twenty minutes",
         )
         self.assertNotIn("if", docs_fast, "docs-fast must run for every pull request")
 
@@ -113,8 +116,8 @@ class Issue118CISplitContractTests(unittest.TestCase):
         selftest = workflow.get("jobs", {}).get("validator-selftest", {})
         self.assertEqual(
             selftest.get("timeout-minutes"),
-            "10",
-            "validator self-tests must be bounded to ten minutes",
+            "30",
+            "validator self-tests must be bounded to thirty minutes",
         )
         self.assertIn("if", selftest, "validator self-tests must be path-filtered")
 

@@ -7303,6 +7303,13 @@ def issue_96_spine13_hvac_model_erratum_errors(root: Path) -> list[str]:
     return errors
 
 
+RUNNER_SELECTION_EXPRESSION = (
+    "${{ (github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.repo.full_name != github.repository) && "
+    "'ubuntu-latest' || 'synology' }}"
+)
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -7567,7 +7574,9 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         }:
             errors.append(".github/workflows/docs-ci.yml: permissions must be contents read")
         concurrency = workflow_data.get("concurrency") if isinstance(workflow_data, dict) else None
-        if not isinstance(concurrency, dict) or concurrency.get("cancel-in-progress") is not True:
+        if not isinstance(concurrency, dict) or concurrency.get(
+            "cancel-in-progress"
+        ) != "${{ github.event_name == 'pull_request' }}":
             errors.append(".github/workflows/docs-ci.yml: cancelable concurrency is required")
         elif not all(
             token in str(concurrency.get("group", ""))
@@ -7582,12 +7591,13 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                 errors.append(
                     ".github/workflows/docs-ci.yml: docs-fast job must be unconditional"
                 )
-            if docs_job.get("runs-on") != "ubuntu-latest":
+            if docs_job.get("runs-on") != RUNNER_SELECTION_EXPRESSION:
                 errors.append(
-                    ".github/workflows/docs-ci.yml: docs-fast must run on ubuntu-latest"
+                    ".github/workflows/docs-ci.yml: docs-fast must run on the Synology runners "
+                    "(fork pull requests on GitHub-hosted runners)"
                 )
-            if docs_job.get("timeout-minutes") != 5:
-                errors.append(".github/workflows/docs-ci.yml: docs-fast timeout must be five minutes")
+            if docs_job.get("timeout-minutes") != 20:
+                errors.append(".github/workflows/docs-ci.yml: docs-fast timeout must be twenty minutes")
             steps = docs_job.get("steps")
             if isinstance(steps, list):
                 for step in steps:
@@ -7638,7 +7648,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if not isinstance(selftest_job, dict):
             errors.append(".github/workflows/docs-ci.yml: validator-selftest job is required")
         elif (
-            selftest_job.get("timeout-minutes") != 10
+            selftest_job.get("timeout-minutes") != 30
             or not isinstance(selftest_job.get("if"), str)
             or selftest_job.get("needs") != "changes"
         ):
@@ -7651,7 +7661,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                         "actions/checkout@34e114876b0b11c390a5"
                         "6381ad16ebd13914f8d5"
                     ),
-                    "with": {"persist-credentials": False},
+                    "with": {"persist-credentials": False, "clean": True},
                 },
                 {
                     "name": "Set up Python",
@@ -7660,6 +7670,25 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                         "4c3e4e4022e16d87065"
                     ),
                     "with": {"python-version": "3.12.10"},
+                },
+                {
+                    "name": "Create job-local virtualenv",
+                    "run": (
+                        'python -m venv "$RUNNER_TEMP/venv"\n'
+                        'echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"\n'
+                    ),
+                },
+                {
+                    "name": "Set up Go for producer probes",
+                    "uses": (
+                        "actions/setup-go@924ae3a1cded613372ab"
+                        "5595356fb5720e22ba16"
+                    ),
+                    "with": {
+                        "go-version": "1.24.13",
+                        "check-latest": False,
+                        "cache": False,
+                    },
                 },
                 {
                     "name": "Install policy validator dependencies",
