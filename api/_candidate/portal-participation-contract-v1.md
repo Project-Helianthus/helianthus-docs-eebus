@@ -29,10 +29,10 @@ It is the documentation-gate companion of
 and its pull request
 [helianthus-eebusreg#138](https://github.com/Project-Helianthus/helianthus-eebusreg/pull/138).
 
-- Status: **candidate**. It is excluded from stable navigation, search,
-  sitemap, versioned bundles and release bundles until the source contract is
-  merged and this page is re-pinned to the merge commit (see
-  [Compatibility effect](#compatibility-effect)).
+- Status: **candidate**. The source contract is merged and this page is pinned
+  to its merge commit, but the page stays excluded from stable navigation,
+  search, sitemap, versioned bundles and release bundles. The reasons are
+  recorded under [Promotion decision](#promotion-decision).
 - Claim class: a contract published from source. It makes no runtime,
   deployment, interoperability or device claim, and no implementation of the
   driver hook exists in the pinned source.
@@ -45,9 +45,10 @@ and its pull request
 | Item | Value |
 | --- | --- |
 | Source repository | `Project-Helianthus/helianthus-eebusreg` (pull request 138) |
-| Pinned commit | head of pull request 138; see the [pinned tree](https://github.com/Project-Helianthus/helianthus-eebusreg/tree/faa883237aedad306da000a495af44a10d7248ce/) (full SHA in the link target and in the source references below) |
-| Contract sources (package `eebusruntime`) | `Project-Helianthus/helianthus-eebusreg@faa883237aedad306da000a495af44a10d7248ce:participation_contract_v1.go` and `Project-Helianthus/helianthus-eebusreg@faa883237aedad306da000a495af44a10d7248ce:participation_driver_v1.go` |
-| Narrative source | the "Portal Participation Contract (PORTAL-05)" section of `Project-Helianthus/helianthus-eebusreg@faa883237aedad306da000a495af44a10d7248ce:README.md` |
+| Pinned commit | squash-merge commit of pull request 138 on the default branch; see the [pinned tree](https://github.com/Project-Helianthus/helianthus-eebusreg/tree/a9af3ac6387abada81e95972bdc9639de5aeaee0/) (full SHA in the link target and in the source references below) |
+| Contract sources (package `eebusruntime`) | `Project-Helianthus/helianthus-eebusreg@a9af3ac6387abada81e95972bdc9639de5aeaee0:participation_contract_v1.go` and `Project-Helianthus/helianthus-eebusreg@a9af3ac6387abada81e95972bdc9639de5aeaee0:participation_driver_v1.go` |
+| Narrative source | the "Portal Participation Contract (PORTAL-05)" section of `Project-Helianthus/helianthus-eebusreg@a9af3ac6387abada81e95972bdc9639de5aeaee0:README.md` |
+| Re-pin check | The four files this page cites (the two contract sources, `runtime.go` and the README) have the same Git blob identity at the merge commit as at the earlier pull-request head the page was first published against, so no cited statement changed by re-pinning. |
 | Derivation | The types, tags, enum values and validator rules below were read from the pinned source. The narrative rules were read from the pinned README. Where both speak, they agree; this page notes where only one of them speaks. |
 
 Evidence class is `derived_inference` from code and README of one commit. No
@@ -439,13 +440,35 @@ transport of these values are defined and reviewed by their own owners.
 - No runtime adapter, user interface, persistence backend, binding executor or
   dependency change is included, and no existing constructor implements the
   driver hook.
-- This page is a candidate pin to a pull-request head. After the source pull
-  request merges, a follow-up must re-pin the evidence to the merge commit and
-  decide promotion of this page; until then it remains excluded from stable
+- This page is pinned to the merged source commit and remains a candidate (see
+  [Promotion decision](#promotion-decision)). It is excluded from stable
   publication channels. A stable API reference under `api/eebusruntime-v1/`
   is unchanged.
-- The gateway Portal integration (PORTAL-03) may bind to this contract only
-  after the source merges.
+- The source has merged, so the gateway Portal integration (PORTAL-03) may bind
+  to this contract at the pinned revision.
+
+## Promotion decision
+
+Decision: **remain candidate**. Reasons, each checkable in this repository:
+
+1. The page declares `hypothesis_status: "draft"`, and the publication policy
+   excludes draft hypotheses from stable pages. Eight questions below are
+   carried as open. Questions 1 to 4 and 7 concern intended owner behavior that
+   the exported types and validators do not decide, so they are not answered
+   here.
+2. A stable `api/` page must be registered in the reviewed supported-API claim
+   registry of the repository policy validator and in the stable channel
+   manifests (`scripts/publication_channels.yaml`), whose eligible channels and
+   exact memberships derive from the platform ownership contract pinned there.
+   No such registration exists for this page, and it is out of scope for a
+   re-pin.
+3. The only evidence record cited is the ownership-contract record, used for
+   the ownership boundary alone. A stable claim needs publishable evidence for
+   the contract statements themselves.
+
+Promotion needs a separate change that settles or explicitly carries the open
+questions, adds the registry and channel entries, and supplies the evidence
+record.
 
 ## Unresolved questions
 
