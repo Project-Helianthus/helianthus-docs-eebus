@@ -28,19 +28,34 @@ class PortalParticipationContractTest(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
 
-    def test_saved_applied_observed_split_and_control_eligibility(self) -> None:
+    def test_saved_applied_observed_split_and_grant_ceiling(self) -> None:
         text = normalized()
         for phrase in (
             "Saved intent.",
             "Applied configuration.",
             "Observed state.",
-            "exactly one entry for every binding ID in the union of saved and applied bindings",
-            "Saved-only bindings are inert.",
-            "Grants validated against applied permissions.",
-            "the saved intent is enabled",
-            "still present in the saved intent (still selected)",
-            "the saved binding carries the `control` permission",
-            "the selected peer controls the bound local capability",
+            "The observation list must contain exactly one entry for every binding ID in the union of saved and applied bindings",
+            "An observation of a binding that is not applied cannot report a grant, native negotiation or the `active` state.",
+            "Every native grant must be a subset of the permissions of the binding as applied (or, for saved-only bindings, none).",
+            "it does not restore control eligibility",
+            "The applied revision may never exceed the saved revision.",
+            "If both revisions are equal the two configurations must be equal",
+        ):
+            self.assertIn(phrase, text)
+
+    def test_control_prerequisites_and_receive_direction(self) -> None:
+        text = normalized()
+        for phrase in (
+            "Control is eligible for a binding only when all of these hold: 1. the whole contribution validates; 2. the saved intent is enabled; "
+            "3. the same binding ID is still present in the saved intent (still selected) with the same target as the operating binding; "
+            "4. the saved binding carries the `control` permission; "
+            "5. the observation is `active` and holds a native `control` grant; and "
+            "6. no loss on that observation has `control_safe` false.",
+            "Saved removal, revocation or disable therefore rejects control even while the older applied binding is truthfully observed as active.",
+            "Control is never inferred from observation permission, a functional mapping or peer trust.",
+            "On a `send` binding, the local participant may control the selected peer capability.",
+            "On a **`receive` binding, the selected peer controls the bound local capability.**",
+            "A receive grant does not authorize Portal to issue control to that peer.",
         ):
             self.assertIn(phrase, text)
 
@@ -48,8 +63,11 @@ class PortalParticipationContractTest(unittest.TestCase):
         text = normalized()
         for phrase in (
             "Reuse of a removed binding ID for a different target is invalid for the owner",
+            "the contribution validator rejects the **whole** contribution",
             "**fails closed**",
-            "no representation of a partially applied revision",
+            "cannot detect reuse across a removal",
+            "means the saved revision has **not been applied**",
+            "v1 has **no representation of a partially applied revision**",
             "Working interpretation (to be confirmed",
             "**Meaning of an older applied snapshot.**",
             "in-process contract",
@@ -57,6 +75,20 @@ class PortalParticipationContractTest(unittest.TestCase):
             "makes no runtime, deployment, interoperability or device claim",
         ):
             self.assertIn(phrase, text)
+
+    def test_validator_constraints_are_manifested_and_reset_is_not_a_rule(self) -> None:
+        text = normalized()
+        for phrase in (
+            "**`incompatible` exists in the enum but is rejected here**",
+            "unlike the listener state, `incompatible` is accepted here",
+            "not `none` exactly when the state is `error`",
+            "nonzero when `state` is `active`",
+            "at most 256 characters",
+            "**Consequence of an identity reset.**",
+            "unverified hypothesis, not a contract rule",
+        ):
+            self.assertIn(phrase, text)
+        self.assertNotIn("a reset leaves no valid contribution", text)
 
 
 if __name__ == "__main__":

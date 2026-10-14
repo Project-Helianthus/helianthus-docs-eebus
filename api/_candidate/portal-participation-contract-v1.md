@@ -105,15 +105,18 @@ contract values; see [Serializer boundary](#serializer-boundary).
 | Contract | `contract` | version string | must equal `helianthus.eebus.participation.v1` |
 | Revision | `revision` | uint64 | nonzero |
 | LocalParticipant | `local_participant` | reference | 32 lowercase hex characters |
-| Enabled | `enabled` | bool | when true, a valid listener is required |
+| Enabled | `enabled` | bool | when true, a valid listener is required; a non-empty listener is validated even when false |
 | Listener | `listener` | `ParticipationListenerV1` | one listener only |
 | DiscoveryEnabled | `discovery_enabled` | bool | a preference; grants neither trust nor control |
 | Bindings | `bindings` | list of `ParticipationBindingV1` | at most 256 |
 
 `ParticipationListenerV1`: `interface` (1 to 64 characters of letters, digits
-and `_ . : -`; wildcard spellings rejected) and `address` (a specified,
-non-multicast, non-broadcast address with a nonzero port; IPv4-mapped IPv6
-rejected). Whether the interface exists or the address is exposed acceptably
+and `_ . : -`, no surrounding whitespace; the wildcard spellings `*`,
+the unspecified IPv4 and IPv6 addresses and the empty string are rejected) and
+`address` (a valid address and port: nonzero port; not unspecified, multicast,
+IPv4-mapped IPv6, IPv4 with a zero first octet, or IPv4 broadcast). The
+listener is validated when `enabled` is true or when it is not the zero value.
+Whether the interface exists or the address is exposed acceptably
 is a driver decision at apply time.
 
 `ParticipationBindingV1`:
@@ -132,22 +135,62 @@ All references are owner-allocated opaque 128-bit tokens in the same
 32-lowercase-hex encoding. They must not encode or derive from a device
 fingerprint, key identifier, serial, address, discovery order or display name.
 
-`ParticipationContributionV1`: `configuration` (saved intent),
-`applied_configuration` (nullable independent applied snapshot),
-`applied_revision`, `observed_at` (nonzero capture time), `listener_state` and
-`bindings` (a list of `ParticipationBindingObservationV1`).
+`ParticipationContributionV1` (validator constraints as enforced by
+`ParticipationContributionV1.Validate`):
 
-`ParticipationBindingObservationV1`: `id`, `configuration_revision`, `state`,
-`peer_online`, `trusted`, `compatibility`, `admission`, `negotiated`,
-`granted`, `control_outcome`, `failure`, `provenance` and `losses`.
+| Field | Tag | Rule |
+| --- | --- | --- |
+| Configuration | `configuration` | saved intent; must itself validate |
+| AppliedConfiguration | `applied_configuration` | nullable; if non-null it must validate, have the same local participant, and its revision must equal `applied_revision`; if its revision equals the saved revision the two configurations must be equal (order ignored) |
+| AppliedRevision | `applied_revision` | at most the saved revision; zero exactly when the snapshot is null |
+| ObservedAt | `observed_at` | nonzero time |
+| ListenerState | `listener_state` | one of `configured`, `offline`, `active`, `error`; **`incompatible` exists in the enum but is rejected here**; `active` requires an applied snapshot that is enabled |
+| Bindings | `bindings` | exactly one observation per ID in the union of saved and applied binding IDs |
 
-`ParticipationProvenanceV1`: `native` (nullable redacted evidence envelope
-from the evidence package), `transport_version` and `data_model_version`
-(nullable; null means unknown). `ParticipationLossV1`: `native_path`, `code`,
-`control_safe`.
+`ParticipationBindingObservationV1` (per observation):
 
-`ParticipationApplyResultV1`: `state_revision`, `applied_revision`, `state`,
-`failure`. `ParticipationApplyRequestV1` embeds the existing mutation
+| Field | Tag | Rule |
+| --- | --- | --- |
+| ID | `id` | in the union; no duplicates |
+| ConfigurationRevision | `configuration_revision` | the applied revision if the ID is in the applied snapshot, otherwise the saved revision |
+| State | `state` | any of the five states, subject to the cross-field rules below |
+| PeerOnline | `peer_online` | must be false when the state is `offline`; must be true when `active` |
+| Trusted | `trusted` | must be true when `active` |
+| Compatibility | `compatibility` | `unknown`, `compatible` or `incompatible`; must be `incompatible` when the state is `incompatible`; must be `compatible` when `active` |
+| Admission | `admission` | one of the five values; must be `promoted` when `active` |
+| Negotiated | `negotiated` | must be false for a saved-only binding; must be true when `active` |
+| Granted | `granted` | at most two, no duplicates, only `observe` and `control`; empty for a saved-only binding; each grant must be among the permissions of the binding as applied (saved binding if saved-only); non-empty when `active` |
+| ControlOutcome | `control_outcome` | one of the four values; `rejected` and `outcome_unknown` require a failure |
+| Failure | `failure` | one of the six values; not `none` exactly when the state is `error` |
+| Provenance | `provenance` | see below |
+| Losses | `losses` | at most 256 records; null means unassessed |
+
+An `active` observation additionally requires: an applied snapshot that is
+enabled, an active listener state, a native evidence envelope with a non-empty
+data hash, both version labels present, non-null losses and no `unknown` loss.
+A saved-only observation cannot be `active`.
+
+`ParticipationProvenanceV1`: `native` (nullable redacted evidence envelope from
+the evidence package; if present it must validate and hold at most 256
+objects), `transport_version` and `data_model_version` (nullable, null means
+unknown; if present: 1 to 64 characters, starting with a letter or digit, then
+letters, digits and `. _ -`).
+
+`ParticipationLossV1`: `native_path` (at most 256 characters; one or more
+segments each starting with `/` and made of letters, digits, `_` and `-`),
+`code` (`omitted`, `transformed` or `unknown`; `unknown` blocks `active`) and
+`control_safe` (bool; any false value blocks control eligibility).
+
+`ParticipationApplyResultV1` (validator constraints):
+
+| Field | Tag | Rule |
+| --- | --- | --- |
+| StateRevision | `state_revision` | nonzero |
+| AppliedRevision | `applied_revision` | nonzero when `state` is `active`; otherwise unconstrained, and an `error` result may retain the previous value |
+| State | `state` | any of the five states; unlike the listener state, `incompatible` is accepted here |
+| Failure | `failure` | one of the six values; not `none` exactly when `state` is `error` |
+
+`ParticipationApplyRequestV1` embeds the existing mutation
 precondition (expected native state revision and idempotency key) and carries
 a complete candidate `Configuration`.
 
@@ -318,10 +361,9 @@ nonzero `applied_revision` when `state` is `active`.
   an explicit reviewed delta.
 - **Identity reset** is a separate authorized operation outside ordinary
   participation configuration. It cannot be a side effect of disabling or of
-  deleting the last binding. The pinned validators reject a changed local
-  participant in an ordinary change, and a reset leaves no valid contribution
-  until a new configuration exists (an observed consequence stated in the
-  round-2 review; not otherwise specified).
+  deleting the last binding. `ValidateParticipationChangeV1` rejects a changed
+  local participant in an ordinary change. What a reset leaves behind is not
+  specified (see [Unresolved questions](#unresolved-questions)).
 - **Restart or reconnect** reloads the saved bindings and the owner's durable
   reference and trust resolution before negotiation. Target identity and
   selection are preserved; availability, admission, compatibility and grants
@@ -426,7 +468,11 @@ transport of these values are defined and reviewed by their own owners.
    storage, cancellation, cross-owner reconciliation and physical effects are
    implementation and integration gates. No test or fixture here establishes
    them.
-7. **Negative-test depth.** The round-2 review observed that some negative
+7. **Consequence of an identity reset.** The pinned source and README do not
+   state what a reset does to the contribution. A review discussion
+   hypothesized that no valid contribution remains until a new configuration
+   exists; that is an unverified hypothesis, not a contract rule.
+8. **Negative-test depth.** The round-2 review observed that some negative
    tests assert only that an error occurred, not which one.
 
 ## Falsifiers
