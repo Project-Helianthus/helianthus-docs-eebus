@@ -677,7 +677,7 @@ def _wiring_errors(root: Path) -> set[str]:
             "actions/checkout@34e114876b0b11c390a5"
             "6381ad16ebd13914f8d5"
         ),
-        "with": {"path": "docs", "persist-credentials": False},
+        "with": {"path": "docs", "persist-credentials": False, "clean": True},
     }:
         errors.add("offline: ci-wiring")
     if len(source_steps) != 1 or source_steps[0] != {
@@ -691,6 +691,7 @@ def _wiring_errors(root: Path) -> set[str]:
             "ref": SOURCE_COMMIT,
             "path": "source",
             "persist-credentials": False,
+            "clean": True,
         },
     }:
         errors.add("offline: ci-wiring")

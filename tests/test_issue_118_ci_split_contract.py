@@ -76,7 +76,10 @@ class Issue118CISplitContractTests(unittest.TestCase):
             "concurrency key must distinguish a pull request from other refs",
         )
         self.assertIn("github.ref", group)
-        self.assertEqual(concurrency.get("cancel-in-progress"), "true")
+        self.assertEqual(
+            concurrency.get("cancel-in-progress"),
+            "${{ github.event_name == 'pull_request' }}",
+        )
 
     def test_docs_fast_is_unconditional_and_keeps_current_publication_checks(self) -> None:
         workflow = load_workflow(WORKFLOWS / "docs-ci.yml")

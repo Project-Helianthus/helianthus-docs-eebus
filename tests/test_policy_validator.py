@@ -1016,8 +1016,8 @@ class PolicyValidatorTests(unittest.TestCase):
                 1,
             ),
             "wrong runner": lambda text: text.replace(
+                "  docs-fast:\n    name: Docs fast checks\n    # fork pull requests never run on the persistent runners\n    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'ubuntu-latest' || 'synology' }}\n",
                 "  docs-fast:\n    name: Docs fast checks\n    runs-on: ubuntu-latest\n",
-                "  docs-fast:\n    name: Docs fast checks\n    runs-on: self-hosted\n",
                 1,
             ),
         }
