@@ -113,8 +113,12 @@ contract values; see [Serializer boundary](#serializer-boundary).
 `ParticipationListenerV1`: `interface` (1 to 64 characters of letters, digits
 and `_ . : -`, no surrounding whitespace; the wildcard spellings `*`,
 the unspecified IPv4 and IPv6 addresses and the empty string are rejected) and
-`address` (a valid address and port: nonzero port; not unspecified, multicast,
-IPv4-mapped IPv6, IPv4 with a zero first octet, or IPv4 broadcast). The
+`address` (checked by the unexported `validateRuntimeListenAddress` in
+`runtime.go`, which rejects exactly these classes: an invalid address or
+port, port zero, an unspecified or multicast address, an IPv4-mapped IPv6
+address, an IPv4 address whose first octet is zero, and the single IPv4 limited
+broadcast address; no other class is checked, so other reserved, loopback or
+directed-broadcast addresses are not rejected by this validator). The
 listener is validated when `enabled` is true or when it is not the zero value.
 Whether the interface exists or the address is exposed acceptably
 is a driver decision at apply time.
