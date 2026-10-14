@@ -7596,8 +7596,8 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     ".github/workflows/docs-ci.yml: docs-fast must run on the Synology runners "
                     "(fork pull requests on GitHub-hosted runners)"
                 )
-            if docs_job.get("timeout-minutes") != 5:
-                errors.append(".github/workflows/docs-ci.yml: docs-fast timeout must be five minutes")
+            if docs_job.get("timeout-minutes") != 20:
+                errors.append(".github/workflows/docs-ci.yml: docs-fast timeout must be twenty minutes")
             steps = docs_job.get("steps")
             if isinstance(steps, list):
                 for step in steps:
@@ -7648,7 +7648,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if not isinstance(selftest_job, dict):
             errors.append(".github/workflows/docs-ci.yml: validator-selftest job is required")
         elif (
-            selftest_job.get("timeout-minutes") != 10
+            selftest_job.get("timeout-minutes") != 30
             or not isinstance(selftest_job.get("if"), str)
             or selftest_job.get("needs") != "changes"
         ):
