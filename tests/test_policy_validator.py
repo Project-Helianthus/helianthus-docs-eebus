@@ -1176,6 +1176,31 @@ class PolicyValidatorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("content differs from the reviewed license policy", result.stderr)
 
+    def test_complete_license_texts_are_required(self) -> None:
+        for license_id in ("CC0-1.0", "AGPL-3.0-only"):
+            with self.subTest(license_id=license_id):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    (repo / "LICENSES" / f"{license_id}.txt").unlink()
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("missing complete SPDX license text", result.stderr)
+
+    def test_complete_license_texts_are_hash_locked(self) -> None:
+        for license_id in ("CC0-1.0", "AGPL-3.0-only"):
+            with self.subTest(license_id=license_id):
+                with tempfile.TemporaryDirectory() as tmp:
+                    repo = copy_repo(Path(tmp))
+                    license_file = repo / "LICENSES" / f"{license_id}.txt"
+                    license_file.write_bytes(license_file.read_bytes() + b"\nChanged terms.\n")
+
+                    result = run_validator(repo)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("content differs from the pinned SPDX license text", result.stderr)
+
     def test_issue_form_types_and_options_are_enforced(self) -> None:
         mutations = {
             "ownership type": lambda text: text.replace(

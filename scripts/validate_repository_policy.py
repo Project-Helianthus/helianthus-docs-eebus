@@ -1317,7 +1317,17 @@ EVIDENCE_SOURCE_CLASSES = {
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
 CI_LOCAL_SHA256 = "93e43f5a9d22d8c88893ce40a46e97fd" "85a424173956147a2cdf1d7376274bf9"
-LICENSE_SHA256 = "aac2f93638f50b4347d37aeb656cab3" "1f447e0c0bc89f53ee144a81907a943ea"
+LICENSE_SHA256 = "a16cda9cb4b92973b563238dc27e133c3" "d34e1b774a6530b5276862c75d2c721"
+LICENSE_TEXT_SHA256 = {
+    "LICENSES/CC0-1.0.txt": (
+        "e0456cbab4f7b5e7203e678faff37eadb"
+        "dfef02e822db3b7a52a1dd9d3dc514a"
+    ),
+    "LICENSES/AGPL-3.0-only.txt": (
+        "d8a6cc31abc16b6748c7a21f21611f5a"
+        "1ec33f67d22ca23d7da1c19b95496bee"
+    ),
+}
 LOCKED_REQUIREMENTS = (
     "PyYAML==6.0.3 \\\n"
     "    --hash=sha256:41715c910c881bc081f1e8872880d3c650acf13dfa8214bad49ed4cede7c34ea \\\n"
@@ -7379,6 +7389,8 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             "AGPL-3.0-only",
             "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
             "https://www.gnu.org/licenses/agpl-3.0.txt",
+            "LICENSES/CC0-1.0.txt",
+            "LICENSES/AGPL-3.0-only.txt",
             "protocols/",
             "devices/",
             "evidence/",
@@ -7386,6 +7398,14 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         ]:
             if required not in text:
                 errors.append(f"LICENSE: missing required licensing lane marker {required!r}")
+
+    for relative_path, expected_sha256 in LICENSE_TEXT_SHA256.items():
+        license_text = root / relative_path
+        if not license_text.is_file():
+            errors.append(f"{relative_path}: missing complete SPDX license text")
+        elif license_text not in symlinks:
+            if hashlib.sha256(license_text.read_bytes()).hexdigest() != expected_sha256:
+                errors.append(f"{relative_path}: content differs from the pinned SPDX license text")
 
     codeowners = root / ".github" / "CODEOWNERS"
     if not codeowners.exists():

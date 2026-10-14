@@ -17,6 +17,7 @@ from validate_api_surface_v1 import validate_document, validate_repository  # no
 
 POLICY_FIXTURE_PATHS = (
     Path("LICENSE"),
+    Path("LICENSES"),
     Path("README.md"),
     Path("requirements-ci.txt"),
     Path(".github/CODEOWNERS"),
