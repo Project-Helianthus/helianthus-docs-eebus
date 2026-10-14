@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "api" / "_candidate" / "portal-participation-contract-v1.md"
-PINNED_COMMIT = "faa883237aedad306da0" "00a495af44a10d7248ce"
+PINNED_COMMIT = "a9af3ac6387abada81e9" "5972bdc9639de5aeaee0"
 
 
 def normalized() -> str:
@@ -27,6 +27,20 @@ class PortalParticipationContractTest(unittest.TestCase):
             f"helianthus-eebusreg@{PINNED_COMMIT}:participation_driver_v1.go",
         ):
             self.assertIn(phrase, text)
+
+    def test_promotion_decision_keeps_the_page_candidate_with_reasons(self) -> None:
+        text = normalized()
+        for phrase in (
+            "## Promotion decision",
+            "Decision: **remain candidate**.",
+            'hypothesis_status: "draft"',
+            "reviewed supported-API claim registry",
+            "squash-merge commit of pull request 138",
+            "have the same Git blob identity at the merge commit",
+        ):
+            self.assertIn(phrase, text)
+        self.assertNotIn("candidate pin to a pull-request head", text)
+        self.assertNotIn("faa883237aedad306da0", text)
 
     def test_saved_applied_observed_split_and_grant_ceiling(self) -> None:
         text = normalized()
