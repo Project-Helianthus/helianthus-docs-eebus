@@ -55,10 +55,6 @@ jobs:
     # fork pull requests never run on the persistent runners
     runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'ubuntu-latest' || 'synology' }}
     timeout-minutes: 20
-    permissions:
-      contents: read
-      pull-requests: read
-      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5

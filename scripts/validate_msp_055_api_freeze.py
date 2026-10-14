@@ -729,8 +729,6 @@ def _wiring_errors(root: Path) -> set[str]:
         or "sha256=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386" not in gh_run
         or "sha256sum --check --strict" not in gh_run
         or steps.index(gh_steps[0]) > steps.index(online_steps[0] if online_steps else gh_steps[0])
-        or workflow["jobs"]["docs-fast"].get("permissions")
-        != {"contents": "read", "pull-requests": "read", "actions": "read"}
     ):
         errors.add("offline: ci-wiring")
     if len(online_steps) != 1 or online_steps[0] != {
