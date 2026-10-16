@@ -1,0 +1,2 @@
+# Preserve the verbatim SPDX license texts, including upstream trailing spaces.
+LICENSES/*.txt whitespace=-blank-at-eol
