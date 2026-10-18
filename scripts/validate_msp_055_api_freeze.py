@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Validate the closed MSP-055 pre-release API publication."""
+"""Validate the closed MSP-055 pre-release API publication.
+
+Online artifact retention expiry is accepted only when a failed artifact request
+contains "HTTP 404" or "Not Found" and a successful run artifact list omits its ID,
+or when a returned artifact has expired == true and both responses retain all
+required matching metadata.
+Metadata mismatches, partial presence, and other command failures remain errors.
+Source merge/tree/PR, workflow-run, and attestation checks remain mandatory even
+after artifact retention expiry; the frozen publication evidence is unchanged.
+"""
 from __future__ import annotations
 
 import argparse
@@ -821,30 +830,43 @@ def _online_errors(root: Path, runner: CommandRunner) -> set[str]:
         runner,
         ("gh", "api", f"repos/{SOURCE_REPOSITORY}/actions/runs/{RUN_ID}/artifacts"),
     )
-    artifact = _json_result(
+    artifact_result = _completed(
         runner,
         ("gh", "api", f"repos/{SOURCE_REPOSITORY}/actions/artifacts/{ARTIFACT_ID}"),
     )
+    artifact = None
+    artifact_not_found = False
+    if artifact_result is not None:
+        if artifact_result.returncode == 0:
+            try:
+                artifact = json.loads(artifact_result.stdout, object_pairs_hook=_unique_object)
+            except (ValueError, json.JSONDecodeError):
+                pass
+        else:
+            output = (artifact_result.stdout or "") + "\n" + (artifact_result.stderr or "")
+            artifact_not_found = "HTTP 404" in output or "Not Found" in output
+    artifact_list = _value(artifacts, "artifacts")
     listed = next(
         (
             value
-            for value in _value(artifacts, "artifacts") or []
+            for value in (artifact_list if isinstance(artifact_list, list) else [])
             if isinstance(value, dict) and value.get("id") == ARTIFACT_ID
         ),
         None,
     )
-    for value in (listed, artifact):
-        if (
-            not isinstance(value, dict)
-            or value.get("id") != ARTIFACT_ID
-            or value.get("name") != ARTIFACT_NAME
-            or value.get("expired") is not False
-            or _value(value, "workflow_run", "id") != RUN_ID
-            or _value(value, "workflow_run", "head_sha") != SOURCE_COMMIT
-            or _value(value, "workflow_run", "head_branch")
-            != SOURCE_REF.removeprefix("refs/heads/")
-        ):
-            errors.add("online: workflow-artifact")
+    if not (artifact_not_found and isinstance(artifact_list, list) and listed is None):
+        for value in (listed, artifact):
+            if (
+                not isinstance(value, dict)
+                or value.get("id") != ARTIFACT_ID
+                or value.get("name") != ARTIFACT_NAME
+                or (value.get("expired") is not False and value.get("expired") is not True)
+                or _value(value, "workflow_run", "id") != RUN_ID
+                or _value(value, "workflow_run", "head_sha") != SOURCE_COMMIT
+                or _value(value, "workflow_run", "head_branch")
+                != SOURCE_REF.removeprefix("refs/heads/")
+            ):
+                errors.add("online: workflow-artifact")
     verified = _completed(
         runner,
         (
