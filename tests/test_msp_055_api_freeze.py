@@ -42,6 +42,8 @@ RUN_ID = 29642000784
 RUN_ATTEMPT = 1
 ARTIFACT_ID = 8428896581
 ARTIFACT_NAME = "helianthus-eebusreg-api-surface-v1-29642000784-1"
+RUN_ARTIFACTS_ENDPOINT = f"repos/{SOURCE_REPOSITORY}/actions/runs/{RUN_ID}/artifacts"
+ARTIFACT_ENDPOINT = f"repos/{SOURCE_REPOSITORY}/actions/artifacts/{ARTIFACT_ID}"
 PREDICATE_TYPE = (
     "https://project-helianthus.github.io/attestations/"
     "eebus-api-surface/v1"
@@ -694,6 +696,8 @@ class FakeRunner:
             else generated_manifest
         )
         self.calls: list[tuple[tuple[str, ...], dict[str, Any]]] = []
+        self.api_results: dict[str, Any] = {}
+        self.pr_results: dict[str, Any] = {}
 
     def completed(
         self,
@@ -765,8 +769,13 @@ class FakeRunner:
                     "headRepositoryOwner": {"login": "Project-Helianthus"},
                 }
             )
-            return self.completed(command, stdout=json.dumps(payload))
+            return self.completed(command, stdout=json.dumps(self.pr_results.get(number, payload)))
         if command[:2] == ("gh", "api"):
+            if command[2] in self.api_results:
+                result = self.api_results[command[2]]
+                if isinstance(result, subprocess.CompletedProcess):
+                    return result
+                return self.completed(command, stdout=json.dumps(result))
             endpoint = " ".join(command[2:])
             if f"/commits/{SOURCE_COMMIT}" in endpoint:
                 payload = {
@@ -1042,6 +1051,151 @@ class MSP055APIFreezeValidatorTests(unittest.TestCase):
                 online=True,
             )
             self.assertIn("online: attestation-verification", errors)
+
+    def test_online_retention_not_found_and_absent_from_run_passes(self) -> None:
+        for output in ("HTTP 404", "Not Found"):
+            for stream in ("stdout", "stderr"):
+                with self.subTest(output=output, stream=stream):
+                    runner = FakeRunner()
+                    runner.api_results[ARTIFACT_ENDPOINT] = runner.completed(
+                        ("gh", "api", ARTIFACT_ENDPOINT), code=1, **{stream: output}
+                    )
+                    runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {
+                        "artifacts": [{"id": ARTIFACT_ID + 1}]
+                    }
+                    self.assertEqual(load_validator()._online_errors(REPO, runner), set())
+
+    def test_online_expired_artifact_with_matching_metadata_passes(self) -> None:
+        runner = FakeRunner()
+        artifact = runner.artifact()
+        artifact["expired"] = True
+        runner.api_results[ARTIFACT_ENDPOINT] = artifact
+        runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {"artifacts": [artifact]}
+        self.assertEqual(load_validator()._online_errors(REPO, runner), set())
+
+    def test_online_present_or_expired_artifact_metadata_mismatch_fails(self) -> None:
+        for expired in (False, True):
+            for endpoint in (ARTIFACT_ENDPOINT, RUN_ARTIFACTS_ENDPOINT):
+                for field in ("name", "run_id", "head_sha", "head_branch"):
+                    with self.subTest(expired=expired, endpoint=endpoint, field=field):
+                        runner = FakeRunner()
+                        artifact = runner.artifact()
+                        artifact["expired"] = expired
+                        runner.api_results[ARTIFACT_ENDPOINT] = artifact
+                        runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {"artifacts": [artifact]}
+                        mismatched = runner.artifact()
+                        mismatched["expired"] = expired
+                        if field == "name":
+                            mismatched["name"] = "other"
+                        else:
+                            key = "id" if field == "run_id" else field
+                            mismatched["workflow_run"][key] = RUN_ID + 1 if key == "id" else "other"
+                        runner.api_results[endpoint] = (
+                            mismatched if endpoint == ARTIFACT_ENDPOINT
+                            else {"artifacts": [mismatched]}
+                        )
+                        self.assertEqual(
+                            load_validator()._online_errors(REPO, runner),
+                            {"online: workflow-artifact"},
+                        )
+
+    def test_online_listed_artifact_but_endpoint_404_fails(self) -> None:
+        runner = FakeRunner()
+        runner.api_results[ARTIFACT_ENDPOINT] = runner.completed(
+            ("gh", "api", ARTIFACT_ENDPOINT), code=1, stderr="HTTP 404 Not Found"
+        )
+        self.assertEqual(
+            load_validator()._online_errors(REPO, runner), {"online: workflow-artifact"}
+        )
+
+    def test_online_returned_artifact_but_not_listed_fails_even_when_expired(self) -> None:
+        for expired in (False, True):
+            with self.subTest(expired=expired):
+                runner = FakeRunner()
+                artifact = runner.artifact()
+                artifact["expired"] = expired
+                runner.api_results[ARTIFACT_ENDPOINT] = artifact
+                runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {"artifacts": []}
+                self.assertEqual(
+                    load_validator()._online_errors(REPO, runner),
+                    {"online: workflow-artifact"},
+                )
+
+    def test_online_artifact_server_auth_rate_limit_or_network_failure_fails(self) -> None:
+        for output in (
+            "HTTP 500 Internal Server Error", "HTTP 503 Service Unavailable",
+            "HTTP 401 Unauthorized", "HTTP 403 Forbidden",
+            "HTTP 429 rate limit exceeded", "network connection timed out",
+        ):
+            with self.subTest(output=output):
+                runner = FakeRunner()
+                runner.api_results[ARTIFACT_ENDPOINT] = runner.completed(
+                    ("gh", "api", ARTIFACT_ENDPOINT), code=1, stderr=output
+                )
+                runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {"artifacts": []}
+                self.assertEqual(
+                    load_validator()._online_errors(REPO, runner),
+                    {"online: workflow-artifact"},
+                )
+
+    def test_online_not_found_requires_successful_well_formed_run_artifact_list(self) -> None:
+        for result in (
+            subprocess.CompletedProcess([], 1, "", "HTTP 503 Service Unavailable"),
+            subprocess.CompletedProcess([], 1, '{"artifacts": []}', "HTTP 401 Unauthorized"),
+            None, {}, {"artifacts": None}, {"artifacts": {}},
+        ):
+            with self.subTest(result=result):
+                runner = FakeRunner()
+                runner.api_results[ARTIFACT_ENDPOINT] = runner.completed(
+                    ("gh", "api", ARTIFACT_ENDPOINT), code=1, stderr="HTTP 404"
+                )
+                runner.api_results[RUN_ARTIFACTS_ENDPOINT] = result
+                self.assertEqual(
+                    load_validator()._online_errors(REPO, runner),
+                    {"online: workflow-artifact"},
+                )
+
+    def test_online_retention_expiry_keeps_attestation_verification_mandatory(self) -> None:
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                runner = FakeRunner(attestation_code=1)
+                artifact = runner.artifact()
+                artifact["expired"] = True
+                runner.api_results[ARTIFACT_ENDPOINT] = (
+                    runner.completed(("gh", "api", ARTIFACT_ENDPOINT), code=1, stderr="HTTP 404")
+                    if missing else artifact
+                )
+                runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {
+                    "artifacts": [] if missing else [artifact]
+                }
+                self.assertEqual(
+                    load_validator()._online_errors(REPO, runner),
+                    {"online: attestation-verification"},
+                )
+
+    def test_online_retention_expiry_keeps_workflow_run_source_tree_and_pr_mandatory(self) -> None:
+        for missing in (False, True):
+            for category in ("workflow-run", "source-commit-tree", "source-pr-merge"):
+                with self.subTest(missing=missing, category=category):
+                    runner = FakeRunner()
+                    artifact = runner.artifact()
+                    artifact["expired"] = True
+                    runner.api_results[ARTIFACT_ENDPOINT] = (
+                        runner.completed(("gh", "api", ARTIFACT_ENDPOINT), code=1, stderr="HTTP 404")
+                        if missing else artifact
+                    )
+                    runner.api_results[RUN_ARTIFACTS_ENDPOINT] = {
+                        "artifacts": [] if missing else [artifact]
+                    }
+                    if category == "workflow-run":
+                        runner.api_results[f"repos/{SOURCE_REPOSITORY}/actions/runs/{RUN_ID}"] = {}
+                    elif category == "source-commit-tree":
+                        runner.api_results[f"repos/{SOURCE_REPOSITORY}/commits/{SOURCE_COMMIT}"] = {}
+                    else:
+                        runner.pr_results[str(SOURCE_PULL_REQUEST)] = {}
+                    self.assertEqual(
+                        load_validator()._online_errors(REPO, runner), {"online: " + category}
+                    )
 
 
 if __name__ == "__main__":
