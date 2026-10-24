@@ -5189,6 +5189,10 @@ def issue_138_native_runtime_exposure_errors(root: Path) -> list[str]:
         "semantic promotion is a separate selective projection",
         "action-time operator confirmation",
         "synthetic fixtures",
+        "nothing but the eebus store may live in the state root",
+        "`<state-root>-operator/operator-mcp.sock`",
+        "removes once at start a stale `operator-mcp.sock`",
+        "describe the earlier location",
     )
     for marker in required:
         if marker not in text:

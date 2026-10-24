@@ -62,6 +62,18 @@ Opaque handles for a pending mutation or an action capability remain capability
 objects, not replacements for protocol-native observations. They may remain
 non-forgeable while the associated native data stays available.
 
+## Operator Socket Location
+
+Nothing but the eeBUS store may live in the state root, so the owner-only
+AF_UNIX operator MCP socket lives beside it at
+`<state-root>-operator/operator-mcp.sock` (`/data/eebus-operator/operator-mcp.sock`
+in the Home Assistant add-on), and the gateway removes once at start a stale
+`operator-mcp.sock` that an earlier build left in the state root. The frozen
+MSP-06 page, its raw schema `operator_socket` constant and the MSP-068 amendment
+describe the earlier location, `/data/eebus/operator-mcp.sock` inside the state
+root; the directory and socket modes and the peer-credential proof they describe
+are unchanged.
+
 ## Public Repository Boundary
 
 The sole redaction boundary is publication into a public repository. Documents,
