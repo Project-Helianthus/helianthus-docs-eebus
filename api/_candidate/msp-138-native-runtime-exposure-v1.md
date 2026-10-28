@@ -74,6 +74,21 @@ describe the earlier location, `/data/eebus/operator-mcp.sock` inside the state
 root; the directory and socket modes and the peer-credential proof they describe
 are unchanged.
 
+The gateway flag `-eebus-operator-socket-dir` selects an explicit directory,
+which must be absolute, outside the state root, and short enough that the full
+`<directory>/operator-mcp.sock` path fits the platform AF_UNIX socket-path limit;
+an invalid or unusable explicit directory fails gateway startup. If the default
+path is too long or its parent cannot be created, the gateway uses a bounded,
+private per-instance directory under the temporary directory (under `/tmp` if
+the temporary-directory path leaves insufficient room); if that fallback cannot
+be served, the gateway continues without the operator endpoint and eeBUS
+readiness is degraded with `admin_boundary_unavailable`.
+
+The deployment must not alias the state root through a symlink or bind mount
+that makes another path the same directory: socket exclusion relies on path
+construction, and an aliased state root makes the eeBUS store refuse the foreign
+entry. Fallback and start failures are reported by category only, without paths.
+
 ## Public Repository Boundary
 
 The sole redaction boundary is publication into a public repository. Documents,

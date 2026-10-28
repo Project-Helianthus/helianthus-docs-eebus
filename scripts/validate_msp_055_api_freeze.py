@@ -659,7 +659,8 @@ def _example_errors(
                 "module helianthus.invalid/msp055-example\n\n"
                 "go 1.24.0\n\n"
                 "require github.com/Project-Helianthus/helianthus-eebusreg v0.0.0\n\n"
-                f"replace github.com/Project-Helianthus/helianthus-eebusreg => {source_checkout.resolve()}\n",
+                "replace github.com/Project-Helianthus/helianthus-eebusreg => "
+                f"{json.dumps(str(source_checkout.resolve()), ensure_ascii=False)}\n",
                 encoding="utf-8",
             )
             (example_root / "main.go").write_text(source + "\n", encoding="utf-8")
