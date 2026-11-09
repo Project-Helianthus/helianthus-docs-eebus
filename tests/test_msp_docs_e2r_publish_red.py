@@ -599,7 +599,12 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
         locks = {block.split()[0]: block.count("--hash=sha256:") for block in blocks}
         self.assertEqual(
             locks,
-            {"PyYAML==6.0.3": 10, "markdown-it-py==4.0.0": 1, "mdurl==0.1.2": 1},
+            {
+                "PyYAML==6.0.3": 10,
+                "markdown-it-py==4.0.0": 1,
+                "mdurl==0.1.2": 1,
+                "ruff==0.15.10": 17,
+            },
         )
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("pip install --only-binary=:all: --require-hashes", workflow)
