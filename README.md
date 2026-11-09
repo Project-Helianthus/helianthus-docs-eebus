@@ -77,6 +77,8 @@ rollout, or command routing as current behavior in this repository.
 - [architecture/README.md](architecture/README.md)
 - [architecture/multi-runtime-coexistence.md](architecture/multi-runtime-coexistence.md)
 - [api/README.md](api/README.md)
+- [Frozen eeBUS Runtime API v1 reference](api/eebusruntime-v1/reference.md)
+- [Current eeBUS runtime implementation](https://github.com/Project-Helianthus/helianthus-eebusreg/tree/main)
 - [protocols/ship-spine-overview.md](protocols/ship-spine-overview.md)
 - [devices/vr940f.md](devices/vr940f.md)
 - [evidence/README.md](evidence/README.md)

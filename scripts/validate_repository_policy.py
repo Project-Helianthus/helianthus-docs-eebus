@@ -1283,8 +1283,8 @@ SCAFFOLD_PAGES = {
 }
 
 SCAFFOLD_ARTIFACT_SHA256 = {
-    "README.md": "6f4670f0c056759cb78d394449bdee94" "e6c4f4a15b6e4a476069be095c3d5781",
-    "api/README.md": "99cd8f1833d1a1f801f4d04d62b1ecb" "95f20ad73d8dadc04c654f1fdcf31f1f3",
+    "README.md": "25175f70b63672b2bf3ae2e61033fa43" "11057269b0757118bcf6d7ba1b942933",
+    "api/README.md": "d96afd63bb87ab9d744a154b926986de" "c0e8c0a53ce0c9c461976e5d5e2c8bc5",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
     "evidence/evidence-template.md": (
