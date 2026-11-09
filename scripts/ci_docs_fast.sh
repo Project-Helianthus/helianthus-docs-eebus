@@ -69,6 +69,10 @@ if failed:
     raise SystemExit(1)
 PY
 
+echo "==> python readability ratchet"
+python3 scripts/check_readability.py --self-test
+python3 scripts/check_readability.py --check
+
 echo "==> validate API surface v1 contract"
 python3 scripts/validate_api_surface_v1.py
 

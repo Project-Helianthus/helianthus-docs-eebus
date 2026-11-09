@@ -1,0 +1,469 @@
+{
+  "schema": 1,
+  "ruff_version": "0.15.10",
+  "generation": "One-time measurement: ruff check --no-cache --output-format=json --config ruff.toml scripts tests. Resolve rows to AST-qualified enclosing class/function symbols (or <module>); use observed C901/PLR0915 values, and occurrence counts for other rules. Review edits manually; reductions pass, resolved entries must be removed. No CI regeneration.",
+  "entries": [
+    {
+      "path": "scripts/machine_publication_policy.py",
+      "symbol": "_decoded_marker_diagnostics",
+      "rule": "C901",
+      "count": 15
+    },
+    {
+      "path": "scripts/machine_publication_policy.py",
+      "symbol": "marker_diagnostics",
+      "rule": "C901",
+      "count": 11
+    },
+    {
+      "path": "scripts/manage_platform_cross_seed_snapshot.py",
+      "symbol": "internal_errors",
+      "rule": "C901",
+      "count": 11
+    },
+    {
+      "path": "scripts/publication_completion_token.py",
+      "symbol": "_verify_worktree_matches_tree",
+      "rule": "C901",
+      "count": 16
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "_load_registry",
+      "rule": "C901",
+      "count": 19
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "_load_registry",
+      "rule": "PLR0915",
+      "count": 59
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "_parse_yaml",
+      "rule": "C901",
+      "count": 23
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "_parse_yaml",
+      "rule": "PLR0915",
+      "count": 61
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "_parse_yaml.parse_block",
+      "rule": "C901",
+      "count": 15
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "_yaml_scalar",
+      "rule": "C901",
+      "count": 12
+    },
+    {
+      "path": "scripts/render_publication.py",
+      "symbol": "main",
+      "rule": "C901",
+      "count": 12
+    },
+    {
+      "path": "scripts/validate_api_surface_v1.py",
+      "symbol": "_expected_signature",
+      "rule": "C901",
+      "count": 12
+    },
+    {
+      "path": "scripts/validate_api_surface_v1.py",
+      "symbol": "_negative_fixture_boundary_diagnostics",
+      "rule": "C901",
+      "count": 16
+    },
+    {
+      "path": "scripts/validate_api_surface_v1.py",
+      "symbol": "document_diagnostics",
+      "rule": "C901",
+      "count": 73
+    },
+    {
+      "path": "scripts/validate_api_surface_v1.py",
+      "symbol": "document_diagnostics",
+      "rule": "PLR0915",
+      "count": 196
+    },
+    {
+      "path": "scripts/validate_api_surface_v1.py",
+      "symbol": "validate_repository",
+      "rule": "C901",
+      "count": 22
+    },
+    {
+      "path": "scripts/validate_api_surface_v1.py",
+      "symbol": "validate_repository",
+      "rule": "PLR0915",
+      "count": 56
+    },
+    {
+      "path": "scripts/validate_msp_055_api_freeze.py",
+      "symbol": "_online_errors",
+      "rule": "C901",
+      "count": 13
+    },
+    {
+      "path": "scripts/validate_msp_055_api_freeze.py",
+      "symbol": "_record_errors",
+      "rule": "C901",
+      "count": 26
+    },
+    {
+      "path": "scripts/validate_msp_055_api_freeze.py",
+      "symbol": "_record_errors",
+      "rule": "PLR0915",
+      "count": 64
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_discover_publication_artifacts",
+      "rule": "C901",
+      "count": 13
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_github_repository_relative_path",
+      "rule": "C901",
+      "count": 11
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_68_machine_contract_errors",
+      "rule": "C901",
+      "count": 36
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_68_machine_contract_errors",
+      "rule": "PLR0915",
+      "count": 108
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_76_machine_contract_errors",
+      "rule": "C901",
+      "count": 94
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_76_machine_contract_errors",
+      "rule": "PLR0915",
+      "count": 271
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_98_json_schema_errors",
+      "rule": "C901",
+      "count": 47
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_98_json_schema_errors",
+      "rule": "PLR0915",
+      "count": 101
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_98_json_schema_errors.validate",
+      "rule": "C901",
+      "count": 44
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_issue_98_json_schema_errors.validate",
+      "rule": "PLR0915",
+      "count": 94
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_load_platform_snapshot",
+      "rule": "C901",
+      "count": 27
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_load_platform_snapshot",
+      "rule": "PLR0915",
+      "count": 59
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_load_publication_channels",
+      "rule": "C901",
+      "count": 17
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_msp045_structure_errors",
+      "rule": "C901",
+      "count": 16
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_msp045_structure_errors",
+      "rule": "PLR0915",
+      "count": 51
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_privacy_errors",
+      "rule": "C901",
+      "count": 26
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_privacy_errors",
+      "rule": "PLR0915",
+      "count": 54
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_provenance_errors",
+      "rule": "C901",
+      "count": 25
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_provenance_errors",
+      "rule": "PLR0915",
+      "count": 65
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "_stable_artifact_references",
+      "rule": "C901",
+      "count": 16
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "check_repository",
+      "rule": "C901",
+      "count": 161
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "check_repository",
+      "rule": "PLR0915",
+      "count": 426
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_68_raw_operator_redaction_errors",
+      "rule": "C901",
+      "count": 22
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_76_m625_raw_feature_errors",
+      "rule": "C901",
+      "count": 15
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_96_spine13_hvac_model_erratum_errors",
+      "rule": "C901",
+      "count": 14
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_98_m65_live_redacted_source_errors",
+      "rule": "C901",
+      "count": 25
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_98_m65_live_redacted_source_errors",
+      "rule": "PLR0915",
+      "count": 70
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_98_m65_live_redacted_source_instance_errors",
+      "rule": "C901",
+      "count": 38
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "issue_98_m65_live_redacted_source_instance_errors",
+      "rule": "PLR0915",
+      "count": 99
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "outbound_pairing_contract_errors",
+      "rule": "C901",
+      "count": 11
+    },
+    {
+      "path": "scripts/validate_repository_policy.py",
+      "symbol": "ship_identity_corpus_errors",
+      "rule": "C901",
+      "count": 20
+    },
+    {
+      "path": "tests/test_api_surface_v1.py",
+      "symbol": "<module>",
+      "rule": "E402",
+      "count": 1
+    },
+    {
+      "path": "tests/test_api_surface_v1.py",
+      "symbol": "<module>",
+      "rule": "F401",
+      "count": 2
+    },
+    {
+      "path": "tests/test_api_surface_v1.py",
+      "symbol": "APISurfaceV1ContractTests.test_document_diagnostics_wrong_type_sweep_is_total_and_deterministic",
+      "rule": "C901",
+      "count": 12
+    },
+    {
+      "path": "tests/test_issue_104_ha_addon_runtime_wiring.py",
+      "symbol": "restart_evidence_redaction_violations",
+      "rule": "C901",
+      "count": 21
+    },
+    {
+      "path": "tests/test_issue_108_vr940_multi_leaf_source_inventory.py",
+      "symbol": "Issue108VR940MultiLeafSourceInventoryTests.test_complete_source_projection_is_closed_per_candidate",
+      "rule": "E731",
+      "count": 4
+    },
+    {
+      "path": "tests/test_issue_68_raw_operator_redaction_contract.py",
+      "symbol": "<module>",
+      "rule": "E402",
+      "count": 1
+    },
+    {
+      "path": "tests/test_issue_76_m625_raw_feature_contract.py",
+      "symbol": "Issue76M625RawFeatureContractTests.test_envelope_schema_rejects_cross_tool_and_exclusivity_mismatches",
+      "rule": "PLR0915",
+      "count": 72
+    },
+    {
+      "path": "tests/test_issue_76_m625_raw_feature_contract.py",
+      "symbol": "Issue76M625RawFeatureContractTests.test_mutation_schema_rejects_incoherent_terminal_evidence",
+      "rule": "PLR0915",
+      "count": 72
+    },
+    {
+      "path": "tests/test_issue_76_m625_raw_feature_contract.py",
+      "symbol": "schema_accepts",
+      "rule": "C901",
+      "count": 41
+    },
+    {
+      "path": "tests/test_issue_76_m625_raw_feature_contract.py",
+      "symbol": "schema_accepts",
+      "rule": "PLR0915",
+      "count": 54
+    },
+    {
+      "path": "tests/test_issue_76_m625_raw_feature_contract.py",
+      "symbol": "schema_accepts.matches",
+      "rule": "C901",
+      "count": 40
+    },
+    {
+      "path": "tests/test_issue_76_m625_raw_feature_contract.py",
+      "symbol": "schema_accepts.matches",
+      "rule": "PLR0915",
+      "count": 51
+    },
+    {
+      "path": "tests/test_issue_98_m65_live_redacted_source_contract.py",
+      "symbol": "Issue98M65LiveRedactedSourceContractTests.test_numeric_values_units_and_privacy_are_executable",
+      "rule": "PLR0915",
+      "count": 56
+    },
+    {
+      "path": "tests/test_issue_98_m65_live_redacted_source_contract.py",
+      "symbol": "schema_accepts",
+      "rule": "C901",
+      "count": 31
+    },
+    {
+      "path": "tests/test_issue_98_m65_live_redacted_source_contract.py",
+      "symbol": "schema_accepts.matches",
+      "rule": "C901",
+      "count": 30
+    },
+    {
+      "path": "tests/test_machine_publication_policy.py",
+      "symbol": "<module>",
+      "rule": "F401",
+      "count": 2
+    },
+    {
+      "path": "tests/test_msp_036_raw_view_contract.py",
+      "symbol": "<module>",
+      "rule": "E402",
+      "count": 1
+    },
+    {
+      "path": "tests/test_msp_055_api_freeze.py",
+      "symbol": "FakeRunner.__call__",
+      "rule": "C901",
+      "count": 20
+    },
+    {
+      "path": "tests/test_msp_06_mcp_wire_contract.py",
+      "symbol": "canonicalize_jcs_subset",
+      "rule": "C901",
+      "count": 11
+    },
+    {
+      "path": "tests/test_msp_docs_e2_red.py",
+      "symbol": "<module>",
+      "rule": "F401",
+      "count": 1
+    },
+    {
+      "path": "tests/test_msp_docs_e2_remediation.py",
+      "symbol": "<module>",
+      "rule": "E402",
+      "count": 2
+    },
+    {
+      "path": "tests/test_msp_docs_e2_remediation.py",
+      "symbol": "<module>",
+      "rule": "F401",
+      "count": 1
+    },
+    {
+      "path": "tests/test_msp_docs_e2r_publish_red.py",
+      "symbol": "MspDocsE2RPublishRedTests.test_ci_is_immutable_least_privilege_hash_locked_and_post_merge",
+      "rule": "C901",
+      "count": 13
+    },
+    {
+      "path": "tests/test_msp_docs_e2r_publish_red.py",
+      "symbol": "MspDocsE2RPublishRedTests.test_platform_b_v2_registry_preserves_membership_and_binds_publisher",
+      "rule": "C901",
+      "count": 11
+    },
+    {
+      "path": "tests/test_policy_validator.py",
+      "symbol": "<module>",
+      "rule": "E402",
+      "count": 2
+    },
+    {
+      "path": "tests/test_policy_validator.py",
+      "symbol": "<module>",
+      "rule": "F401",
+      "count": 1
+    }
+  ]
+}
