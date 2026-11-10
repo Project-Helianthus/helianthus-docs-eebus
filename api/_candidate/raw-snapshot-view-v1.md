@@ -216,7 +216,7 @@ storage:
 raw JSON hash view includes the inspectable `SnapshotMetaV1.local_ski` string
 alongside `contract`, `runtime`, `mask_tier`, `data_timestamp`, `status`,
 `pairing`, `services`, `sessions`, `devices`, `entities`, `features`,
-`usecases`, and `opaque`; only `captured_at` and `data_hash` are omitted. The
+`use_cases`, and `opaque`; only `captured_at` and `data_hash` are omitted. The
 redacted hash view instead includes the independently derived
 `RedactedSnapshotMetaV1.local_ski` masked identity. Raw and redacted snapshots
 therefore have separate deterministic hashes, and neither identity nor tier can

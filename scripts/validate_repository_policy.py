@@ -56,6 +56,8 @@ MARKDOWN_ONLY_DOMAINS = {
     "development",
     "re-notes",
 }
+ARCHITECTURE_MACHINE_ARTIFACTS = {"architecture/naming-contract.json"}
+
 API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/attestation.json",
     "api/_candidate/msp-055/candidate-record.json",
@@ -203,8 +205,8 @@ ISSUE138_FROZEN_HISTORICAL_ARTIFACTS = {
         "3096e4aa2e23877f074a16311f4247c"
     ),
     Path("api/_candidate/raw-snapshot-view-v1.md"): (
-        "0ddf41bb9dca47c90f50f09b6c0be7be"
-        "f3d664aa7575ace3f81faef82c59f954"
+        "a566799754c3c52ea7482071fbee6816"
+        "6841155eddf4fe31a13210e8637ae36f"
     ),
     Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"): (
         "f1ae2a676ec688c44f330911682e12b7"
@@ -945,12 +947,12 @@ ISSUE76_M6_LOCKED_ARTIFACTS = {
         "2eadbd785d64f9436f81419bd5bd4fbd"
     ),
     Path("api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json"): (
-        "e7fc213ad2b8d8ef426f426e486f8dba4"
-        "035183bc5ceea2d1b6717b6adad986f"
+        "e6172a878db167cb11c992b3015fa63c"
+        "c7fc2d73a2b853b69235416d053aa53f"
     ),
     Path("api/_candidate/raw-snapshot-view-v1.md"): (
-        "0ddf41bb9dca47c90f50f09b6c0be7be"
-        "f3d664aa7575ace3f81faef82c59f954"
+        "a566799754c3c52ea7482071fbee6816"
+        "6841155eddf4fe31a13210e8637ae36f"
     ),
     Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"): (
         "f1ae2a676ec688c44f330911682e12b70"
@@ -1260,6 +1262,7 @@ PROVENANCE_TEXT_FINGERPRINTS = {
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
 ROOT_MD = {
+    "CHANGELOG.md": ("repository", "AGPL-3.0-only"),
     "README.md": ("repository", "AGPL-3.0-only"),
 }
 
@@ -5030,7 +5033,7 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
             errors.append(
                 f"{ISSUE68_RAW_SCHEMA_REL}: raw SnapshotMetaV1 local_ski contract is not exact"
             )
-        for collection in ("services", "devices", "entities", "features", "usecases"):
+        for collection in ("services", "devices", "entities", "features", "use_cases"):
             schema = collections.get(collection)
             if (
                 not isinstance(schema, dict)
@@ -8092,7 +8095,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     if rel not in API_MACHINE_ARTIFACTS and rel not in registered_outputs:
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
                         continue
-                elif top in MARKDOWN_ONLY_DOMAINS:
+                elif top in MARKDOWN_ONLY_DOMAINS and rel not in ARCHITECTURE_MACHINE_ARTIFACTS:
                     errors.append(f"{rel}: substantive documentation must use a Markdown extension")
                     continue
             try:
@@ -8100,7 +8103,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             except UnicodeDecodeError:
                 errors.append(f"{rel}: binary or non-UTF-8 publishable artifact is forbidden")
                 continue
-            if rel in API_MACHINE_ARTIFACTS:
+            if rel in API_MACHINE_ARTIFACTS or rel in ARCHITECTURE_MACHINE_ARTIFACTS:
                 errors.extend(_machine_artifact_errors(text, rel))
             else:
                 if _has_forbidden_control(text):
@@ -8131,7 +8134,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         rel = _rel(path, root)
         errors.extend(_privacy_errors(rel, rel, category_only=True))
         errors.extend(_restricted_source_errors(rel, rel, category_only=True))
-        if rel in API_MACHINE_ARTIFACTS or rel in STRUCTURED_SNAPSHOT_ARTIFACTS:
+        if rel in API_MACHINE_ARTIFACTS or rel in ARCHITECTURE_MACHINE_ARTIFACTS or rel in STRUCTURED_SNAPSHOT_ARTIFACTS:
             continue
         text, scan_errors = _bounded_repository_text(path, rel)
         errors.extend(scan_errors)

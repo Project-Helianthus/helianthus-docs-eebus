@@ -342,7 +342,7 @@
     "OperatorSnapshotProfileV1": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["meta", "services", "devices", "entities", "features", "usecases", "opaque"],
+      "required": ["meta", "services", "devices", "entities", "features", "use_cases", "opaque"],
       "properties": {
         "meta": {"$ref": "#/$defs/SnapshotMetaV1"},
         "services": {
@@ -373,7 +373,7 @@
           "items": {"$ref": "#/$defs/FeatureV1"},
           "x-order-by": ["device_address", "entity_address", "feature_address"]
         },
-        "usecases": {
+        "use_cases": {
           "type": "array",
           "maxItems": 4096,
           "uniqueItems": true,
