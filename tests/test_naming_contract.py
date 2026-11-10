@@ -7,12 +7,20 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('naming_contract', ROOT / 'scripts/check_naming_contract.py')
-checker = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(checker)
 
 
 class NamingContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        for relative in ('scripts/check_naming_contract.py',
+                         'architecture/naming-contract.json'):
+            if not (ROOT / relative).is_file():
+                raise unittest.SkipTest(f'missing naming contract prerequisite: {relative}')
+        spec = importlib.util.spec_from_file_location(
+            'naming_contract', ROOT / 'scripts/check_naming_contract.py')
+        cls.checker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.checker)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -29,7 +37,7 @@ class NamingContractTests(unittest.TestCase):
         self.contract = json.loads(self.path.read_text())
 
     def test_contract(self):
-        checker.validate()
+        self.checker.validate()
 
     def test_schema_rejects_old_key(self):
         schema = self.root / 'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json'
@@ -38,7 +46,7 @@ class NamingContractTests(unittest.TestCase):
         properties['usecases'] = properties['use_cases']
         schema.write_text(json.dumps(data))
         with self.assertRaises(AssertionError):
-            checker.validate(self.root)
+            self.checker.validate(self.root)
 
     def test_structural_identity_components_are_checked(self):
         row = next(r for r in self.contract['rows'] if r['status'] == 'structural')
@@ -47,7 +55,7 @@ class NamingContractTests(unittest.TestCase):
                 row['identity'][component] += '_changed'
                 self.path.write_text(json.dumps(self.contract))
                 with self.assertRaises(AssertionError):
-                    checker.validate(self.root)
+                    self.checker.validate(self.root)
                 row['identity'][component] = row['identity'][component].removesuffix('_changed')
 
     def test_method_identities(self):
@@ -73,7 +81,7 @@ class NamingContractTests(unittest.TestCase):
         row['current_name'] = row['target'] = 'SnapshotV1'
         self.path.write_text(json.dumps(self.contract))
         with self.assertRaisesRegex(AssertionError, 'invalid method receiver'):
-            checker.validate(self.root)
+            self.checker.validate(self.root)
 
     def test_repository_policy_rejects_invented_target(self):
         row = next(r for r in self.contract['rows'] if r['status'] == 'unchanged')
@@ -92,3 +100,29 @@ class NamingContractTests(unittest.TestCase):
                       (ROOT / 'scripts/ci_local.sh').read_text())
         self.assertIn('run: python3 -m unittest tests.test_naming_contract',
                       (ROOT / '.github/workflows/docs-ci.yml').read_text())
+
+    def test_discovery_skips_when_prerequisites_are_missing(self):
+        for missing in ('scripts/check_naming_contract.py',
+                        'architecture/naming-contract.json'):
+            with self.subTest(missing=missing):
+                root = self.root / Path(missing).stem
+                tests = root / 'tests'
+                tests.mkdir(parents=True)
+                (tests / 'test_naming_contract.py').write_bytes(
+                    Path(__file__).read_bytes())
+                for relative in ('scripts/check_naming_contract.py',
+                                 'architecture/naming-contract.json'):
+                    if relative != missing:
+                        target = root / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes((ROOT / relative).read_bytes())
+                result = subprocess.run(
+                    [sys.executable, '-m', 'unittest', 'discover', '-s',
+                     str(tests), '-p', 'test_naming_contract.py', '-v'],
+                    cwd=root, capture_output=True, text=True, check=False,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('Ran 0 tests', result.stderr)
+                self.assertIn('OK (skipped=1)', result.stderr)
+                self.assertIn(missing, result.stderr)
