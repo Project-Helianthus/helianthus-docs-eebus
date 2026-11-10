@@ -14,8 +14,9 @@ falsifier: "A reviewed client implementation or current operator-admin contract 
 
 This application lifecycle design supplies the asynchronous acceptance slice of
 [docs-eebus issue 153](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/153),
-via issue 159, and
+via issue 159, with historical decision provenance in
 [execution-plans issue 92](https://github.com/Project-Helianthus/helianthus-execution-plans/issues/92).
+Current follow-up belongs in the [owning repository issues](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues).
 Both parents retain their remaining acceptance. This page is outside the
 protocol/type CC0 trees and does not amend the native API or the separate
 browser display-state guide.
