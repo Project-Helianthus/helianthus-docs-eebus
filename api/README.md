@@ -40,6 +40,10 @@ version, or refresh its attestation. The reference, manifest and publication
 record remain unchanged. This landing page and the schema fixtures do not add
 runtime, protocol, consumer, or deployment claims.
 
-The candidate inventory currently includes `msp-06-eebus-mcp-v1.md`. Candidate
-entries are intentionally not links and remain excluded from stable navigation
-and publication bundles.
+## eeBUS MCP integration
+
+The gateway's eeBUS runtime integration exists. Its MCP contract page,
+`msp-06-eebus-mcp-v1.md`, remains published as a candidate until [follow-up #174](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/174)
+promotes it. These navigation notes make no native protocol qualification or
+stable pre-1.0 compatibility claim. Other candidate amendments retain their
+existing status.
