@@ -19,6 +19,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 from urllib.parse import unquote, urlsplit
 
+from check_naming_contract import naming_contract_errors
+
 import yaml
 from markdown_it import MarkdownIt
 
@@ -1320,7 +1322,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "93e43f5a9d22d8c88893ce40a46e97fd" "85a424173956147a2cdf1d7376274bf9"
+CI_LOCAL_SHA256 = "fc840de033c674032a10b3824d9c276a" "95e4469c1ade529d4c7d26ef5c76a45b"
 LICENSE_SHA256 = "a16cda9cb4b92973b563238dc27e133c3" "d34e1b774a6530b5276862c75d2c721"
 LICENSE_TEXT_SHA256 = {
     "LICENSES/CC0-1.0.txt": (
@@ -7367,7 +7369,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
     platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
-    errors.extend(snapshot_errors)
+    errors.extend(snapshot_errors + naming_contract_errors(root))
     if platform_snapshot is not None:
         for channel, pages in platform_snapshot["manifest_channel_pages"].items():
             channel_pages[channel].update(pages)

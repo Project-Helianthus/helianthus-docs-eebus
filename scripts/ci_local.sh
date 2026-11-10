@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 try:
-    completed = subprocess.run(["bash", "scripts/ci_docs_fast.sh"], timeout=60)
+    completed = subprocess.run(["bash", "-c", "python3 -m unittest tests.test_naming_contract && bash scripts/ci_docs_fast.sh"], timeout=60)
 except subprocess.TimeoutExpired:
     print("focused local CI exceeded its 60-second budget", file=sys.stderr)
     raise SystemExit(124)

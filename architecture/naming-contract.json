@@ -15191,12 +15191,12 @@
         "eebusraw",
         "eebusraw/mutation_lab_profile_v1.go",
         "func",
-        "profile MutationLabProfileV1) Clone(",
-        "MutationLabProfileV1"
+        "profile MutationLabProfileV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/mutation_lab_profile_v1.go",
-      "current_name": "MutationLabProfileV1",
-      "target": "MutationLabProfileV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16189,12 +16189,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "constraints ConstraintSetV1) Clone(",
-        "ConstraintSetV1"
+        "constraints ConstraintSetV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "ConstraintSetV1",
-      "target": "ConstraintSetV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16212,12 +16212,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "data FeatureDataGetDataV1) Clone(",
-        "FeatureDataGetDataV1"
+        "data FeatureDataGetDataV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeatureDataGetDataV1",
-      "target": "FeatureDataGetDataV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16304,12 +16304,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "data FeaturesGetDataV1) Clone(",
-        "FeaturesGetDataV1"
+        "data FeaturesGetDataV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeaturesGetDataV1",
-      "target": "FeaturesGetDataV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16419,12 +16419,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "descriptor FunctionDescriptorV1) Clone(",
-        "FunctionDescriptorV1"
+        "descriptor FunctionDescriptorV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FunctionDescriptorV1",
-      "target": "FunctionDescriptorV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16442,12 +16442,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "details ErrorDetailsV1) Clone(",
-        "ErrorDetailsV1"
+        "details ErrorDetailsV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "ErrorDetailsV1",
-      "target": "ErrorDetailsV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16465,12 +16465,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "failure ReadFailureV1) Clone(",
-        "ReadFailureV1"
+        "failure ReadFailureV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "ReadFailureV1",
-      "target": "ReadFailureV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16557,12 +16557,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "locator FeatureLocatorV1) Clone(",
-        "FeatureLocatorV1"
+        "locator FeatureLocatorV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeatureLocatorV1",
-      "target": "FeatureLocatorV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16649,12 +16649,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "message ProtocolMessageV1) Clone(",
-        "ProtocolMessageV1"
+        "message ProtocolMessageV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "ProtocolMessageV1",
-      "target": "ProtocolMessageV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16741,12 +16741,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "observation OpaqueObservationV1) Clone(",
-        "OpaqueObservationV1"
+        "observation OpaqueObservationV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "OpaqueObservationV1",
-      "target": "OpaqueObservationV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -16833,12 +16833,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "observation ReadObservationV1) Clone(",
-        "ReadObservationV1"
+        "observation ReadObservationV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "ReadObservationV1",
-      "target": "ReadObservationV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -17040,12 +17040,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "request FeatureDataGetRequestV1) Clone(",
-        "FeatureDataGetRequestV1"
+        "request FeatureDataGetRequestV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeatureDataGetRequestV1",
-      "target": "FeatureDataGetRequestV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -17063,12 +17063,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "request FeaturesGetRequestV1) Clone(",
-        "FeaturesGetRequestV1"
+        "request FeaturesGetRequestV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeaturesGetRequestV1",
-      "target": "FeaturesGetRequestV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -17086,12 +17086,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "target FeatureTargetV1) Clone(",
-        "FeatureTargetV1"
+        "target FeatureTargetV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeatureTargetV1",
-      "target": "FeatureTargetV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -17109,12 +17109,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "target FeatureTargetV1) Locator(",
-        "FeatureLocatorV1"
+        "target FeatureTargetV1",
+        "Locator"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "FeatureLocatorV1",
-      "target": "FeatureLocatorV1",
+      "current_name": "Locator",
+      "target": "Locator",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -17270,12 +17270,12 @@
         "eebusraw",
         "eebusraw/raw_feature_v1.go",
         "func",
-        "value ErrorV1) Clone(",
-        "ErrorV1"
+        "value ErrorV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/raw_feature_v1.go",
-      "current_name": "ErrorV1",
-      "target": "ErrorV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -18977,12 +18977,12 @@
         "eebusraw",
         "eebusraw/typed_value_v1.go",
         "func",
-        "value TypedValueV1) Clone(",
-        "TypedValueV1"
+        "value TypedValueV1",
+        "Clone"
       ],
       "owning_file": "eebusraw/typed_value_v1.go",
-      "current_name": "TypedValueV1",
-      "target": "TypedValueV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -35771,12 +35771,12 @@
         "eebusruntime",
         "native_snapshot_v2.go",
         "func",
-        "snapshot NativeSnapshotV2) Clone(",
-        "NativeSnapshotV2"
+        "snapshot NativeSnapshotV2",
+        "Clone"
       ],
       "owning_file": "native_snapshot_v2.go",
-      "current_name": "NativeSnapshotV2",
-      "target": "NativeSnapshotV2",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -37535,12 +37535,12 @@
         "eebusruntime",
         "raw_mutation_runtime.go",
         "func",
-        "outcome RawMutationOutcomeV1) Clone(",
-        "RawMutationOutcomeV1"
+        "outcome RawMutationOutcomeV1",
+        "Clone"
       ],
       "owning_file": "raw_mutation_runtime.go",
-      "current_name": "RawMutationOutcomeV1",
-      "target": "RawMutationOutcomeV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"
@@ -38072,12 +38072,12 @@
         "eebusruntime",
         "raw_snapshot_v1.go",
         "func",
-        "snapshot SnapshotV1) Clone(",
-        "SnapshotV1"
+        "snapshot SnapshotV1",
+        "Clone"
       ],
       "owning_file": "raw_snapshot_v1.go",
-      "current_name": "SnapshotV1",
-      "target": "SnapshotV1",
+      "current_name": "Clone",
+      "target": "Clone",
       "kind": "go_func",
       "role_decomposition": [
         "go_identifier"

@@ -1,38 +1,94 @@
 import importlib.util
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
 from pathlib import Path
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('naming_contract', ROOT / 'scripts/check_naming_contract.py')
 checker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(checker)
 
-def test_contract():
-    checker.validate()
 
-def test_schema_rejects_old_key(tmp_path, monkeypatch):
-    import json
-    contract = tmp_path / 'architecture/naming-contract.json'
-    contract.parent.mkdir(parents=True)
-    contract.write_bytes((ROOT / 'architecture/naming-contract.json').read_bytes())
-    schema = tmp_path / 'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json'
-    schema.parent.mkdir(parents=True)
-    data = json.loads((ROOT / schema.relative_to(tmp_path)).read_text())
-    data['$defs']['OperatorSnapshotProfileV1']['properties']['usecases'] = data['$defs']['OperatorSnapshotProfileV1']['properties']['use_cases']
-    schema.write_text(json.dumps(data))
-    monkeypatch.setattr(checker, 'ROOT', tmp_path)
-    with pytest.raises(AssertionError):
+class NamingContractTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        for name in (
+            'architecture/naming-contract.json',
+            'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json',
+            'api/_candidate/raw-snapshot-view-v1.md',
+        ):
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / name).read_bytes())
+        self.path = self.root / 'architecture/naming-contract.json'
+        self.contract = json.loads(self.path.read_text())
+
+    def test_contract(self):
         checker.validate()
 
-@pytest.mark.parametrize('component', range(4))
-def test_structural_identity_components_are_checked(tmp_path, monkeypatch, component):
-    import json
-    contract = tmp_path / 'architecture/naming-contract.json'
-    contract.parent.mkdir(parents=True)
-    data = json.loads((ROOT / 'architecture/naming-contract.json').read_text())
-    row = next(r for r in data['rows'] if r['status'] == 'structural')
-    row['identity'][component] += '_changed'
-    contract.write_text(json.dumps(data))
-    monkeypatch.setattr(checker, 'ROOT', tmp_path)
-    with pytest.raises(AssertionError):
-        checker.validate()
+    def test_schema_rejects_old_key(self):
+        schema = self.root / 'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json'
+        data = json.loads(schema.read_text())
+        properties = data['$defs']['OperatorSnapshotProfileV1']['properties']
+        properties['usecases'] = properties['use_cases']
+        schema.write_text(json.dumps(data))
+        with self.assertRaises(AssertionError):
+            checker.validate(self.root)
+
+    def test_structural_identity_components_are_checked(self):
+        row = next(r for r in self.contract['rows'] if r['status'] == 'structural')
+        for component in range(4):
+            with self.subTest(component=component):
+                row['identity'][component] += '_changed'
+                self.path.write_text(json.dumps(self.contract))
+                with self.assertRaises(AssertionError):
+                    checker.validate(self.root)
+                row['identity'][component] = row['identity'][component].removesuffix('_changed')
+
+    def test_method_identities(self):
+        methods = [r for r in self.contract['rows'] if r['kind'] == 'go_func'
+                   and len(r['identity']) == 5 and r['identity'][3] != 'package']
+        self.assertTrue(methods)
+        for row in methods:
+            with self.subTest(identity=row['identity']):
+                self.assertNotRegex(row['identity'][3], r'[()]')
+                self.assertEqual(row['identity'][4], row['current_name'])
+                self.assertEqual(row['target'], row['current_name'])
+        clone = next(r for r in methods if r['identity'][3] == 'snapshot SnapshotV1'
+                     and r['identity'][4] == 'Clone')
+        self.assertEqual(clone['target'], 'Clone')
+        locator = next(r for r in methods if r['identity'][3] == 'target FeatureTargetV1'
+                       and r['identity'][4] == 'Locator')
+        self.assertEqual(locator['target'], 'Locator')
+
+    def test_rejects_absorbed_method_name(self):
+        row = next(r for r in self.contract['rows'] if r['identity'][-2:] ==
+                   ['snapshot SnapshotV1', 'Clone'])
+        row['identity'][-2:] = ['snapshot SnapshotV1) Clone(', 'SnapshotV1']
+        row['current_name'] = row['target'] = 'SnapshotV1'
+        self.path.write_text(json.dumps(self.contract))
+        with self.assertRaisesRegex(AssertionError, 'invalid method receiver'):
+            checker.validate(self.root)
+
+    def test_repository_policy_rejects_invented_target(self):
+        row = next(r for r in self.contract['rows'] if r['status'] == 'unchanged')
+        row['target'] = 'invented_target'
+        self.path.write_text(json.dumps(self.contract))
+        # Invoke the required gate on a candidate root, not only the standalone checker.
+        result = subprocess.run(
+            [sys.executable, str(ROOT / 'scripts/validate_repository_policy.py'),
+             '--repo', str(self.root)], capture_output=True, text=True, check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('invalid naming contract', result.stderr)
+
+    def test_both_ci_entry_points_register_tests(self):
+        self.assertIn('python3 -m unittest tests.test_naming_contract',
+                      (ROOT / 'scripts/ci_local.sh').read_text())
+        self.assertIn('run: python3 -m unittest tests.test_naming_contract',
+                      (ROOT / '.github/workflows/docs-ci.yml').read_text())
