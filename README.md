@@ -67,9 +67,13 @@ allowed only for language-neutral cross-runtime contracts. A cross-seed must
 name the target platform page, keep the local page summary-only, and pass the
 repository policy validator.
 
-Gateway import remains blocked until later canonical docs and runtime contracts
-merge. Do not add gateway dependency instructions, GraphQL exposure, HA entity
-rollout, or command routing as current behavior in this repository.
+## Gateway integration
+
+The gateway's eeBUS runtime integration exists. Its MCP contract page remains
+published as a candidate until [follow-up #174](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/174)
+promotes it. See the [API landing page](api/README.md) for publication status.
+These navigation notes make no native protocol qualification or stable pre-1.0
+compatibility claim; other candidate amendments retain their existing status.
 
 ## Start Here
 
