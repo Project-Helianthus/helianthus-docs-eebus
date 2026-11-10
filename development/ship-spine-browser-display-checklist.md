@@ -45,7 +45,8 @@ bounded derivation of these review cases, not a claim that a browser or every
 peer family already satisfies them. A conflict is a review blocker to resolve
 with the owning contract, never permission to invent protocol behavior here.
 Refs [documentation issue 153](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/153)
-and [execution-plans issue 92](https://github.com/Project-Helianthus/helianthus-execution-plans/issues/92).
+and historical decision provenance in [execution-plans issue 92](https://github.com/Project-Helianthus/helianthus-execution-plans/issues/92).
+Current follow-up belongs in the [owning repository issues](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues).
 This partial child leaves the parent's implementation and live acceptance open.
 
 ## Independent labels
