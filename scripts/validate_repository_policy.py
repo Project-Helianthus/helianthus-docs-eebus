@@ -19,6 +19,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 from urllib.parse import unquote, urlsplit
 
+from check_naming_contract import naming_contract_errors
+
 import yaml
 from markdown_it import MarkdownIt
 
@@ -56,6 +58,8 @@ MARKDOWN_ONLY_DOMAINS = {
     "development",
     "re-notes",
 }
+ARCHITECTURE_MACHINE_ARTIFACTS = {"architecture/naming-contract.json"}
+
 API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/attestation.json",
     "api/_candidate/msp-055/candidate-record.json",
@@ -203,8 +207,8 @@ ISSUE138_FROZEN_HISTORICAL_ARTIFACTS = {
         "3096e4aa2e23877f074a16311f4247c"
     ),
     Path("api/_candidate/raw-snapshot-view-v1.md"): (
-        "0ddf41bb9dca47c90f50f09b6c0be7be"
-        "f3d664aa7575ace3f81faef82c59f954"
+        "a566799754c3c52ea7482071fbee6816"
+        "6841155eddf4fe31a13210e8637ae36f"
     ),
     Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"): (
         "f1ae2a676ec688c44f330911682e12b7"
@@ -945,12 +949,12 @@ ISSUE76_M6_LOCKED_ARTIFACTS = {
         "2eadbd785d64f9436f81419bd5bd4fbd"
     ),
     Path("api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json"): (
-        "e7fc213ad2b8d8ef426f426e486f8dba4"
-        "035183bc5ceea2d1b6717b6adad986f"
+        "e6172a878db167cb11c992b3015fa63c"
+        "c7fc2d73a2b853b69235416d053aa53f"
     ),
     Path("api/_candidate/raw-snapshot-view-v1.md"): (
-        "0ddf41bb9dca47c90f50f09b6c0be7be"
-        "f3d664aa7575ace3f81faef82c59f954"
+        "a566799754c3c52ea7482071fbee6816"
+        "6841155eddf4fe31a13210e8637ae36f"
     ),
     Path("api/_candidate/msp-068-raw-operator-redaction-amendment.md"): (
         "f1ae2a676ec688c44f330911682e12b70"
@@ -1260,6 +1264,7 @@ PROVENANCE_TEXT_FINGERPRINTS = {
 MALFORMED_API_FIXTURE = "api/fixtures/v1/negative/malformed.json"
 
 ROOT_MD = {
+    "CHANGELOG.md": ("repository", "AGPL-3.0-only"),
     "README.md": ("repository", "AGPL-3.0-only"),
 }
 
@@ -1317,7 +1322,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "93e43f5a9d22d8c88893ce40a46e97fd" "85a424173956147a2cdf1d7376274bf9"
+CI_LOCAL_SHA256 = "fc840de033c674032a10b3824d9c276a" "95e4469c1ade529d4c7d26ef5c76a45b"
 LICENSE_SHA256 = "a16cda9cb4b92973b563238dc27e133c3" "d34e1b774a6530b5276862c75d2c721"
 LICENSE_TEXT_SHA256 = {
     "LICENSES/CC0-1.0.txt": (
@@ -5030,7 +5035,7 @@ def _issue_68_machine_contract_errors(root: Path) -> list[str]:
             errors.append(
                 f"{ISSUE68_RAW_SCHEMA_REL}: raw SnapshotMetaV1 local_ski contract is not exact"
             )
-        for collection in ("services", "devices", "entities", "features", "usecases"):
+        for collection in ("services", "devices", "entities", "features", "use_cases"):
             schema = collections.get(collection)
             if (
                 not isinstance(schema, dict)
@@ -7343,6 +7348,13 @@ RUNNER_SELECTION_EXPRESSION = (
 )
 
 
+def _append_naming_contract_errors(root: Path, errors: list[str]) -> bool:
+    """Append contract diagnostics and retain the prior early-return decision."""
+    had_errors = bool(errors)
+    errors.extend(naming_contract_errors(root))
+    return had_errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -7398,7 +7410,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             continue
         if file_stat.st_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
             errors.append(f"{rel}: repository artifact exceeds scan size limit")
-    if errors:
+    if _append_naming_contract_errors(root, errors):
         return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
     ci_local = root / "scripts" / "ci_local.sh"
@@ -8092,7 +8104,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     if rel not in API_MACHINE_ARTIFACTS and rel not in registered_outputs:
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
                         continue
-                elif top in MARKDOWN_ONLY_DOMAINS:
+                elif top in MARKDOWN_ONLY_DOMAINS and rel not in ARCHITECTURE_MACHINE_ARTIFACTS:
                     errors.append(f"{rel}: substantive documentation must use a Markdown extension")
                     continue
             try:
@@ -8100,7 +8112,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             except UnicodeDecodeError:
                 errors.append(f"{rel}: binary or non-UTF-8 publishable artifact is forbidden")
                 continue
-            if rel in API_MACHINE_ARTIFACTS:
+            if rel in API_MACHINE_ARTIFACTS or rel in ARCHITECTURE_MACHINE_ARTIFACTS:
                 errors.extend(_machine_artifact_errors(text, rel))
             else:
                 if _has_forbidden_control(text):
@@ -8131,7 +8143,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         rel = _rel(path, root)
         errors.extend(_privacy_errors(rel, rel, category_only=True))
         errors.extend(_restricted_source_errors(rel, rel, category_only=True))
-        if rel in API_MACHINE_ARTIFACTS or rel in STRUCTURED_SNAPSHOT_ARTIFACTS:
+        if rel in API_MACHINE_ARTIFACTS or rel in ARCHITECTURE_MACHINE_ARTIFACTS or rel in STRUCTURED_SNAPSHOT_ARTIFACTS:
             continue
         text, scan_errors = _bounded_repository_text(path, rel)
         errors.extend(scan_errors)

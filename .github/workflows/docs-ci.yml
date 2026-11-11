@@ -104,6 +104,9 @@ jobs:
       - name: Install policy validator dependencies
         working-directory: docs
         run: 'python -m pip install --only-binary=:all: --require-hashes -r requirements-ci.txt'
+      - name: Run naming contract tests
+        working-directory: docs
+        run: python3 -m unittest tests.test_naming_contract
       - name: Run fast docs CI
         working-directory: docs
         run: ./scripts/ci_docs_fast.sh

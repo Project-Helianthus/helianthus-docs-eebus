@@ -24,6 +24,8 @@ POLICY_FIXTURE_PATHS = (
     Path(".github/ISSUE_TEMPLATE"),
     Path(".github/workflows/docs-ci.yml"),
     Path("scripts/ci_local.sh"),
+    Path("scripts/check_naming_contract.py"),
+    Path("tests/test_naming_contract.py"),
     Path("scripts/ci_docs_fast.sh"),
     Path("scripts/validate_repository_policy.py"),
     Path("scripts/machine_publication_policy.py"),
