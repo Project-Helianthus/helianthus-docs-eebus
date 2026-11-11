@@ -12,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 class NamingContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        for relative in ('scripts/check_naming_contract.py',
+        # Reduced policy fixtures deliberately omit the fixture builder and may
+        # replace the validator with a stub to isolate shell content checks.
+        for relative in ('tests/policy_test_support.py',
+                         'scripts/check_naming_contract.py',
                          'architecture/naming-contract.json'):
             if not (ROOT / relative).is_file():
                 raise unittest.SkipTest(f'missing naming contract prerequisite: {relative}')
@@ -101,8 +104,34 @@ class NamingContractTests(unittest.TestCase):
         self.assertIn('run: python3 -m unittest tests.test_naming_contract',
                       (ROOT / '.github/workflows/docs-ci.yml').read_text())
 
+    def test_policy_fixture_explicitly_skips_suite_but_enforces_contract(self):
+        from tests.policy_test_support import materialize_policy_fixture
+
+        root = materialize_policy_fixture(self.root / 'policy-fixture')
+        result = subprocess.run(
+            [sys.executable, '-m', 'unittest', 'tests.test_naming_contract', '-v'],
+            cwd=root, capture_output=True, text=True, check=False, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Ran 0 tests', result.stderr)
+        self.assertIn('OK (skipped=1)', result.stderr)
+        self.assertIn('tests/policy_test_support.py', result.stderr)
+        contract_path = root / 'architecture/naming-contract.json'
+        contract = json.loads(contract_path.read_text())
+        row = next(r for r in contract['rows'] if r['status'] == 'unchanged')
+        row['target'] = 'invented_target'
+        contract_path.write_text(json.dumps(contract))
+        result = subprocess.run(
+            [sys.executable, str(root / 'scripts/validate_repository_policy.py'),
+             '--repo', str(root)],
+            cwd=root, capture_output=True, text=True, check=False, timeout=30,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('invalid naming contract', result.stderr)
+
     def test_discovery_skips_when_prerequisites_are_missing(self):
-        for missing in ('scripts/check_naming_contract.py',
+        for missing in ('tests/policy_test_support.py',
+                        'scripts/check_naming_contract.py',
                         'architecture/naming-contract.json'):
             with self.subTest(missing=missing):
                 root = self.root / Path(missing).stem
@@ -110,7 +139,8 @@ class NamingContractTests(unittest.TestCase):
                 tests.mkdir(parents=True)
                 (tests / 'test_naming_contract.py').write_bytes(
                     Path(__file__).read_bytes())
-                for relative in ('scripts/check_naming_contract.py',
+                for relative in ('tests/policy_test_support.py',
+                                 'scripts/check_naming_contract.py',
                                  'architecture/naming-contract.json'):
                     if relative != missing:
                         target = root / relative
