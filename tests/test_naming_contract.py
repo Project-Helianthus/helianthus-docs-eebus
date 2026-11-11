@@ -156,3 +156,47 @@ class NamingContractTests(unittest.TestCase):
                 self.assertIn('Ran 0 tests', result.stderr)
                 self.assertIn('OK (skipped=1)', result.stderr)
                 self.assertIn(missing, result.stderr)
+
+    def test_missing_candidate_file_has_contract_diagnostic(self):
+        schema = self.root / 'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json'
+        schema.rename(self.root / 'saved-schema.json')
+        errors = self.checker.naming_contract_errors(self.root)
+        self.assertEqual(errors, [
+            'architecture/naming-contract.json: invalid naming contract: missing referenced file: '
+            'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json'])
+
+    def test_missing_api_preserves_owner_domain_diagnostic(self):
+        from tests.policy_test_support import materialize_policy_fixture, check_repository_result
+
+        root = materialize_policy_fixture(self.root / 'missing-api-fixture')
+        (root / 'api').rename(self.root / 'saved-api')
+        result = check_repository_result(root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('invalid naming contract: missing referenced file', result.stderr)
+        self.assertIn('path-domain owner must be a directory', result.stderr)
+
+    def test_missing_candidate_preserves_preflight_diagnostics(self):
+        from tests.policy_test_support import materialize_policy_fixture, check_repository_result
+
+        root = materialize_policy_fixture(self.root / 'missing-candidate-fixture')
+        schema = root / 'api/_candidate/msp-06/helianthus.eebus.mcp.v1.raw.schema.json'
+        schema.rename(self.root / 'saved-schema.json')
+        result = check_repository_result(root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('invalid naming contract: missing referenced file', result.stderr)
+        self.assertIn('candidate machine artifact is missing', result.stderr)
+
+    def test_contract_errors_preserve_prior_early_return_decision(self):
+        from tests import policy_test_support
+        from validate_repository_policy import _append_naming_contract_errors
+
+        self.assertTrue(callable(policy_test_support.check_repository))
+        row = next(r for r in self.contract['rows'] if r['status'] == 'unchanged')
+        row['target'] = 'invented_target'
+        self.path.write_text(json.dumps(self.contract))
+        for prior in ([], ['existing diagnostic']):
+            with self.subTest(prior=prior):
+                errors = prior.copy()
+                self.assertEqual(_append_naming_contract_errors(self.root, errors), bool(prior))
+                self.assertEqual(errors[:len(prior)], prior)
+                self.assertIn('invalid naming contract', errors[-1])

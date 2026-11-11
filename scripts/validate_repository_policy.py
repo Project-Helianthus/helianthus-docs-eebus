@@ -7348,6 +7348,13 @@ RUNNER_SELECTION_EXPRESSION = (
 )
 
 
+def _append_naming_contract_errors(root: Path, errors: list[str]) -> bool:
+    """Append contract diagnostics and retain the prior early-return decision."""
+    had_errors = bool(errors)
+    errors.extend(naming_contract_errors(root))
+    return had_errors
+
+
 def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors: list[str] = []
     root = root.absolute()
@@ -7369,7 +7376,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
     platform_snapshot, snapshot_errors = _load_platform_snapshot(root)
-    errors.extend(snapshot_errors + naming_contract_errors(root))
+    errors.extend(snapshot_errors)
     if platform_snapshot is not None:
         for channel, pages in platform_snapshot["manifest_channel_pages"].items():
             channel_pages[channel].update(pages)
@@ -7403,7 +7410,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             continue
         if file_stat.st_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
             errors.append(f"{rel}: repository artifact exceeds scan size limit")
-    if errors:
+    if _append_naming_contract_errors(root, errors):
         return sorted(set(errors), key=lambda value: value.encode("utf-8"))
 
     ci_local = root / "scripts" / "ci_local.sh"

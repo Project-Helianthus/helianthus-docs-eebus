@@ -42,7 +42,15 @@ def naming_contract_errors(root):
         return []
     try:
         validate(root)
-    except (AssertionError, KeyError, TypeError, ValueError, OSError) as error:
+    except OSError as error:
+        path = Path(error.filename) if error.filename else root
+        try:
+            relative = path.relative_to(root).as_posix()
+        except ValueError:
+            relative = 'referenced file'
+        reason = 'missing referenced file' if isinstance(error, FileNotFoundError) else 'unreadable referenced file'
+        return [f'architecture/naming-contract.json: invalid naming contract: {reason}: {relative}']
+    except (AssertionError, KeyError, TypeError, ValueError) as error:
         return [f'architecture/naming-contract.json: invalid naming contract: {error}']
     return []
 
