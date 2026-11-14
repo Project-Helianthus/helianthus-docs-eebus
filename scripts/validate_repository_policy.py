@@ -1288,8 +1288,8 @@ SCAFFOLD_PAGES = {
 }
 
 SCAFFOLD_ARTIFACT_SHA256 = {
-    # False negative claim removed; issue #165.
-    "README.md": "11ef579df61331f69803fba7c011ea37" "6439d96c3b3debee5eb42825553ee4f2",
+    # Owner pointer names the common semantic contract; issue #178.
+    "README.md": "a4654d0d0c88a98e6c7edb23801b8d58" "85b9076a6613c3f6099699412f7633f8",
     "api/README.md": "f849542c9d3bb1569a9611f6b500da6e" "89fb75d3ee31c6ab402b465f57b00cb9",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
@@ -1635,7 +1635,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
-    "5904ddd45f6a6b400afa7117126e3b87" "33e50e03d3ec6dcfa9b6e0062fc7a53e": {
+    "55d0cac75d26af9cc87d64393f572141" "59553357b315408b5203782e19a85130": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
         ),
@@ -5210,7 +5210,7 @@ def issue_138_native_runtime_exposure_errors(root: Path) -> list[str]:
         "protocol version, observation context, and source context",
         "must not replace a native value with a digest",
         "must not select, erase, or rewrite native data",
-        "semantic promotion is a separate selective projection",
+        "semantic promotion is a separate step that selects what is promoted",
         "action-time operator confirmation",
         "synthetic fixtures",
         "nothing but the eebus store may live in the state root",

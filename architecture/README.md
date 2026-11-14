@@ -31,11 +31,14 @@ persistence, and the preservation of eeBUS-native records. Protocol behavior
 stays in `protocols/`; public Go shape stays in the active
 [API surface v1 contract](../api/api-surface-v1.md).
 
-Language-neutral registry semantics remain outside this repository. The
-canonical source is the
+Cross-protocol semantics remain outside this repository. The
+[common semantic contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/graph.md)
+in docs-semantic owns cross-protocol semantics, including the identity of
+semantic facts, resources and relations. The language-neutral registry write
+boundary, which owns no semantic meaning, is the
 [shared registry boundary](https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/9cede4c61a4f73019142b7418cf6f87537cf645c/docs/platform/shared-registry-boundary.md).
-This page records only where the local adapter hands responsibility to that
-platform contract.
+This page records only where the local adapter hands responsibility to those
+contracts.
 
 The [canonical local identity contract](ship-identity.md) defines separate
 ownership for the protected local store, certificate identity,
@@ -47,7 +50,7 @@ runtime state.
 | Status | Local statement | Evidence class | Evidence | Falsifier |
 |---|---|---|---|---|
 | Supported | This repository owns eeBUS adapter architecture and native runtime concerns. | `derived_inference` | `EV-20260711-001` | A publishable ownership decision assigns the surface elsewhere. |
-| Supported | Cross-runtime registry semantics remain platform-owned. | `derived_inference` | `EV-20260711-001` and the canonical link above | The canonical platform ownership manifest withdraws or moves that contract. |
+| Supported | Cross-protocol semantics are owned by the common semantic contract in docs-semantic; the registry write boundary remains platform-owned. | `derived_inference` | `EV-20260711-001` and the canonical links above | docs-semantic withdraws the common semantic contract, or the canonical platform ownership manifest moves the registry boundary. |
 | Supported | G17 and G19 use live-run authority; CI replay has separate authority for deterministic negative cases. | `observed_runtime` | `EV-20260714-001` | A later accepted public gate contract merges those evidence authorities. |
 | Supported | Run proof binds a fresh challenge and bounded window to one run, while G19 transport and first redacted SPINE evidence bind to one connection generation. | `derived_inference` | `EV-20260714-001` | An accepted public gate contract permits stale, cross-run, or cross-generation proof. |
 | Partial/negative observation | One protected pairing observation recorded only the local registration transition with auto-accept disabled; it recorded no completed candidate, durable trust, trusted reconnect, or device-semantic result. | `observed_runtime` | `EV-20260720-001` | A future independently reproducible redacted observation under the same bounded conditions demonstrates different registration or automatic-accept behavior. |
