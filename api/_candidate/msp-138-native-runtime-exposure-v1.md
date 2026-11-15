@@ -46,9 +46,9 @@ sensitive, unknown, candidate-only, or associated with a mutating protocol
 operation. Missing data is reported as unavailable with its available native
 error/context; it is never fabricated from another observation.
 
-Semantic promotion is a separate selective projection. A semantic consumer may
-choose qualified facts, but it does not redefine, remove, or become the only
-path to the native record.
+Semantic promotion is a separate step that selects what is promoted. A
+semantic consumer may choose qualified facts, but it does not redefine, remove,
+or become the only path to the native record.
 
 ## Runtime And Action Boundary
 

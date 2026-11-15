@@ -21,9 +21,12 @@ It owns:
 - eeBUS reverse-engineering notes;
 - publishable eeBUS protocol facts.
 
-It does not own cross-protocol Helianthus platform contracts. Platform contracts
-live in `helianthus-docs-ebus/docs/platform/` until a future platform docs
-repository exists.
+It does not own cross-protocol semantics. The
+[common semantic contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/graph.md)
+in docs-semantic owns cross-protocol semantics, including the identity of
+semantic facts, resources and relations. Language-neutral cross-runtime
+platform contracts live in `helianthus-docs-ebus/docs/platform/`; they do not
+own semantic meaning.
 
 ## Ownership Policy
 
@@ -42,6 +45,9 @@ Canonical ownership is path-based:
 - `helianthus-docs-ebus/docs/platform/` owns only language-neutral
   cross-runtime contracts. This repo may summarize those contracts only when it
   links to the canonical platform page.
+- docs-semantic owns cross-protocol semantics through the common semantic
+  contract linked above. eeBUS pages keep native records native and defer
+  semantic identity to that contract.
 
 Substantive eeBUS documentation does not belong in code repositories. If a code
 repository needs context, it links here or to the platform docs and keeps only

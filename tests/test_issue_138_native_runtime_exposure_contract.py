@@ -13,6 +13,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import validate_repository_policy as repository_policy  # noqa: E402
 
 SUCCESSOR = ROOT / "api/_candidate/msp-138-native-runtime-exposure-v1.md"
+SEMANTIC_OWNER_PAGES = (ROOT / "README.md", ROOT / "architecture/README.md")
+SEMANTIC_CONTRACT_URL = (
+    "https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/graph.md"
+)
 
 
 class NativeRuntimeExposureContractTest(unittest.TestCase):
@@ -23,12 +27,28 @@ class NativeRuntimeExposureContractTest(unittest.TestCase):
             "protocol version, observation context, and source context",
             "must not replace a native value with a digest",
             "must not select, erase, or rewrite native data",
-            "semantic promotion is a separate selective projection",
+            "semantic promotion is a separate step that selects what is promoted",
             "action-time operator confirmation",
             "synthetic fixtures",
         )
         for marker in required:
             self.assertIn(marker.casefold(), text)
+
+    def test_successor_does_not_call_semantic_promotion_a_projection(self) -> None:
+        text = " ".join(SUCCESSOR.read_text(encoding="utf-8").split()).casefold()
+        start = text.index("semantic promotion is a separate")
+        sentence = text[start : text.index(".", start)]
+        self.assertNotIn("projection", sentence)
+
+    def test_readmes_name_docs_semantic_as_cross_protocol_semantic_owner(self) -> None:
+        for page in SEMANTIC_OWNER_PAGES:
+            with self.subTest(page=page.relative_to(ROOT).as_posix()):
+                text = " ".join(page.read_text(encoding="utf-8").split())
+                self.assertIn(
+                    f"[common semantic contract]({SEMANTIC_CONTRACT_URL}) in docs-semantic owns cross-protocol semantics",
+                    text,
+                )
+                self.assertNotIn("Language-neutral registry semantics remain outside", text)
 
     def test_successor_places_operator_socket_beside_the_state_root(self) -> None:
         text = " ".join(SUCCESSOR.read_text(encoding="utf-8").split())
