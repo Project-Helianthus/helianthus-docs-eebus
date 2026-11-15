@@ -192,6 +192,39 @@ ISSUE68_RAW_SCHEMA_REL = Path(
 )
 ISSUE68_RAW_SNAPSHOT_REL = Path("api/_candidate/raw-snapshot-view-v1.md")
 ISSUE138_SUCCESSOR_REL = Path("api/_candidate/msp-138-native-runtime-exposure-v1.md")
+ISSUE178_PARTICIPATION_REL = Path("api/_candidate/portal-participation-contract-v1.md")
+ISSUE178_INVENTORY_REL = Path(
+    "architecture/_candidate/msp-085-live-r2-vr940-source-inventory.md"
+)
+# Selection, losses and relation statements follow the common contract; issue #178.
+ISSUE178_REQUIRED_MARKERS = {
+    ISSUE178_PARTICIPATION_REL: (
+        "`Selection` resolves to exactly one element of the common element catalog, "
+        "with disposition `member`, on one canonical resource.",
+        "A selection that names no common element is rejected, and the binding fails closed.",
+        "Every loss names its declared target, the target and version against which it was assessed.",
+        "A loss recorded without a target is rejected.",
+        "Losses are target projection accounting and are distinct from plane membership: "
+        "a loss never decides membership or catalog disposition and never serves as an "
+        "internal disposition.",
+        "Cross-protocol semantics, including elements, resources and plane membership, "
+        "are owned by the common semantic contract in docs-semantic.",
+    ),
+    ISSUE178_INVENTORY_REL: (
+        "## Observed Relations",
+        "Slot labels are local to their bundle.",
+        "A slot label is never an identity, an anchor or an ordinal to join on.",
+        "Similar names, shared digits and ordinal position are never a basis for a relation.",
+        "`none_observed` is not an absence statement: for a consumer the relation stays unknown.",
+    ),
+}
+ISSUE178_STALE_MARKERS = {
+    ISSUE178_PARTICIPATION_REL: (
+        "reference to the semantic producer's selected result",
+        "Cross-protocol platform contracts stay in `helianthus-docs-ebus/docs/platform/`",
+    ),
+    ISSUE178_INVENTORY_REL: (),
+}
 ISSUE138_HISTORICAL_RELS = (
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
     Path("api/_candidate/raw-snapshot-view-v1.md"),
@@ -4807,6 +4840,27 @@ def _repository_lstat_preflight(
     return regular_files, symlinks, errors
 
 
+def issue_178_relation_and_participation_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    for rel, required in ISSUE178_REQUIRED_MARKERS.items():
+        path = root / rel
+        if not path.is_file():
+            errors.append(f"{rel}: issue-178 page is missing")
+            continue
+        text = " ".join(_read(path).split())
+        errors.extend(
+            f"{rel}: missing issue-178 marker: {marker}"
+            for marker in required
+            if marker not in text
+        )
+        errors.extend(
+            f"{rel}: stale issue-178 wording: {marker}"
+            for marker in ISSUE178_STALE_MARKERS[rel]
+            if marker in text
+        )
+    return errors
+
+
 def _issue_68_machine_contract_errors(root: Path) -> list[str]:
     """Validate both issue-68 MCP profiles as connected machine contracts."""
     errors: list[str] = []
@@ -8169,7 +8223,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(ship_identity_corpus_errors(root))
     errors.extend(outbound_pairing_contract_errors(root))
     errors.extend(strict_current_schema_errors(root))
-    errors.extend(issue_138_native_runtime_exposure_errors(root))
+    errors.extend(
+        issue_138_native_runtime_exposure_errors(root)
+        + issue_178_relation_and_participation_errors(root)
+    )
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))
     errors.extend(issue_96_spine13_hvac_model_erratum_errors(root))

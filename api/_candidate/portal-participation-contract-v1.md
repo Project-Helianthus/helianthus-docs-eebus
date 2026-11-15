@@ -62,15 +62,19 @@ cited only for the ownership boundary.
   participation driver hook, and the runtime boundary that implements them. It
   keeps protected participant identity, peer trust, negotiated permissions and
   native evidence.
-- The existing semantic producer owns promotion, selection and projection
-  assessment. The contract references that producer's selected result and
-  defines no universal semantic type.
+- The existing semantic producer owns promotion and the projection
+  assessment for a declared target. A binding's selection names a common
+  catalog element on a canonical resource (see
+  [Selection and losses](#selection-and-losses)); the contract defines no
+  universal semantic type.
 - The gateway owns Portal composition, HTTP authorization, versioned atomic
   configuration storage, edit conflicts and restart coordination. It consumes
   the contract (PORTAL-03) and must not decode SHIP or SPINE itself.
 - This repository (`helianthus-docs-eebus`) owns the public documentation of
-  the contract. Cross-protocol platform contracts stay in
-  `helianthus-docs-ebus/docs/platform/`.
+  the contract. Cross-protocol semantics, including elements, resources and
+  plane membership, are owned by the common semantic contract in
+  docs-semantic. Its element catalog is defined by the
+  [common semantic contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/graph.md).
 - Peer trust uses the existing operator admin boundary
   ([candidate operator admin API](post-m9-operator-admin-v1.md)). Portal adds no
   parallel trust store and no Home Assistant session or trust contract. HTTP or
@@ -132,7 +136,7 @@ is a driver decision at apply time.
 | PeerParticipant | `peer_participant` | reference, must differ from the local participant |
 | LocalCapability | `local_capability` | reference |
 | PeerCapability | `peer_capability` | reference |
-| Selection | `selection` | reference to the semantic producer's selected result |
+| Selection | `selection` | reference; resolves to one common catalog element on one canonical resource (see [Selection and losses](#selection-and-losses)) |
 | Direction | `direction` | `send` or `receive` |
 | Permissions | `permissions` | non-empty, no duplicates, only `observe` and `control` |
 
@@ -184,7 +188,9 @@ letters, digits and `. _ -`).
 `ParticipationLossV1`: `native_path` (at most 256 characters; one or more
 segments each starting with `/` and made of letters, digits, `_` and `-`),
 `code` (`omitted`, `transformed` or `unknown`; `unknown` blocks `active`) and
-`control_safe` (bool; any false value blocks control eligibility).
+`control_safe` (bool; any false value blocks control eligibility). Each loss
+also names its declared target; the pinned source has no such field yet (see
+[Selection and losses](#selection-and-losses)).
 
 `ParticipationApplyResultV1` (validator constraints):
 
@@ -254,9 +260,9 @@ Rules:
   `error` state. A rejected or `outcome_unknown` control outcome requires an
   error. `offline` contradicts an online peer; `incompatible` requires negative
   compatibility.
-- **Loss assessment.** A non-null `losses` list is the producer's explicit
-  projection assessment: empty means assessed with no reported loss, null means
-  unassessed. `control_safe` must come from the owning qualification, never from
+- **Loss assessment.** A non-null `losses` list is the explicit assessment
+  for the binding's declared target: empty means assessed with no reported
+  loss, null means unassessed. `control_safe` must come from the owning qualification, never from
   a Portal setting. At most 256 evidence objects and 256 loss records per
   observation.
 - **Native evidence retained.** Provenance keeps the redacted evidence envelope
@@ -303,6 +309,39 @@ For the `control` permission:
 The native owner checks the actual actor and feature roles and target policy
 in either direction. Incoming peer control is subject to the same explicit
 target policy.
+
+## Selection and losses
+
+This section is not read from the pinned source. It states how a binding's
+`Selection` and an observation's `Losses` meet the common semantic contract,
+which the source follows. A target report never decides membership.
+
+- **Selection.** `Selection` resolves to exactly one element of the common
+  element catalog, with disposition `member`, on one canonical resource. The
+  element says what is selected; the canonical resource says which resource of
+  the installation it is about. A native path, a slot label, a peer address or
+  a display name is not a selection. A selection that names no common element
+  is rejected, and the binding fails closed. Such a binding never reaches
+  `active` and never becomes control-eligible.
+- **Losses.** Every loss names its declared target, the target and version
+  against which it was assessed. `native_path` still names the native item the
+  loss is about, and `control_safe` keeps its meaning. Losses are target
+  projection accounting and are distinct from plane membership: a loss never
+  decides membership or catalog disposition and never serves as an internal
+  disposition. A loss recorded without a target is rejected.
+
+The pinned source still types `Selection` as an opaque reference and gives
+`ParticipationLossV1` no target. The registry follow-up in
+`helianthus-eebusreg` edits the v1 contract in place so that its validators
+enforce both rules and both negative cases below. No contract version is
+raised and no second form is accepted.
+
+### Negative cases
+
+| Case | Given | Outcome |
+| --- | --- | --- |
+| `selection_without_common_element` | a selection that names no common element | rejected; the binding fails closed |
+| `loss_without_target` | a loss recorded without a target | rejected |
 
 ## Apply lifecycle
 
@@ -446,6 +485,9 @@ transport of these values are defined and reviewed by their own owners.
   is unchanged.
 - The source has merged, so the gateway Portal integration (PORTAL-03) may bind
   to this contract at the pinned revision.
+- The rules of [Selection and losses](#selection-and-losses) are in-place
+  edits of this v1 page. A consumer applies them now; the source validators
+  enforce them once the registry follow-up lands.
 
 ## Promotion decision
 
