@@ -31,6 +31,23 @@ def closed_inventory(text: str) -> dict[str, object]:
     return value
 
 
+RELATION_KINDS = ("zone_to_room", "circuit_to_system_function", "setpoint_to_measurement")
+
+
+def observed_relations(text: str) -> dict[str, object]:
+    match = re.search(r"## Observed Relations.*?```yaml\n(.*?)\n```", text, re.DOTALL)
+    if match is None:
+        raise AssertionError("observed relation statements are missing")
+    value = yaml.safe_load(match.group(1))
+    if not isinstance(value, dict):
+        raise AssertionError("observed relation statements must be a mapping")
+    return value
+
+
+def normalized(text: str) -> str:
+    return " ".join(text.split())
+
+
 class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -280,6 +297,108 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
             self.assertNotIn(private_identity_field, combined.lower())
         self.assertIn("read token", combined)
         self.assertIn("trust-store bytes", combined)
+
+    def test_every_bundle_states_each_relation_or_none_observed(self) -> None:
+        relations = observed_relations(self.text)
+        self.assertEqual(relations["slot_label_scope"], "bundle_local")
+        bundles = relations["bundles"]
+        self.assertEqual(
+            set(bundles),
+            {source["entity_slot"] for source in self.sources.values()},
+        )
+        for bundle, statements in bundles.items():
+            with self.subTest(bundle=bundle):
+                self.assertEqual(tuple(statements), RELATION_KINDS)
+                for statement in statements.values():
+                    if statement != "none_observed":
+                        self.assertEqual(statement["status"], "observed")
+
+    def test_observed_relations_are_exact(self) -> None:
+        none = dict.fromkeys(RELATION_KINDS, "none_observed")
+
+        def setpoint(setpoint_id: str, measurement_id: str) -> dict[str, object]:
+            return {
+                "status": "observed",
+                "from": setpoint_id,
+                "to": measurement_id,
+                "native_basis": "setpointDescriptionListData.measurementId",
+            }
+
+        expected = {
+            "dhw_circuit": {
+                "zone_to_room": "none_observed",
+                "circuit_to_system_function": {
+                    "status": "observed",
+                    "system_function": {"system_function_id": 0, "system_function_type": "dhw"},
+                    "evidence": ["m7-candidate-0007", "m7-candidate-0008", "m7-candidate-0009"],
+                    "native_basis": "hvacSystemFunctionDescriptionListData.systemFunctionType",
+                },
+                "setpoint_to_measurement": setpoint("m7-candidate-0006", "m7-candidate-0005"),
+            },
+            "zone_1_room": {
+                **none,
+                "setpoint_to_measurement": setpoint("m7-candidate-0011", "m7-candidate-0010"),
+            },
+            "zone_2_room": {
+                **none,
+                "setpoint_to_measurement": setpoint("m7-candidate-0015", "m7-candidate-0014"),
+            },
+            "outside_sensor": none,
+            "device_information": none,
+            "zone_1": none,
+            "zone_2": none,
+        }
+        self.assertEqual(observed_relations(self.text)["bundles"], expected)
+
+    def test_setpoint_relation_follows_the_native_measurement_reference(self) -> None:
+        bundles = observed_relations(self.text)["bundles"]
+        derived = {}
+        for candidate_id, source in self.sources.items():
+            if source["feature_type"] != "Setpoint":
+                continue
+            measured = [
+                other_id
+                for other_id, other in self.sources.items()
+                if other["feature_type"] == "Measurement"
+                and other["entity_slot"] == source["entity_slot"]
+                and other["descriptor"]["measurement_id"] == source["descriptor"]["measurement_id"]
+            ]
+            self.assertEqual(len(measured), 1, candidate_id)
+            derived[source["entity_slot"]] = (candidate_id, measured[0])
+        for bundle, statements in bundles.items():
+            relation = statements["setpoint_to_measurement"]
+            with self.subTest(bundle=bundle):
+                if bundle in derived:
+                    self.assertEqual((relation["from"], relation["to"]), derived[bundle])
+                else:
+                    self.assertEqual(relation, "none_observed")
+
+    def test_relation_evidence_never_joins_across_bundles(self) -> None:
+        for bundle, statements in observed_relations(self.text)["bundles"].items():
+            for kind, statement in statements.items():
+                if statement == "none_observed":
+                    continue
+                cited = statement.get("evidence", []) + [
+                    statement[end] for end in ("from", "to") if end in statement
+                ]
+                with self.subTest(bundle=bundle, relation=kind):
+                    self.assertTrue(cited)
+                    for candidate_id in cited:
+                        self.assertEqual(self.sources[candidate_id]["entity_slot"], bundle)
+        for statements in observed_relations(self.text)["bundles"].values():
+            self.assertEqual(statements["zone_to_room"], "none_observed")
+
+    def test_slot_labels_are_bundle_local_and_never_a_join_key(self) -> None:
+        text = normalized(self.text)
+        for sentence in (
+            "Slot labels are local to their bundle.",
+            "A slot label is never an identity, an anchor or an ordinal to join on.",
+            "`zone_1` and `zone_1_room` are two bundles with no observed relation between them",
+            "Similar names, shared digits and ordinal position are never a basis for a relation.",
+            "`none_observed` is not an absence statement: for a consumer the relation stays unknown.",
+            "A consumer must not derive a display name, a zone number or a pairing from a slot label.",
+        ):
+            self.assertIn(sentence, text)
 
     def test_candidate_is_unreleased_and_overview_is_unchanged(self) -> None:
         self.assertIn('publication_status: "candidate"', self.text)

@@ -40,6 +40,13 @@ portable VR940f constants and are excluded from this shareable page. Entity
 slots distinguish separately captured sources without publishing their native
 addresses.
 
+An entity slot names one bundle: the sources read from one captured entity.
+Slot labels are local to their bundle. A slot label is never an identity, an
+anchor or an ordinal to join on. A consumer must not derive a display name, a
+zone number or a pairing from a slot label. Relations between bundles exist
+only where [Observed Relations](#observed-relations) states them with native
+evidence.
+
 ## Closed Inventory
 
 The following YAML document is the canonical protocol-owned inventory. Decimal
@@ -351,6 +358,88 @@ sources:
     descriptor: {classification_scope: heating_zone}
     unit: null
 ```
+
+## Observed Relations
+
+For each bundle, the following YAML document states three relations: zone to
+room, circuit to system function, and setpoint to measurement. Each is either
+an observed relation with the native field that carries it, or
+`none_observed`. The source profiles above and the evidence record behind them
+are unchanged; every cited candidate belongs to the bundle that cites it.
+
+```yaml
+slot_label_scope: bundle_local
+bundles:
+  dhw_circuit:
+    zone_to_room: none_observed
+    circuit_to_system_function:
+      status: observed
+      system_function: {system_function_id: 0, system_function_type: dhw}
+      evidence: [m7-candidate-0007, m7-candidate-0008, m7-candidate-0009]
+      native_basis: hvacSystemFunctionDescriptionListData.systemFunctionType
+    setpoint_to_measurement:
+      status: observed
+      from: m7-candidate-0006
+      to: m7-candidate-0005
+      native_basis: setpointDescriptionListData.measurementId
+  zone_1_room:
+    zone_to_room: none_observed
+    circuit_to_system_function: none_observed
+    setpoint_to_measurement:
+      status: observed
+      from: m7-candidate-0011
+      to: m7-candidate-0010
+      native_basis: setpointDescriptionListData.measurementId
+  zone_2_room:
+    zone_to_room: none_observed
+    circuit_to_system_function: none_observed
+    setpoint_to_measurement:
+      status: observed
+      from: m7-candidate-0015
+      to: m7-candidate-0014
+      native_basis: setpointDescriptionListData.measurementId
+  outside_sensor:
+    zone_to_room: none_observed
+    circuit_to_system_function: none_observed
+    setpoint_to_measurement: none_observed
+  device_information:
+    zone_to_room: none_observed
+    circuit_to_system_function: none_observed
+    setpoint_to_measurement: none_observed
+  zone_1:
+    zone_to_room: none_observed
+    circuit_to_system_function: none_observed
+    setpoint_to_measurement: none_observed
+  zone_2:
+    zone_to_room: none_observed
+    circuit_to_system_function: none_observed
+    setpoint_to_measurement: none_observed
+```
+
+The observed relations rest on these native fields:
+
+- **Setpoint to measurement.** Each absolute setpoint's
+  `setpointDescriptionListData` entry carries `measurementId` `0`, and the
+  same bundle's `Measurement` feature describes measurement id `0`. The
+  reference, not the shared scope type, is the evidence. The DHW, first-room
+  and second-room bundles each hold one such pair.
+- **Circuit to system function.** The `DHWCircuit` bundle's own `HVAC` feature
+  describes system function id `0` with type `dhw`, and its overrun `0`
+  affects that system function. The room bundles' `HVAC` features describe a
+  `heating` system function of the room entity itself; no circuit entity is
+  in those bundles, so no circuit relation is observed there. A system
+  function id is local to the feature that describes it: the `dhw` function
+  `0` and each `heating` function `0` are different functions.
+- **Zone to room.** The published evidence holds no native link between a
+  `HeatingZone` entity and an `HVACRoom` entity. `zone_1` and `zone_1_room`
+  are two bundles with no observed relation between them, and the same holds
+  for `zone_2` and `zone_2_room`.
+
+Similar names, shared digits and ordinal position are never a basis for a
+relation. `none_observed` is not an absence statement: for a consumer the
+relation stays unknown. Whether a zone-to-room relation is natively
+observable, and for which scope, is a question for a later owner-authorized
+read; until then a zone and a room stay two resources with no relation.
 
 ## Source Ownership
 
