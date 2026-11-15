@@ -10,7 +10,7 @@ def validate(root=None):
     root = ROOT if root is None else root
     contract = json.loads((root / 'architecture/naming-contract.json').read_text())
     rows = contract['rows']
-    assert len(rows) == 1833
+    assert len(rows) == 1872
     assert len({tuple(r['identity']) for r in rows}) == len(rows)
     assert sum(r['status'] == 'provisional' for r in rows) == 175
     assert all(r['open_question'] and r['target'] is None for r in rows if r['status'] == 'provisional')

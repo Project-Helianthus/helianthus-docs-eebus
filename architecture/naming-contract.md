@@ -34,3 +34,17 @@ The previous key is documentary correspondence only, never a runtime fallback. N
 `observed_at`, `data_timestamp`, `device_address`, `entity_address`, `feature_address`, `OpaqueObservationV1.path`, `OpaqueObservationV1.source`, `OpaqueObservationV1.value` and existing snake_case envelope keys remain unchanged. The inventory retains the unchanged structural and identity rows individually. Opaque native object keys, SHIP/SPINE type values and maker strings remain exact raw evidence, outside canonical semantic naming. Preserve native identity and raw bytes, value classes, units, scale, polarity, access, qualification, fail-closed admission and partial last-known-good fields. This correspondence grants no mutation authority or semantic promotion.
 
 The candidate raw view remains a candidate; this spelling change does not promote an older frozen reference. Version and identity namespaces are unchanged. The library and consumers must coordinate this breaking change; eBUS MCP compatibility and GraphQL parity remain required. The surveyed gateway consumer surface includes administration, runtime adapters, synchronized evidence and MCP schemas and fixtures. Matter binding, Home Assistant integration, virtual device and explorer consumer correspondence, including generic passthrough and schema consumers, remains unverified. Consumer source correspondence is not proof that updates have shipped.
+
+## Native snapshot containment, absence and identity-basis keys
+
+These rows are added with status unchanged: the current name is the contract name. The [candidate native snapshot v2 page](_candidate/native-snapshot-v2.md) describes their meaning and the validation rule.
+
+| Public shape | Go names | Contract keys | Public code proof |
+| --- | --- | --- | --- |
+| NativeSnapshotV2 | `Absences`, `AbsencesOmitted` | `absences`, `absences_omitted` | [native snapshot](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/main/native_snapshot_v2.go) |
+| NativeEntityV2 | `ParentEntityAddress` | `parent_entity_address` | [native snapshot](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/main/native_snapshot_v2.go) |
+| NativeUseCaseV2 | `DeviceAddress`, `EntityAddress`, `FeatureAddress` | `device_address`, `entity_address`, `feature_address` | [native snapshot](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/main/native_snapshot_v2.go) |
+| NativeAbsence | `Kind`, `Reason`, `DeviceAddress`, `EntityAddress`, `FeatureAddress` | `kind`, `reason`, `device_address`, `entity_address`, `feature_address` | [native snapshot](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/main/native_snapshot_v2.go) |
+| NativeIdentityBasis | `Kind`, `Source`, `SHIPID`, `DeviceAddress`, `EntityAddress`, `FeatureAddress` | `kind`, `source`, `ship_id`, `device_address`, `entity_address`, `feature_address` | [native snapshot](https://github.com/Project-Helianthus/helianthus-eebusreg/blob/main/native_snapshot_v2.go) |
+
+The inventory also lists the `NativeAbsence` and `NativeIdentityBasis` type names and the `IdentityBasis`, `EntityIdentityBasis` and `FeatureIdentityBasis` methods of `NativeDeviceV2`. The SKI is a trust record and is not part of any identity basis. No alias, duplicate field, compatibility shim or migration step is supported, and no contract version is raised.
