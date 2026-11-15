@@ -49,7 +49,7 @@ class STD01PublicDependencyBaselineTests(unittest.TestCase):
             "Dated installation-process dependency metadata; not a current SPINE revision.",
             f"does not establish a current {ship_name()}, SPINE, or use-case corpus revision",
             "a use-case revision; an implementation conformance result; or a semantic mapping",
-            "unknown_pending_std_01",
+            "unknown_pending_normative_source",
         ):
             self.assertIn(marker, text)
 
@@ -65,7 +65,7 @@ class STD01PublicDependencyBaselineTests(unittest.TestCase):
         ):
             self.assertIn(family, text)
         self.assertGreaterEqual(text.casefold().count("unresolved"), 8)
-        self.assertIn("The five cross-protocol mapping records remain `unknown_pending_std_01`", text)
+        self.assertIn("The five cross-protocol mapping records remain `unknown_pending_normative_source`", text)
 
 
 if __name__ == "__main__":

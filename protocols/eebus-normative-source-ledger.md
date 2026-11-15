@@ -88,7 +88,7 @@ revision; a use-case revision; an implementation conformance result; or a
 semantic mapping. The S<wbr>HIP, SPINE, E-Mobility / EVSE, Grid connection point,
 Inverter / PV and stationary BESS, and HVAC rows above therefore remain
 **unresolved**. The five cross-protocol mapping records remain
-`unknown_pending_std_01`; this source does not alter or promote them.
+`unknown_pending_normative_source`; this source does not alter or promote them.
 
 ## Implementation comparison: immutable public Go sources
 
