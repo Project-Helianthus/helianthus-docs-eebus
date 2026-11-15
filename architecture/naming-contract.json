@@ -36114,6 +36114,835 @@
     {
       "identity": [
         "eebusruntime",
+        "native_snapshot_v2.go",
+        "type",
+        "package",
+        "NativeAbsence"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "NativeAbsence",
+      "target": "NativeAbsence",
+      "kind": "go_type",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "native_snapshot_v2.go",
+        "type",
+        "package",
+        "NativeIdentityBasis"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "NativeIdentityBasis",
+      "target": "NativeIdentityBasis",
+      "kind": "go_type",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeSnapshotV2.Absences"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "Absences",
+      "target": "Absences",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeSnapshotV2.Absences",
+        "serialized",
+        "absences"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "absences",
+      "target": "absences",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeSnapshotV2.AbsencesOmitted"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "AbsencesOmitted",
+      "target": "AbsencesOmitted",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeSnapshotV2.AbsencesOmitted",
+        "serialized",
+        "absences_omitted"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "absences_omitted",
+      "target": "absences_omitted",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeEntityV2.ParentEntityAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "ParentEntityAddress",
+      "target": "ParentEntityAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeEntityV2.ParentEntityAddress",
+        "serialized",
+        "parent_entity_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "parent_entity_address",
+      "target": "parent_entity_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeUseCaseV2.DeviceAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "DeviceAddress",
+      "target": "DeviceAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeUseCaseV2.DeviceAddress",
+        "serialized",
+        "device_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "device_address",
+      "target": "device_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeUseCaseV2.EntityAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "EntityAddress",
+      "target": "EntityAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeUseCaseV2.EntityAddress",
+        "serialized",
+        "entity_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "entity_address",
+      "target": "entity_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeUseCaseV2.FeatureAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "FeatureAddress",
+      "target": "FeatureAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeUseCaseV2.FeatureAddress",
+        "serialized",
+        "feature_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "feature_address",
+      "target": "feature_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.Kind"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "Kind",
+      "target": "Kind",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.Kind",
+        "serialized",
+        "kind"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "kind",
+      "target": "kind",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.Reason"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "Reason",
+      "target": "Reason",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.Reason",
+        "serialized",
+        "reason"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "reason",
+      "target": "reason",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.DeviceAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "DeviceAddress",
+      "target": "DeviceAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.DeviceAddress",
+        "serialized",
+        "device_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "device_address",
+      "target": "device_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.EntityAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "EntityAddress",
+      "target": "EntityAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.EntityAddress",
+        "serialized",
+        "entity_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "entity_address",
+      "target": "entity_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.FeatureAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "FeatureAddress",
+      "target": "FeatureAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeAbsence.FeatureAddress",
+        "serialized",
+        "feature_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "feature_address",
+      "target": "feature_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.Kind"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "Kind",
+      "target": "Kind",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.Kind",
+        "serialized",
+        "kind"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "kind",
+      "target": "kind",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.Source"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "Source",
+      "target": "Source",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.Source",
+        "serialized",
+        "source"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "source",
+      "target": "source",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.SHIPID"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "SHIPID",
+      "target": "SHIPID",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.SHIPID",
+        "serialized",
+        "ship_id"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "ship_id",
+      "target": "ship_id",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.DeviceAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "DeviceAddress",
+      "target": "DeviceAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.DeviceAddress",
+        "serialized",
+        "device_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "device_address",
+      "target": "device_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.EntityAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "EntityAddress",
+      "target": "EntityAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.EntityAddress",
+        "serialized",
+        "entity_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "entity_address",
+      "target": "entity_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.FeatureAddress"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "FeatureAddress",
+      "target": "FeatureAddress",
+      "kind": "go_field",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "NativeIdentityBasis.FeatureAddress",
+        "serialized",
+        "feature_address"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "feature_address",
+      "target": "feature_address",
+      "kind": "serialized_key",
+      "role_decomposition": [
+        "structural_key"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "native_snapshot_v2.go",
+        "func",
+        "device NativeDeviceV2",
+        "IdentityBasis"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "IdentityBasis",
+      "target": "IdentityBasis",
+      "kind": "go_func",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "native_snapshot_v2.go",
+        "func",
+        "device NativeDeviceV2",
+        "EntityIdentityBasis"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "EntityIdentityBasis",
+      "target": "EntityIdentityBasis",
+      "kind": "go_func",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
+        "native_snapshot_v2.go",
+        "func",
+        "device NativeDeviceV2",
+        "FeatureIdentityBasis"
+      ],
+      "owning_file": "native_snapshot_v2.go",
+      "current_name": "FeatureIdentityBasis",
+      "target": "FeatureIdentityBasis",
+      "kind": "go_func",
+      "role_decomposition": [
+        "go_identifier"
+      ],
+      "public_evidence": [
+        "native_snapshot_v2.go"
+      ],
+      "value_class": "unknown",
+      "unit_metadata": "unknown",
+      "status": "unchanged",
+      "open_question": ""
+    },
+    {
+      "identity": [
+        "eebusruntime",
         "participation_contract_v1.go",
         "const",
         "package",
