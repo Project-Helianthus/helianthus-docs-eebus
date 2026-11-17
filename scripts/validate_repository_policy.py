@@ -225,6 +225,50 @@ ISSUE178_STALE_MARKERS = {
     ),
     ISSUE178_INVENTORY_REL: (),
 }
+ISSUE179_CONTRACT_REL = Path("api/_candidate/eebus-output-binding-contract-v1.md")
+ISSUE179_ENTITY_KEY_FIELDS = ("resource_id",)
+ISSUE179_FEATURE_KEY_FIELDS = ("resource_id", "definition_id", "qualifiers")
+ISSUE179_LOSS_TARGET = "eebus-output"
+ISSUE179_LOSS_KINDS = frozenset(
+    {
+        "merged_resources",
+        "flattened_qualifier",
+        "frontier",
+        "partial_cut",
+    }
+)
+ISSUE179_ELEMENT_OUTCOMES = {
+    "feature": "feature",
+    "absence": "explicit_absence",
+    "unknown": "unknown",
+}
+ISSUE179_REQUIRED_MARKERS = (
+    "The named input lens is `lens.equipment_composition`.",
+    "Parent and child entities come only from a `contains` instance cited in this target's own report.",
+    "An entity composed from an index is rejected.",
+    "A name and an address are rejected by the same rule as an index.",
+    "An operation is admitted only through that resource's own capability.",
+    "Visibility of a capability is not admission.",
+    "An operation admitted from visibility alone is rejected.",
+    "The persisted entity address is keyed by the resource identifier alone.",
+    "The entity-address key does not contain an address, an ordinal, a cut identifier, a traversal path, or a plane.",
+    "A feature value key is the resource identifier, the element definition, and the qualifier dimension values.",
+    "A merge of two resources into one entity is declared loss in this target's own report.",
+    "A loss that does not name this target is rejected.",
+    "An element a use case requires, cited as absent in this report, is explicit absence and not a feature.",
+    "Where the report cites neither the element nor an absence, the element stays unknown and is not a feature.",
+    "Electrical context is medium `electrical` on a cited element, and it is never taken from a second lens.",
+    "No thermal quantity is placed on a resource.",
+    "A sum is not an entity and not a feature.",
+    "The report cites one served cut.",
+    "A partial cut stays partial and is not repaired by invented entities.",
+)
+ISSUE179_STALE_MARKERS = (
+    "An entity composed from an index is accepted.",
+    "An operation admitted from visibility alone is accepted.",
+    "The persisted entity address is keyed by list position.",
+    "Visibility of a capability admits the operation.",
+)
 ISSUE138_HISTORICAL_RELS = (
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
     Path("api/_candidate/raw-snapshot-view-v1.md"),
@@ -1323,7 +1367,8 @@ SCAFFOLD_PAGES = {
 SCAFFOLD_ARTIFACT_SHA256 = {
     # Owner pointer names the common semantic contract; issue #178.
     "README.md": "a4654d0d0c88a98e6c7edb23801b8d58" "85b9076a6613c3f6099699412f7633f8",
-    "api/README.md": "f849542c9d3bb1569a9611f6b500da6e" "89fb75d3ee31c6ab402b465f57b00cb9",
+    # Output-binding candidate named; issue #179.
+    "api/README.md": "305334e3f24b93a3a85da8a08e22c524" "78e596f414c37bdd192614242350e69a",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
     "evidence/evidence-template.md": (
@@ -4861,6 +4906,153 @@ def issue_178_relation_and_participation_errors(root: Path) -> list[str]:
     return errors
 
 
+def entity_address_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE179_ENTITY_KEY_FIELDS)
+
+
+def feature_value_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE179_FEATURE_KEY_FIELDS)
+
+
+def assign_entity_address(
+    store: dict[str, str],
+    record: dict[str, object],
+    address: str,
+) -> str:
+    key = entity_address_key(record)
+    slot = ""
+    if len(key) == 1 and isinstance(key[0], str):
+        slot = key[0]
+    if slot == "" or address == "":
+        return "rejected"
+    for name, current in store.items():
+        if current == address and name != slot:
+            return "rejected"
+    held = store.get(slot, "")
+    if held not in ("", address):
+        return "rejected"
+    store[slot] = address
+    return "persisted"
+
+
+def entity_composition_outcome(record: dict[str, object]) -> str:
+    if record.get("basis") != "cited_contains":
+        return "rejected"
+    flags = ("cited", "coherent", "in_plane", "qualified")
+    if any(record.get(flag) is not True for flag in flags):
+        return "rejected"
+    return "admitted"
+
+
+def operation_admission_outcome(record: dict[str, object]) -> str:
+    # Lens visibility is not an input. Admission is the resource's own capability.
+    own = (
+        record.get("own_capability") is True
+        and record.get("qualified") is True
+        and record.get("same_resource") is True
+    )
+    if own:
+        return "admitted"
+    return "rejected"
+
+
+def required_element_outcome(record: dict[str, object]) -> str:
+    presence = record.get("presence")
+    if not isinstance(presence, str):
+        return "rejected"
+    return ISSUE179_ELEMENT_OUTCOMES.get(presence, "rejected")
+
+
+def loss_outcome(record: dict[str, object]) -> str:
+    if record.get("target") != ISSUE179_LOSS_TARGET:
+        return "rejected"
+    if record.get("kind") not in ISSUE179_LOSS_KINDS:
+        return "rejected"
+    return "declared"
+
+
+ISSUE179_VECTORS = (
+    (
+        "entity_from_index",
+        entity_composition_outcome,
+        {
+            "basis": "index",
+            "cited": True,
+            "coherent": True,
+            "in_plane": True,
+            "qualified": True,
+        },
+        "rejected",
+    ),
+    (
+        "operation_from_visibility",
+        operation_admission_outcome,
+        {
+            "visible_in_lens": True,
+            "own_capability": False,
+            "qualified": False,
+            "same_resource": False,
+        },
+        "rejected",
+    ),
+    (
+        "entity_from_cited_contains",
+        entity_composition_outcome,
+        {
+            "basis": "cited_contains",
+            "cited": True,
+            "coherent": True,
+            "in_plane": True,
+            "qualified": True,
+        },
+        "admitted",
+    ),
+    (
+        "operation_through_own_capability",
+        operation_admission_outcome,
+        {
+            "visible_in_lens": False,
+            "own_capability": True,
+            "qualified": True,
+            "same_resource": True,
+        },
+        "admitted",
+    ),
+)
+
+
+def issue_179_vector_errors() -> list[str]:
+    errors: list[str] = []
+    relation = ISSUE179_CONTRACT_REL.as_posix()
+    for name, function, record, expected in ISSUE179_VECTORS:
+        actual = function(record)
+        if actual != expected:
+            errors.append(f"{relation}: issue-179 vector {name} returned {actual}")
+    return errors
+
+
+def issue_179_output_binding_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    relation = ISSUE179_CONTRACT_REL.as_posix()
+    path = root / ISSUE179_CONTRACT_REL
+    if not path.is_file():
+        errors.append(f"{relation}: issue-179 page is missing")
+    else:
+        text = " ".join(_read(path).split())
+        errors.extend(
+            f"{relation}: missing issue-179 marker: {marker}"
+            for marker in ISSUE179_REQUIRED_MARKERS
+            if marker not in text
+        )
+        errors.extend(
+            f"{relation}: stale issue-179 wording: {marker}"
+            for marker in ISSUE179_STALE_MARKERS
+            if marker in text
+        )
+    errors.extend(issue_179_vector_errors())
+    return errors
+
+
 def _issue_68_machine_contract_errors(root: Path) -> list[str]:
     """Validate both issue-68 MCP profiles as connected machine contracts."""
     errors: list[str] = []
@@ -8226,6 +8418,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     errors.extend(
         issue_138_native_runtime_exposure_errors(root)
         + issue_178_relation_and_participation_errors(root)
+        + issue_179_output_binding_errors(root)
     )
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))

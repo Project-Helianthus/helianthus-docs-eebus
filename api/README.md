@@ -47,3 +47,11 @@ The gateway's eeBUS runtime integration exists. Its MCP contract page,
 promotes it. These navigation notes make no native protocol qualification or
 stable pre-1.0 compatibility claim. Other candidate amendments retain their
 existing status.
+
+## eeBUS output binding
+
+The candidate page `eebus-output-binding-contract-v1.md` names the input lens,
+entity and feature composition, operations admitted per resource, identity
+persistence, and declared loss for an eeBUS output. It remains a candidate.
+These navigation notes do not raise a contract version, do not change the
+frozen API reference, and do not change the MCP wire schemas.
