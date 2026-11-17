@@ -1,0 +1,544 @@
+from __future__ import annotations
+
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import validate_repository_policy as repository_policy  # noqa: E402
+
+PAGE = ROOT / "api" / "_candidate" / "eebus-output-publication-v1.md"
+PAGE_REL = Path("api/_candidate/eebus-output-publication-v1.md")
+MARKERS = (
+    "The output is active when the eeBUS runtime is already enabled.",
+    "There is no new switch.",
+    "Publish every lens-admitted inverter, PV string and charger resource.",
+    "A heating resource is not published.",
+    "A battery resource is not published.",
+    "A lens-admitted resource is one entity of this output (CID-1).",
+    "An input-dimension fact is not a string (CID-4).",
+    "A PV String entity is a child of the Inverter only through a cited contains instance (TRV-1).",
+    "One advertisement for SHIP stays.",
+    "The device type is EnergyManagementSystem.",
+    "Reject a second advertisement for SHIP.",
+    "A second service is not added.",
+    "The extra entities are Inverter, a PV String child of that Inverter, and EVSE.",
+    "A use case that forbids that device type is not announced, and the loss names the prohibition.",
+    "The actor Inverter of Monitoring of Inverter V1.0.0 is taken on entity type Inverter.",
+    "The actor PV String of Monitoring of PV String V1.0.0 RC4 is taken when a string resource exists.",
+    "The actor Inverter is the Controllable System of Limitation of Power Production V1.0.0.",
+    "The actor EVSE of EVSE Commissioning and Configuration V1.0.1 is taken.",
+    "The actor EVSE is the Monitored Unit of Monitoring of Power Consumption V1.0.0.",
+    "The actor EVSE is the Controllable System of Limitation of Power Consumption V1.0.0.",
+    "The local CEM takes Energy Guard of a limitation use case only while no trusted remote already announces Energy Guard for that use case.",
+    "The CEM entity is never the Controllable System of one device.",
+    "The CEM entity is never the Monitored Unit.",
+    "A CEM-located Controllable System represents every device that CEM controls, not the CEM's own power.",
+    "The node keeps one CEM entity.",
+    "A use case is announced only when every mandatory scenario can be served from admitted elements of that resource.",
+    "Otherwise the use case is not announced, and the loss names each missing element.",
+    "Where a mandatory element is cited as absent, the loss names it (LRS-3, TGT-3).",
+    "A mapped write is published only where that resource's own capability admits the operation (LRS-5, AUT-3).",
+    "A production-limit write is mapped only through `pv.operation.set_active_power_limit` when that operation is admitted for that resource.",
+    "A production-limit write is not mapped to the system export operation.",
+    "A consumption-limit write is active power.",
+    "The only admitted charger write is allocated current.",
+    "Watts are not converted to amperes.",
+    "A watt limit is not applied as allocated current.",
+    "Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.",
+    "A use case whose device-side actor is EV is not announced.",
+    "This node is not an EV.",
+    "Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.",
+    "Two overlapping writes are the existing conflict loss.",
+    "The cited transport revision is SHIP 1.0.1.",
+    "The cited data-model revision is SPINE 1.3.0.",
+    "A newer revision of SHIP is not cited.",
+    "Citing these revisions does not resolve a normative source row.",
+    "Admitted inverter elements are inverter AC measurements, energy, temperature and operating state.",
+    "`pv.operation.set_active_power_limit` is admitted in watts.",
+    "String-dimension DC quantities are not admitted.",
+    "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
+    "The admitted charger operation is `evse.operation.set_allocated_current`.",
+    "An active-power limit is not an admitted charger write.",
+    "Canonical units are SI.",
+    "Conversion is display-only.",
+    "No semantic element is added.",
+    "No contract version is raised.",
+    "Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.",
+    "Hypothesis. The actor selection and the announcement rule are this candidate.",
+    "Unknown. The mandatory elements of each use case are not enumerated on this page.",
+    "None of these classes is a device qualification.",
+)
+STALE = (
+    "There is a new switch.",
+    "A heating resource is published.",
+    "A battery resource is published.",
+    "Accept a second advertisement for SHIP.",
+    "The CEM entity is the Controllable System of one device.",
+    "A watt limit is applied as allocated current.",
+    "A newer revision of SHIP is cited.",
+)
+VECTOR_ROWS = (
+    ("heating_resource", "not_published"),
+    ("battery_resource", "not_published"),
+    ("inverter_resource", "published"),
+    ("pv_string_resource", "published"),
+    ("charger_resource", "published"),
+    ("second_ship_advertisement", "rejected"),
+    ("one_ship_advertisement", "kept"),
+    ("cem_controllable_system", "rejected"),
+    ("inverter_controllable_system", "taken"),
+    ("watt_limit_as_current", "rejected"),
+    ("production_limit_write", "applied"),
+)
+RESOURCE_FIELDS = (
+    "family",
+    "lens_admitted",
+    "runtime_enabled",
+    "input_dimension",
+    "parent",
+)
+SHIP_FIELDS = ("advertisement_count", "service_count", "device_type")
+ACTOR_FIELDS = (
+    "use_case",
+    "actor",
+    "entity_type",
+    "string_resource",
+    "remote_energy_guard",
+)
+WRITE_FIELDS = ("limit_kind", "operation", "unit", "admitted", "converted")
+ANNOUNCEMENT_FIELDS = (
+    "use_case",
+    "device_type_permitted",
+    "device_type",
+    "missing_elements",
+    "device_actor",
+    "write_outcome",
+    "overlapping",
+)
+EXCLUDED = ("ordinal", "address", "plane")
+
+
+def normalized_page() -> str:
+    return " ".join(PAGE.read_text(encoding="utf-8").split())
+
+
+def vector_rows(text: str) -> list[tuple[str, str]]:
+    section = text.split("## Vectors", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    rows: list[tuple[str, str]] = []
+    for line in section.splitlines():
+        if not line.startswith("| `"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        rows.append((cells[0].strip("`"), cells[2].strip()))
+    return rows
+
+
+def resource_record(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "family": "inverter",
+        "lens_admitted": True,
+        "runtime_enabled": True,
+        "input_dimension": False,
+        "parent": "",
+    }
+    record.update(overrides)
+    return record
+
+
+def ship_record(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "advertisement_count": 1,
+        "service_count": 1,
+        "device_type": "EnergyManagementSystem",
+    }
+    record.update(overrides)
+    return record
+
+
+def actor_record(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "use_case": "limitation_of_power_production",
+        "actor": "Controllable System",
+        "entity_type": "Inverter",
+        "string_resource": False,
+        "remote_energy_guard": False,
+    }
+    record.update(overrides)
+    return record
+
+
+def write_record(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "limit_kind": "production",
+        "operation": "pv.operation.set_active_power_limit",
+        "unit": "W",
+        "admitted": True,
+        "converted": False,
+    }
+    record.update(overrides)
+    return record
+
+
+def announcement_record(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "use_case": "monitoring_of_inverter",
+        "device_type_permitted": True,
+        "device_type": "EnergyManagementSystem",
+        "missing_elements": (),
+        "device_actor": "Inverter",
+        "write_outcome": "applied",
+        "overlapping": False,
+    }
+    record.update(overrides)
+    return record
+
+
+def assert_key_changes(test: unittest.TestCase, key, base: dict[str, object], replacements: dict[str, object]) -> None:
+    original = key(base)
+    for field, value in replacements.items():
+        mutated = dict(base)
+        mutated[field] = value
+        test.assertNotEqual(key(mutated), original, field)
+    for field in EXCLUDED:
+        mutated = dict(base)
+        mutated[field] = "changed"
+        test.assertEqual(key(mutated), original, field)
+
+
+class OutputPublicationTest(unittest.TestCase):
+    def test_page_is_candidate_and_states_the_publication_rule(self) -> None:
+        text = normalized_page()
+        for phrase in (
+            'publication_status: "candidate"',
+            'stable_navigation: "false"',
+            'search: "false"',
+            'sitemap: "false"',
+            'versioned_bundle: "false"',
+            'release_bundle: "false"',
+            'candidate_output: "true"',
+            "## Evidence class",
+            "SHIP 1.0.1",
+            "SPINE 1.3.0",
+            *MARKERS,
+        ):
+            self.assertIn(phrase, text)
+        for stale in STALE:
+            self.assertNotIn(stale, text)
+        cited = text.replace("SHIP 1.0.1", "")
+        self.assertNotIn("SHIP 1.", cited)
+
+    def test_marker_pins_match_the_policy_constants(self) -> None:
+        self.assertEqual(repository_policy.ISSUE186_REQUIRED_MARKERS, MARKERS)
+        self.assertEqual(repository_policy.ISSUE186_STALE_MARKERS, STALE)
+        self.assertEqual(repository_policy.ISSUE186_RESOURCE_KEY_FIELDS, RESOURCE_FIELDS)
+        self.assertEqual(repository_policy.ISSUE186_SHIP_KEY_FIELDS, SHIP_FIELDS)
+        self.assertEqual(repository_policy.ISSUE186_ACTOR_KEY_FIELDS, ACTOR_FIELDS)
+        self.assertEqual(repository_policy.ISSUE186_WRITE_KEY_FIELDS, WRITE_FIELDS)
+        self.assertEqual(
+            repository_policy.ISSUE186_ANNOUNCEMENT_KEY_FIELDS,
+            ANNOUNCEMENT_FIELDS,
+        )
+        self.assertEqual(
+            repository_policy.ISSUE186_PUBLISHED_FAMILIES,
+            frozenset({"charger", "inverter", "pv_string"}),
+        )
+        self.assertEqual(
+            repository_policy.ISSUE186_REJECTED_FAMILIES,
+            frozenset({"battery", "heating"}),
+        )
+
+    def test_stated_vectors_are_the_contract_table(self) -> None:
+        rows = vector_rows(PAGE.read_text(encoding="utf-8"))
+        self.assertEqual(rows, list(VECTOR_ROWS))
+        policy_rows = [
+            (name, expected)
+            for name, _function, _record, expected in repository_policy.ISSUE186_VECTORS
+        ]
+        self.assertEqual(policy_rows, list(VECTOR_ROWS))
+
+    def test_resource_identity_varies_each_field(self) -> None:
+        """Resource fields: family, lens_admitted, runtime_enabled, input_dimension, parent.
+
+        family: heating is not published.
+        lens_admitted: false is not published.
+        runtime_enabled: false is not published.
+        input_dimension: true on a PV string is not published.
+        parent: a PV string without the inverter parent is not published.
+        """
+        outcome = repository_policy.published_resource_outcome
+        base = resource_record()
+        self.assertEqual(outcome(base), "published")
+        assert_key_changes(
+            self,
+            repository_policy.publication_resource_key,
+            base,
+            {
+                "family": "heating",
+                "lens_admitted": False,
+                "runtime_enabled": False,
+                "input_dimension": True,
+                "parent": "inverter",
+            },
+        )
+        self.assertEqual(outcome(resource_record(family="heating")), "not_published")
+        self.assertEqual(outcome(resource_record(family="battery")), "not_published")
+        self.assertEqual(outcome(resource_record(lens_admitted=False)), "not_published")
+        self.assertEqual(outcome(resource_record(runtime_enabled=False)), "not_published")
+        string = resource_record(family="pv_string", parent="inverter")
+        self.assertEqual(outcome(string), "published")
+        self.assertEqual(
+            outcome(resource_record(family="pv_string", parent="inverter", input_dimension=True)),
+            "not_published",
+        )
+        self.assertEqual(outcome(resource_record(family="pv_string", parent="")), "not_published")
+        self.assertEqual(outcome(resource_record(family="charger")), "published")
+
+    def test_ship_identity_varies_each_field(self) -> None:
+        """Advertisement fields: advertisement_count, service_count, device_type.
+
+        advertisement_count: 2 is rejected.
+        service_count: 2 is rejected.
+        device_type: a type other than EnergyManagementSystem is rejected.
+        """
+        outcome = repository_policy.ship_advertisement_outcome
+        base = ship_record()
+        self.assertEqual(outcome(base), "kept")
+        assert_key_changes(
+            self,
+            repository_policy.ship_advertisement_key,
+            base,
+            {
+                "advertisement_count": 2,
+                "service_count": 2,
+                "device_type": "Inverter",
+            },
+        )
+        self.assertEqual(outcome(ship_record(advertisement_count=2)), "rejected")
+        self.assertEqual(outcome(ship_record(service_count=2)), "rejected")
+        self.assertEqual(outcome(ship_record(device_type="Inverter")), "rejected")
+
+    def test_actor_identity_varies_each_field(self) -> None:
+        """Actor fields: use_case, actor, entity_type, string_resource, remote_energy_guard.
+
+        use_case: an inverter controllable system of consumption is not taken.
+        actor: CEM as Controllable System is rejected; CEM as Energy Guard is taken.
+        entity_type: CEM as Controllable System is rejected; Inverter is taken.
+        string_resource: false on the PV string binding is not taken.
+        remote_energy_guard: true blocks the local CEM Energy Guard.
+        """
+        outcome = repository_policy.actor_binding_outcome
+        base = actor_record()
+        self.assertEqual(outcome(base), "taken")
+        assert_key_changes(
+            self,
+            repository_policy.actor_binding_key,
+            base,
+            {
+                "use_case": "limitation_of_power_consumption",
+                "actor": "Energy Guard",
+                "entity_type": "CEM",
+                "string_resource": True,
+                "remote_energy_guard": True,
+            },
+        )
+        self.assertEqual(
+            outcome(actor_record(use_case="limitation_of_power_consumption")),
+            "not_taken",
+        )
+        self.assertEqual(outcome(actor_record(entity_type="CEM")), "rejected")
+        self.assertEqual(
+            outcome(actor_record(actor="Energy Guard", entity_type="CEM")),
+            "taken",
+        )
+        self.assertEqual(
+            outcome(
+                actor_record(
+                    use_case="monitoring_of_power_consumption",
+                    actor="Monitored Unit",
+                    entity_type="CEM",
+                )
+            ),
+            "rejected",
+        )
+        self.assertEqual(
+            outcome(
+                actor_record(
+                    use_case="monitoring_of_pv_string",
+                    actor="PV String",
+                    entity_type="PV String",
+                    string_resource=True,
+                )
+            ),
+            "taken",
+        )
+        self.assertEqual(
+            outcome(
+                actor_record(
+                    use_case="monitoring_of_pv_string",
+                    actor="PV String",
+                    entity_type="PV String",
+                    string_resource=False,
+                )
+            ),
+            "not_taken",
+        )
+        self.assertEqual(
+            outcome(
+                actor_record(
+                    actor="Energy Guard",
+                    entity_type="CEM",
+                    remote_energy_guard=True,
+                )
+            ),
+            "not_taken",
+        )
+        self.assertEqual(outcome(actor_record(actor="EV", entity_type="EV")), "not_announced")
+
+    def test_write_identity_varies_each_field(self) -> None:
+        """Write fields: limit_kind, operation, unit, admitted, converted.
+
+        limit_kind: a consumption write through the production operation is rejected.
+        operation: allocated current, and the system export operation, are rejected.
+        unit: amperes are rejected.
+        admitted: false is not applied.
+        converted: true is rejected.
+        """
+        outcome = repository_policy.write_mapping_outcome
+        base = write_record()
+        self.assertEqual(outcome(base), "applied")
+        assert_key_changes(
+            self,
+            repository_policy.write_mapping_key,
+            base,
+            {
+                "limit_kind": "consumption",
+                "operation": "system export",
+                "unit": "A",
+                "admitted": False,
+                "converted": True,
+            },
+        )
+        self.assertEqual(outcome(write_record(limit_kind="consumption")), "rejected")
+        self.assertEqual(outcome(write_record(operation="system export")), "rejected")
+        self.assertEqual(
+            outcome(
+                write_record(
+                    limit_kind="consumption",
+                    operation="evse.operation.set_allocated_current",
+                )
+            ),
+            "rejected",
+        )
+        self.assertEqual(outcome(write_record(unit="A")), "rejected")
+        self.assertEqual(outcome(write_record(admitted=False)), "not_applied")
+        self.assertEqual(outcome(write_record(converted=True)), "rejected")
+        admitted_power = write_record(
+            limit_kind="consumption",
+            operation="active power",
+        )
+        self.assertEqual(outcome(admitted_power), "applied")
+        blocked_power = write_record(
+            limit_kind="consumption",
+            operation="active power",
+            admitted=False,
+        )
+        self.assertEqual(outcome(blocked_power), "not_applied")
+
+    def test_announcement_identity_varies_each_field(self) -> None:
+        """Announcement fields: use_case, device_type_permitted, device_type, missing_elements, device_actor, write_outcome, overlapping.
+
+        use_case: a name outside the six is not announced.
+        device_type_permitted: false is not announced.
+        device_type: the loss names the forbidden type.
+        missing_elements: the loss names each element.
+        device_actor: EV is not announced.
+        write_outcome: a consumption limit that is not applied is not announced.
+        overlapping: true is the conflict loss.
+        """
+        outcome = repository_policy.use_case_announcement_outcome
+        loss = repository_policy.publication_loss
+        base = announcement_record()
+        self.assertEqual(outcome(base), "announced")
+        self.assertEqual(loss(base), ())
+        assert_key_changes(
+            self,
+            repository_policy.use_case_announcement_key,
+            base,
+            {
+                "use_case": "overload_protection",
+                "device_type_permitted": False,
+                "device_type": "GridGuard",
+                "missing_elements": ("energy",),
+                "device_actor": "EV",
+                "write_outcome": "not_applied",
+                "overlapping": True,
+            },
+        )
+        self.assertEqual(outcome(announcement_record(use_case="overload_protection")), "not_announced")
+        denied = announcement_record(device_type_permitted=False)
+        self.assertEqual(outcome(denied), "not_announced")
+        self.assertEqual(loss(denied), ("device_type_prohibition", "EnergyManagementSystem"))
+        other_type = announcement_record(device_type_permitted=False, device_type="GridGuard")
+        self.assertEqual(loss(other_type), ("device_type_prohibition", "GridGuard"))
+        one_missing = announcement_record(missing_elements=("energy",))
+        two_missing = announcement_record(missing_elements=("energy", "temperature"))
+        self.assertEqual(loss(one_missing), ("energy",))
+        self.assertEqual(loss(two_missing), ("energy", "temperature"))
+        ev_actor = announcement_record(device_actor="EV", use_case="overload_protection")
+        self.assertEqual(outcome(ev_actor), "not_announced")
+        self.assertEqual(loss(ev_actor), ("EV",))
+        overlap = announcement_record(overlapping=True)
+        self.assertEqual(outcome(overlap), "conflict")
+        self.assertEqual(loss(overlap), ("conflict",))
+        applied = announcement_record(
+            use_case="limitation_of_power_consumption",
+            device_actor="EVSE",
+            write_outcome="applied",
+        )
+        blocked = announcement_record(
+            use_case="limitation_of_power_consumption",
+            device_actor="EVSE",
+            write_outcome="not_applied",
+        )
+        self.assertEqual(outcome(applied), "announced")
+        self.assertEqual(outcome(blocked), "not_announced")
+        self.assertEqual(loss(blocked), ("consumption_limit_not_applied",))
+
+    def test_policy_executes_the_stated_vectors_and_wires_them(self) -> None:
+        self.assertEqual(repository_policy.issue_186_vector_errors(), [])
+        self.assertEqual(repository_policy.issue_186_output_publication_errors(ROOT), [])
+        source = (ROOT / "scripts" / "validate_repository_policy.py").read_text(encoding="utf-8")
+        self.assertIn("issue_186_vector_errors()", source)
+        self.assertIn("issue_186_output_publication_errors(root)", source)
+
+    def test_repository_policy_rejects_each_dropped_marker(self) -> None:
+        original = normalized_page()
+        for marker in MARKERS:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temporary:
+                copied = Path(temporary)
+                destination = copied / PAGE_REL
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                self.assertIn(marker, original)
+                destination.write_text(original.replace(marker, "omitted rule."), encoding="utf-8")
+                errors = repository_policy.issue_186_output_publication_errors(copied)
+            self.assertTrue(any(str(PAGE_REL) in error and "missing" in error for error in errors), errors)
+
+    def test_repository_policy_rejects_stale_wording(self) -> None:
+        original = normalized_page()
+        for marker in STALE:
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temporary:
+                copied = Path(temporary)
+                destination = copied / PAGE_REL
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(original + " " + marker, encoding="utf-8")
+                errors = repository_policy.issue_186_output_publication_errors(copied)
+            self.assertTrue(any("stale issue-186 wording" in error for error in errors), errors)
+
+
+if __name__ == "__main__":
+    unittest.main()

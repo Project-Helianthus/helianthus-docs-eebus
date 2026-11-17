@@ -55,3 +55,10 @@ entity and feature composition, operations admitted per resource, identity
 persistence, and declared loss for an eeBUS output. It remains a candidate.
 These navigation notes do not raise a contract version, do not change the
 frozen API reference, and do not change the MCP wire schemas.
+
+## eeBUS output publication
+
+The candidate page `eebus-output-publication-v1.md` states which use cases
+this node publishes, and the rule that selects published resources. It remains
+a candidate. These navigation notes do not raise a contract version, do not
+add a switch, and do not change the output-binding contract.

@@ -269,6 +269,146 @@ ISSUE179_STALE_MARKERS = (
     "The persisted entity address is keyed by list position.",
     "Visibility of a capability admits the operation.",
 )
+# Publication selection for the eeBUS output; issue #186.
+ISSUE186_CONTRACT_REL = Path("api/_candidate/eebus-output-publication-v1.md")
+ISSUE186_RESOURCE_KEY_FIELDS = (
+    "family",
+    "lens_admitted",
+    "runtime_enabled",
+    "input_dimension",
+    "parent",
+)
+ISSUE186_SHIP_KEY_FIELDS = (
+    "advertisement_count",
+    "service_count",
+    "device_type",
+)
+ISSUE186_ACTOR_KEY_FIELDS = (
+    "use_case",
+    "actor",
+    "entity_type",
+    "string_resource",
+    "remote_energy_guard",
+)
+ISSUE186_WRITE_KEY_FIELDS = (
+    "limit_kind",
+    "operation",
+    "unit",
+    "admitted",
+    "converted",
+)
+ISSUE186_ANNOUNCEMENT_KEY_FIELDS = (
+    "use_case",
+    "device_type_permitted",
+    "device_type",
+    "missing_elements",
+    "device_actor",
+    "write_outcome",
+    "overlapping",
+)
+ISSUE186_PUBLISHED_FAMILIES = frozenset({"charger", "inverter", "pv_string"})
+ISSUE186_REJECTED_FAMILIES = frozenset({"battery", "heating"})
+ISSUE186_DEVICE_TYPE = "EnergyManagementSystem"
+ISSUE186_PRODUCTION_LIMIT = "pv.operation.set_active_power_limit"
+ISSUE186_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
+ISSUE186_NOT_CONSUMPTION_WRITES = frozenset(
+    {
+        "system export",
+        ISSUE186_ALLOCATED_CURRENT,
+        ISSUE186_PRODUCTION_LIMIT,
+    }
+)
+ISSUE186_USE_CASES = frozenset(
+    {
+        "evse_commissioning_and_configuration",
+        "limitation_of_power_consumption",
+        "limitation_of_power_production",
+        "monitoring_of_inverter",
+        "monitoring_of_power_consumption",
+        "monitoring_of_pv_string",
+    }
+)
+ISSUE186_ACTOR_BINDINGS = frozenset(
+    {
+        ("evse_commissioning_and_configuration", "EVSE", "EVSE", False, False),
+        ("limitation_of_power_consumption", "Controllable System", "EVSE", False, False),
+        ("limitation_of_power_consumption", "Energy Guard", "CEM", False, False),
+        ("limitation_of_power_production", "Controllable System", "Inverter", False, False),
+        ("limitation_of_power_production", "Energy Guard", "CEM", False, False),
+        ("monitoring_of_inverter", "Inverter", "Inverter", False, False),
+        ("monitoring_of_power_consumption", "Monitored Unit", "EVSE", False, False),
+        ("monitoring_of_pv_string", "PV String", "PV String", True, False),
+    }
+)
+ISSUE186_REQUIRED_MARKERS = (
+    "The output is active when the eeBUS runtime is already enabled.",
+    "There is no new switch.",
+    "Publish every lens-admitted inverter, PV string and charger resource.",
+    "A heating resource is not published.",
+    "A battery resource is not published.",
+    "A lens-admitted resource is one entity of this output (CID-1).",
+    "An input-dimension fact is not a string (CID-4).",
+    "A PV String entity is a child of the Inverter only through a cited contains instance (TRV-1).",
+    "One advertisement for SHIP stays.",
+    "The device type is EnergyManagementSystem.",
+    "Reject a second advertisement for SHIP.",
+    "A second service is not added.",
+    "The extra entities are Inverter, a PV String child of that Inverter, and EVSE.",
+    "A use case that forbids that device type is not announced, and the loss names the prohibition.",
+    "The actor Inverter of Monitoring of Inverter V1.0.0 is taken on entity type Inverter.",
+    "The actor PV String of Monitoring of PV String V1.0.0 RC4 is taken when a string resource exists.",
+    "The actor Inverter is the Controllable System of Limitation of Power Production V1.0.0.",
+    "The actor EVSE of EVSE Commissioning and Configuration V1.0.1 is taken.",
+    "The actor EVSE is the Monitored Unit of Monitoring of Power Consumption V1.0.0.",
+    "The actor EVSE is the Controllable System of Limitation of Power Consumption V1.0.0.",
+    "The local CEM takes Energy Guard of a limitation use case only while no trusted remote already announces Energy Guard for that use case.",
+    "The CEM entity is never the Controllable System of one device.",
+    "The CEM entity is never the Monitored Unit.",
+    "A CEM-located Controllable System represents every device that CEM controls, not the CEM's own power.",
+    "The node keeps one CEM entity.",
+    "A use case is announced only when every mandatory scenario can be served from admitted elements of that resource.",
+    "Otherwise the use case is not announced, and the loss names each missing element.",
+    "Where a mandatory element is cited as absent, the loss names it (LRS-3, TGT-3).",
+    "A mapped write is published only where that resource's own capability admits the operation (LRS-5, AUT-3).",
+    "A production-limit write is mapped only through `pv.operation.set_active_power_limit` when that operation is admitted for that resource.",
+    "A production-limit write is not mapped to the system export operation.",
+    "A consumption-limit write is active power.",
+    "The only admitted charger write is allocated current.",
+    "Watts are not converted to amperes.",
+    "A watt limit is not applied as allocated current.",
+    "Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.",
+    "A use case whose device-side actor is EV is not announced.",
+    "This node is not an EV.",
+    "Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.",
+    "Two overlapping writes are the existing conflict loss.",
+    "The cited transport revision is SHIP 1.0.1.",
+    "The cited data-model revision is SPINE 1.3.0.",
+    "A newer revision of SHIP is not cited.",
+    "Citing these revisions does not resolve a normative source row.",
+    "Admitted inverter elements are inverter AC measurements, energy, temperature and operating state.",
+    "`pv.operation.set_active_power_limit` is admitted in watts.",
+    "String-dimension DC quantities are not admitted.",
+    "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
+    "The admitted charger operation is `evse.operation.set_allocated_current`.",
+    "An active-power limit is not an admitted charger write.",
+    "Canonical units are SI.",
+    "Conversion is display-only.",
+    "No semantic element is added.",
+    "No contract version is raised.",
+    "Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.",
+    "Hypothesis. The actor selection and the announcement rule are this candidate.",
+    "Unknown. The mandatory elements of each use case are not enumerated on this page.",
+    "None of these classes is a device qualification.",
+)
+ISSUE186_STALE_MARKERS = (
+    "There is a new switch.",
+    "A heating resource is published.",
+    "A battery resource is published.",
+    "Accept a second advertisement for SHIP.",
+    "The CEM entity is the Controllable System of one device.",
+    "A watt limit is applied as allocated current.",
+    "A newer revision of SHIP is cited.",
+)
 ISSUE138_HISTORICAL_RELS = (
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
     Path("api/_candidate/raw-snapshot-view-v1.md"),
@@ -1368,7 +1508,8 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     # Owner pointer names the common semantic contract; issue #178.
     "README.md": "a4654d0d0c88a98e6c7edb23801b8d58" "85b9076a6613c3f6099699412f7633f8",
     # Output-binding candidate named; issue #179.
-    "api/README.md": "305334e3f24b93a3a85da8a08e22c524" "78e596f414c37bdd192614242350e69a",
+    # Output publication rule named; issue #186.
+    "api/README.md": "1160a2b2ebede96ada27ffe86192819c" "f287ade320dbd589df169d30a8918261",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
     "evidence/evidence-template.md": (
@@ -5053,6 +5194,313 @@ def issue_179_output_binding_errors(root: Path) -> list[str]:
     return errors
 
 
+def publication_resource_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE186_RESOURCE_KEY_FIELDS)
+
+
+def ship_advertisement_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE186_SHIP_KEY_FIELDS)
+
+
+def actor_binding_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE186_ACTOR_KEY_FIELDS)
+
+
+def write_mapping_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE186_WRITE_KEY_FIELDS)
+
+
+def use_case_announcement_key(record: dict[str, object]) -> tuple[object, ...]:
+    return tuple(record[field] for field in ISSUE186_ANNOUNCEMENT_KEY_FIELDS)
+
+
+def _string_resource_blocked(input_dimension: object, parent: object) -> bool:
+    if input_dimension is True:
+        return True
+    return parent != "inverter"
+
+
+def published_resource_outcome(record: dict[str, object]) -> str:
+    family, lens_admitted, runtime_enabled, input_dimension, parent = (
+        publication_resource_key(record)
+    )
+    if runtime_enabled is not True or lens_admitted is not True:
+        return "not_published"
+    if family in ISSUE186_REJECTED_FAMILIES:
+        return "not_published"
+    if family not in ISSUE186_PUBLISHED_FAMILIES:
+        return "not_published"
+    if family == "pv_string" and _string_resource_blocked(input_dimension, parent):
+        return "not_published"
+    return "published"
+
+
+def ship_advertisement_outcome(record: dict[str, object]) -> str:
+    advertisement_count, service_count, device_type = ship_advertisement_key(record)
+    if advertisement_count != 1 or service_count != 1:
+        return "rejected"
+    if device_type != ISSUE186_DEVICE_TYPE:
+        return "rejected"
+    return "kept"
+
+
+def _cem_device_role(actor: object, entity_type: object) -> bool:
+    if entity_type != "CEM":
+        return False
+    return actor in {"Controllable System", "Monitored Unit"}
+
+
+def actor_binding_outcome(record: dict[str, object]) -> str:
+    key = actor_binding_key(record)
+    if _cem_device_role(key[1], key[2]):
+        return "rejected"
+    if key[1] == "EV":
+        return "not_announced"
+    if key in ISSUE186_ACTOR_BINDINGS:
+        return "taken"
+    return "not_taken"
+
+
+def _production_write_outcome(
+    operation: object, unit: object, admitted: object
+) -> str:
+    if operation != ISSUE186_PRODUCTION_LIMIT or unit != "W":
+        return "rejected"
+    if admitted is True:
+        return "applied"
+    return "not_applied"
+
+
+def _consumption_write_outcome(
+    operation: object, unit: object, admitted: object
+) -> str:
+    if operation in ISSUE186_NOT_CONSUMPTION_WRITES or unit != "W":
+        return "rejected"
+    if admitted is True:
+        return "applied"
+    return "not_applied"
+
+
+def write_mapping_outcome(record: dict[str, object]) -> str:
+    limit_kind, operation, unit, admitted, converted = write_mapping_key(record)
+    if converted is True:
+        return "rejected"
+    if limit_kind == "production":
+        return _production_write_outcome(operation, unit, admitted)
+    if limit_kind == "consumption":
+        return _consumption_write_outcome(operation, unit, admitted)
+    return "rejected"
+
+
+def _announcement_blocked(key: tuple[object, ...]) -> str:
+    # Fields are use case, permission, device type, missing elements, actor, write, overlap.
+    if key[6] is True:
+        return "conflict"
+    if key[4] == "EV" or key[1] is not True:
+        return "not_announced"
+    missing = key[3]
+    if isinstance(missing, tuple) and len(missing) > 0:
+        return "not_announced"
+    if key[0] == "limitation_of_power_consumption" and key[5] != "applied":
+        return "not_announced"
+    return ""
+
+
+def use_case_announcement_outcome(record: dict[str, object]) -> str:
+    key = use_case_announcement_key(record)
+    blocked = _announcement_blocked(key)
+    if blocked != "":
+        return blocked
+    if key[0] not in ISSUE186_USE_CASES:
+        return "not_announced"
+    return "announced"
+
+
+def _device_type_loss(device_type: object) -> tuple[str, ...]:
+    if isinstance(device_type, str) and device_type != "":
+        return ("device_type_prohibition", device_type)
+    return ("device_type_prohibition",)
+
+
+def _loss_names(record: dict[str, object]) -> tuple[str, ...]:
+    if record.get("device_actor") == "EV":
+        return ("EV",)
+    if record.get("device_type_permitted") is not True:
+        return _device_type_loss(record.get("device_type"))
+    missing = record.get("missing_elements")
+    if isinstance(missing, tuple) and len(missing) > 0:
+        return missing
+    use_case = record.get("use_case")
+    write_outcome = record.get("write_outcome")
+    if use_case == "limitation_of_power_consumption" and write_outcome != "applied":
+        return ("consumption_limit_not_applied",)
+    return ("not_announced",)
+
+
+def publication_loss(record: dict[str, object]) -> tuple[str, ...]:
+    outcome = use_case_announcement_outcome(record)
+    if outcome == "announced":
+        return ()
+    if outcome == "conflict":
+        return ("conflict",)
+    return _loss_names(record)
+
+
+def _issue186_resource(
+    family: str,
+    *,
+    parent: str = "",
+    input_dimension: bool = False,
+) -> dict[str, object]:
+    return {
+        "family": family,
+        "lens_admitted": True,
+        "runtime_enabled": True,
+        "input_dimension": input_dimension,
+        "parent": parent,
+    }
+
+
+def _issue186_ship(advertisement_count: int) -> dict[str, object]:
+    return {
+        "advertisement_count": advertisement_count,
+        "service_count": 1,
+        "device_type": ISSUE186_DEVICE_TYPE,
+    }
+
+
+def _issue186_actor(
+    use_case: str, actor: str, entity_type: str
+) -> dict[str, object]:
+    return {
+        "use_case": use_case,
+        "actor": actor,
+        "entity_type": entity_type,
+        "string_resource": False,
+        "remote_energy_guard": False,
+    }
+
+
+def _issue186_write(limit_kind: str, operation: str) -> dict[str, object]:
+    return {
+        "limit_kind": limit_kind,
+        "operation": operation,
+        "unit": "W",
+        "admitted": True,
+        "converted": False,
+    }
+
+
+ISSUE186_VECTORS = (
+    (
+        "heating_resource",
+        published_resource_outcome,
+        _issue186_resource("heating"),
+        "not_published",
+    ),
+    (
+        "battery_resource",
+        published_resource_outcome,
+        _issue186_resource("battery"),
+        "not_published",
+    ),
+    (
+        "inverter_resource",
+        published_resource_outcome,
+        _issue186_resource("inverter"),
+        "published",
+    ),
+    (
+        "pv_string_resource",
+        published_resource_outcome,
+        _issue186_resource("pv_string", parent="inverter"),
+        "published",
+    ),
+    (
+        "charger_resource",
+        published_resource_outcome,
+        _issue186_resource("charger"),
+        "published",
+    ),
+    (
+        "second_ship_advertisement",
+        ship_advertisement_outcome,
+        _issue186_ship(2),
+        "rejected",
+    ),
+    (
+        "one_ship_advertisement",
+        ship_advertisement_outcome,
+        _issue186_ship(1),
+        "kept",
+    ),
+    (
+        "cem_controllable_system",
+        actor_binding_outcome,
+        _issue186_actor(
+            "limitation_of_power_production",
+            "Controllable System",
+            "CEM",
+        ),
+        "rejected",
+    ),
+    (
+        "inverter_controllable_system",
+        actor_binding_outcome,
+        _issue186_actor(
+            "limitation_of_power_production",
+            "Controllable System",
+            "Inverter",
+        ),
+        "taken",
+    ),
+    (
+        "watt_limit_as_current",
+        write_mapping_outcome,
+        _issue186_write("consumption", ISSUE186_ALLOCATED_CURRENT),
+        "rejected",
+    ),
+    (
+        "production_limit_write",
+        write_mapping_outcome,
+        _issue186_write("production", ISSUE186_PRODUCTION_LIMIT),
+        "applied",
+    ),
+)
+
+
+def issue_186_vector_errors() -> list[str]:
+    errors: list[str] = []
+    relation = ISSUE186_CONTRACT_REL.as_posix()
+    for name, function, record, expected in ISSUE186_VECTORS:
+        actual = function(record)
+        if actual != expected:
+            errors.append(f"{relation}: issue-186 vector {name} returned {actual}")
+    return errors
+
+
+def issue_186_output_publication_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    relation = ISSUE186_CONTRACT_REL.as_posix()
+    path = root / ISSUE186_CONTRACT_REL
+    if not path.is_file():
+        errors.append(f"{relation}: issue-186 page is missing")
+    else:
+        text = " ".join(_read(path).split())
+        errors.extend(
+            f"{relation}: missing issue-186 marker: {marker}"
+            for marker in ISSUE186_REQUIRED_MARKERS
+            if marker not in text
+        )
+        errors.extend(
+            f"{relation}: stale issue-186 wording: {marker}"
+            for marker in ISSUE186_STALE_MARKERS
+            if marker in text
+        )
+    errors.extend(issue_186_vector_errors())
+    return errors
+
+
 def _issue_68_machine_contract_errors(root: Path) -> list[str]:
     """Validate both issue-68 MCP profiles as connected machine contracts."""
     errors: list[str] = []
@@ -8419,6 +8867,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         issue_138_native_runtime_exposure_errors(root)
         + issue_178_relation_and_participation_errors(root)
         + issue_179_output_binding_errors(root)
+        + issue_186_output_publication_errors(root)
     )
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))
