@@ -55,7 +55,8 @@ MARKERS = (
     "Site and electrical relations select that resource when they exist.",
     "When the installation has exactly one other promoted source of AC phase voltage, that source is used.",
     "When more than one other promoted source publishes an AC phase voltage and no site or electrical relation selects one, the write is answered with a negative acknowledgement that names the missing measured voltage.",
-    "The mean of that other source is the mean of the phases it publishes.",
+    "From that other source, the measured voltage is the mean of the voltages it publishes on the charger's active phases, matched by phase.",
+    "When the voltage source publishes no voltage on one of the charger's active phases, the write is answered with a negative acknowledgement that names the missing measured voltage.",
     "A nominal voltage is not a measured phase voltage.",
     "The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.",
     "A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.",
@@ -100,6 +101,7 @@ STALE = (
     "An active-power limit is not an admitted charger write.",
     "Conversion is display-only.",
     "applies a watt limit as allocated current",
+    "The mean of that other source is the mean of the phases it publishes.",
 )
 VECTOR_ROWS = (
     ("heating_resource", "not_published"),
@@ -138,6 +140,7 @@ WRITE_FIELDS = (
     "admitted",
     "converted",
     "voltage_source",
+    "active_phase_voltages_published",
     "phase_current_published",
     "configured_current_published",
     "below_minimum",
@@ -213,6 +216,7 @@ def write_record(**overrides: object) -> dict[str, object]:
         "admitted": True,
         "converted": False,
         "voltage_source": "station",
+        "active_phase_voltages_published": True,
         "phase_current_published": True,
         "configured_current_published": True,
         "below_minimum": False,
@@ -438,7 +442,7 @@ class OutputPublicationTest(unittest.TestCase):
         self.assertEqual(outcome(actor_record(actor="EV", entity_type="EV")), "not_announced")
 
     def test_write_identity_varies_each_field(self) -> None:
-        """Write fields: limit_kind, operation, unit, admitted, converted, voltage_source, phase_current_published, configured_current_published, below_minimum.
+        """Write fields: limit_kind, operation, unit, admitted, converted, voltage_source, active_phase_voltages_published, phase_current_published, configured_current_published, below_minimum.
 
         limit_kind: a consumption write through the production operation is rejected.
         operation: a system-export write is rejected; allocated current converts a watt limit.
@@ -446,6 +450,7 @@ class OutputPublicationTest(unittest.TestCase):
         admitted: false is not applied.
         converted: a display unit conversion is rejected.
         voltage_source: an empty source refuses the watt limit; the installation source converts it.
+        active_phase_voltages_published: false refuses the watt limit and names measured voltage.
         phase_current_published: false refuses the watt limit and names phase current.
         configured_current_published: false refuses the watt limit and names configured current.
         below_minimum: true pauses a complete watt limit at allocated current 0 A.
@@ -464,6 +469,7 @@ class OutputPublicationTest(unittest.TestCase):
                 "admitted": False,
                 "converted": True,
                 "voltage_source": "",
+                "active_phase_voltages_published": False,
                 "phase_current_published": False,
                 "configured_current_published": False,
                 "below_minimum": True,
@@ -475,6 +481,7 @@ class OutputPublicationTest(unittest.TestCase):
         self.assertEqual(outcome(write_record(admitted=False)), "not_applied")
         self.assertEqual(outcome(write_record(converted=True)), "rejected")
         self.assertEqual(outcome(write_record(voltage_source="")), "applied")
+        self.assertEqual(outcome(write_record(active_phase_voltages_published=False)), "applied")
         self.assertEqual(outcome(write_record(phase_current_published=False)), "applied")
         self.assertEqual(outcome(write_record(configured_current_published=False)), "applied")
         self.assertEqual(outcome(write_record(below_minimum=True)), "applied")
@@ -494,6 +501,7 @@ class OutputPublicationTest(unittest.TestCase):
         voltage_source station: the charging station's phase voltage converts the limit.
         voltage_source installation: the one other promoted AC source converts the limit.
         voltage_source empty, nominal, or several: the write is refused and names measured voltage.
+        active_phase_voltages_published false: a source without a voltage on one of the charger's active phases refuses and names measured voltage.
         phase_current_published false: the write is refused and names phase current.
         configured_current_published false: the write is refused and names configured current.
         below_minimum true: a complete limit pauses; a missing voltage still refuses.
@@ -513,6 +521,12 @@ class OutputPublicationTest(unittest.TestCase):
         self.assertEqual(missing(absent), "measured_voltage")
         self.assertEqual(outcome(nominal), "refused")
         self.assertEqual(missing(nominal), "measured_voltage")
+        unmatched = self._consumption(voltage_source="installation", active_phase_voltages_published=False)
+        self.assertEqual(outcome(unmatched), "refused")
+        self.assertEqual(missing(unmatched), "measured_voltage")
+        unmatched_station = self._consumption(active_phase_voltages_published=False)
+        self.assertEqual(outcome(unmatched_station), "refused")
+        self.assertEqual(missing(unmatched_station), "measured_voltage")
         several = self._consumption(voltage_source="several")
         self.assertEqual(outcome(several), "refused")
         self.assertEqual(missing(several), "measured_voltage")

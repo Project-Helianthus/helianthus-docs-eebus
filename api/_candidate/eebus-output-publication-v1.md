@@ -134,7 +134,8 @@ When the charging station publishes no phase voltage, the measured phase voltage
 Site and electrical relations select that resource when they exist.
 When the installation has exactly one other promoted source of AC phase voltage, that source is used.
 When more than one other promoted source publishes an AC phase voltage and no site or electrical relation selects one, the write is answered with a negative acknowledgement that names the missing measured voltage.
-The mean of that other source is the mean of the phases it publishes.
+From that other source, the measured voltage is the mean of the voltages it publishes on the charger's active phases, matched by phase.
+When the voltage source publishes no voltage on one of the charger's active phases, the write is answered with a negative acknowledgement that names the missing measured voltage.
 A nominal voltage is not a measured phase voltage.
 The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.
 A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.

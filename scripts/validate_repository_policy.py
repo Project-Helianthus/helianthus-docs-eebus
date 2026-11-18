@@ -297,6 +297,7 @@ ISSUE186_WRITE_KEY_FIELDS = (
     "admitted",
     "converted",
     "voltage_source",
+    "active_phase_voltages_published",
     "phase_current_published",
     "configured_current_published",
     "below_minimum",
@@ -382,7 +383,8 @@ ISSUE186_REQUIRED_MARKERS = (
     "Site and electrical relations select that resource when they exist.",
     "When the installation has exactly one other promoted source of AC phase voltage, that source is used.",
     "When more than one other promoted source publishes an AC phase voltage and no site or electrical relation selects one, the write is answered with a negative acknowledgement that names the missing measured voltage.",
-    "The mean of that other source is the mean of the phases it publishes.",
+    "From that other source, the measured voltage is the mean of the voltages it publishes on the charger's active phases, matched by phase.",
+    "When the voltage source publishes no voltage on one of the charger's active phases, the write is answered with a negative acknowledgement that names the missing measured voltage.",
     "A nominal voltage is not a measured phase voltage.",
     "The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.",
     "A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.",
@@ -427,6 +429,7 @@ ISSUE186_STALE_MARKERS = (
     "An active-power limit is not an admitted charger write.",
     "Conversion is display-only.",
     "applies a watt limit as allocated current",
+    "The mean of that other source is the mean of the phases it publishes.",
 )
 ISSUE138_HISTORICAL_RELS = (
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
@@ -5299,11 +5302,14 @@ def consumption_missing_input(record: dict[str, object]) -> str:
         _admitted,
         _converted,
         voltage_source,
+        active_phase_voltages_published,
         phase_current_published,
         configured_current_published,
         _below_minimum,
     ) = write_mapping_key(record)
     if voltage_source not in ISSUE186_VOLTAGE_SOURCES:
+        return "measured_voltage"
+    if active_phase_voltages_published is not True:
         return "measured_voltage"
     if phase_current_published is not True:
         return "phase_current"
@@ -5338,6 +5344,7 @@ def write_mapping_outcome(record: dict[str, object]) -> str:
         admitted,
         converted,
         _voltage_source,
+        _active_phase_voltages_published,
         _phase_current_published,
         _configured_current_published,
         below_minimum,
@@ -5474,6 +5481,7 @@ def _issue186_write(limit_kind: str, operation: str, **extra: object) -> dict[st
         "admitted": True,
         "converted": False,
         "voltage_source": "station",
+        "active_phase_voltages_published": True,
         "phase_current_published": True,
         "configured_current_published": True,
         "below_minimum": False,
