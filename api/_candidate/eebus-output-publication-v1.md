@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed eeBUS output publishes a heating or battery resource, adds a second advertisement, uses the CEM entity as a device Controllable System, or applies a watt limit as allocated current, and the owning check accepts that output."
+falsifier: "A reviewed eeBUS output publishes a heating or battery resource, adds a second advertisement, uses the CEM entity as a device Controllable System, or applies a watt limit without the measured voltage and active phases, and the owning check accepts that output."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -37,6 +37,8 @@ This page does not copy that contract.
 
 Issue
 [helianthus-docs-eebus#186](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/186).
+Issue
+[helianthus-docs-eebus#189](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/189).
 
 ## Evidence class
 
@@ -71,9 +73,7 @@ Admitted inverter elements are inverter AC measurements, energy, temperature and
 String-dimension DC quantities are not admitted.
 Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.
 The admitted charger operation is `evse.operation.set_allocated_current`.
-An active-power limit is not an admitted charger write.
 Canonical units are SI.
-Conversion is display-only.
 
 ## Advertisement and entities
 
@@ -111,6 +111,7 @@ Otherwise the use case is not announced, and the loss names each missing element
 Where a mandatory element is cited as absent, the loss names it (LRS-3, TGT-3).
 A partial resource stays partial. Missing elements are not invented.
 
+Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits; scenarios 1 to 3 are served, scenario 4 is not.
 A use case whose device-side actor is EV is not announced.
 This node is not an EV.
 Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.
@@ -124,9 +125,29 @@ A production-limit write is mapped only through `pv.operation.set_active_power_l
 A production-limit write is not mapped to the system export operation.
 A consumption-limit write is active power.
 The only admitted charger write is allocated current.
-Watts are not converted to amperes.
-A watt limit is not applied as allocated current.
-Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.
+A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.
+Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.
+A phase is active while its measured current is above zero; when no phase carries current and the charging session holds no remembered phase count, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.
+While a charging session is paused by the limit, the conversion uses the number of phases that carried current when that pause began.
+The remembered phase count holds only for the same charging session; a new session, or an EV seen drawing on more phases, goes back to the phases that carry current and, with none yet, to every phase with a measured voltage, so a restart above the limit lasts at most one conversion cycle.
+Example: a single-phase EV on a station that measures 230 V on three phases is paused by a 1000 W limit; a limit raised to 3000 W in the same session gives 3000 / (1 × 230), rounded down to 13 A.
+While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current.
+While any phase carries current, every phase that has carried current since the EV connected also counts as active, so a phase that stops and later resumes is counted before it resumes.
+Where the charging station publishes no connection state, those phases are counted from the moment the consumption limit became effective.
+The measured phase voltage is the phase voltage the charging station publishes, when that resource publishes one.
+When the charging station publishes no phase voltage, the measured phase voltage is the measured AC phase voltage of another promoted resource of the same installation, an inverter AC side or a meter.
+Site and electrical relations select that resource when they exist.
+When the installation has exactly one other promoted source of AC phase voltage, that source is used.
+When more than one other promoted source publishes an AC phase voltage and no site or electrical relation selects one, the write is answered with a negative acknowledgement that names the missing measured voltage.
+From that other source, the measured voltage is the mean of the voltages it publishes on the charger's active phases, matched by phase.
+When the voltage source publishes no voltage on one of the charger's active phases, the write is answered with a negative acknowledgement that names the missing measured voltage.
+A nominal voltage is not a measured phase voltage.
+The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.
+A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.
+When neither source publishes a phase voltage, the write is answered with a negative acknowledgement that names the missing measured voltage.
+The effective limit follows section 2.2 of the use case. A deactivated or expired limit releases the charger to the configured current. The failsafe values are pre-configured to 4200 W and 2 hours, stored, and may be changed by the Energy Guard.
+Unit conversion is display-only. The watt-to-ampere computation of a consumption limit is a control rule, not a unit conversion.
+A production-limit write on the Inverter entity is handed to the host and applied through `pv.operation.set_active_power_limit` in watts, with no conversion. Its effective limit follows the state machine of Limitation of Power Production V1.0.0; the failsafe production limit is pre-configured to the upper bound of `pv.limit.active_power` in the PV pack, which restricts nothing, and the failsafe duration minimum to 2 hours.
 
 ## Cited revisions
 
@@ -155,7 +176,10 @@ These rows are the contract's own vectors. The outcome column is the rule above.
 | `one_ship_advertisement` | advertisement count 1 and device type EnergyManagementSystem | kept |
 | `cem_controllable_system` | CEM entity as Controllable System of one device | rejected |
 | `inverter_controllable_system` | Inverter entity as Controllable System | taken |
-| `watt_limit_as_current` | consumption limit in watts through allocated current | rejected |
+| `watt_limit_as_current` | consumption limit in watts through allocated current | converted |
+| `watt_limit_below_minimum` | consumption limit in watts that computes below 6 A | paused |
+| `watt_limit_without_voltage` | consumption limit in watts with no measured voltage from the charging station or another promoted resource | refused |
+| `watt_limit_paused_single_phase` | one phase carried current when a 1000 W limit paused the session, three phases measure 230 V, limit raised to 3000 W in the same session | converted |
 | `production_limit_write` | admitted production limit in watts | applied |
 
 ## Unchanged surfaces

@@ -46,9 +46,30 @@ MARKERS = (
     "A production-limit write is not mapped to the system export operation.",
     "A consumption-limit write is active power.",
     "The only admitted charger write is allocated current.",
-    "Watts are not converted to amperes.",
-    "A watt limit is not applied as allocated current.",
-    "Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.",
+    "A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.",
+    "Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.",
+    "A phase is active while its measured current is above zero; when no phase carries current and the charging session holds no remembered phase count, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "While a charging session is paused by the limit, the conversion uses the number of phases that carried current when that pause began.",
+    "The remembered phase count holds only for the same charging session; a new session, or an EV seen drawing on more phases, goes back to the phases that carry current and, with none yet, to every phase with a measured voltage, so a restart above the limit lasts at most one conversion cycle.",
+    "Example: a single-phase EV on a station that measures 230 V on three phases is paused by a 1000 W limit; a limit raised to 3000 W in the same session gives 3000 / (1 × 230), rounded down to 13 A.",
+    "While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current.",
+    "While any phase carries current, every phase that has carried current since the EV connected also counts as active, so a phase that stops and later resumes is counted before it resumes.",
+    "Where the charging station publishes no connection state, those phases are counted from the moment the consumption limit became effective.",
+    "The measured phase voltage is the phase voltage the charging station publishes, when that resource publishes one.",
+    "When the charging station publishes no phase voltage, the measured phase voltage is the measured AC phase voltage of another promoted resource of the same installation, an inverter AC side or a meter.",
+    "Site and electrical relations select that resource when they exist.",
+    "When the installation has exactly one other promoted source of AC phase voltage, that source is used.",
+    "When more than one other promoted source publishes an AC phase voltage and no site or electrical relation selects one, the write is answered with a negative acknowledgement that names the missing measured voltage.",
+    "From that other source, the measured voltage is the mean of the voltages it publishes on the charger's active phases, matched by phase.",
+    "When the voltage source publishes no voltage on one of the charger's active phases, the write is answered with a negative acknowledgement that names the missing measured voltage.",
+    "A nominal voltage is not a measured phase voltage.",
+    "The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.",
+    "A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.",
+    "When neither source publishes a phase voltage, the write is answered with a negative acknowledgement that names the missing measured voltage.",
+    "Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits; scenarios 1 to 3 are served, scenario 4 is not.",
+    "The effective limit follows section 2.2 of the use case. A deactivated or expired limit releases the charger to the configured current. The failsafe values are pre-configured to 4200 W and 2 hours, stored, and may be changed by the Energy Guard.",
+    "Unit conversion is display-only. The watt-to-ampere computation of a consumption limit is a control rule, not a unit conversion.",
+    "A production-limit write on the Inverter entity is handed to the host and applied through `pv.operation.set_active_power_limit` in watts, with no conversion. Its effective limit follows the state machine of Limitation of Power Production V1.0.0; the failsafe production limit is pre-configured to the upper bound of `pv.limit.active_power` in the PV pack, which restricts nothing, and the failsafe duration minimum to 2 hours.",
     "A use case whose device-side actor is EV is not announced.",
     "This node is not an EV.",
     "Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.",
@@ -62,9 +83,8 @@ MARKERS = (
     "String-dimension DC quantities are not admitted.",
     "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
     "The admitted charger operation is `evse.operation.set_allocated_current`.",
-    "An active-power limit is not an admitted charger write.",
     "Canonical units are SI.",
-    "Conversion is display-only.",
+    "or applies a watt limit without the measured voltage and active phases,",
     "No semantic element is added.",
     "No contract version is raised.",
     "Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.",
@@ -80,6 +100,15 @@ STALE = (
     "The CEM entity is the Controllable System of one device.",
     "A watt limit is applied as allocated current.",
     "A newer revision of SHIP is cited.",
+    "Watts are not converted to amperes.",
+    "A watt limit is not applied as allocated current.",
+    "Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.",
+    "An active-power limit is not an admitted charger write.",
+    "Conversion is display-only.",
+    "applies a watt limit as allocated current",
+    "The mean of that other source is the mean of the phases it publishes.",
+    "so the watt limit holds when the other phases resume.",
+    "when no phase carries current, every phase with a measured voltage counts.",
 )
 VECTOR_ROWS = (
     ("heating_resource", "not_published"),
@@ -91,7 +120,10 @@ VECTOR_ROWS = (
     ("one_ship_advertisement", "kept"),
     ("cem_controllable_system", "rejected"),
     ("inverter_controllable_system", "taken"),
-    ("watt_limit_as_current", "rejected"),
+    ("watt_limit_as_current", "converted"),
+    ("watt_limit_below_minimum", "paused"),
+    ("watt_limit_without_voltage", "refused"),
+    ("watt_limit_paused_single_phase", "converted"),
     ("production_limit_write", "applied"),
 )
 RESOURCE_FIELDS = (
@@ -109,14 +141,26 @@ ACTOR_FIELDS = (
     "string_resource",
     "remote_energy_guard",
 )
-WRITE_FIELDS = ("limit_kind", "operation", "unit", "admitted", "converted")
+WRITE_FIELDS = (
+    "limit_kind",
+    "operation",
+    "unit",
+    "admitted",
+    "converted",
+    "voltage_source",
+    "active_phase_voltages_published",
+    "phase_current_published",
+    "configured_current_published",
+    "below_minimum",
+)
 ANNOUNCEMENT_FIELDS = (
     "use_case",
     "device_type_permitted",
     "device_type",
     "missing_elements",
     "device_actor",
-    "write_outcome",
+    "allocated_current_admitted",
+    "host_accepts_limits",
     "overlapping",
 )
 EXCLUDED = ("ordinal", "address", "plane")
@@ -179,6 +223,11 @@ def write_record(**overrides: object) -> dict[str, object]:
         "unit": "W",
         "admitted": True,
         "converted": False,
+        "voltage_source": "station",
+        "active_phase_voltages_published": True,
+        "phase_current_published": True,
+        "configured_current_published": True,
+        "below_minimum": False,
     }
     record.update(overrides)
     return record
@@ -191,7 +240,8 @@ def announcement_record(**overrides: object) -> dict[str, object]:
         "device_type": "EnergyManagementSystem",
         "missing_elements": (),
         "device_actor": "Inverter",
-        "write_outcome": "applied",
+        "allocated_current_admitted": True,
+        "host_accepts_limits": True,
         "overlapping": False,
     }
     record.update(overrides)
@@ -400,13 +450,18 @@ class OutputPublicationTest(unittest.TestCase):
         self.assertEqual(outcome(actor_record(actor="EV", entity_type="EV")), "not_announced")
 
     def test_write_identity_varies_each_field(self) -> None:
-        """Write fields: limit_kind, operation, unit, admitted, converted.
+        """Write fields: limit_kind, operation, unit, admitted, converted, voltage_source, active_phase_voltages_published, phase_current_published, configured_current_published, below_minimum.
 
         limit_kind: a consumption write through the production operation is rejected.
-        operation: allocated current, and the system export operation, are rejected.
+        operation: a system-export write is rejected; allocated current converts a watt limit.
         unit: amperes are rejected.
         admitted: false is not applied.
-        converted: true is rejected.
+        converted: a display unit conversion is rejected.
+        voltage_source: an empty source refuses the watt limit; the installation source converts it.
+        active_phase_voltages_published: false refuses the watt limit and names measured voltage.
+        phase_current_published: false refuses the watt limit and names phase current.
+        configured_current_published: false refuses the watt limit and names configured current.
+        below_minimum: true pauses a complete watt limit at allocated current 0 A.
         """
         outcome = repository_policy.write_mapping_outcome
         base = write_record()
@@ -421,43 +476,140 @@ class OutputPublicationTest(unittest.TestCase):
                 "unit": "A",
                 "admitted": False,
                 "converted": True,
+                "voltage_source": "",
+                "active_phase_voltages_published": False,
+                "phase_current_published": False,
+                "configured_current_published": False,
+                "below_minimum": True,
             },
         )
         self.assertEqual(outcome(write_record(limit_kind="consumption")), "rejected")
         self.assertEqual(outcome(write_record(operation="system export")), "rejected")
-        self.assertEqual(
-            outcome(
-                write_record(
-                    limit_kind="consumption",
-                    operation="evse.operation.set_allocated_current",
-                )
-            ),
-            "rejected",
-        )
         self.assertEqual(outcome(write_record(unit="A")), "rejected")
         self.assertEqual(outcome(write_record(admitted=False)), "not_applied")
         self.assertEqual(outcome(write_record(converted=True)), "rejected")
-        admitted_power = write_record(
+        self.assertEqual(outcome(write_record(voltage_source="")), "applied")
+        self.assertEqual(outcome(write_record(active_phase_voltages_published=False)), "applied")
+        self.assertEqual(outcome(write_record(phase_current_published=False)), "applied")
+        self.assertEqual(outcome(write_record(configured_current_published=False)), "applied")
+        self.assertEqual(outcome(write_record(below_minimum=True)), "applied")
+        self.assertEqual(outcome(self._consumption()), "converted")
+
+    def _consumption(self, **overrides: object) -> dict[str, object]:
+        record = write_record(
             limit_kind="consumption",
-            operation="active power",
+            operation="evse.operation.set_allocated_current",
         )
-        self.assertEqual(outcome(admitted_power), "applied")
-        blocked_power = write_record(
-            limit_kind="consumption",
-            operation="active power",
-            admitted=False,
-        )
-        self.assertEqual(outcome(blocked_power), "not_applied")
+        record.update(overrides)
+        return record
+
+    def test_consumption_limit_varies_voltage_phases_and_range(self) -> None:
+        """Consumption inputs: voltage_source, phase_current_published, configured_current_published, below_minimum.
+
+        voltage_source station: the charging station's phase voltage converts the limit.
+        voltage_source installation: the one other promoted AC source converts the limit.
+        voltage_source empty, nominal, or several: the write is refused and names measured voltage.
+        active_phase_voltages_published false: a source without a voltage on one of the charger's active phases refuses and names measured voltage.
+        phase_current_published false: the write is refused and names phase current.
+        configured_current_published false: the write is refused and names configured current.
+        below_minimum true: a complete limit pauses; a missing voltage still refuses.
+        """
+        outcome = repository_policy.write_mapping_outcome
+        missing = repository_policy.consumption_missing_input
+        station = self._consumption()
+        installation = self._consumption(voltage_source="installation")
+        self.assertEqual(outcome(station), "converted")
+        self.assertEqual(missing(station), "")
+        self.assertEqual(outcome(installation), "converted")
+        self.assertEqual(missing(installation), "")
+        self.assertEqual(outcome(self._consumption(below_minimum=True, voltage_source="installation")), "paused")
+        absent = self._consumption(voltage_source="")
+        nominal = self._consumption(voltage_source="nominal")
+        self.assertEqual(outcome(absent), "refused")
+        self.assertEqual(missing(absent), "measured_voltage")
+        self.assertEqual(outcome(nominal), "refused")
+        self.assertEqual(missing(nominal), "measured_voltage")
+        unmatched = self._consumption(voltage_source="installation", active_phase_voltages_published=False)
+        self.assertEqual(outcome(unmatched), "refused")
+        self.assertEqual(missing(unmatched), "measured_voltage")
+        unmatched_station = self._consumption(active_phase_voltages_published=False)
+        self.assertEqual(outcome(unmatched_station), "refused")
+        self.assertEqual(missing(unmatched_station), "measured_voltage")
+        several = self._consumption(voltage_source="several")
+        self.assertEqual(outcome(several), "refused")
+        self.assertEqual(missing(several), "measured_voltage")
+        no_phase = self._consumption(phase_current_published=False, voltage_source="installation")
+        self.assertEqual(outcome(no_phase), "refused")
+        self.assertEqual(missing(no_phase), "phase_current")
+        no_configured = self._consumption(configured_current_published=False)
+        self.assertEqual(outcome(no_configured), "refused")
+        self.assertEqual(missing(no_configured), "configured_current")
+        self.assertEqual(outcome(self._consumption(below_minimum=True)), "paused")
+        self.assertEqual(missing(self._consumption(below_minimum=True)), "")
+        self.assertEqual(outcome(self._consumption(below_minimum=True, voltage_source="")), "refused")
+        self.assertEqual(outcome(self._consumption(operation="active power")), "rejected")
+        self.assertEqual(outcome(self._consumption(unit="A")), "rejected")
+        self.assertEqual(outcome(self._consumption(admitted=False)), "not_applied")
+        self.assertEqual(outcome(self._consumption(converted=True)), "rejected")
+        both_missing = self._consumption(voltage_source="", phase_current_published=False)
+        self.assertEqual(missing(both_missing), "measured_voltage")
+
+    def _paused(self, **overrides: object) -> dict[str, object]:
+        record: dict[str, object] = {
+            "limit_w": 3000,
+            "phase_currents": (0, 0, 0),
+            "phase_voltages": (230, 230, 230),
+            "measured_voltage": 230,
+            "configured_current": 16,
+            "paused_phase_count": 1,
+            "same_session": True,
+        }
+        record.update(overrides)
+        return record
+
+    def test_paused_single_phase_session_keeps_its_phase_count(self) -> None:
+        """A single-phase EV paused by a 1000 W limit restarts when the limit allows it.
+
+        Pause: one phase at 230 V carries current; 1000 W gives 4 A, below 6 A, so 0 A.
+        Same session, limit raised to 3000 W, no phase carries current: the remembered
+        single phase gives 13 A, not the 4 A of three phases with a measured voltage.
+        New session: the remembered count is dropped and three phases count again.
+        An EV seen drawing on more phases counts those phases.
+        """
+        phases = repository_policy.consumption_active_phase_count
+        amperes = repository_policy.consumption_allocated_current
+        outcome = repository_policy.consumption_conversion_outcome
+        pause = self._paused(limit_w=1000, phase_currents=(10, 0, 0), paused_phase_count=0)
+        self.assertEqual(phases(pause), 1)
+        self.assertEqual(amperes(pause), 0)
+        self.assertEqual(outcome(pause), "paused")
+        raised = self._paused()
+        self.assertEqual(phases(raised), 1)
+        self.assertEqual(amperes(raised), 13)
+        self.assertEqual(outcome(raised), "converted")
+        new_session = self._paused(same_session=False)
+        self.assertEqual(phases(new_session), 3)
+        self.assertEqual(amperes(new_session), 0)
+        self.assertEqual(outcome(new_session), "paused")
+        nothing_remembered = self._paused(paused_phase_count=0)
+        self.assertEqual(phases(nothing_remembered), 3)
+        self.assertEqual(outcome(nothing_remembered), "paused")
+        more_phases = self._paused(phase_currents=(13, 13, 13))
+        self.assertEqual(phases(more_phases), 3)
+        self.assertEqual(amperes(more_phases), 0)
+        clamped = self._paused(limit_w=7000)
+        self.assertEqual(amperes(clamped), 16)
 
     def test_announcement_identity_varies_each_field(self) -> None:
-        """Announcement fields: use_case, device_type_permitted, device_type, missing_elements, device_actor, write_outcome, overlapping.
+        """Announcement fields: use_case, device_type_permitted, device_type, missing_elements, device_actor, allocated_current_admitted, host_accepts_limits, overlapping.
 
         use_case: a name outside the six is not announced.
         device_type_permitted: false is not announced.
         device_type: the loss names the forbidden type.
         missing_elements: the loss names each element.
         device_actor: EV is not announced.
-        write_outcome: a consumption limit that is not applied is not announced.
+        allocated_current_admitted: false withholds Limitation of Power Consumption and names the operation.
+        host_accepts_limits: false withholds Limitation of Power Consumption and names the host.
         overlapping: true is the conflict loss.
         """
         outcome = repository_policy.use_case_announcement_outcome
@@ -475,7 +627,8 @@ class OutputPublicationTest(unittest.TestCase):
                 "device_type": "GridGuard",
                 "missing_elements": ("energy",),
                 "device_actor": "EV",
-                "write_outcome": "not_applied",
+                "allocated_current_admitted": False,
+                "host_accepts_limits": False,
                 "overlapping": True,
             },
         )
@@ -498,16 +651,37 @@ class OutputPublicationTest(unittest.TestCase):
         applied = announcement_record(
             use_case="limitation_of_power_consumption",
             device_actor="EVSE",
-            write_outcome="applied",
-        )
-        blocked = announcement_record(
-            use_case="limitation_of_power_consumption",
-            device_actor="EVSE",
-            write_outcome="not_applied",
+            write_outcome="refused",
         )
         self.assertEqual(outcome(applied), "announced")
-        self.assertEqual(outcome(blocked), "not_announced")
-        self.assertEqual(loss(blocked), ("consumption_limit_not_applied",))
+        self.assertEqual(loss(applied), ())
+        paused = announcement_record(
+            use_case="limitation_of_power_consumption",
+            device_actor="EVSE",
+            write_outcome="paused",
+        )
+        self.assertEqual(outcome(paused), "announced")
+        not_admitted = announcement_record(
+            use_case="limitation_of_power_consumption",
+            device_actor="EVSE",
+            allocated_current_admitted=False,
+        )
+        self.assertEqual(outcome(not_admitted), "not_announced")
+        self.assertEqual(loss(not_admitted), ("allocated_current_not_admitted",))
+        host_rejects = announcement_record(
+            use_case="limitation_of_power_consumption",
+            device_actor="EVSE",
+            host_accepts_limits=False,
+        )
+        self.assertEqual(outcome(host_rejects), "not_announced")
+        self.assertEqual(loss(host_rejects), ("host_rejects_limits",))
+        both = announcement_record(
+            use_case="limitation_of_power_consumption",
+            device_actor="EVSE",
+            allocated_current_admitted=False,
+            host_accepts_limits=False,
+        )
+        self.assertEqual(loss(both), ("allocated_current_not_admitted",))
 
     def test_policy_executes_the_stated_vectors_and_wires_them(self) -> None:
         self.assertEqual(repository_policy.issue_186_vector_errors(), [])

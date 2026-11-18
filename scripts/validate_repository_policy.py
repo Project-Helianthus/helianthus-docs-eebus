@@ -296,6 +296,11 @@ ISSUE186_WRITE_KEY_FIELDS = (
     "unit",
     "admitted",
     "converted",
+    "voltage_source",
+    "active_phase_voltages_published",
+    "phase_current_published",
+    "configured_current_published",
+    "below_minimum",
 )
 ISSUE186_ANNOUNCEMENT_KEY_FIELDS = (
     "use_case",
@@ -303,7 +308,8 @@ ISSUE186_ANNOUNCEMENT_KEY_FIELDS = (
     "device_type",
     "missing_elements",
     "device_actor",
-    "write_outcome",
+    "allocated_current_admitted",
+    "host_accepts_limits",
     "overlapping",
 )
 ISSUE186_PUBLISHED_FAMILIES = frozenset({"charger", "inverter", "pv_string"})
@@ -311,13 +317,7 @@ ISSUE186_REJECTED_FAMILIES = frozenset({"battery", "heating"})
 ISSUE186_DEVICE_TYPE = "EnergyManagementSystem"
 ISSUE186_PRODUCTION_LIMIT = "pv.operation.set_active_power_limit"
 ISSUE186_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
-ISSUE186_NOT_CONSUMPTION_WRITES = frozenset(
-    {
-        "system export",
-        ISSUE186_ALLOCATED_CURRENT,
-        ISSUE186_PRODUCTION_LIMIT,
-    }
-)
+ISSUE186_VOLTAGE_SOURCES = frozenset({"installation", "station"})
 ISSUE186_USE_CASES = frozenset(
     {
         "evse_commissioning_and_configuration",
@@ -374,9 +374,30 @@ ISSUE186_REQUIRED_MARKERS = (
     "A production-limit write is not mapped to the system export operation.",
     "A consumption-limit write is active power.",
     "The only admitted charger write is allocated current.",
-    "Watts are not converted to amperes.",
-    "A watt limit is not applied as allocated current.",
-    "Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.",
+    "A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.",
+    "Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.",
+    "A phase is active while its measured current is above zero; when no phase carries current and the charging session holds no remembered phase count, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "While a charging session is paused by the limit, the conversion uses the number of phases that carried current when that pause began.",
+    "The remembered phase count holds only for the same charging session; a new session, or an EV seen drawing on more phases, goes back to the phases that carry current and, with none yet, to every phase with a measured voltage, so a restart above the limit lasts at most one conversion cycle.",
+    "Example: a single-phase EV on a station that measures 230 V on three phases is paused by a 1000 W limit; a limit raised to 3000 W in the same session gives 3000 / (1 × 230), rounded down to 13 A.",
+    "While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current.",
+    "While any phase carries current, every phase that has carried current since the EV connected also counts as active, so a phase that stops and later resumes is counted before it resumes.",
+    "Where the charging station publishes no connection state, those phases are counted from the moment the consumption limit became effective.",
+    "The measured phase voltage is the phase voltage the charging station publishes, when that resource publishes one.",
+    "When the charging station publishes no phase voltage, the measured phase voltage is the measured AC phase voltage of another promoted resource of the same installation, an inverter AC side or a meter.",
+    "Site and electrical relations select that resource when they exist.",
+    "When the installation has exactly one other promoted source of AC phase voltage, that source is used.",
+    "When more than one other promoted source publishes an AC phase voltage and no site or electrical relation selects one, the write is answered with a negative acknowledgement that names the missing measured voltage.",
+    "From that other source, the measured voltage is the mean of the voltages it publishes on the charger's active phases, matched by phase.",
+    "When the voltage source publishes no voltage on one of the charger's active phases, the write is answered with a negative acknowledgement that names the missing measured voltage.",
+    "A nominal voltage is not a measured phase voltage.",
+    "The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.",
+    "A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.",
+    "When neither source publishes a phase voltage, the write is answered with a negative acknowledgement that names the missing measured voltage.",
+    "Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits; scenarios 1 to 3 are served, scenario 4 is not.",
+    "The effective limit follows section 2.2 of the use case. A deactivated or expired limit releases the charger to the configured current. The failsafe values are pre-configured to 4200 W and 2 hours, stored, and may be changed by the Energy Guard.",
+    "Unit conversion is display-only. The watt-to-ampere computation of a consumption limit is a control rule, not a unit conversion.",
+    "A production-limit write on the Inverter entity is handed to the host and applied through `pv.operation.set_active_power_limit` in watts, with no conversion. Its effective limit follows the state machine of Limitation of Power Production V1.0.0; the failsafe production limit is pre-configured to the upper bound of `pv.limit.active_power` in the PV pack, which restricts nothing, and the failsafe duration minimum to 2 hours.",
     "A use case whose device-side actor is EV is not announced.",
     "This node is not an EV.",
     "Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.",
@@ -390,9 +411,8 @@ ISSUE186_REQUIRED_MARKERS = (
     "String-dimension DC quantities are not admitted.",
     "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
     "The admitted charger operation is `evse.operation.set_allocated_current`.",
-    "An active-power limit is not an admitted charger write.",
     "Canonical units are SI.",
-    "Conversion is display-only.",
+    "or applies a watt limit without the measured voltage and active phases,",
     "No semantic element is added.",
     "No contract version is raised.",
     "Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.",
@@ -408,6 +428,15 @@ ISSUE186_STALE_MARKERS = (
     "The CEM entity is the Controllable System of one device.",
     "A watt limit is applied as allocated current.",
     "A newer revision of SHIP is cited.",
+    "Watts are not converted to amperes.",
+    "A watt limit is not applied as allocated current.",
+    "Limitation of Power Consumption V1.0.0 is not announced while the write cannot be applied.",
+    "An active-power limit is not an admitted charger write.",
+    "Conversion is display-only.",
+    "applies a watt limit as allocated current",
+    "The mean of that other source is the mean of the phases it publishes.",
+    "so the watt limit holds when the other phases resume.",
+    "when no phase carries current, every phase with a measured voltage counts.",
 )
 ISSUE138_HISTORICAL_RELS = (
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
@@ -1509,7 +1538,8 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     "README.md": "a4654d0d0c88a98e6c7edb23801b8d58" "85b9076a6613c3f6099699412f7633f8",
     # Output-binding candidate named; issue #179.
     # Output publication rule named; issue #186.
-    "api/README.md": "1160a2b2ebede96ada27ffe86192819c" "f287ade320dbd589df169d30a8918261",
+    # Consumption limit applied as allocated current; issue #189.
+    "api/README.md": "8adb4185a97730be149f5765af817558" "bfee8cfd7663a2905a35b17c02a97264",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
     "evidence/evidence-template.md": (
@@ -5271,37 +5301,134 @@ def _production_write_outcome(
     return "not_applied"
 
 
+def consumption_missing_input(record: dict[str, object]) -> str:
+    (
+        _limit_kind,
+        _operation,
+        _unit,
+        _admitted,
+        _converted,
+        voltage_source,
+        active_phase_voltages_published,
+        phase_current_published,
+        configured_current_published,
+        _below_minimum,
+    ) = write_mapping_key(record)
+    if voltage_source not in ISSUE186_VOLTAGE_SOURCES:
+        return "measured_voltage"
+    if active_phase_voltages_published is not True:
+        return "measured_voltage"
+    if phase_current_published is not True:
+        return "phase_current"
+    if configured_current_published is not True:
+        return "configured_current"
+    return ""
+
+
 def _consumption_write_outcome(
-    operation: object, unit: object, admitted: object
+    operation: object,
+    unit: object,
+    admitted: object,
+    missing_input: str,
+    below_minimum: object,
 ) -> str:
-    if operation in ISSUE186_NOT_CONSUMPTION_WRITES or unit != "W":
+    if operation != ISSUE186_ALLOCATED_CURRENT or unit != "W":
         return "rejected"
-    if admitted is True:
-        return "applied"
-    return "not_applied"
+    if admitted is not True:
+        return "not_applied"
+    if missing_input != "":
+        return "refused"
+    if below_minimum is True:
+        return "paused"
+    return "converted"
 
 
 def write_mapping_outcome(record: dict[str, object]) -> str:
-    limit_kind, operation, unit, admitted, converted = write_mapping_key(record)
+    (
+        limit_kind,
+        operation,
+        unit,
+        admitted,
+        converted,
+        _voltage_source,
+        _active_phase_voltages_published,
+        _phase_current_published,
+        _configured_current_published,
+        below_minimum,
+    ) = write_mapping_key(record)
     if converted is True:
         return "rejected"
     if limit_kind == "production":
         return _production_write_outcome(operation, unit, admitted)
     if limit_kind == "consumption":
-        return _consumption_write_outcome(operation, unit, admitted)
+        return _consumption_write_outcome(
+            operation,
+            unit,
+            admitted,
+            consumption_missing_input(record),
+            below_minimum,
+        )
     return "rejected"
 
 
+ISSUE186_MINIMUM_CURRENT_A = 6
+
+
+def consumption_active_phase_count(record: dict[str, object]) -> int:
+    """Phases the watt-to-ampere conversion counts for one measurement.
+
+    Phases carrying current count. With none carrying current, a pause by the
+    limit in the same charging session keeps the phase count remembered when
+    that pause began; otherwise every phase with a measured voltage counts.
+    """
+    carrying = sum(1 for current in record["phase_currents"] if current > 0)
+    if carrying > 0:
+        return carrying
+    remembered = record["paused_phase_count"]
+    if record["same_session"] is True and isinstance(remembered, int) and remembered > 0:
+        return remembered
+    return sum(1 for voltage in record["phase_voltages"] if voltage > 0)
+
+
+def consumption_allocated_current(record: dict[str, object]) -> int:
+    """Allocated amperes of a consumption limit; 0 pauses charging."""
+    phases = consumption_active_phase_count(record)
+    amperes = int(record["limit_w"] // (phases * record["measured_voltage"]))
+    if amperes < ISSUE186_MINIMUM_CURRENT_A:
+        return 0
+    return min(amperes, record["configured_current"])
+
+
+def consumption_conversion_outcome(record: dict[str, object]) -> str:
+    if consumption_allocated_current(record) == 0:
+        return "paused"
+    return "converted"
+
+
+def _consumption_announcement_blocked(admitted: object, host_accepts: object) -> bool:
+    return admitted is not True or host_accepts is not True
+
+
 def _announcement_blocked(key: tuple[object, ...]) -> str:
-    # Fields are use case, permission, device type, missing elements, actor, write, overlap.
-    if key[6] is True:
+    (
+        use_case,
+        device_type_permitted,
+        _device_type,
+        missing_elements,
+        device_actor,
+        allocated_current_admitted,
+        host_accepts_limits,
+        overlapping,
+    ) = key
+    if overlapping is True:
         return "conflict"
-    if key[4] == "EV" or key[1] is not True:
+    if device_actor == "EV" or device_type_permitted is not True:
         return "not_announced"
-    missing = key[3]
-    if isinstance(missing, tuple) and len(missing) > 0:
+    if isinstance(missing_elements, tuple) and len(missing_elements) > 0:
         return "not_announced"
-    if key[0] == "limitation_of_power_consumption" and key[5] != "applied":
+    if use_case != "limitation_of_power_consumption":
+        return ""
+    if _consumption_announcement_blocked(allocated_current_admitted, host_accepts_limits):
         return "not_announced"
     return ""
 
@@ -5322,6 +5449,14 @@ def _device_type_loss(device_type: object) -> tuple[str, ...]:
     return ("device_type_prohibition",)
 
 
+def _consumption_announcement_loss(record: dict[str, object]) -> tuple[str, ...]:
+    if record.get("allocated_current_admitted") is not True:
+        return ("allocated_current_not_admitted",)
+    if record.get("host_accepts_limits") is not True:
+        return ("host_rejects_limits",)
+    return ("not_announced",)
+
+
 def _loss_names(record: dict[str, object]) -> tuple[str, ...]:
     if record.get("device_actor") == "EV":
         return ("EV",)
@@ -5330,10 +5465,8 @@ def _loss_names(record: dict[str, object]) -> tuple[str, ...]:
     missing = record.get("missing_elements")
     if isinstance(missing, tuple) and len(missing) > 0:
         return missing
-    use_case = record.get("use_case")
-    write_outcome = record.get("write_outcome")
-    if use_case == "limitation_of_power_consumption" and write_outcome != "applied":
-        return ("consumption_limit_not_applied",)
+    if record.get("use_case") == "limitation_of_power_consumption":
+        return _consumption_announcement_loss(record)
     return ("not_announced",)
 
 
@@ -5381,14 +5514,21 @@ def _issue186_actor(
     }
 
 
-def _issue186_write(limit_kind: str, operation: str) -> dict[str, object]:
-    return {
+def _issue186_write(limit_kind: str, operation: str, **extra: object) -> dict[str, object]:
+    record: dict[str, object] = {
         "limit_kind": limit_kind,
         "operation": operation,
         "unit": "W",
         "admitted": True,
         "converted": False,
+        "voltage_source": "station",
+        "active_phase_voltages_published": True,
+        "phase_current_published": True,
+        "configured_current_published": True,
+        "below_minimum": False,
     }
+    record.update(extra)
+    return record
 
 
 ISSUE186_VECTORS = (
@@ -5458,7 +5598,41 @@ ISSUE186_VECTORS = (
         "watt_limit_as_current",
         write_mapping_outcome,
         _issue186_write("consumption", ISSUE186_ALLOCATED_CURRENT),
-        "rejected",
+        "converted",
+    ),
+    (
+        "watt_limit_below_minimum",
+        write_mapping_outcome,
+        _issue186_write(
+            "consumption",
+            ISSUE186_ALLOCATED_CURRENT,
+            below_minimum=True,
+        ),
+        "paused",
+    ),
+    (
+        "watt_limit_without_voltage",
+        write_mapping_outcome,
+        _issue186_write(
+            "consumption",
+            ISSUE186_ALLOCATED_CURRENT,
+            voltage_source="",
+        ),
+        "refused",
+    ),
+    (
+        "watt_limit_paused_single_phase",
+        consumption_conversion_outcome,
+        {
+            "limit_w": 3000,
+            "phase_currents": (0, 0, 0),
+            "phase_voltages": (230, 230, 230),
+            "measured_voltage": 230,
+            "configured_current": 16,
+            "paused_phase_count": 1,
+            "same_session": True,
+        },
+        "converted",
     ),
     (
         "production_limit_write",
