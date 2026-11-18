@@ -48,7 +48,10 @@ MARKERS = (
     "The only admitted charger write is allocated current.",
     "A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.",
     "Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.",
-    "A phase is active while its measured current is above zero; when no phase carries current, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "A phase is active while its measured current is above zero; when no phase carries current and the charging session holds no remembered phase count, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "While a charging session is paused by the limit, the conversion uses the number of phases that carried current when that pause began.",
+    "The remembered phase count holds only for the same charging session; a new session, or an EV seen drawing on more phases, goes back to the phases that carry current and, with none yet, to every phase with a measured voltage, so a restart above the limit lasts at most one conversion cycle.",
+    "Example: a single-phase EV on a station that measures 230 V on three phases is paused by a 1000 W limit; a limit raised to 3000 W in the same session gives 3000 / (1 × 230), rounded down to 13 A.",
     "While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current.",
     "While any phase carries current, every phase that has carried current since the EV connected also counts as active, so a phase that stops and later resumes is counted before it resumes.",
     "Where the charging station publishes no connection state, those phases are counted from the moment the consumption limit became effective.",
@@ -105,6 +108,7 @@ STALE = (
     "applies a watt limit as allocated current",
     "The mean of that other source is the mean of the phases it publishes.",
     "so the watt limit holds when the other phases resume.",
+    "when no phase carries current, every phase with a measured voltage counts.",
 )
 VECTOR_ROWS = (
     ("heating_resource", "not_published"),
@@ -119,6 +123,7 @@ VECTOR_ROWS = (
     ("watt_limit_as_current", "converted"),
     ("watt_limit_below_minimum", "paused"),
     ("watt_limit_without_voltage", "refused"),
+    ("watt_limit_paused_single_phase", "converted"),
     ("production_limit_write", "applied"),
 )
 RESOURCE_FIELDS = (
@@ -548,6 +553,52 @@ class OutputPublicationTest(unittest.TestCase):
         self.assertEqual(outcome(self._consumption(converted=True)), "rejected")
         both_missing = self._consumption(voltage_source="", phase_current_published=False)
         self.assertEqual(missing(both_missing), "measured_voltage")
+
+    def _paused(self, **overrides: object) -> dict[str, object]:
+        record: dict[str, object] = {
+            "limit_w": 3000,
+            "phase_currents": (0, 0, 0),
+            "phase_voltages": (230, 230, 230),
+            "measured_voltage": 230,
+            "configured_current": 16,
+            "paused_phase_count": 1,
+            "same_session": True,
+        }
+        record.update(overrides)
+        return record
+
+    def test_paused_single_phase_session_keeps_its_phase_count(self) -> None:
+        """A single-phase EV paused by a 1000 W limit restarts when the limit allows it.
+
+        Pause: one phase at 230 V carries current; 1000 W gives 4 A, below 6 A, so 0 A.
+        Same session, limit raised to 3000 W, no phase carries current: the remembered
+        single phase gives 13 A, not the 4 A of three phases with a measured voltage.
+        New session: the remembered count is dropped and three phases count again.
+        An EV seen drawing on more phases counts those phases.
+        """
+        phases = repository_policy.consumption_active_phase_count
+        amperes = repository_policy.consumption_allocated_current
+        outcome = repository_policy.consumption_conversion_outcome
+        pause = self._paused(limit_w=1000, phase_currents=(10, 0, 0), paused_phase_count=0)
+        self.assertEqual(phases(pause), 1)
+        self.assertEqual(amperes(pause), 0)
+        self.assertEqual(outcome(pause), "paused")
+        raised = self._paused()
+        self.assertEqual(phases(raised), 1)
+        self.assertEqual(amperes(raised), 13)
+        self.assertEqual(outcome(raised), "converted")
+        new_session = self._paused(same_session=False)
+        self.assertEqual(phases(new_session), 3)
+        self.assertEqual(amperes(new_session), 0)
+        self.assertEqual(outcome(new_session), "paused")
+        nothing_remembered = self._paused(paused_phase_count=0)
+        self.assertEqual(phases(nothing_remembered), 3)
+        self.assertEqual(outcome(nothing_remembered), "paused")
+        more_phases = self._paused(phase_currents=(13, 13, 13))
+        self.assertEqual(phases(more_phases), 3)
+        self.assertEqual(amperes(more_phases), 0)
+        clamped = self._paused(limit_w=7000)
+        self.assertEqual(amperes(clamped), 16)
 
     def test_announcement_identity_varies_each_field(self) -> None:
         """Announcement fields: use_case, device_type_permitted, device_type, missing_elements, device_actor, allocated_current_admitted, host_accepts_limits, overlapping.

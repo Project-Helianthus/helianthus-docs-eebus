@@ -127,7 +127,10 @@ A consumption-limit write is active power.
 The only admitted charger write is allocated current.
 A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.
 Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.
-A phase is active while its measured current is above zero; when no phase carries current, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.
+A phase is active while its measured current is above zero; when no phase carries current and the charging session holds no remembered phase count, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.
+While a charging session is paused by the limit, the conversion uses the number of phases that carried current when that pause began.
+The remembered phase count holds only for the same charging session; a new session, or an EV seen drawing on more phases, goes back to the phases that carry current and, with none yet, to every phase with a measured voltage, so a restart above the limit lasts at most one conversion cycle.
+Example: a single-phase EV on a station that measures 230 V on three phases is paused by a 1000 W limit; a limit raised to 3000 W in the same session gives 3000 / (1 × 230), rounded down to 13 A.
 While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current.
 While any phase carries current, every phase that has carried current since the EV connected also counts as active, so a phase that stops and later resumes is counted before it resumes.
 Where the charging station publishes no connection state, those phases are counted from the moment the consumption limit became effective.
@@ -176,6 +179,7 @@ These rows are the contract's own vectors. The outcome column is the rule above.
 | `watt_limit_as_current` | consumption limit in watts through allocated current | converted |
 | `watt_limit_below_minimum` | consumption limit in watts that computes below 6 A | paused |
 | `watt_limit_without_voltage` | consumption limit in watts with no measured voltage from the charging station or another promoted resource | refused |
+| `watt_limit_paused_single_phase` | one phase carried current when a 1000 W limit paused the session, three phases measure 230 V, limit raised to 3000 W in the same session | converted |
 | `production_limit_write` | admitted production limit in watts | applied |
 
 ## Unchanged surfaces

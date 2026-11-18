@@ -376,7 +376,10 @@ ISSUE186_REQUIRED_MARKERS = (
     "The only admitted charger write is allocated current.",
     "A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.",
     "Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.",
-    "A phase is active while its measured current is above zero; when no phase carries current, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "A phase is active while its measured current is above zero; when no phase carries current and the charging session holds no remembered phase count, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "While a charging session is paused by the limit, the conversion uses the number of phases that carried current when that pause began.",
+    "The remembered phase count holds only for the same charging session; a new session, or an EV seen drawing on more phases, goes back to the phases that carry current and, with none yet, to every phase with a measured voltage, so a restart above the limit lasts at most one conversion cycle.",
+    "Example: a single-phase EV on a station that measures 230 V on three phases is paused by a 1000 W limit; a limit raised to 3000 W in the same session gives 3000 / (1 × 230), rounded down to 13 A.",
     "While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current.",
     "While any phase carries current, every phase that has carried current since the EV connected also counts as active, so a phase that stops and later resumes is counted before it resumes.",
     "Where the charging station publishes no connection state, those phases are counted from the moment the consumption limit became effective.",
@@ -433,6 +436,7 @@ ISSUE186_STALE_MARKERS = (
     "applies a watt limit as allocated current",
     "The mean of that other source is the mean of the phases it publishes.",
     "so the watt limit holds when the other phases resume.",
+    "when no phase carries current, every phase with a measured voltage counts.",
 )
 ISSUE138_HISTORICAL_RELS = (
     Path("api/_candidate/msp-06-eebus-mcp-v1.md"),
@@ -5367,6 +5371,40 @@ def write_mapping_outcome(record: dict[str, object]) -> str:
     return "rejected"
 
 
+ISSUE186_MINIMUM_CURRENT_A = 6
+
+
+def consumption_active_phase_count(record: dict[str, object]) -> int:
+    """Phases the watt-to-ampere conversion counts for one measurement.
+
+    Phases carrying current count. With none carrying current, a pause by the
+    limit in the same charging session keeps the phase count remembered when
+    that pause began; otherwise every phase with a measured voltage counts.
+    """
+    carrying = sum(1 for current in record["phase_currents"] if current > 0)
+    if carrying > 0:
+        return carrying
+    remembered = record["paused_phase_count"]
+    if record["same_session"] is True and isinstance(remembered, int) and remembered > 0:
+        return remembered
+    return sum(1 for voltage in record["phase_voltages"] if voltage > 0)
+
+
+def consumption_allocated_current(record: dict[str, object]) -> int:
+    """Allocated amperes of a consumption limit; 0 pauses charging."""
+    phases = consumption_active_phase_count(record)
+    amperes = int(record["limit_w"] // (phases * record["measured_voltage"]))
+    if amperes < ISSUE186_MINIMUM_CURRENT_A:
+        return 0
+    return min(amperes, record["configured_current"])
+
+
+def consumption_conversion_outcome(record: dict[str, object]) -> str:
+    if consumption_allocated_current(record) == 0:
+        return "paused"
+    return "converted"
+
+
 def _consumption_announcement_blocked(admitted: object, host_accepts: object) -> bool:
     return admitted is not True or host_accepts is not True
 
@@ -5581,6 +5619,20 @@ ISSUE186_VECTORS = (
             voltage_source="",
         ),
         "refused",
+    ),
+    (
+        "watt_limit_paused_single_phase",
+        consumption_conversion_outcome,
+        {
+            "limit_w": 3000,
+            "phase_currents": (0, 0, 0),
+            "phase_voltages": (230, 230, 230),
+            "measured_voltage": 230,
+            "configured_current": 16,
+            "paused_phase_count": 1,
+            "same_session": True,
+        },
+        "converted",
     ),
     (
         "production_limit_write",
