@@ -49,6 +49,7 @@ MARKERS = (
     "A consumption-limit write on the EVSE entity is applied through `evse.operation.set_allocated_current`.",
     "Amperes = the limit in watts / (active phases × measured phase voltage), rounded down to a whole ampere and clamped to the station's range.",
     "A phase is active while its measured current is above zero; when no phase carries current, every phase with a measured voltage counts. The measured voltage is the mean of the active phases' measured voltages.",
+    "While a consumption limit is effective, the allocated current is recomputed from each new measurement of phase current, measured voltage or configured current; a phase that starts carrying current counts as active from that measurement on, so the watt limit holds when the other phases resume.",
     "The measured phase voltage is the phase voltage the charging station publishes, when that resource publishes one.",
     "When the charging station publishes no phase voltage, the measured phase voltage is the measured AC phase voltage of another promoted resource of the same installation, an inverter AC side or a meter.",
     "Site and electrical relations select that resource when they exist.",
