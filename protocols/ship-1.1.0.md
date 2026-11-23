@@ -553,8 +553,8 @@ Certificate and SKI rules are §12.1 and §12.2. The double-connection rule is �
 | Pairing and trust | If both sides start a close together, a received removedConnection outweighs a received unspecific. | clause not printed |
 | QR code limits | Module size at least 330×10⁻⁶ m, stated to equal 4 pixels at 300 dpi. | clause not printed |
 | QR code limits | Quiet zone at least 4 modules wide. | clause not printed |
-| QR code limits | example, SKI and PIN only: 33 × 0.33 mm = 10.89 mm, quiet zone excluded. | clause not printed |
-| QR code limits | example, with the optional text values: 47 × 0.33 mm = 15.51 mm, quiet zone excluded. The text says another example can differ because ID, BRAND, TYPE, and MODEL vary in length. | clause not printed |
+| QR code limits | A symbol that carries only SKI and PIN has a drawn size, quiet zone excluded, equal to its module count times the module size (SHIP Specification 1.1.0 §12.7). | §12.7 |
+| QR code limits | When the optional text fields are also carried, the module count follows the lengths of ID, BRAND, TYPE, and MODEL (SHIP Specification 1.1.0 §12.7). | §12.7 |
 | QR code limits | (both brainpool SKIs) has a caption and no printed millimetre size. | clause not printed |
 | QR code limits | Field order that is printed: SHIP;, then SKI:, then PIN: if the node has a PIN, then ID: (after PIN if present, otherwise after SKI), then BRAND: after ID, TYPE: after BRAND, MODEL: after TYPE, BSKI: after MODEL, B2SKI: after BSKI. | clause not printed |
 | CMI states | Step: CMI_STATE_CLIENT_SEND; Behaviour: Client sends CMI with MessageValue = 0, then immediately enters CMI_STATE_CLIENT_WAIT. | clause not printed |

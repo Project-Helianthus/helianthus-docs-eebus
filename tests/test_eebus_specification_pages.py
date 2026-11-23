@@ -404,6 +404,88 @@ class SpecificationPagesTest(unittest.TestCase):
             ):
                 self.assertNotIn(banned, rule)
 
+    def test_worked_examples_state_the_rule_without_values(self):
+        protocol = (ROOT / "protocols/spine-protocol-1.3.0.md").read_text(encoding="utf-8")
+        for banned in (
+            "V1.1.0_draft1_1234",
+            "draft1_1234",
+            "V1.1.0_RC1_1765",
+            "RC1_1765",
+            "SOME_specification_V1.0.0_20150522",
+            "entity list is 1 then 4",
+            "entity list is only 4",
+            "nested entity 4",
+            "under entity 1",
+        ):
+            self.assertNotIn(banned, protocol, banned)
+        version_rule = (
+            "placing its version numerals in useCaseVersion and the following "
+            "release token in useCaseDocumentSubRevision "
+            "(SPINE Protocol Specification 1.3.0 Table 20)"
+        )
+        self.assertEqual(protocol.count(version_rule), 2)
+        annex_rule = (
+            "A date in YYYYMMDD form may sit after the version part and before any label. "
+            "On a final release the date follows the version. "
+            "For draft, alpha, beta, or RC the date follows that tag's numeral. "
+            "For a snapshot the date follows the repository revision "
+            "(SPINE Protocol Specification 1.3.0 Annex C)."
+        )
+        self.assertEqual(protocol.count(annex_rule), 3)
+        self.assertIn(
+            "A selector matches only an exact entity list. "
+            "That list matches the same entity path and the same path with a feature after it. "
+            "A list of one entity number matches only the top-level entity with that number. "
+            "A nested entity that reuses that number under a parent matches a list that includes the parent "
+            "(SPINE Protocol Specification 1.3.0 §5.3.4.7.2, Table 10).",
+            protocol,
+        )
+
+        protocol_page_11 = (ROOT / "protocols/ship-1.1.0.md").read_text(encoding="utf-8")
+        for banned in ("10.89", "15.51", "33 × 0.33", "47 × 0.33", "0.33 mm"):
+            self.assertNotIn(banned, protocol_page_11, banned)
+        self.assertIn(
+            "A symbol that carries only SKI and PIN has a drawn size, quiet zone excluded, "
+            "equal to its module count times the module size (SHIP Specification 1.1.0 §12.7).",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "When the optional text fields are also carried, the module count follows the lengths of "
+            "ID, BRAND, TYPE, and MODEL (SHIP Specification 1.1.0 §12.7).",
+            protocol_page_11,
+        )
+        self.assertIn("Module size at least 330×10⁻⁶ m", protocol_page_11)
+        self.assertIn("Quiet zone at least 4 modules wide.", protocol_page_11)
+        self.assertIn("Field order that is printed: SHIP;", protocol_page_11)
+
+        data = (ROOT / "protocols/spine-resources-1.3.0-data-points.tsv").read_text(
+            encoding="utf-8"
+        )
+        for banned in (
+            "examples printed",
+            "1.0.0, 1.5.3",
+            "charge, discharge, idle",
+            "m^3, m^3/h, m/s^2, kg_m^2",
+        ):
+            self.assertNotIn(banned, data, banned)
+        self.assertIn(
+            "specificationVersionList; id: SPINE specification versions the device supports; "
+            "range: at least the child below (SPINE Protocol Specification 1.3.0 Table 11)",
+            data,
+        )
+        self.assertIn(
+            "scope; id: batteryControl; range: battery control "
+            "(SPINE Resource Specification 1.3.0 §3.10.1.22, Table 9)",
+            data,
+        )
+        self.assertIn(
+            "x/y division; x^y power; x_y multiplication "
+            "(SPINE Resource Specification 1.3.0 §3.10.1.18)",
+            data,
+        )
+        self.assertIn("scope; id: charge; range: battery charge", data)
+        self.assertIn("unit; id: m^3/h; range: Table 7", data)
+
 
 if __name__ == "__main__":
     unittest.main()
