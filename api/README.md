@@ -43,18 +43,30 @@ runtime, protocol, consumer, or deployment claims.
 ## eeBUS MCP integration
 
 The gateway's eeBUS runtime integration exists. Its MCP contract page,
-`msp-06-eebus-mcp-v1.md`, remains published as a candidate until [follow-up #174](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/174)
-promotes it. These navigation notes make no native protocol qualification or
-stable pre-1.0 compatibility claim. Other candidate amendments retain their
-existing status.
+`msp-06-eebus-mcp-v1.md`, remains published as a candidate. Candidate status is
+the maturity level of a page. Its text may still change before release. It is
+not a condition on implementing, declaring support for, or publishing what the
+page specifies. Follow-up
+[#174](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/174)
+is a later documentation step. These navigation notes make no native protocol
+qualification or stable pre-1.0 compatibility claim. Other candidate amendments
+retain their existing status.
 
 ## eeBUS output binding
 
-The candidate page `eebus-output-binding-contract-v1.md` names the input lens,
-entity and feature composition, operations admitted per resource, identity
-persistence, and declared loss for an eeBUS output. It remains a candidate.
-These navigation notes do not raise a contract version, do not change the
-frozen API reference, and do not change the MCP wire schemas.
+The candidate page `eebus-output-binding-contract-v1.md` names the input lenses
+`lens.equipment_composition` and `lens.installation_hierarchy`, both read on
+the one retained captured cut, plus entity and feature composition, operations
+admitted per resource, identity persistence, and declared loss for an eeBUS
+output. It remains a candidate. These navigation notes do not raise a contract
+version, do not change the frozen API reference, and do not change the MCP
+wire schemas.
+
+## eeBUS remote sources
+
+The candidate page `eebus-remote-sources-v1.md` states the
+actors, values, and identity rule for a remote eeBUS device. It remains a
+candidate. These navigation notes do not raise a contract version.
 
 ## eeBUS output publication
 

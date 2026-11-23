@@ -7,7 +7,7 @@ claim_status: "evidence-backed"
 source_class: "derived_inference"
 evidence_ids: "EV-20260711-001"
 hypothesis_status: "draft"
-falsifier: "A reviewed eeBUS output publishes a heating or battery resource, adds a second advertisement, uses the CEM entity as a device Controllable System, or applies a watt limit without the measured voltage and active phases, and the owning check accepts that output."
+falsifier: "A reviewed eeBUS output withholds a lens-admitted heating, battery, grid-connection or meter resource, merges a meter into the grid connection, or applies a watt limit without the measured voltage and active phases, and the owning check accepts that output."
 stable_navigation: "false"
 search: "false"
 sitemap: "false"
@@ -42,7 +42,7 @@ Issue
 
 ## Evidence class
 
-Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.
+Proven. Discovery follows SHIP 1.0.1 §7, and the SPINE device type follows SPINE Resource Specification 1.3.0 Table 353 or SPINE Protocol Specification 1.3.0 §7.1.1.1.
 That discovery page is the SHIP and SPINE overview already published in this
 repository.
 `EV-20260711-001` supports the publication boundary only.
@@ -57,32 +57,36 @@ None of these classes is a device qualification.
 
 ## Published resources
 
-Publish every lens-admitted inverter, PV string and charger resource.
-A heating resource is not published.
-A battery resource is not published.
+Publish every lens-admitted inverter, PV string, charger, battery, heating, grid-connection and meter resource.
+A heating resource is published.
+A battery resource is published.
 A lens-admitted resource is one entity of this output (CID-1).
+A meter resource is its own SubMeterElectricity entity beside the grid connection and is never merged into it.
+The EVSE total is the SemReg member sum of one cut and is marked derived.
+The node serves the heartbeat Limitation of Power Production V1.0.0 [LPP-031] defines.
+The EVSE operating state is a declared mapping from the EVSE statuses.
 
-A charger resource is the EVSE entity. A meter, generic equipment, heating
-equipment and a battery stay outside this publication.
+A charger resource is the EVSE entity. A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.
 
 An input-dimension fact is not a string (CID-4).
 A PV String entity is a child of the Inverter only through a cited contains instance (TRV-1).
 
-Admitted inverter elements are inverter AC measurements, energy, temperature and operating state.
+Admitted inverter elements are inverter AC measurements, apparent power, reactive power, line-to-line voltage, energy, temperature and operating state.
 `pv.operation.set_active_power_limit` is admitted in watts.
-String-dimension DC quantities are not admitted.
-Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.
+String-dimension DC quantities are admitted.
+Inverter apparent power, inverter reactive power and line-to-line voltage are admitted.
 The admitted charger operation is `evse.operation.set_allocated_current`.
 Canonical units are SI.
 
 ## Advertisement and entities
 
-One advertisement for SHIP stays.
-The device type is EnergyManagementSystem.
-Reject a second advertisement for SHIP.
-A second service is not added.
+SHIP 1.0.1 §7 prints no fixed number of advertisements.
+The SPINE device type is a standard type of SPINE Resource Specification 1.3.0 Table 353 or a vendor-specific type matching SPINE Protocol Specification 1.3.0 §7.1.1.1.
+A second advertisement that meets SHIP 1.0.1 §7 is accepted.
+A second service that meets SHIP 1.0.1 §7 is accepted.
 The node keeps one CEM entity.
-The extra entities are Inverter, a PV String child of that Inverter, and EVSE.
+The published entities include Inverter, a PV String child of that Inverter, EVSE, Battery, heating, the grid connection and a distinct meter.
+Where a use-case clause prints no device type for the role this node takes, that device type stays unknown.
 
 A use case that forbids that device type is not announced, and the loss names the prohibition.
 
@@ -93,6 +97,10 @@ The actor PV String of Monitoring of PV String V1.0.0 RC4 is taken when a string
 The actor Inverter is the Controllable System of Limitation of Power Production V1.0.0.
 The actor EVSE of EVSE Commissioning and Configuration V1.0.1 is taken.
 The actor EVSE is the Monitored Unit of Monitoring of Power Consumption V1.0.0.
+The actor Inverter is the Monitored Unit of Monitoring of Power Consumption V1.0.0.
+The actor Battery of Monitoring of Battery V1.0.0 is taken.
+The HVAC monitoring actors of HVAC Temperature V1.0.0 and HVAC System Function V1.0.0 are taken.
+The actor Grid Connection Point of Monitoring of Grid Connection Point V1.0.0 is taken.
 The actor EVSE is the Controllable System of Limitation of Power Consumption V1.0.0.
 
 The local CEM takes Energy Guard of a limitation use case only while no trusted remote already announces Energy Guard for that use case.
@@ -100,9 +108,7 @@ The CEM entity is never the Controllable System of one device.
 The CEM entity is never the Monitored Unit.
 A CEM-located Controllable System represents every device that CEM controls, not the CEM's own power.
 
-Other entity types a cited use case permits are not taken on this node.
-GridGuard is not an entity of this node. A heating entity is not added for a
-consumption limit.
+GridGuard is not an entity of this node.
 
 ## Announcement and loss
 
@@ -111,9 +117,9 @@ Otherwise the use case is not announced, and the loss names each missing element
 Where a mandatory element is cited as absent, the loss names it (LRS-3, TGT-3).
 A partial resource stays partial. Missing elements are not invented.
 
-Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits; scenarios 1 to 3 are served, scenario 4 is not.
-A use case whose device-side actor is EV is not announced.
-This node is not an EV.
+Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits, and the node serves the heartbeat Limitation of Power Consumption V1.0.0 [LPC-031] defines; each scenario keeps the specification's own mandatory, recommended or optional marking.
+An EV actor is announced when the SemReg elements its use case requires are present.
+The node presents the EV actor of each charging use case wherever SemReg has its elements.
 Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.
 
 Two overlapping writes are the existing conflict loss.
@@ -153,13 +159,32 @@ A production-limit write on the Inverter entity is handed to the host and applie
 
 The cited transport revision is SHIP 1.0.1.
 The cited data-model revision is SPINE 1.3.0.
-A newer revision of SHIP is not cited.
-Citing these revisions does not resolve a normative source row.
+SHIP 1.1.0 is recorded as a later revision and is not the revision this node declares.
+The recorded revisions declare the mappings.
 
 The cited use-case revisions are Monitoring of Inverter V1.0.0, Monitoring of
 PV String V1.0.0 RC4, EVSE Commissioning and Configuration V1.0.1, Limitation
 of Power Production V1.0.0, Limitation of Power Consumption V1.0.0 and
 Monitoring of Power Consumption V1.0.0.
+
+## Value mapping
+
+| SemReg element | SPINE feature | scope | unit | conversion |
+| --- | --- | --- | --- | --- |
+| inverter AC active power | Measurement | acPowerTotal | W | none |
+| inverter apparent power | Measurement | acPowerApparentTotal | VA | none; non-negative (Monitoring of Inverter 1.0.0) |
+| inverter reactive power | Measurement | acPowerReactiveTotal | var | none |
+| line-to-line voltage | Measurement | acVoltage phase-to-phase | V | none; voltage is not an energy-direction sign (Monitoring of Power Consumption 1.0.0) |
+| string DC quantities | Measurement | string DC power, voltage and current | W, V, A | none |
+| heating zone temperature | Measurement | room temperature | K | degree Celsius to kelvin |
+| hot-water temperature | Measurement | DHW temperature | K | degree Celsius to kelvin |
+| system outdoor temperature | Measurement | outsideAirTemperature | K | degree Celsius to kelvin |
+| battery state of charge | Measurement | state of charge | ratio 0-1 | percent to ratio |
+| grid active power | Measurement | acPowerTotal | W | positive sample is consumption where positiveEnergyDirection is consume |
+| meter energy | Measurement | acEnergyConsumed | J | Wh to J, 1 Wh is 3600 J |
+| EVSE total active power | Measurement | acPowerTotal | W | SemReg member sum of one cut, marked derived; valueSource admits calculatedValue (Monitoring of Power Consumption 1.0.0 section 3.2.2.2.3.3 Table 25) |
+
+Monitoring of Grid Connection Point 1.0.0 scenarios, Monitoring Appliance then Grid Connection Point: 1 O/O, 2 R/M, 3 O/M, 4 O/M, 5 O/R, 6 O/O, 7 O/O. Each scenario keeps the specification's own mandatory, recommended or optional marking.
 
 ## Vectors
 
@@ -167,15 +192,32 @@ These rows are the contract's own vectors. The outcome column is the rule above.
 
 | Case | Given | Outcome |
 | --- | --- | --- |
-| `heating_resource` | family heating, lens admitted, runtime enabled | not_published |
-| `battery_resource` | family battery, lens admitted, runtime enabled | not_published |
+| `heating_resource` | family heating, lens admitted, runtime enabled | published |
+| `battery_resource` | family battery, lens admitted, runtime enabled | published |
 | `inverter_resource` | family inverter, lens admitted, runtime enabled | published |
 | `pv_string_resource` | family pv string, child of the inverter, lens admitted | published |
 | `charger_resource` | family charger, lens admitted, runtime enabled | published |
-| `second_ship_advertisement` | advertisement count 2 | rejected |
-| `one_ship_advertisement` | advertisement count 1 and device type EnergyManagementSystem | kept |
+| `grid_connection_resource` | family grid connection, lens admitted, runtime enabled | published |
+| `meter_resource` | family meter, lens admitted, runtime enabled | published |
+| `grid_and_meter_one_cut` | grid connection and meter of one cut, meter distinct | both_published |
+| `service_name_other` | service name other than ship | rejected |
+| `instance_name_over_63` | instance name over 63 bytes | rejected |
+| `mandatory_txt_missing` | a mandatory TXT key is missing | rejected |
+| `txtvers_other` | txtvers other than 1 | rejected |
+| `txt_record_over_400` | TXT record over 400 bytes | rejected |
+| `ship_id_not_unique` | id that is not unique | rejected |
+| `device_type_inverter` | standard device type Inverter | accepted |
+| `device_type_vendor` | vendor-specific type matching the protocol pattern | accepted |
+| `device_type_vendor_rejected` | vendor-specific type that does not match the pattern | rejected |
+| `announcement_without_txt_type` | announcement without the optional TXT type | accepted |
+| `extra_optional_key` | a permitted additional optional key within 400 bytes | accepted |
+| `instance_renamed_same_id` | instance renamed after a collision with the same SHIP id | accepted |
+| `second_advertisement_meets_section_7` | a second advertisement that meets section 7 | accepted |
+| `second_service_meets_section_7` | a second service that meets section 7 | accepted |
 | `cem_controllable_system` | CEM entity as Controllable System of one device | rejected |
 | `inverter_controllable_system` | Inverter entity as Controllable System | taken |
+| `inverter_monitored_unit` | Monitored Unit of Monitoring of Power Consumption on an Inverter | taken |
+| `evse_monitored_unit` | Monitored Unit of Monitoring of Power Consumption on an EVSE | taken |
 | `watt_limit_as_current` | consumption limit in watts through allocated current | converted |
 | `watt_limit_below_minimum` | consumption limit in watts that computes below 6 A | paused |
 | `watt_limit_without_voltage` | consumption limit in watts with no measured voltage from the charging station or another promoted resource | refused |

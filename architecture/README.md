@@ -87,6 +87,10 @@ a landed runtime or public API shape.
 
 ## API Publication Boundary
 
+Candidate status is the maturity level of a page. Its text may still change
+before release. It is not a condition on implementing, declaring support for,
+or publishing what the page specifies.
+
 The v1 schema contract and synthetic fixtures remain active and unchanged.
 Unimplemented reference material is candidate-only; stable navigation, search,
 sitemap, versioned bundles, and release bundles omit it.

@@ -70,19 +70,14 @@ class Issue48ShipIdentityContractTests(unittest.TestCase):
         self.assertNotIn("alternate protocol-service", corpus.lower())
         self.assertNotIn("compatibility publisher", corpus.lower())
 
-        self.assertIn("exactly one `_ship._tcp` service", protocol)
-        self.assertIn("Helianthus EnergyManagementSystem eebusreg", protocol)
-        for row in (
-            "| `txtvers` | `1` |",
-            "| `path` | `/ship/` |",
-            "| `id` | `HLS-<nodeToken>` |",
-            "| `ski` | `<certificate SKI>` |",
-            "| `brand` | `Helianthus` |",
-            "| `model` | `eebusreg` |",
-            "| `type` | `EnergyManagementSystem` |",
-            "| `register` | `<window>` |",
+        for phrase in (
+            "an announcement without `type` is conformant",
+            "permitted additional key",
+            "renamed instance with the same SHIP id is the same node",
+            "`txtvers`",
+            "`register`",
         ):
-            self.assertIn(row, protocol)
+            self.assertIn(phrase, protocol)
 
     def test_identity_contract_is_normative_derived_and_live_pending(self) -> None:
         for relative in (
@@ -134,7 +129,10 @@ class Issue48ShipIdentityContractTests(unittest.TestCase):
         self.assertIn("adds no tool, field, semantic object", api)
         self.assertIn("closed `eebus.v1` read-only contract", evidence)
         self.assertIn("No evidence entry promotes SPINE payloads into device semantics", evidence)
-        self.assertIn("Exactly one `_ship._tcp` advertisement", live_gate)
+        self.assertIn("an announcement without `type` is valid", live_gate)
+        self.assertIn("renamed instance with the same SHIP id is valid", live_gate)
+        self.assertIn("`register=true` with auto accept inactive is not conformant", live_gate)
+        self.assertIn("`register=false` with auto accept inactive is conformant", live_gate)
         self.assertIn("`<redacted-lab-address>:4712`", live_gate)
         self.assertIn("Before the first observed TCP SYN", live_gate)
         self.assertIn("closed stable `eebus.v1` read-only tools", live_gate)

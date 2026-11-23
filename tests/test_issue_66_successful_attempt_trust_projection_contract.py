@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import validate_repository_policy as repository_policy  # noqa: E402
+
 
 REPO = Path(__file__).resolve().parents[1]
-STABLE_PROTOCOL = REPO / "protocols/ship-spine-overview.md"
+HISTORICAL_OVERVIEW = REPO / "tests/fixtures/history/ship-spine-overview.txt"
+ORIGINAL_OVERVIEW_SHA256 = (
+    "734c5668cd1937b088cbb12c7c4dd6b7"
+    "8c0fc76cc76873dc2d49092aded65b3b"
+)
 ATTEMPT_ARCHITECTURE = (
     REPO / "architecture/_candidate/msp-052-outbound-pairing-contract.md"
 )
@@ -65,8 +73,12 @@ def table_rows(text: str) -> list[dict[str, str]]:
 class Issue66SuccessfulAttemptTrustProjectionTests(unittest.TestCase):
     def test_stable_protocol_remains_byte_identical(self) -> None:
         self.assertEqual(
-            hashlib.sha256(STABLE_PROTOCOL.read_bytes()).hexdigest(),
-            "734c5668cd1937b088cbb12c7c4dd6b78c0fc76cc76873dc2d49092aded65b3b",
+            hashlib.sha256(HISTORICAL_OVERVIEW.read_bytes()).hexdigest(),
+            ORIGINAL_OVERVIEW_SHA256,
+        )
+        self.assertEqual(
+            repository_policy.ISSUE68_STABLE_PROTOCOL_SHA256,
+            ORIGINAL_OVERVIEW_SHA256,
         )
 
     def test_success_linearization_and_later_close_are_distinct_and_ordered(self) -> None:

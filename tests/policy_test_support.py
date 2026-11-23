@@ -33,6 +33,7 @@ POLICY_FIXTURE_PATHS = (
     Path("scripts/publication_channels.yaml"),
     Path("scripts/render_publication.py"),
     Path("tests/fixtures/issue98/m625-public-redacted-source-positive.json"),
+    Path("tests/fixtures/history/ship-spine-overview.txt"),
     Path("tests/test_msp_docs_e2_remediation.py"),
     Path("api"),
     Path("architecture"),

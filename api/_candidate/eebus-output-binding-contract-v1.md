@@ -69,13 +69,19 @@ None of these classes is a device qualification.
 
 ## Input lens
 
-The named input lens is `lens.equipment_composition`.
+The named input lenses are `lens.equipment_composition` and `lens.installation_hierarchy`, both read on the one retained captured cut.
 
-The target report accounts for what the output does with that one lens
-(TGT-1). The retrieval starts at one device resource (ENT-1). The seeded root
-kinds of that lens are inverter, battery, battery pack, charging station,
+The target report accounts for both lenses read on the one retained captured cut
+(TGT-1). SemanticInput `RetrieveLens` reads each of them. The retrieval starts at one device resource (ENT-1). The seeded root
+kinds include inverter, battery, battery pack, charging station,
 meter and generic equipment. Those names are families. A listing of resources
-is discovery, and it is not the entity tree (ENT-2).
+is discovery, and it is not the entity tree (ENT-2). A heating or grid resource
+promoted through the installation hierarchy reaches the output.
+
+The same-cut input also reads `lens.energy_flow` with an explicit EntryResource
+on the EVSE for the energy-only phase fact and scoped SumMembers. The approved
+physical and energy EVSE to connector to phase contains relations appear in
+that lens. The member sum stays a `SumMembers` read of the same captured cut.
 
 The report cites one served cut. Parts of two cuts are not combined into one
 output (CUT-1). A partial cut stays partial and is not repaired by invented
@@ -85,11 +91,11 @@ entities. An empty lens result is no device and no invented entity (LRS-6).
 
 One resource in the lens result is one SPINE entity (CID-1).
 
-Parent and child entities come only from a `contains` instance cited in this
-target's own report. The containing resource is the parent. The contained
+Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut. Same cut means both links carry one cut identifier. The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected. The containing resource is the parent. The contained
 resource is the child. The cited instance is qualified, coherent, and in a
 plane of the named lens (TRV-1, LRS-1, LRS-2, TGT-2). An instance that is not
-coherent is not a current edge.
+coherent is not a current edge. There is no direct EVSE-to-vehicle `contains`
+relation. The ordinary `contains` rule stays for every other nesting.
 
 An entity composed from an index is rejected. An index is list position, name
 order, or address order. A name and an address are rejected by the same rule
@@ -108,11 +114,13 @@ CID-2 names that key.
 
 Electrical context is medium `electrical` on a cited element, and it is never
 taken from a second lens. Medium `electrical` is the energy-flow reading of
-the common contract. This target retrieves the named lens only (TGT-1). A
-native typed surface does not supply the medium (NTV-1). No thermal quantity
-is placed on a resource.
+the common contract. This target retrieves both lenses on the one retained captured cut (TGT-1). A
+native typed surface does not supply the medium (NTV-1). A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.
 
 A sum is not an entity and not a feature. This output computes no sum (SUM-1).
+The EVSE total is read from SemReg's member sum of the same captured cut and is
+marked derived. Monitoring of Power Consumption 1.0.0 section 3.2.2.2.3.3
+Table 25 requires valueSource and admits calculatedValue for the derived acPowerTotal.
 
 ## Operations
 
@@ -178,6 +186,9 @@ outcomes of the rules above.
 | `operation_from_visibility` | capability visible in the lens result, without the resource's own qualified capability | rejected |
 | `entity_from_cited_contains` | one qualified coherent in-plane `contains` instance cited in this report | admitted |
 | `operation_through_own_capability` | the resource's own qualified capability, with lens visibility ignored | admitted |
+| `ev_under_evse_two_links` | both links carry one cut identifier, cited, coherent, in plane, qualified | admitted |
+| `ev_under_evse_link_missing` | one of those two links missing | rejected |
+| `ev_under_evse_two_cuts` | `evse.relation.evse_connector` and `evse.relation.connector_vehicle` from two cuts | rejected |
 
 ## Promotion decision
 

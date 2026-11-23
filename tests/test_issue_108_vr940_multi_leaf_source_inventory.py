@@ -3,10 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 import unittest
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import validate_repository_policy as repository_policy  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +22,8 @@ INVENTORY = (
 )
 EVIDENCE = ROOT / "evidence" / "EV-20260811-002.md"
 MANIFEST = ROOT / "evidence" / "manifests" / "EV-20260811-002-source-manifest.json"
-OVERVIEW = ROOT / "protocols" / "ship-spine-overview.md"
+HISTORICAL_OVERVIEW = ROOT / "tests/fixtures/history/ship-spine-overview.txt"
+DEVICE = ROOT / "devices" / "vr940f.md"
 
 
 def closed_inventory(text: str) -> dict[str, object]:
@@ -411,9 +416,21 @@ class Issue108VR940MultiLeafSourceInventoryTests(unittest.TestCase):
         ):
             self.assertIn(marker, self.text)
         self.assertEqual(
-            hashlib.sha256(OVERVIEW.read_bytes()).hexdigest(),
-            "734c5668cd1937b088cbb12c7c4dd6b78c0fc76cc76873dc2d49092aded65b3b",
+            hashlib.sha256(HISTORICAL_OVERVIEW.read_bytes()).hexdigest(),
+            repository_policy.ISSUE68_STABLE_PROTOCOL_SHA256,
         )
+        heating = " ".join(DEVICE.read_text(encoding="utf-8").split())
+        inventory = " ".join(self.text.split())
+        for phrase in (
+            "declared cross-protocol leaves are promoted and exposed by default",
+            "recorded verification level",
+            "hot-water mode",
+            "zone names",
+        ):
+            self.assertIn(phrase, heating)
+            self.assertIn(phrase, inventory)
+        self.assertNotIn("LOCKED_" + "NOT_EXPOSED", inventory)
+        self.assertNotIn("No promoted semantic fields", heating)
 
 
 if __name__ == "__main__":

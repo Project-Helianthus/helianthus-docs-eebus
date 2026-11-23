@@ -28,17 +28,43 @@ field, unit, declared step, enum map, or boolean relation.
 
 The inventory creates no V2, alias, compatibility surface, mutation, GraphQL,
 Portal, Home Assistant entity, command route, semantic freshness policy, or
-source precedence. A positive result remains `LOCKED_NOT_EXPOSED` until a later
-consumer milestone.
+source precedence. Here, declared cross-protocol leaves are promoted and exposed by
+default. The checked-in profile promotes every declared leaf and no check fails
+on a promoted count. A live coexistence or capture result is a recorded
+verification level (run, not run, result) that conditions nothing.
+
+## Inbound heating mapping
+
+The same mapping is declared on the device page. A selector is bound from the
+published specification and runtime identification, never from private
+installation evidence. Any number of rooms and zones is supported. The n-th
+room by entity address and the n-th heating zone by entity address are each
+zone n on the native typed surface. Slot labels stay local to their bundle and
+are not that ordering.
+
+| use-case value | SPINE feature and scope | SemReg element | subject | conversion to kelvin or SI | GraphQL field 0.6 filled |
+| --- | --- | --- | --- | --- | --- |
+| hot-water temperature | Measurement, scope `dhwTemperature` (Monitoring of DHW Temperature 1.0.0 scenario 1) | `thermal.measurement.dhw_temperature` | `resource.domestic_hot_water` | Celsius plus 273.15 is kelvin | `Dhw.currentTempC` |
+| hot-water setpoint | Setpoint, scope `dhwTemperature` (Configuration of DHW Temperature 1.0.0 scenario 1; read and write) | `thermal.setpoint.dhw_temperature_setpoint` | `resource.domestic_hot_water` | Celsius plus 273.15 is kelvin | `Dhw.targetTempC` |
+| one-time hot-water charge | HVAC overrun `oneTimeDhw` (Configuration of DHW System Function 1.0.0 scenarios 2 and 3; read, and write of active or inactive) | `thermal.overrun.one_time_dhw` | `resource.thermal_system` | symbol; not a temperature | not filled |
+| outdoor temperature | Measurement, scope `outsideAirTemperature` (Monitoring of Outdoor Temperature 1.0.0 scenario 1) | `thermal.measurement.outdoor_air_temperature` | `resource.thermal_system` | Celsius plus 273.15 is kelvin | `SystemState.outdoorTemperature` |
+| room temperature, zone n | Measurement, scope `roomAirTemperature` (Monitoring of Room Temperature 1.0.0 scenario 1) | `thermal.measurement.air_temperature` | `resource.zone` | Celsius plus 273.15 is kelvin | `ZoneState.currentTempC` |
+| room setpoint, zone n | Setpoint, scope `roomAirTemperature` (Configuration of Room Heating Temperature 1.0.0 scenario 1; read and write) | `thermal.setpoint.temperature_setpoint` | `resource.zone` | Celsius plus 273.15 is kelvin | `ZoneConfig.targetTempC` |
+| room mode, zone n | HVAC `currentOperationModeId` of the heating system function (Configuration of Room Heating System Function 1.0.0 scenario 1; read, and write when the device allows the change) | `thermal.mode.zone` | `resource.zone` | symbol | `ZoneConfig.operatingMode` |
+
+Values with no SemReg element yet stay native in the eebusreg namespace until
+QQ11 and QQ14 add their elements: hot-water mode, mode-changeable flags,
+gateway brand and vendor, and zone names.
 
 ## Native Selector Boundary
 
-Every `selector_binding: exact_from_private_capture` binds the peer, service,
+Every `selector_binding: exact_from_private_capture` records the peer, service,
 SPINE device address, entity address, feature address, runtime epoch, and
 connection generation in owner-local evidence. Those native values are not
-portable VR940f constants and are excluded from this shareable page. Entity
-slots distinguish separately captured sources without publishing their native
-addresses.
+portable constants and are excluded from this shareable page. The selector used
+for the mapping is bound from the published specification and runtime
+identification. Entity slots distinguish separately captured sources without
+publishing their native addresses.
 
 An entity slot names one bundle: the sources read from one captured entity.
 Slot labels are local to their bundle. A slot label is never an identity, an

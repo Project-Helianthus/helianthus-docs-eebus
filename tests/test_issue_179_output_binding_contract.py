@@ -13,8 +13,10 @@ import validate_repository_policy as repository_policy  # noqa: E402
 PAGE = ROOT / "api" / "_candidate" / "eebus-output-binding-contract-v1.md"
 PAGE_REL = Path("api/_candidate/eebus-output-binding-contract-v1.md")
 MARKERS = (
-    "The named input lens is `lens.equipment_composition`.",
-    "Parent and child entities come only from a `contains` instance cited in this target's own report.",
+    "The named input lenses are `lens.equipment_composition` and `lens.installation_hierarchy`, both read on the one retained captured cut.",
+    "Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut.",
+    "Same cut means both links carry one cut identifier.",
+    "The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected.",
     "An entity composed from an index is rejected.",
     "A name and an address are rejected by the same rule as an index.",
     "An operation is admitted only through that resource's own capability.",
@@ -28,7 +30,7 @@ MARKERS = (
     "An element a use case requires, cited as absent in this report, is explicit absence and not a feature.",
     "Where the report cites neither the element nor an absence, the element stays unknown and is not a feature.",
     "Electrical context is medium `electrical` on a cited element, and it is never taken from a second lens.",
-    "No thermal quantity is placed on a resource.",
+    "A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.",
     "A sum is not an entity and not a feature.",
     "The report cites one served cut.",
     "A partial cut stays partial and is not repaired by invented entities.",
@@ -38,6 +40,9 @@ STALE = (
     "An operation admitted from visibility alone is accepted.",
     "The persisted entity address is keyed by list position.",
     "Visibility of a capability admits the operation.",
+    "The named input lens is `lens.equipment_composition`.",
+    "No thermal quantity is placed on a resource.",
+    "Parent and child entities come only from a `contains` instance cited in this target's own report.",
 )
 ENTITY_KEY_FIELDS = ("resource_id",)
 ENTITY_KEY_EXCLUDED = (
@@ -75,6 +80,9 @@ VECTOR_ROWS = (
     ("operation_from_visibility", "rejected"),
     ("entity_from_cited_contains", "admitted"),
     ("operation_through_own_capability", "admitted"),
+    ("ev_under_evse_two_links", "admitted"),
+    ("ev_under_evse_link_missing", "rejected"),
+    ("ev_under_evse_two_cuts", "rejected"),
 )
 
 
@@ -223,6 +231,78 @@ class OutputBindingContractTest(unittest.TestCase):
                 mutated[field] = value
                 with self.subTest(field=field, value=value):
                     self.assertEqual(outcome(mutated), "rejected")
+
+    def test_ev_under_evse_uses_the_two_cited_links_of_one_cut(self) -> None:
+        """EV nesting fields: basis, both links, cited, coherent, in_plane, qualified.
+
+        basis cited_contains stays admitted.
+        basis evse_connector_vehicle with both links of one cut is admitted.
+        a missing connector_vehicle link is rejected.
+        the same link names from two cuts are rejected.
+        link names without a cut identifier are rejected.
+        any other basis is rejected.
+        """
+        outcome = repository_policy.entity_composition_outcome
+        admitted = {
+            "basis": "evse_connector_vehicle",
+            "links": (
+                ("evse.relation.evse_connector", "cut-a"),
+                ("evse.relation.connector_vehicle", "cut-a"),
+            ),
+            "cited": True,
+            "coherent": True,
+            "in_plane": True,
+            "qualified": True,
+        }
+        self.assertEqual(outcome(admitted), "admitted")
+        self.assertEqual(outcome(ADMITTED_ENTITY), "admitted")
+        missing = dict(admitted)
+        missing["links"] = (("evse.relation.evse_connector", "cut-a"),)
+        self.assertEqual(outcome(missing), "rejected")
+        two_cuts = dict(admitted)
+        two_cuts["links"] = (
+            ("evse.relation.evse_connector", "cut-a"),
+            ("evse.relation.connector_vehicle", "cut-b"),
+        )
+        self.assertEqual(outcome(two_cuts), "rejected")
+        names_only = dict(admitted)
+        names_only["links"] = (
+            "evse.relation.evse_connector",
+            "evse.relation.connector_vehicle",
+        )
+        self.assertEqual(outcome(names_only), "rejected")
+        other = dict(admitted)
+        other["basis"] = "index"
+        self.assertEqual(outcome(other), "rejected")
+
+    def test_binding_page_names_both_lenses_and_the_thermal_value(self) -> None:
+        text = normalized_page()
+        publication = " ".join(
+            (ROOT / "api/_candidate/eebus-output-publication-v1.md").read_text(encoding="utf-8").split()
+        )
+        for phrase in (
+            "lens.equipment_composition",
+            "lens.installation_hierarchy",
+            "both read on the one retained captured cut",
+            "lens.energy_flow",
+            "EntryResource",
+            "SumMembers",
+            "Parts of two cuts are not combined into one output (CUT-1)",
+            "valueSource",
+            "calculatedValue",
+            "A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.",
+            "Same cut means both links carry one cut identifier.",
+            "The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected.",
+            "Electrical context is medium `electrical` on a cited element, and it is never taken from a second lens.",
+            "This output computes no sum (SUM-1).",
+            "A sum is not an entity and not a feature.",
+        ):
+            self.assertIn(phrase, text)
+        self.assertNotIn("The named input lens is `lens.equipment_composition`.", text)
+        self.assertIn(
+            "A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.",
+            publication,
+        )
 
     def test_operation_admission_ignores_visibility_and_requires_each_capability_field(self) -> None:
         outcome = repository_policy.operation_admission_outcome

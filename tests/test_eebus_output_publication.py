@@ -15,23 +15,32 @@ PAGE_REL = Path("api/_candidate/eebus-output-publication-v1.md")
 MARKERS = (
     "The output is active when the eeBUS runtime is already enabled.",
     "There is no new switch.",
-    "Publish every lens-admitted inverter, PV string and charger resource.",
-    "A heating resource is not published.",
-    "A battery resource is not published.",
+    "Publish every lens-admitted inverter, PV string, charger, battery, heating, grid-connection and meter resource.",
+    "A heating resource is published.",
+    "A battery resource is published.",
+    "A meter resource is its own SubMeterElectricity entity beside the grid connection and is never merged into it.",
+    "The EVSE total is the SemReg member sum of one cut and is marked derived.",
+    "The node serves the heartbeat Limitation of Power Production V1.0.0 [LPP-031] defines.",
+    "The EVSE operating state is a declared mapping from the EVSE statuses.",
+    "| SemReg element | SPINE feature | scope | unit | conversion |",
     "A lens-admitted resource is one entity of this output (CID-1).",
     "An input-dimension fact is not a string (CID-4).",
     "A PV String entity is a child of the Inverter only through a cited contains instance (TRV-1).",
-    "One advertisement for SHIP stays.",
-    "The device type is EnergyManagementSystem.",
-    "Reject a second advertisement for SHIP.",
-    "A second service is not added.",
-    "The extra entities are Inverter, a PV String child of that Inverter, and EVSE.",
+    "SHIP 1.0.1 §7 prints no fixed number of advertisements.",
+    "The SPINE device type is a standard type of SPINE Resource Specification 1.3.0 Table 353 or a vendor-specific type matching SPINE Protocol Specification 1.3.0 §7.1.1.1.",
+    "A second advertisement that meets SHIP 1.0.1 §7 is accepted.",
+    "A second service that meets SHIP 1.0.1 §7 is accepted.",
+    "The published entities include Inverter, a PV String child of that Inverter, EVSE, Battery, heating, the grid connection and a distinct meter.",
     "A use case that forbids that device type is not announced, and the loss names the prohibition.",
     "The actor Inverter of Monitoring of Inverter V1.0.0 is taken on entity type Inverter.",
     "The actor PV String of Monitoring of PV String V1.0.0 RC4 is taken when a string resource exists.",
     "The actor Inverter is the Controllable System of Limitation of Power Production V1.0.0.",
     "The actor EVSE of EVSE Commissioning and Configuration V1.0.1 is taken.",
     "The actor EVSE is the Monitored Unit of Monitoring of Power Consumption V1.0.0.",
+    "The actor Inverter is the Monitored Unit of Monitoring of Power Consumption V1.0.0.",
+    "The actor Battery of Monitoring of Battery V1.0.0 is taken.",
+    "The HVAC monitoring actors of HVAC Temperature V1.0.0 and HVAC System Function V1.0.0 are taken.",
+    "The actor Grid Connection Point of Monitoring of Grid Connection Point V1.0.0 is taken.",
     "The actor EVSE is the Controllable System of Limitation of Power Consumption V1.0.0.",
     "The local CEM takes Energy Guard of a limitation use case only while no trusted remote already announces Energy Guard for that use case.",
     "The CEM entity is never the Controllable System of one device.",
@@ -66,37 +75,45 @@ MARKERS = (
     "The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.",
     "A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.",
     "When neither source publishes a phase voltage, the write is answered with a negative acknowledgement that names the missing measured voltage.",
-    "Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits; scenarios 1 to 3 are served, scenario 4 is not.",
+    "Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits, and the node serves the heartbeat Limitation of Power Consumption V1.0.0 [LPC-031] defines; each scenario keeps the specification's own mandatory, recommended or optional marking.",
     "The effective limit follows section 2.2 of the use case. A deactivated or expired limit releases the charger to the configured current. The failsafe values are pre-configured to 4200 W and 2 hours, stored, and may be changed by the Energy Guard.",
     "Unit conversion is display-only. The watt-to-ampere computation of a consumption limit is a control rule, not a unit conversion.",
     "A production-limit write on the Inverter entity is handed to the host and applied through `pv.operation.set_active_power_limit` in watts, with no conversion. Its effective limit follows the state machine of Limitation of Power Production V1.0.0; the failsafe production limit is pre-configured to the upper bound of `pv.limit.active_power` in the PV pack, which restricts nothing, and the failsafe duration minimum to 2 hours.",
-    "A use case whose device-side actor is EV is not announced.",
-    "This node is not an EV.",
+    "An EV actor is announced when the SemReg elements its use case requires are present.",
+    "The node presents the EV actor of each charging use case wherever SemReg has its elements.",
     "Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.",
     "Two overlapping writes are the existing conflict loss.",
     "The cited transport revision is SHIP 1.0.1.",
     "The cited data-model revision is SPINE 1.3.0.",
-    "A newer revision of SHIP is not cited.",
-    "Citing these revisions does not resolve a normative source row.",
-    "Admitted inverter elements are inverter AC measurements, energy, temperature and operating state.",
+    "SHIP 1.1.0 is recorded as a later revision and is not the revision this node declares.",
+    "The recorded revisions declare the mappings.",
+    "Admitted inverter elements are inverter AC measurements, apparent power, reactive power, line-to-line voltage, energy, temperature and operating state.",
     "`pv.operation.set_active_power_limit` is admitted in watts.",
-    "String-dimension DC quantities are not admitted.",
-    "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
+    "String-dimension DC quantities are admitted.",
+    "Inverter apparent power, inverter reactive power and line-to-line voltage are admitted.",
     "The admitted charger operation is `evse.operation.set_allocated_current`.",
     "Canonical units are SI.",
     "or applies a watt limit without the measured voltage and active phases,",
     "No semantic element is added.",
     "No contract version is raised.",
-    "Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.",
+    "Proven. Discovery follows SHIP 1.0.1 §7, and the SPINE device type follows SPINE Resource Specification 1.3.0 Table 353 or SPINE Protocol Specification 1.3.0 §7.1.1.1.",
     "Hypothesis. The actor selection and the announcement rule are this candidate.",
     "Unknown. The mandatory elements of each use case are not enumerated on this page.",
     "None of these classes is a device qualification.",
 )
 STALE = (
     "There is a new switch.",
-    "A heating resource is published.",
-    "A battery resource is published.",
-    "Accept a second advertisement for SHIP.",
+    "One advertisement for SHIP stays.",
+    "The device type is EnergyManagementSystem.",
+    "Reject a second advertisement for SHIP.",
+    "A second service is not added.",
+    "A heating resource is not published.",
+    "A battery resource is not published.",
+    "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
+    "String-dimension DC quantities are not admitted.",
+    "A use case whose device-side actor is EV is not announced.",
+    "This node is not an EV.",
+    "A meter, generic equipment, heating equipment and a battery stay outside this publication.",
     "The CEM entity is the Controllable System of one device.",
     "A watt limit is applied as allocated current.",
     "A newer revision of SHIP is cited.",
@@ -111,15 +128,32 @@ STALE = (
     "when no phase carries current, every phase with a measured voltage counts.",
 )
 VECTOR_ROWS = (
-    ("heating_resource", "not_published"),
-    ("battery_resource", "not_published"),
+    ("heating_resource", "published"),
+    ("battery_resource", "published"),
     ("inverter_resource", "published"),
     ("pv_string_resource", "published"),
     ("charger_resource", "published"),
-    ("second_ship_advertisement", "rejected"),
-    ("one_ship_advertisement", "kept"),
+    ("grid_connection_resource", "published"),
+    ("meter_resource", "published"),
+    ("grid_and_meter_one_cut", "both_published"),
+    ("service_name_other", "rejected"),
+    ("instance_name_over_63", "rejected"),
+    ("mandatory_txt_missing", "rejected"),
+    ("txtvers_other", "rejected"),
+    ("txt_record_over_400", "rejected"),
+    ("ship_id_not_unique", "rejected"),
+    ("device_type_inverter", "accepted"),
+    ("device_type_vendor", "accepted"),
+    ("device_type_vendor_rejected", "rejected"),
+    ("announcement_without_txt_type", "accepted"),
+    ("extra_optional_key", "accepted"),
+    ("instance_renamed_same_id", "accepted"),
+    ("second_advertisement_meets_section_7", "accepted"),
+    ("second_service_meets_section_7", "accepted"),
     ("cem_controllable_system", "rejected"),
     ("inverter_controllable_system", "taken"),
+    ("inverter_monitored_unit", "taken"),
+    ("evse_monitored_unit", "taken"),
     ("watt_limit_as_current", "converted"),
     ("watt_limit_below_minimum", "paused"),
     ("watt_limit_without_voltage", "refused"),
@@ -133,7 +167,20 @@ RESOURCE_FIELDS = (
     "input_dimension",
     "parent",
 )
-SHIP_FIELDS = ("advertisement_count", "service_count", "device_type")
+SHIP_FIELDS = (
+    "service_name",
+    "instance_name_bytes",
+    "mandatory_txt_complete",
+    "txtvers",
+    "txt_record_bytes",
+    "ship_id_unique",
+    "device_type",
+    "txt_type_present",
+    "extra_optional_key",
+    "instance_renamed_same_id",
+    "advertisement_count",
+    "service_count",
+)
 ACTOR_FIELDS = (
     "use_case",
     "actor",
@@ -196,9 +243,18 @@ def resource_record(**overrides: object) -> dict[str, object]:
 
 def ship_record(**overrides: object) -> dict[str, object]:
     record: dict[str, object] = {
+        "service_name": "ship",
+        "instance_name_bytes": 32,
+        "mandatory_txt_complete": True,
+        "txtvers": "1",
+        "txt_record_bytes": 120,
+        "ship_id_unique": True,
+        "device_type": "EnergyManagementSystem",
+        "txt_type_present": False,
+        "extra_optional_key": False,
+        "instance_renamed_same_id": False,
         "advertisement_count": 1,
         "service_count": 1,
-        "device_type": "EnergyManagementSystem",
     }
     record.update(overrides)
     return record
@@ -237,7 +293,7 @@ def announcement_record(**overrides: object) -> dict[str, object]:
     record: dict[str, object] = {
         "use_case": "monitoring_of_inverter",
         "device_type_permitted": True,
-        "device_type": "EnergyManagementSystem",
+        "device_type": "Inverter",
         "missing_elements": (),
         "device_actor": "Inverter",
         "allocated_current_admitted": True,
@@ -279,7 +335,7 @@ class OutputPublicationTest(unittest.TestCase):
             self.assertIn(phrase, text)
         for stale in STALE:
             self.assertNotIn(stale, text)
-        cited = text.replace("SHIP 1.0.1", "")
+        cited = text.replace("SHIP 1.0.1", "").replace("SHIP 1.1.0", "")
         self.assertNotIn("SHIP 1.", cited)
 
     def test_marker_pins_match_the_policy_constants(self) -> None:
@@ -295,12 +351,19 @@ class OutputPublicationTest(unittest.TestCase):
         )
         self.assertEqual(
             repository_policy.ISSUE186_PUBLISHED_FAMILIES,
-            frozenset({"charger", "inverter", "pv_string"}),
+            frozenset(
+                {
+                    "battery",
+                    "charger",
+                    "grid_connection",
+                    "heating",
+                    "inverter",
+                    "meter",
+                    "pv_string",
+                }
+            ),
         )
-        self.assertEqual(
-            repository_policy.ISSUE186_REJECTED_FAMILIES,
-            frozenset({"battery", "heating"}),
-        )
+        self.assertEqual(repository_policy.ISSUE186_REJECTED_FAMILIES, frozenset())
 
     def test_stated_vectors_are_the_contract_table(self) -> None:
         rows = vector_rows(PAGE.read_text(encoding="utf-8"))
@@ -314,7 +377,7 @@ class OutputPublicationTest(unittest.TestCase):
     def test_resource_identity_varies_each_field(self) -> None:
         """Resource fields: family, lens_admitted, runtime_enabled, input_dimension, parent.
 
-        family: heating is not published.
+        family: generic equipment is not published.
         lens_admitted: false is not published.
         runtime_enabled: false is not published.
         input_dimension: true on a PV string is not published.
@@ -328,15 +391,34 @@ class OutputPublicationTest(unittest.TestCase):
             repository_policy.publication_resource_key,
             base,
             {
-                "family": "heating",
+                "family": "generic",
                 "lens_admitted": False,
                 "runtime_enabled": False,
                 "input_dimension": True,
                 "parent": "inverter",
             },
         )
-        self.assertEqual(outcome(resource_record(family="heating")), "not_published")
-        self.assertEqual(outcome(resource_record(family="battery")), "not_published")
+        self.assertEqual(outcome(resource_record(family="heating")), "published")
+        self.assertEqual(outcome(resource_record(family="battery")), "published")
+        self.assertEqual(outcome(resource_record(family="grid_connection")), "published")
+        self.assertEqual(outcome(resource_record(family="meter")), "published")
+        self.assertEqual(outcome(resource_record(family="generic")), "not_published")
+        both = repository_policy.same_cut_entities_outcome(
+            {
+                "families": ("grid_connection", "meter"),
+                "same_cut": True,
+                "meter_distinct": True,
+            }
+        )
+        self.assertEqual(both, "both_published")
+        merged = repository_policy.same_cut_entities_outcome(
+            {
+                "families": ("grid_connection", "meter"),
+                "same_cut": True,
+                "meter_distinct": False,
+            }
+        )
+        self.assertEqual(merged, "not_published")
         self.assertEqual(outcome(resource_record(lens_admitted=False)), "not_published")
         self.assertEqual(outcome(resource_record(runtime_enabled=False)), "not_published")
         string = resource_record(family="pv_string", parent="inverter")
@@ -349,28 +431,57 @@ class OutputPublicationTest(unittest.TestCase):
         self.assertEqual(outcome(resource_record(family="charger")), "published")
 
     def test_ship_identity_varies_each_field(self) -> None:
-        """Advertisement fields: advertisement_count, service_count, device_type.
+        """SHIP fields: service_name, instance_name_bytes, mandatory_txt_complete, txtvers, txt_record_bytes, ship_id_unique, device_type, txt_type_present, extra_optional_key, instance_renamed_same_id, advertisement_count, service_count.
 
-        advertisement_count: 2 is rejected.
-        service_count: 2 is rejected.
-        device_type: a type other than EnergyManagementSystem is rejected.
+        service_name: a name other than ship is rejected.
+        instance_name_bytes: 64 is rejected.
+        mandatory_txt_complete: false is rejected.
+        txtvers: a value other than 1 is rejected.
+        txt_record_bytes: 401 is rejected.
+        ship_id_unique: false is rejected.
+        device_type: Inverter is accepted; GridGuard is rejected.
+        txt_type_present: false is accepted.
+        extra_optional_key: true within 400 bytes is accepted.
+        instance_renamed_same_id: true is accepted.
+        advertisement_count: 2 that meets section 7 is accepted.
+        service_count: 2 that meets section 7 is accepted.
         """
         outcome = repository_policy.ship_advertisement_outcome
         base = ship_record()
-        self.assertEqual(outcome(base), "kept")
+        self.assertEqual(outcome(base), "accepted")
         assert_key_changes(
             self,
             repository_policy.ship_advertisement_key,
             base,
             {
+                "service_name": "other",
+                "instance_name_bytes": 64,
+                "mandatory_txt_complete": False,
+                "txtvers": "2",
+                "txt_record_bytes": 401,
+                "ship_id_unique": False,
+                "device_type": "Inverter",
+                "txt_type_present": True,
+                "extra_optional_key": True,
+                "instance_renamed_same_id": True,
                 "advertisement_count": 2,
                 "service_count": 2,
-                "device_type": "Inverter",
             },
         )
-        self.assertEqual(outcome(ship_record(advertisement_count=2)), "rejected")
-        self.assertEqual(outcome(ship_record(service_count=2)), "rejected")
-        self.assertEqual(outcome(ship_record(device_type="Inverter")), "rejected")
+        self.assertEqual(outcome(ship_record(service_name="other")), "rejected")
+        self.assertEqual(outcome(ship_record(instance_name_bytes=64)), "rejected")
+        self.assertEqual(outcome(ship_record(mandatory_txt_complete=False)), "rejected")
+        self.assertEqual(outcome(ship_record(txtvers="2")), "rejected")
+        self.assertEqual(outcome(ship_record(txt_record_bytes=401)), "rejected")
+        self.assertEqual(outcome(ship_record(ship_id_unique=False)), "rejected")
+        self.assertEqual(outcome(ship_record(device_type="Inverter")), "accepted")
+        self.assertEqual(outcome(ship_record(device_type="_n:acme_HeatPump")), "accepted")
+        self.assertEqual(outcome(ship_record(device_type="GridGuard")), "rejected")
+        self.assertEqual(outcome(ship_record(txt_type_present=False)), "accepted")
+        self.assertEqual(outcome(ship_record(extra_optional_key=True)), "accepted")
+        self.assertEqual(outcome(ship_record(instance_renamed_same_id=True)), "accepted")
+        self.assertEqual(outcome(ship_record(advertisement_count=2)), "accepted")
+        self.assertEqual(outcome(ship_record(service_count=2)), "accepted")
 
     def test_actor_identity_varies_each_field(self) -> None:
         """Actor fields: use_case, actor, entity_type, string_resource, remote_energy_guard.
@@ -447,7 +558,27 @@ class OutputPublicationTest(unittest.TestCase):
             ),
             "not_taken",
         )
-        self.assertEqual(outcome(actor_record(actor="EV", entity_type="EV")), "not_announced")
+        self.assertEqual(outcome(actor_record(actor="EV", entity_type="EV")), "not_taken")
+        self.assertEqual(
+            outcome(
+                actor_record(
+                    use_case="ev_commissioning_and_configuration",
+                    actor="EV",
+                    entity_type="EV",
+                )
+            ),
+            "taken",
+        )
+        self.assertEqual(
+            outcome(
+                actor_record(
+                    use_case="monitoring_of_power_consumption",
+                    actor="Monitored Unit",
+                    entity_type="Inverter",
+                )
+            ),
+            "taken",
+        )
 
     def test_write_identity_varies_each_field(self) -> None:
         """Write fields: limit_kind, operation, unit, admitted, converted, voltage_source, active_phase_voltages_published, phase_current_published, configured_current_published, below_minimum.
@@ -603,11 +734,11 @@ class OutputPublicationTest(unittest.TestCase):
     def test_announcement_identity_varies_each_field(self) -> None:
         """Announcement fields: use_case, device_type_permitted, device_type, missing_elements, device_actor, allocated_current_admitted, host_accepts_limits, overlapping.
 
-        use_case: a name outside the six is not announced.
+        use_case: a name outside the membership is not announced.
         device_type_permitted: false is not announced.
         device_type: the loss names the forbidden type.
         missing_elements: the loss names each element.
-        device_actor: EV is not announced.
+        device_actor: an EV actor with its required elements is announced.
         allocated_current_admitted: false withholds Limitation of Power Consumption and names the operation.
         host_accepts_limits: false withholds Limitation of Power Consumption and names the host.
         overlapping: true is the conflict loss.
@@ -622,7 +753,7 @@ class OutputPublicationTest(unittest.TestCase):
             repository_policy.use_case_announcement_key,
             base,
             {
-                "use_case": "overload_protection",
+                "use_case": "unrecorded_use_case",
                 "device_type_permitted": False,
                 "device_type": "GridGuard",
                 "missing_elements": ("energy",),
@@ -632,19 +763,35 @@ class OutputPublicationTest(unittest.TestCase):
                 "overlapping": True,
             },
         )
-        self.assertEqual(outcome(announcement_record(use_case="overload_protection")), "not_announced")
+        self.assertEqual(outcome(announcement_record(use_case="unrecorded_use_case")), "not_announced")
         denied = announcement_record(device_type_permitted=False)
         self.assertEqual(outcome(denied), "not_announced")
-        self.assertEqual(loss(denied), ("device_type_prohibition", "EnergyManagementSystem"))
+        self.assertEqual(loss(denied), ("device_type_prohibition", "Inverter"))
         other_type = announcement_record(device_type_permitted=False, device_type="GridGuard")
         self.assertEqual(loss(other_type), ("device_type_prohibition", "GridGuard"))
         one_missing = announcement_record(missing_elements=("energy",))
         two_missing = announcement_record(missing_elements=("energy", "temperature"))
         self.assertEqual(loss(one_missing), ("energy",))
         self.assertEqual(loss(two_missing), ("energy", "temperature"))
-        ev_actor = announcement_record(device_actor="EV", use_case="overload_protection")
-        self.assertEqual(outcome(ev_actor), "not_announced")
-        self.assertEqual(loss(ev_actor), ("EV",))
+        ev_actor = announcement_record(
+            device_actor="EV",
+            use_case="ev_commissioning_and_configuration",
+        )
+        self.assertEqual(outcome(ev_actor), "announced")
+        self.assertEqual(loss(ev_actor), ())
+        ev_missing = announcement_record(
+            device_actor="EV",
+            use_case="ev_commissioning_and_configuration",
+            missing_elements=("state_of_charge",),
+        )
+        self.assertEqual(outcome(ev_missing), "not_announced")
+        self.assertEqual(loss(ev_missing), ("state_of_charge",))
+        battery = announcement_record(
+            use_case="monitoring_of_battery",
+            device_actor="Battery",
+            device_type="Generic",
+        )
+        self.assertEqual(outcome(battery), "announced")
         overlap = announcement_record(overlapping=True)
         self.assertEqual(outcome(overlap), "conflict")
         self.assertEqual(loss(overlap), ("conflict",))

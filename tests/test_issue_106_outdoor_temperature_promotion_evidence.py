@@ -212,6 +212,13 @@ class Issue106OutdoorTemperaturePromotionEvidenceTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.architecture_compact)
 
+    def test_live_coexistence_is_a_recorded_level(self) -> None:
+        self.assertIn(
+            "declared cross-protocol leaves are promoted and exposed by default",
+            self.architecture_compact,
+        )
+        self.assertIn("recorded verification level", self.architecture_compact)
+
     def test_publishable_observation_is_feasibility_not_promotion(self) -> None:
         metadata = front_matter(self.evidence)
         self.assertEqual(metadata["publication_status"], "publishable")
