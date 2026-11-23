@@ -3,6 +3,18 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+if [[ -e .git ]] && indexed_tmp="$(git ls-files --cached -- .tmp)" && [[ -z "$indexed_tmp" ]]; then
+  export SKIP_ROOT_TMP=1
+else
+  export SKIP_ROOT_TMP=0
+fi
+markdown_find() {
+  if [[ "$SKIP_ROOT_TMP" == 1 ]]; then
+    find . -path './.tmp' -prune -o "$@"
+  else
+    find . "$@"
+  fi
+}
 
 echo "==> reject repository symlinks"
 python3 - <<'PY'
@@ -21,7 +33,9 @@ while pending:
             relative = path.as_posix().removeprefix("./")
             if relative == ".git" or relative.startswith(".git/"):
                 continue
-            if relative == ".tmp" or relative.startswith(".tmp/"):
+            if os.environ["SKIP_ROOT_TMP"] == "1" and (
+                relative == ".tmp" or relative.startswith(".tmp/")
+            ):
                 continue
             mode = entry.stat(follow_symlinks=False).st_mode
             if stat.S_ISLNK(mode):
@@ -38,15 +52,15 @@ python3 -c 'import importlib.metadata as m; import yaml; assert yaml.__version__
 python3 scripts/validate_repository_policy.py
 
 echo "==> verify markdown formatting"
-find . -path './.tmp' -prune -o -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' \) -print -quit | grep -q .
+markdown_find -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' \) -print -quit | grep -q .
 markdown_name=( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' )
-tab_hits="$(find . -path './.tmp' -prune -o -type f \( "${markdown_name[@]}" \) -exec grep -nH $'\t' {} + || true)"
+tab_hits="$(markdown_find -type f \( "${markdown_name[@]}" \) -exec grep -nH $'\t' {} + || true)"
 if [[ -n "$tab_hits" ]]; then
   printf '%s\n' "$tab_hits"
   echo "Tab characters are not allowed in markdown files." >&2
   exit 1
 fi
-trailing_hits="$(find . -path './.tmp' -prune -o -type f \( "${markdown_name[@]}" \) -exec grep -nHE ' +$' {} + || true)"
+trailing_hits="$(markdown_find -type f \( "${markdown_name[@]}" \) -exec grep -nHE ' +$' {} + || true)"
 if [[ -n "$trailing_hits" ]]; then
   printf '%s\n' "$trailing_hits"
   echo "Trailing spaces are not allowed in markdown files." >&2
@@ -56,6 +70,7 @@ fi
 echo "==> reject private IPv4 addresses"
 python3 - <<'PY'
 from pathlib import Path
+import os
 import sys
 
 sys.path.insert(0, str(Path("scripts").resolve()))
@@ -66,7 +81,7 @@ failed = False
 for path in sorted(Path(".").rglob("*")):
     if not path.is_file() or path.suffix.lower() not in suffixes:
         continue
-    if path.parts[0] == ".tmp":
+    if os.environ["SKIP_ROOT_TMP"] == "1" and path.parts[0] == ".tmp":
         continue
     text = path.read_text(encoding="utf-8")
     for match in IPV4_CANDIDATE_PATTERN.finditer(text):
