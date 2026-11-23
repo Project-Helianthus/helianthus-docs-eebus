@@ -2340,7 +2340,7 @@ _GIT_PIN_FIELD_PATTERN = re.compile(
 )
 _GIT_PIN_EMBEDDED_PATTERN = re.compile(
     r"(?:https?://\S+/(?:blob|commit|commits|raw|tree)/"
-    r"|[?&](?:ref|commit|sha|revision)=)"
+    r"|https?://api\.github\.com/(?:repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|repositories/[0-9]+)/contents/[^\s<>\"']*?[?&](?:ref|commit|sha|revision)=)"
     r"([0-9a-fA-F]{40})(?![0-9A-Fa-f])",
     re.IGNORECASE,
 )
@@ -4434,7 +4434,10 @@ def _field_git_pin_spans(text: str) -> list[tuple[int, int]]:
     spans: list[tuple[int, int]] = []
     for match in _GIT_PIN_FIELD_PATTERN.finditer(text):
         line_start = text.rfind("\n", 0, match.start()) + 1
-        if _GIT_PIN_FORBIDDEN_KEY.search(text[line_start : match.start()]):
+        prefix = text[line_start : match.start()]
+        if _GIT_PIN_FORBIDDEN_KEY.search(prefix):
+            continue
+        if re.search(r"https?://[^\s<>\"']*[?&]$", prefix):
             continue
         strength = _git_pin_key_strength(match.group("key"))
         pin_end = match.end("pin")

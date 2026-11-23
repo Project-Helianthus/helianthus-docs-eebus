@@ -120,6 +120,11 @@ class PolicyValidatorTests(unittest.TestCase):
         for label in ("SHIP" + ": helianthusgateway", "SKI" + ": Helianthus"):
             with self.subTest(label=label):
                 self.assertTrue(_privacy_errors(label, "api/probe.md"))
+        for parameter in ("ref", "sha", "commit"):
+            with self.subTest(parameter=parameter):
+                arbitrary_url = f"https://example.com/page?{parameter}={value}"
+                errors = _privacy_errors(arbitrary_url, "api/probe.md")
+                self.assertTrue(any("full fingerprint" in error for error in errors))
         for label in ("ref", "revision", "pin"):
             with self.subTest(label=label):
                 errors = _privacy_errors(f"{label}: {value}", "protocols/probe.md")

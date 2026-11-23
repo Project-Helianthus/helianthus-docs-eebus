@@ -8,6 +8,7 @@ import os
 import pathlib
 import re
 import shlex
+import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -3507,6 +3508,44 @@ def test_repository_root_identity_is_verified(tmp_path: pathlib.Path) -> None:
 
     workspace = build_workspace(tmp_path, wrong_remote)
     assert validate(load_validator(), workspace) == ["input.repository-root"]
+
+
+def test_trusted_manifest_keeps_candidate_artifact_root(tmp_path: pathlib.Path) -> None:
+    workspace = build_workspace(tmp_path / "candidate")
+    trusted = tmp_path / "trusted-base"
+    shutil.copytree(workspace.docs_eebus, trusted, ignore=shutil.ignore_patterns(".git"))
+    manifest = trusted / MANIFEST_PATH
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(workspace.docs / MANIFEST_PATH, manifest)
+    commit_fixture(trusted, "helianthus-docs-eebus")
+
+    (workspace.docs_eebus / "protocols/ship-spine.md").unlink()
+    subprocess.run(["git", "add", "-A"], cwd=workspace.docs_eebus, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Contract Fixture", "-c", "user.email=fixture@example.invalid",
+         "commit", "-qm", "remove candidate artifact"],
+        cwd=workspace.docs_eebus, check=True,
+    )
+    candidate_ref = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=workspace.docs_eebus, text=True
+    ).strip()
+    diagnostics = load_validator().validate_workspace(
+        docs_root=workspace.docs,
+        docs_eebus_root=workspace.docs_eebus,
+        eebusreg_root=workspace.eebusreg,
+        mode="combined-ref",
+        docs_ref=workspace.docs_ref,
+        docs_eebus_ref=candidate_ref,
+        eebusreg_ref=workspace.eebusreg_ref,
+        docs_repository=workspace.docs_repository,
+        docs_eebus_repository="Project-Helianthus/helianthus-docs-eebus",
+        enforce_through=workspace.enforce_through,
+        toolchain_mode=workspace.toolchain_mode,
+        owner_manifest_root=trusted,
+        _current_manifest_version=1,
+        _m625_required=False,
+    )
+    assert "artifact.owner" in diagnostics
 
 
 def test_combined_ref_accepts_fork_candidate_origin(tmp_path: pathlib.Path) -> None:

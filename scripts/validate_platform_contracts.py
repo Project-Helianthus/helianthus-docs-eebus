@@ -2556,7 +2556,6 @@ def validate_workspace(
                     categories.add("input.repository-root")
             else:
                 resolved.add(resolved_owner)
-                valid_roots["helianthus-docs-eebus"] = manifest_root
 
     manifest, manifest_categories = _validated_manifest(
         manifest_root,
