@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,7 +11,12 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 
 from tests.policy_test_support import check_repository_result, materialize_policy_fixture
-from validate_repository_policy import PLATFORM_SNAPSHOT_REF, check_repository
+from validate_repository_policy import (
+    PLATFORM_SNAPSHOT_REF,
+    _skip_scratch,
+    _untracked_scratch_root,
+    check_repository,
+)
 
 
 def assignment(label: str, value: str) -> str:
@@ -555,6 +561,37 @@ class PolicyValidatorTests(unittest.TestCase):
                         ),
                         result.stderr,
                     )
+
+    def test_alphabetic_ship_id_is_not_treated_as_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            add_evidence_backed_page(
+                repo, "protocols/raw-ship-id.md", "SHIP " + "ID: helianthusgateway"
+            )
+
+            result = run_validator(repo)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("populated raw SKI or SHIP ID", result.stderr)
+
+    def test_scratch_skip_requires_no_indexed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            artifact = root / ".tmp" / "control.txt"
+            artifact.parent.mkdir()
+            artifact.write_text("SHIP " + "ID: helianthusgateway\n", encoding="utf-8")
+
+            _untracked_scratch_root.cache_clear()
+            self.assertTrue(_skip_scratch(root, ".tmp/control.txt"))
+            self.assertFalse(_skip_scratch(root, "protocols/.tmp/control.txt"))
+
+            subprocess.run(
+                ["git", "-C", str(root), "add", "--", ".tmp/control.txt"],
+                check=True,
+            )
+            _untracked_scratch_root.cache_clear()
+            self.assertFalse(_skip_scratch(root, ".tmp/control.txt"))
 
     def test_concatenated_identity_labels_fail_on_evidence_backed_page(self) -> None:
         for payload in (

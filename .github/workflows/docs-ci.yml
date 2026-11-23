@@ -168,10 +168,11 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'schedule'
     uses: ./.github/workflows/platform-contracts-combined-ref.yml
     with:
-      docs_repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
-      docs_ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      docs_repository: Project-Helianthus/helianthus-docs
+      docs_ref: ff8fccc7d5fbcbfe1e156fce302549d04a2f6228
       docs_base_ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'schedule' && github.sha || github.event.before }}
-      docs_eebus_ref: b9413bda992b99e4f719ad2e26e1937ff11a5b4a
+      docs_eebus_repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+      docs_eebus_ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       eebusreg_ref: 7c00bacbba34b796b79e64d7460cbeeb2f306553
       execution_plans_ref: fb384ab57d79f0020c54d2c66416e8a7666f0ceb
       enforce_through: MSP-DOCS-CLEAN
@@ -354,6 +355,9 @@ jobs:
           python -m pip install --disable-pip-version-check --no-deps \
             --no-build-isolation --require-hashes \
             -r checkouts/docs/requirements-ci.txt
+          python -m pip install --disable-pip-version-check --no-deps \
+            --no-build-isolation --require-hashes \
+            -r checkouts/receiver/requirements-ci.txt
           python -m pip check
       - name: Set up Go (for santhosh-tekuri/jsonschema/cmd/jv)
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
@@ -365,10 +369,19 @@ jobs:
         run: |
           go install github.com/santhosh-tekuri/jsonschema/cmd/jv@v0.7.0
           echo "${HOME}/go/bin" >> "${GITHUB_PATH}"
+      - name: Checkout exact MSP-055 source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          clean: true
+          repository: Project-Helianthus/helianthus-eebusreg
+          ref: 7a5852e009bbdcba47f0a34ba866070a4ab35ef8
+          path: checkouts/msp055-source
+          persist-credentials: false
       - name: Run copied platform contract checks
         working-directory: checkouts/receiver
         env:
           M625_TRUSTED_BASE_ROOT: ${{ github.workspace }}/checkouts/m625-trusted-base
+          MSP055_SOURCE_CHECKOUT: ${{ github.workspace }}/checkouts/msp055-source
           PLATFORM_DOCS_REPOSITORY: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
           PLATFORM_CONTRACTS_ROOT: ${{ github.workspace }}/checkouts/docs
           DONOR_DOCS_ROOT: ${{ github.workspace }}/checkouts/docs-ebus

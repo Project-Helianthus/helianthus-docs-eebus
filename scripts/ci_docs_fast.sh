@@ -90,6 +90,8 @@ python3 scripts/validate_msp_055_api_freeze.py --source-checkout "$MSP055_SOURCE
 echo "==> run direct workflow and frozen-publication contracts"
 # Run the two longest independent modules beside the remaining direct contracts.
 # All four groups must pass; their output is kept separate so failures stay readable.
+# mktemp creates only the final component, and a fresh checkout has no .tmp yet.
+mkdir -p .tmp
 contract_output_dir="$(mktemp -d .tmp/docs-fast-contracts.XXXXXXXX)"
 cleanup_contract_output() { rm -rf -- "$contract_output_dir"; }
 trap cleanup_contract_output EXIT

@@ -15,6 +15,10 @@ on:
         description: Immutable trusted helianthus-docs prior commit
         required: true
         type: string
+      docs_eebus_repository:
+        description: Repository containing the immutable docs-eebus candidate commit
+        required: true
+        type: string
       docs_eebus_ref:
         description: Immutable helianthus-docs-eebus commit
         required: true
@@ -44,6 +48,11 @@ on:
       docs_base_ref:
         description: Immutable trusted helianthus-docs prior commit
         required: true
+        type: string
+      docs_eebus_repository:
+        description: Repository containing the immutable docs-eebus candidate commit
+        required: true
+        default: Project-Helianthus/helianthus-docs-eebus
         type: string
       docs_eebus_ref:
         description: Immutable helianthus-docs-eebus commit
@@ -83,6 +92,7 @@ jobs:
           DOCS_REPOSITORY: ${{ inputs.docs_repository }}
           DOCS_REF: ${{ inputs.docs_ref }}
           DOCS_BASE_REF: ${{ inputs.docs_base_ref }}
+          DOCS_EEBUS_REPOSITORY: ${{ inputs.docs_eebus_repository }}
           DOCS_EEBUS_REF: ${{ inputs.docs_eebus_ref }}
           EEBUSREG_REF: ${{ inputs.eebusreg_ref }}
           EXECUTION_PLANS_REF: ${{ inputs.execution_plans_ref }}
@@ -93,6 +103,7 @@ jobs:
           [[ "${DOCS_REPOSITORY}" =~ ${repository} ]]
           [[ "${DOCS_REF}" =~ ${immutable_ref} ]]
           [[ "${DOCS_BASE_REF}" =~ ${immutable_ref} ]]
+          [[ "${DOCS_EEBUS_REPOSITORY}" =~ ${repository} ]]
           [[ "${DOCS_EEBUS_REF}" =~ ${immutable_ref} ]]
           [[ "${EEBUSREG_REF}" =~ ${immutable_ref} ]]
           [[ "${EXECUTION_PLANS_REF}" =~ ${immutable_ref} ]]
@@ -101,46 +112,165 @@ jobs:
             *) exit 1 ;;
           esac
 
-      - name: Select trusted validator ref
-        id: trusted_validator
+      - name: Checkout owning repository trusted base
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ inputs.docs_base_ref }}
+          path: checkouts/docs-eebus-base
+          clean: true
+          persist-credentials: false
+
+      - name: Select trusted validator and prior
+        id: trusted_inputs
         env:
           DOCS_BASE_REF: ${{ inputs.docs_base_ref }}
+          DOCS_REF: ${{ inputs.docs_ref }}
+          DOCS_REPOSITORY: ${{ inputs.docs_repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
-          bootstrap_base=114072fe8bdf027cfdd3472d7f2b0896a2496db4
-          bootstrap_validator=c4d87b2d1fbdc9627a3a2aedaae298547f1908d2
-          if [[ "${DOCS_BASE_REF}" == "${bootstrap_base}" ]]; then
-            validator_ref="${bootstrap_validator}"
-          else
+          set -euo pipefail
+          owner_root="${GITHUB_WORKSPACE}/checkouts/docs-eebus-base"
+          manifest_path="docs/platform/manifests/eebus-doc-ownership.yaml"
+          platform_repository="Project-Helianthus/helianthus-docs"
+          platform_pin="ff8fccc7d5fbcbfe1e156fce302549d04a2f6228"
+          donor_repository="Project-Helianthus/helianthus-docs-ebus"
+          donor_pin="977614c944cd685bef75b5b12148e1110ed7653a"
+          remote_repository() {
+            local remote="$1"
+            remote="${remote%.git}"
+            case "${remote}" in
+              git@github.com:*) printf '%s\n' "${remote#git@github.com:}" ;;
+              https://github.com/*) printf '%s\n' "${remote#https://github.com/}" ;;
+              http://github.com/*) printf '%s\n' "${remote#http://github.com/}" ;;
+              *) return 1 ;;
+            esac
+          }
+          case "${EVENT_NAME}" in
+            pull_request) event_base="${PR_BASE_SHA}" ;;
+            schedule) event_base="${GITHUB_SHA}" ;;
+            push) event_base="${PUSH_BEFORE}" ;;
+            *) event_base="${DOCS_BASE_REF}" ;;
+          esac
+          [[ "${DOCS_BASE_REF}" == "${event_base}" ]] || exit 1
+          [[ "${DOCS_REPOSITORY}" == "${platform_repository}" ]] || exit 1
+          [[ "${DOCS_REF}" == "${platform_pin}" ]] || exit 1
+          [[ "$(git -C "${owner_root}" rev-parse --verify HEAD)" == "${DOCS_BASE_REF}" ]] || exit 1
+          owner_repository="$(remote_repository "$(git -C "${owner_root}" remote get-url origin)")"
+          [[ "${owner_repository}" == "${GITHUB_REPOSITORY}" ]] || exit 1
+          if git -C "${owner_root}" cat-file -e "${DOCS_BASE_REF}:${manifest_path}" 2>/dev/null; then
+            validator_repository="${GITHUB_REPOSITORY}"
             validator_ref="${DOCS_BASE_REF}"
+            prior_repository="${GITHUB_REPOSITORY}"
+            prior_ref="${DOCS_BASE_REF}"
+            mode="later"
+          else
+            validator_repository="${platform_repository}"
+            validator_ref="${platform_pin}"
+            prior_repository="${donor_repository}"
+            prior_ref="${donor_pin}"
+            mode="first"
           fi
-          printf 'ref=%s\n' "${validator_ref}" >> "${GITHUB_OUTPUT}"
+          {
+            printf 'validator_repository=%s\n' "${validator_repository}"
+            printf 'validator_ref=%s\n' "${validator_ref}"
+            printf 'prior_repository=%s\n' "${prior_repository}"
+            printf 'prior_ref=%s\n' "${prior_ref}"
+            printf 'mode=%s\n' "${mode}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Checkout trusted validator
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: Project-Helianthus/helianthus-docs
-          ref: ${{ steps.trusted_validator.outputs.ref }}
+          repository: ${{ steps.trusted_inputs.outputs.validator_repository }}
+          ref: ${{ steps.trusted_inputs.outputs.validator_ref }}
           path: checkouts/docs-validator
           clean: true
           persist-credentials: false
 
       - name: Verify trusted validator checkout
         env:
-          TRUSTED_VALIDATOR_REF: ${{ steps.trusted_validator.outputs.ref }}
+          TRUSTED_VALIDATOR_REF: ${{ steps.trusted_inputs.outputs.validator_ref }}
+          TRUSTED_VALIDATOR_REPOSITORY: ${{ steps.trusted_inputs.outputs.validator_repository }}
+          TRUSTED_MODE: ${{ steps.trusted_inputs.outputs.mode }}
+          DOCS_BASE_REF: ${{ inputs.docs_base_ref }}
+          DOCS_REF: ${{ inputs.docs_ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           validator_root="${GITHUB_WORKSPACE}/checkouts/docs-validator"
-          [[ "$(git -C "${validator_root}" cat-file -t "${TRUSTED_VALIDATOR_REF}")" == "commit" ]]
-          [[ "$(git -C "${validator_root}" rev-parse --verify HEAD)" == "${TRUSTED_VALIDATOR_REF}" ]]
+          remote="${TRUSTED_VALIDATOR_REPOSITORY}"
+          remote="${remote%.git}"
+          actual="$(git -C "${validator_root}" remote get-url origin)"
+          actual="${actual%.git}"
+          case "${actual}" in
+            git@github.com:*) actual="${actual#git@github.com:}" ;;
+            https://github.com/*) actual="${actual#https://github.com/}" ;;
+            http://github.com/*) actual="${actual#http://github.com/}" ;;
+            *) exit 1 ;;
+          esac
+          [[ "${actual}" == "${remote}" ]] || exit 1
+          if [[ "${TRUSTED_MODE}" == "later" ]]; then
+            [[ "${remote}" == "${GITHUB_REPOSITORY}" ]] || exit 1
+            [[ "${TRUSTED_VALIDATOR_REF}" == "${DOCS_BASE_REF}" ]] || exit 1
+          else
+            [[ "${remote}" == "Project-Helianthus/helianthus-docs" ]] || exit 1
+            [[ "${TRUSTED_VALIDATOR_REF}" == "${DOCS_REF}" ]] || exit 1
+          fi
+          [[ "$(git -C "${validator_root}" cat-file -t "${TRUSTED_VALIDATOR_REF}")" == "commit" ]] || exit 1
+          [[ "$(git -C "${validator_root}" rev-parse --verify HEAD)" == "${TRUSTED_VALIDATOR_REF}" ]] || exit 1
           for path in requirements-ci.txt scripts/validate_platform_contracts.py; do
             [[ -f "${validator_root}/${path}" && ! -L "${validator_root}/${path}" ]]
           done
 
+      - name: Checkout docs-eebus ref
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ inputs.docs_eebus_repository }}
+          ref: ${{ inputs.docs_eebus_ref }}
+          path: checkouts/docs-eebus
+          clean: true
+          persist-credentials: false
+
+      - name: Verify docs-eebus head
+        env:
+          DOCS_EEBUS_REF: ${{ inputs.docs_eebus_ref }}
+          DOCS_EEBUS_REPOSITORY: ${{ inputs.docs_eebus_repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          root="${GITHUB_WORKSPACE}/checkouts/docs-eebus"
+          [[ "$(git -C "${root}" rev-parse --verify HEAD)" == "${DOCS_EEBUS_REF}" ]] || exit 1
+          actual="$(git -C "${root}" remote get-url origin)"
+          actual="${actual%.git}"
+          case "${actual}" in
+            git@github.com:*) actual="${actual#git@github.com:}" ;;
+            https://github.com/*) actual="${actual#https://github.com/}" ;;
+            http://github.com/*) actual="${actual#http://github.com/}" ;;
+            *) exit 1 ;;
+          esac
+          [[ "${actual}" == "${DOCS_EEBUS_REPOSITORY}" ]] || exit 1
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            [[ "${DOCS_EEBUS_REPOSITORY}" == "${HEAD_REPOSITORY}" ]] || exit 1
+            [[ "${DOCS_EEBUS_REF}" == "${HEAD_SHA}" ]] || exit 1
+          else
+            [[ "${DOCS_EEBUS_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]] || exit 1
+            [[ "${DOCS_EEBUS_REF}" == "${GITHUB_SHA}" ]] || exit 1
+          fi
+
       - name: Checkout docs ref
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: ${{ inputs.docs_repository }}
-          ref: ${{ inputs.docs_ref }}
+          repository: Project-Helianthus/helianthus-docs
+          ref: ff8fccc7d5fbcbfe1e156fce302549d04a2f6228
           path: checkouts/docs
           clean: true
           persist-credentials: false
@@ -148,33 +278,70 @@ jobs:
       - name: Checkout trusted docs prior manifest
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: Project-Helianthus/helianthus-docs
-          ref: ${{ inputs.docs_base_ref }}
+          repository: ${{ steps.trusted_inputs.outputs.prior_repository }}
+          ref: ${{ steps.trusted_inputs.outputs.prior_ref }}
           path: checkouts/docs-base
           clean: true
           persist-credentials: false
 
+      - name: Verify platform pin and prior owner
+        env:
+          DOCS_REF: ${{ inputs.docs_ref }}
+          DOCS_REPOSITORY: ${{ inputs.docs_repository }}
+          PRIOR_REF: ${{ steps.trusted_inputs.outputs.prior_ref }}
+          PRIOR_REPOSITORY: ${{ steps.trusted_inputs.outputs.prior_repository }}
+          TRUSTED_MODE: ${{ steps.trusted_inputs.outputs.mode }}
+          DOCS_BASE_REF: ${{ inputs.docs_base_ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          platform_pin="ff8fccc7d5fbcbfe1e156fce302549d04a2f6228"
+          donor_pin="977614c944cd685bef75b5b12148e1110ed7653a"
+          docs_root="${GITHUB_WORKSPACE}/checkouts/docs"
+          prior_root="${GITHUB_WORKSPACE}/checkouts/docs-base"
+          normalize() {
+            local remote="$1"
+            remote="${remote%.git}"
+            case "${remote}" in
+              git@github.com:*) printf '%s\n' "${remote#git@github.com:}" ;;
+              https://github.com/*) printf '%s\n' "${remote#https://github.com/}" ;;
+              http://github.com/*) printf '%s\n' "${remote#http://github.com/}" ;;
+              *) return 1 ;;
+            esac
+          }
+          [[ "${DOCS_REPOSITORY}" == "Project-Helianthus/helianthus-docs" ]] || exit 1
+          [[ "${DOCS_REF}" == "${platform_pin}" ]] || exit 1
+          [[ "$(git -C "${docs_root}" rev-parse --verify HEAD)" == "${platform_pin}" ]] || exit 1
+          [[ "$(normalize "$(git -C "${docs_root}" remote get-url origin)")" == "${DOCS_REPOSITORY}" ]] || exit 1
+          [[ "$(git -C "${prior_root}" rev-parse --verify HEAD)" == "${PRIOR_REF}" ]] || exit 1
+          [[ "$(normalize "$(git -C "${prior_root}" remote get-url origin)")" == "${PRIOR_REPOSITORY}" ]] || exit 1
+          if [[ "${TRUSTED_MODE}" == "later" ]]; then
+            [[ "${PRIOR_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]] || exit 1
+            [[ "${PRIOR_REF}" == "${DOCS_BASE_REF}" ]] || exit 1
+          else
+            [[ "${PRIOR_REPOSITORY}" == "Project-Helianthus/helianthus-docs-ebus" ]] || exit 1
+            [[ "${PRIOR_REF}" == "${donor_pin}" ]] || exit 1
+          fi
+
       # A same-repository pull request validates only when docs/platform/** or
       # the validator inputs (scripts/**, the workflows, requirements-ci.txt)
-      # differ between the trusted base and the candidate; both validators read
-      # nothing else from docs. The job itself always runs, so the required
-      # check keeps its name and reports. Main pushes (whose superseded runs may
-      # be cancelled, so a skipped transition could otherwise go unchecked), fork
-      # pull requests, the nightly schedule, manual dispatches and any comparison
-      # that cannot be completed always validate.
+      # differ between the event base and the event head of this repository.
+      # The job itself always runs, so the required check keeps its name and
+      # reports. Main pushes, fork pull requests, the nightly schedule, manual
+      # dispatches and any comparison that cannot be completed always validate.
       - name: Classify platform input changes
         id: platform_inputs
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          SAME_REPOSITORY: ${{ inputs.docs_repository == github.repository }}
+          SAME_REPOSITORY: ${{ inputs.docs_eebus_repository == github.repository }}
         run: |
           set -euo pipefail
           changed=true
           if [[ "${EVENT_NAME}" == "pull_request" && "${SAME_REPOSITORY}" == "true" ]]; then
             changed=false
-            base_root="${GITHUB_WORKSPACE}/checkouts/docs-base"
-            head_root="${GITHUB_WORKSPACE}/checkouts/docs"
+            base_root="${GITHUB_WORKSPACE}/checkouts/docs-eebus-base"
+            head_root="${GITHUB_WORKSPACE}/checkouts/docs-eebus"
             for path in docs/platform scripts .github/workflows requirements-ci.txt; do
               status=0
               diff -rq --exclude=.git --exclude=__pycache__ -- \
@@ -197,7 +364,7 @@ jobs:
         id: prior_manifest
         shell: bash
         env:
-          TRUSTED_BASE_REF: ${{ inputs.docs_base_ref }}
+          TRUSTED_BASE_REF: ${{ steps.trusted_inputs.outputs.prior_ref }}
         run: |
           set -euo pipefail
           base_root="${GITHUB_WORKSPACE}/checkouts/docs-base"
@@ -255,16 +422,6 @@ jobs:
           else
             printf 'path=\n' >> "${GITHUB_OUTPUT}"
           fi
-
-      - name: Checkout docs-eebus ref
-        if: steps.platform_inputs.outputs.changed == 'true'
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: Project-Helianthus/helianthus-docs-eebus
-          ref: ${{ inputs.docs_eebus_ref }}
-          path: checkouts/docs-eebus
-          clean: true
-          persist-credentials: false
 
       - name: Checkout eebusreg ref
         if: steps.platform_inputs.outputs.changed == 'true'
@@ -359,10 +516,11 @@ jobs:
           PRIOR_MANIFEST: ${{ steps.prior_manifest.outputs.path }}
         run: |
           test -n "${PRIOR_MANIFEST}"
-          python3 checkouts/docs/scripts/validate_platform_combined_ref.py \
+          python3 checkouts/docs-eebus/scripts/validate_platform_combined_ref.py \
             --docs-root checkouts/docs \
             --docs-repository "${{ inputs.docs_repository }}" \
             --docs-eebus-root checkouts/docs-eebus \
+            --owner-manifest-root checkouts/docs-eebus \
             --eebusreg-root checkouts/eebusreg \
             --m625-docs-eebus-root checkouts/m625-docs-eebus \
             --m625-execution-plans-root checkouts/m625-execution-plans \
@@ -384,6 +542,7 @@ jobs:
             --docs-root checkouts/docs \
             --docs-repository "${{ inputs.docs_repository }}" \
             --docs-eebus-root checkouts/docs-eebus \
+            --owner-manifest-root checkouts/docs-eebus \
             --eebusreg-root checkouts/eebusreg \
             --m625-docs-eebus-root checkouts/m625-docs-eebus \
             --m625-execution-plans-root checkouts/m625-execution-plans \
@@ -414,6 +573,7 @@ jobs:
             --mode main-expiry \
             --docs-root checkouts/docs \
             --docs-repository "${DOCS_REPOSITORY}" \
+            --owner-manifest-root checkouts/docs-eebus \
             --m625-docs-eebus-root checkouts/m625-docs-eebus \
             --m625-execution-plans-root checkouts/m625-execution-plans \
             --evaluated-at "${evaluated_at}" \

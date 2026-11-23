@@ -103,6 +103,8 @@ if [[ -n "${PLATFORM_DOCS_EEBUS_ROOT:-}${PLATFORM_EEBUSREG_ROOT:-}${PLATFORM_DOC
     --owner-manifest-root . \
     --enforce-through MSP-DOCS-CLEAN \
     --toolchain-mode supported
+else
+  echo "Combined Ref acceptance not run: platform combined-ref inputs are unset."
 fi
 
 # The focused local gate has the same 60-second ceiling on macOS and Linux.

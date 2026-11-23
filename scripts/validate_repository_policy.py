@@ -9,6 +9,7 @@ import os
 import posixpath
 import re
 import stat
+import subprocess
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -1571,7 +1572,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "9fad32f5435600dc5e27d03a2a1739a3" "c0c1be11bbf7d1c9fe48abb4d1b991fa"
+CI_LOCAL_SHA256 = "126ad696a46dca1717e5bb8e6abad" "111301451991bbf2f96c8b934ffa543d044"
 LICENSE_SHA256 = "a16cda9cb4b92973b563238dc27e133c3" "d34e1b774a6530b5276862c75d2c721"
 LICENSE_TEXT_SHA256 = {
     "LICENSES/CC0-1.0.txt": (
@@ -2326,7 +2327,7 @@ ALLOWED_RESTRICTED_POLICY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _GIT_PIN_STRONG_KEY = re.compile(
-    r"(?i)(?:^|_)(?:commit|blob|oid|sha|ref|revision)(?:_|$)"
+    r"(?i)(?:^|_)(?:commit|blob|oid|sha|ref|revision|pin)(?:_|$)"
 )
 _GIT_PIN_WEAK_KEY = re.compile(r"(?i)(?:^|_)(?:base|validator)(?:_|$)")
 _GIT_PIN_FORBIDDEN_KEY = re.compile(
@@ -4498,12 +4499,31 @@ def _public_git_pin_spans(text: str) -> tuple[tuple[int, int], ...]:
     return _coalesce_spans(spans)
 
 
-def _is_raw_eebus_identifier(value: str) -> bool:
-    """Identifier tokens contain a digit or are hex. Prose words do not."""
+def _is_raw_eebus_identifier(value: str, label: str) -> bool:
+    """Explicit ID labels carry identifiers even when the value is alphabetic."""
+    if re.search(r"\b(?:ski|ship)[\s_-]*(?:id|identifier)\b", label, re.IGNORECASE):
+        return True
     identifier_text = value.strip().strip("`\"'").rstrip(".,;:!?")
     if re.fullmatch(r"[0-9A-Fa-f]{8,}", identifier_text):
         return True
     return re.search(r"\d", identifier_text) is not None
+
+
+@lru_cache(maxsize=16)
+def _untracked_scratch_root(root: Path) -> bool:
+    """Ignore root scratch only when Git confirms it has no indexed files."""
+    if not (root / ".git").exists():
+        return False
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--cached", "-z", "--", ".tmp"],
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0 and not result.stdout
+
+
+def _skip_scratch(root: Path, rel: str) -> bool:
+    return (rel == ".tmp" or rel.startswith(".tmp/")) and _untracked_scratch_root(root)
 
 
 def _list_item_text(line: str) -> str:
@@ -4631,7 +4651,7 @@ def _privacy_errors(
             value = match.group(1)
             if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is not None:
                 continue
-            if not _is_raw_eebus_identifier(value):
+            if not _is_raw_eebus_identifier(value, match.group(0)):
                 continue
             line = (
                 variant.count("\n", 0, match.start()) + 1
@@ -4933,7 +4953,7 @@ def _discover_publication_artifacts(
             not path.is_file()
             or path.is_symlink()
             or ".git" in path.parts
-            or ".tmp" in path.relative_to(root).parts
+            or _skip_scratch(root, path.relative_to(root).as_posix())
             or ".pytest_cache" in path.parts
             or "__pycache__" in path.parts
         ):
@@ -5272,7 +5292,7 @@ def _repository_lstat_preflight(
             rel = _rel(path, root)
             if rel == ".git" or rel.startswith(".git/"):
                 continue
-            if rel == ".tmp" or rel.startswith(".tmp/"):
+            if _skip_scratch(root, rel):
                 continue
             try:
                 mode = entry.stat(follow_symlinks=False).st_mode
@@ -8932,7 +8952,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     ):
         if ".git" in path.parts:
             continue
-        if ".tmp" in path.relative_to(root).parts:
+        if _skip_scratch(root, path.relative_to(root).as_posix()):
             continue
         if ".pytest_cache" in path.parts:
             continue
@@ -9247,7 +9267,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     ):
         if (
             ".git" in path.parts
-            or ".tmp" in path.relative_to(root).parts
+            or _skip_scratch(root, path.relative_to(root).as_posix())
             or ".pytest_cache" in path.parts
             or "__pycache__" in path.parts
         ):

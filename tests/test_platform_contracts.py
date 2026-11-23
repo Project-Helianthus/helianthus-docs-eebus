@@ -2161,7 +2161,12 @@ def test_e2_api_v1_remains_active_and_canonically_published() -> None:
 
 def test_clean_combined_ref_uses_exact_merged_dependency_pins() -> None:
     inputs = combined_ref_inputs()
-    assert inputs["docs_eebus_ref"] == CLEAN_DOCS_EEBUS_REF
+    assert inputs["docs_repository"] == "Project-Helianthus/helianthus-docs"
+    assert inputs["docs_ref"] == "ff8fccc7" + "d5fbcbfe1e156fce302549d04a2f6228"
+    assert inputs["docs_eebus_ref"] == (
+        "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha "
+        "|| github.sha }}"
+    )
     assert inputs["eebusreg_ref"] == CLEAN_EEBUSREG_REF
 
 
@@ -2180,6 +2185,11 @@ def test_local_ci_enforces_clean_stage() -> None:
     local_ci = (REPO_ROOT / "scripts/ci_local.sh").read_text(encoding="utf-8")
     assert "cross-runtime platform contracts (MSP-DOCS-CLEAN)" in local_ci
     assert local_ci.count("--enforce-through MSP-DOCS-CLEAN") == 2
+    marker = "Combined Ref acceptance not run: platform combined-ref inputs are unset."
+    assert marker in local_ci
+    assert local_ci.index("scripts/validate_platform_combined_ref.py") < local_ci.index(
+        marker
+    )
 
 
 def test_ownership_validation_guide_tracks_supported_clean_contract() -> None:
@@ -2220,20 +2230,16 @@ def test_ownership_validation_guide_tracks_supported_clean_contract() -> None:
     )
     assert ref_match is not None, "missing immutable docs-eebus ref claim"
 
-    canonical = {
-        "architecture_state": repository_entry(
-            repository_manifest(), "eebus-architecture"
-        )["state"],
-        "docs_eebus_ref": combined_ref_inputs()["docs_eebus_ref"],
-    }
-    assert canonical == {
-        "architecture_state": "active",
-        "docs_eebus_ref": CLEAN_DOCS_EEBUS_REF,
-    }
-    assert {
-        "architecture_state": state_match.group("state"),
-        "docs_eebus_ref": ref_match.group("ref"),
-    } == canonical
+    assert (
+        repository_entry(repository_manifest(), "eebus-architecture")["state"]
+        == "active"
+    )
+    assert state_match.group("state") == "active"
+    assert ref_match.group("ref") == CLEAN_DOCS_EEBUS_REF
+    assert combined_ref_inputs()["docs_eebus_ref"] == (
+        "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha "
+        "|| github.sha }}"
+    )
 
 
 def test_clean_transitions_code_repository_ownership_entries() -> None:
@@ -2491,6 +2497,7 @@ def test_combined_ref_expiry_uses_trusted_validator_and_runner_clock() -> None:
     assert '--evaluated-at "${evaluated_at}"' in script
     assert "github.event.head_commit.timestamp" not in script
     assert "--evaluation-source github.runner.utc_now" in script
+    assert "--owner-manifest-root checkouts/docs-eebus" in script
 
     caller = yaml.safe_load(
         (REPO_ROOT / ".github/workflows/docs-ci.yml").read_text(encoding="utf-8")
@@ -2507,16 +2514,20 @@ def test_combined_ref_workflow_checks_out_pr_head_repository() -> None:
         REPO_ROOT / ".github/workflows/platform-contracts-combined-ref.yml"
     ).read_text(encoding="utf-8")
 
+    assert "docs_repository: Project-Helianthus/helianthus-docs" in caller
+    assert "docs_ref: " + "ff8fccc7" + "d5fbcbfe1e156fce302549d04a2f6228" in caller
     assert (
-        "docs_repository: ${{ github.event_name == 'pull_request'" in caller
+        "docs_eebus_repository: ${{ github.event_name == 'pull_request'" in caller
     )
-    assert "docs_ref: ${{ github.event_name == 'pull_request'" in caller
+    assert "docs_eebus_ref: ${{ github.event_name == 'pull_request'" in caller
     assert "repository: ${{ github.event.pull_request.head.repo.full_name }}" in caller
     assert "ref: ${{ github.event.pull_request.head.sha }}" in caller
     assert reusable.count("docs_repository:") >= 2
     assert "DOCS_REPOSITORY: ${{ inputs.docs_repository }}" in reusable
-    assert "repository: ${{ inputs.docs_repository }}" in reusable
+    assert "repository: ${{ inputs.docs_eebus_repository }}" in reusable
+    assert "ref: ${{ inputs.docs_eebus_ref }}" in reusable
     assert '--docs-repository "${{ inputs.docs_repository }}"' in reusable
+    assert '--docs-eebus-root checkouts/docs-eebus' in reusable
     assert "repository='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'" in reusable
     assert "repository: Project-Helianthus/helianthus-docs" in reusable
 
@@ -2531,8 +2542,9 @@ def test_combined_ref_caller_runs_pr_m625_validator_with_trusted_guard() -> None
 
     assert "uses: ./.github/workflows/platform-contracts-combined-ref.yml" in caller
     assert "Validate PR M6.25 provenance contract" in reusable
-    assert "checkouts/docs/scripts/validate_platform_combined_ref.py" in reusable
+    assert "checkouts/docs-eebus/scripts/validate_platform_combined_ref.py" in reusable
     assert "checkouts/docs-validator/scripts/validate_platform_combined_ref.py" in reusable
+    assert reusable.count("--owner-manifest-root checkouts/docs-eebus") == 3
 
 
 def test_docs_ci_binds_pr_head_and_runs_trusted_expiry_on_push() -> None:
@@ -2555,26 +2567,72 @@ def test_docs_ci_binds_pr_head_and_runs_trusted_expiry_on_push() -> None:
         "if: github.event_name == 'pull_request' || github.event_name == 'push' "
         "|| github.event_name == 'schedule'" in caller
     )
-    assert "docs_ref: ${{ github.event_name == 'pull_request'" in caller
+    assert "docs_eebus_ref: ${{ github.event_name == 'pull_request'" in caller
+    assert "docs_ref: " + "ff8fccc7" + "d5fbcbfe1e156fce302549d04a2f6228" in caller
     assert "github.event_name == 'schedule' && github.sha || github.event.before }}" in caller
 
 
 def test_combined_ref_executes_pr_m625_and_trusted_validator_checkouts() -> None:
-    reusable = (
+    reusable_path = (
         REPO_ROOT / ".github/workflows/platform-contracts-combined-ref.yml"
-    ).read_text(encoding="utf-8")
+    )
+    reusable = reusable_path.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(reusable)
+    steps = workflow["jobs"]["validate"]["steps"]
+    platform_pin = "ff8fccc7" + "d5fbcbfe1e156fce302549d04a2f6228"
+    donor_pin = "977614c9" + "44cd685bef75b5b12148e1110ed7653a"
 
-    assert (
-        "bootstrap_base=" + "114072fe" + "8bdf027cfdd3472d7f2b0896a2496db4"
-        in reusable
+    select = next(
+        step for step in steps if step.get("name") == "Select trusted validator and prior"
     )
-    assert (
-        "bootstrap_validator=" + "c4d87b2d" + "1fbdc9627a3a2aedaae298547f1908d2"
-        in reusable
+    script = select["run"]
+    assert 'platform_repository="Project-Helianthus/helianthus-docs"' in script
+    assert f'platform_pin="{platform_pin}"' in script
+    assert 'donor_repository="Project-Helianthus/helianthus-docs-ebus"' in script
+    assert f'donor_pin="{donor_pin}"' in script
+    assert 'validator_repository="${GITHUB_REPOSITORY}"' in script
+    assert 'validator_ref="${DOCS_BASE_REF}"' in script
+    assert 'prior_repository="${GITHUB_REPOSITORY}"' in script
+    assert 'prior_ref="${DOCS_BASE_REF}"' in script
+    assert 'mode="later"' in script
+    assert 'mode="first"' in script
+    assert "docs/platform/manifests/eebus-doc-ownership.yaml" in script
+    assert "114072fe" not in script
+    assert "c4d87b2d" not in script
+
+    validator = next(
+        step for step in steps if step.get("name") == "Checkout trusted validator"
     )
+    assert validator["with"]["repository"] == (
+        "${{ steps.trusted_inputs.outputs.validator_repository }}"
+    )
+    assert validator["with"]["ref"] == "${{ steps.trusted_inputs.outputs.validator_ref }}"
+    assert validator["with"]["path"] == "checkouts/docs-validator"
+
+    prior = next(
+        step
+        for step in steps
+        if step.get("name") == "Checkout trusted docs prior manifest"
+    )
+    assert prior["with"]["repository"] == (
+        "${{ steps.trusted_inputs.outputs.prior_repository }}"
+    )
+    assert prior["with"]["ref"] == "${{ steps.trusted_inputs.outputs.prior_ref }}"
+    assert prior["with"]["path"] == "checkouts/docs-base"
+
+    docs = next(step for step in steps if step.get("name") == "Checkout docs ref")
+    assert docs["with"]["repository"] == "Project-Helianthus/helianthus-docs"
+    assert docs["with"]["ref"] == platform_pin
+    assert docs["with"]["path"] == "checkouts/docs"
+
+    head = next(step for step in steps if step.get("name") == "Checkout docs-eebus ref")
+    assert head["with"]["repository"] == "${{ inputs.docs_eebus_repository }}"
+    assert head["with"]["ref"] == "${{ inputs.docs_eebus_ref }}"
+    assert head["with"]["path"] == "checkouts/docs-eebus"
+
     assert "path: checkouts/docs-validator" in reusable
     assert "repository: Project-Helianthus/helianthus-docs" in reusable
-    assert "cat-file -t \"${TRUSTED_VALIDATOR_REF}\"" in reusable
+    assert 'cat-file -t "${TRUSTED_VALIDATOR_REF}"' in reusable
     assert "checkouts/docs-validator/requirements-ci.txt" in reusable
     assert (
         "checkouts/docs-validator/scripts/validate_platform_contracts.py"

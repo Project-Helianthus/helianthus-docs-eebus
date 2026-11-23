@@ -369,7 +369,7 @@ def test_m625_focused_contract_is_in_local_and_github_docs_ci() -> None:
         )
         assert "run: ./scripts/ci_local.sh" in docs_ci
     assert "Validate PR M6.25 provenance contract" in combined_ref
-    assert "checkouts/docs/scripts/validate_platform_combined_ref.py" in combined_ref
+    assert "checkouts/docs-eebus/scripts/validate_platform_combined_ref.py" in combined_ref
     assert (
         combined_ref.count(
             "--m625-docs-eebus-root checkouts/m625-docs-eebus"
