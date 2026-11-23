@@ -2331,7 +2331,7 @@ _GIT_PIN_STRONG_KEY = re.compile(
 )
 _GIT_PIN_WEAK_KEY = re.compile(r"(?i)(?:^|_)(?:base|validator)(?:_|$)")
 _GIT_PIN_FORBIDDEN_KEY = re.compile(
-    r"(?i)ski|ship|peer|fingerprint|secret|token|password|credential|serial"
+    r"(?i)ski|ship|peer|device|cert|fingerprint|secret|token|password|credential|serial"
 )
 _GIT_PIN_FIELD_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_.-])"
@@ -4434,7 +4434,7 @@ def _field_git_pin_spans(text: str) -> list[tuple[int, int]]:
     spans: list[tuple[int, int]] = []
     for match in _GIT_PIN_FIELD_PATTERN.finditer(text):
         line_start = text.rfind("\n", 0, match.start()) + 1
-        if re.search(r"(?i)\b(?:ski|ship)\b", text[line_start : match.start()]):
+        if _GIT_PIN_FORBIDDEN_KEY.search(text[line_start : match.start()]):
             continue
         strength = _git_pin_key_strength(match.group("key"))
         pin_end = match.end("pin")
@@ -4527,10 +4527,17 @@ def _public_git_pin_spans(text: str, rel: str) -> tuple[tuple[int, int], ...]:
     bare_reference_spans = {
         match.span("pin")
         for match in _GIT_PIN_FIELD_PATTERN.finditer(text)
-        if match.group("key").casefold() in {"ref", "revision", "pin"}
+        if re.search(r"(?i)(?:^|_)(?:ref|revision|pin)(?:_|$)", match.group("key"))
         and (
             PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
-            or not _public_yaml_ref_context(text, match.start(), match.group("pin"), rel)
+            or (
+                match.group("key").casefold() != "ref"
+                and not rel.startswith(".github/workflows/")
+            )
+            or (
+                match.group("key").casefold() == "ref"
+                and not _public_yaml_ref_context(text, match.start(), match.group("pin"), rel)
+            )
         )
     }
     field_spans = [span for span in field_spans if span not in bare_reference_spans]
