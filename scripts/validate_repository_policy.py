@@ -2340,7 +2340,7 @@ _GIT_PIN_FIELD_PATTERN = re.compile(
 )
 _GIT_PIN_EMBEDDED_PATTERN = re.compile(
     r"(?:https?://\S+/(?:blob|commit|commits|raw|tree)/"
-    r"|[?&](?:ref|commit|sha|revision)=|git[.:])"
+    r"|[?&](?:ref|commit|sha|revision)=)"
     r"([0-9a-fA-F]{40})(?![0-9A-Fa-f])",
     re.IGNORECASE,
 )
@@ -4514,6 +4514,12 @@ def _public_git_pin_spans(text: str, rel: str) -> tuple[tuple[int, int], ...]:
     """Exempt public revision pins and same-line citations of those pins."""
     spans = [match.span(1) for match in _GIT_PIN_EMBEDDED_PATTERN.finditer(text)]
     spans.extend(match.span(1) for match in _GIT_PIN_ACTION_PATTERN.finditer(text))
+    if rel.startswith("docs/platform/fixtures/synchronized-evidence/"):
+        version_pin = re.compile(
+            r'"(?:operation|recorder|replay)_version"\s*:\s*"'
+            r'(?:[0-9]+(?:\.[0-9]+){2}\+)?git[.:]([0-9a-fA-F]{40})'
+        )
+        spans.extend(match.span(1) for match in version_pin.finditer(text))
     field_spans = _field_git_pin_spans(text)
     bare_reference_spans = {
         match.span("pin")

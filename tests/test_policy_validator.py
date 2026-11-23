@@ -103,6 +103,10 @@ class PolicyValidatorTests(unittest.TestCase):
             with self.subTest(rel=rel, label="sha"):
                 errors = _privacy_errors(f"sha: {value}", rel)
                 self.assertTrue(any("full fingerprint" in error for error in errors))
+        for rel in ("protocols/probe.md", "protocols/probe.yaml"):
+            with self.subTest(label="git", rel=rel):
+                errors = _privacy_errors(f"git:{value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
         for label in ("ref", "revision", "pin"):
             with self.subTest(label=label):
                 errors = _privacy_errors(f"{label}: {value}", "protocols/probe.md")
@@ -687,8 +691,8 @@ class PolicyValidatorTests(unittest.TestCase):
                 "execution_plans_ref:",
                 f"  default: {pin}",
                 f'"owner_commit": "{cited}"',
-                f"recorder_version: 1.0.0+git.{pin}",
-                f"operation_version: git:{cited}",
+                f"recorder_version: https://github.com/Project-Helianthus/helianthus-docs/commit/{pin}",
+                f"operation_version: https://github.com/Project-Helianthus/helianthus-docs/commit/{cited}",
                 (
                     f"[`{pin}`](https://github.com/Project-Helianthus/"
                     f"helianthus-eebusreg/commit/{pin})."
@@ -697,7 +701,7 @@ class PolicyValidatorTests(unittest.TestCase):
                     "https://api.github.com/repositories/1/contents/"
                     f"development/policy.md?ref={cited}"
                 ),
-                "ref: " + pin,
+                "ref: https://github.com/Project-Helianthus/helianthus-docs/commit/" + pin,
             )
         )
         with tempfile.TemporaryDirectory() as tmp:
