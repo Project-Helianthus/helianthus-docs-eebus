@@ -99,6 +99,10 @@ def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
 class PolicyValidatorTests(unittest.TestCase):
     def test_bare_ref_or_revision_does_not_hide_a_fingerprint(self) -> None:
         value = forty_hex("abc12345")
+        for rel in ("protocols/probe.md", "protocols/probe.yaml"):
+            with self.subTest(rel=rel, label="sha"):
+                errors = _privacy_errors(f"sha: {value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
         for label in ("ref", "revision", "pin"):
             with self.subTest(label=label):
                 errors = _privacy_errors(f"{label}: {value}", "protocols/probe.md")

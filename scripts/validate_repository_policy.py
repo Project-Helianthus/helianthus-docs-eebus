@@ -2327,7 +2327,7 @@ ALLOWED_RESTRICTED_POLICY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _GIT_PIN_STRONG_KEY = re.compile(
-    r"(?i)(?:^|_)(?:commit|blob|oid|sha|ref|revision|pin)(?:_|$)"
+    r"(?i)(?:^|_)(?:commit|blob|oid|ref|revision|pin)(?:_|$)"
 )
 _GIT_PIN_WEAK_KEY = re.compile(r"(?i)(?:^|_)(?:base|validator)(?:_|$)")
 _GIT_PIN_FORBIDDEN_KEY = re.compile(
