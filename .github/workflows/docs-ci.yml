@@ -385,4 +385,5 @@ jobs:
           PLATFORM_DOCS_REPOSITORY: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
           PLATFORM_CONTRACTS_ROOT: ${{ github.workspace }}/checkouts/docs
           DONOR_DOCS_ROOT: ${{ github.workspace }}/checkouts/docs-ebus
+          CI_PLATFORM_ONLY: "1"
         run: ./scripts/ci_local.sh

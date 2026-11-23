@@ -107,6 +107,11 @@ else
   echo "Combined Ref acceptance not run: platform combined-ref inputs are unset."
 fi
 
+if [[ "${CI_PLATFORM_ONLY:-}" == "1" ]]; then
+  echo "==> copied platform contracts passed; docs fast checks run in their own job"
+  exit 0
+fi
+
 # The focused local gate has the same 60-second ceiling on macOS and Linux.
 exec python3 -c '
 import subprocess
