@@ -451,7 +451,7 @@ define a comparator, restart rule, semantic path, or promotion outcome.
 
 Terminal provenance, cross-protocol comparator ownership, semantic paths,
 fallback identity, campaign assembly, and promotion decisions remain in
-`helianthus-docs-ebus`. The serialized companion is
+`helianthus-docs`. The serialized companion is
 [`helianthus-docs-ebus#419`](https://github.com/Project-Helianthus/helianthus-docs-ebus/pull/419).
 It binds this inventory's exact PR head until this source PR is squash-merged,
 then must be repinned to the resulting full merge commit before it can merge.

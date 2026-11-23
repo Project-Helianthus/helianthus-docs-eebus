@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,7 +11,13 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 
 from tests.policy_test_support import check_repository_result, materialize_policy_fixture
-from validate_repository_policy import check_repository
+from validate_repository_policy import (
+    PLATFORM_SNAPSHOT_REF,
+    _privacy_errors,
+    _skip_scratch,
+    _untracked_scratch_root,
+    check_repository,
+)
 
 
 def assignment(label: str, value: str) -> str:
@@ -27,6 +34,10 @@ def synthetic_ipv6(*groups: str) -> str:
 
 def synthetic_mac() -> str:
     return ":".join(("00", "11", "22", "33", "44", "55"))
+
+
+def forty_hex(prefix: str) -> str:
+    return (prefix + "0123456789abcdef" + "fedcba9876543210")[:40]
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -86,6 +97,59 @@ def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
 
 
 class PolicyValidatorTests(unittest.TestCase):
+    def test_bare_ref_or_revision_does_not_hide_a_fingerprint(self) -> None:
+        value = forty_hex("abc12345")
+        for rel in ("protocols/probe.md", "protocols/probe.yaml"):
+            with self.subTest(rel=rel, label="sha"):
+                errors = _privacy_errors(f"sha: {value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+        for rel in ("protocols/probe.md", "protocols/probe.yaml"):
+            with self.subTest(label="git", rel=rel):
+                errors = _privacy_errors(f"git:{value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+            with self.subTest(label="ski-commit", rel=rel):
+                errors = _privacy_errors(f"SKI commit: {value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+            with self.subTest(label="peer-ref", rel=rel):
+                errors = _privacy_errors(f"peer_ref: {value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+            for label in ("Peer commit", "Fingerprint commit", "device_ref", "cert_ref"):
+                with self.subTest(label=label, rel=rel):
+                    errors = _privacy_errors(f"{label}: {value}", rel)
+                    self.assertTrue(any("full fingerprint" in error for error in errors))
+        for label in ("SHIP" + ": helianthusgateway", "SKI" + ": Helianthus"):
+            with self.subTest(label=label):
+                self.assertTrue(_privacy_errors(label, "api/probe.md"))
+        for parameter in ("ref", "sha", "commit"):
+            with self.subTest(parameter=parameter):
+                arbitrary_url = f"https://example.com/page?{parameter}={value}"
+                errors = _privacy_errors(arbitrary_url, "api/probe.md")
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+        for label in ("ref", "revision", "pin"):
+            with self.subTest(label=label):
+                errors = _privacy_errors(f"{label}: {value}", "protocols/probe.md")
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+                yaml_errors = _privacy_errors(f"{label}: {value}", "protocols/probe.yaml")
+                self.assertTrue(any("full fingerprint" in error for error in yaml_errors))
+
+        public_commit = (
+            "https://github.com/Project-Helianthus/helianthus-docs/commit/"
+            + value
+        )
+        self.assertFalse(_privacy_errors(public_commit, "protocols/probe.md"))
+        bare_ref = "repository: Project-Helianthus/helianthus-docs\nref: " + value
+        self.assertTrue(_privacy_errors(bare_ref, "protocols/probe.yaml"))
+        cited_ref = bare_ref + "\nurl: https://github.com/Project-Helianthus/helianthus-docs/commit/" + value
+        self.assertFalse(_privacy_errors(cited_ref, "protocols/probe.yaml"))
+        checkout_ref = (
+            "  uses: actions/checkout@11bd71901bbe5b1630"
+            "ceea73d27597364c9af683\n"
+            "  with:\n"
+            "    repository: Project-Helianthus/helianthus-docs\n"
+            "    ref: " + value
+        )
+        self.assertFalse(_privacy_errors(checkout_ref, ".github/workflows/probe.yml"))
+
     def test_additional_yaml_pull_request_workflow_fails(self) -> None:
         triggers = ("on:\n  pull_request:\n", "on: [push, pull_request]\n")
         triggers += (
@@ -387,7 +451,7 @@ class PolicyValidatorTests(unittest.TestCase):
             page = repo / "protocols" / "ship-spine-overview.md"
             page.write_text(
                 page.read_text(encoding="utf-8")
-                + "\n<https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                + "\n<https://github.com/Project-Helianthus/helianthus-docs-eebus/"
                 "blob/main/docs/platform/eebus-raw-first-contract.md>\n",
                 encoding="utf-8",
             )
@@ -421,9 +485,40 @@ class PolicyValidatorTests(unittest.TestCase):
             page = repo / "protocols" / "ship-spine-overview.md"
             page.write_text(
                 page.read_text(encoding="utf-8")
-                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-eebus/"
                 "blob/main/docs/platform/eebus-raw-first-contract.md.\n"
                 "\n## Requirements\n\n- duplicated\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("cross_seed_target must match", result.stderr)
+
+    def test_unlisted_platform_page_has_no_registered_owner_domain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "docs" / "platform" / "shared-registry-boundary.md"
+            page.parent.mkdir(parents=True)
+            page.write_text("# Unlisted platform page\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "docs/platform/shared-registry-boundary.md: publishable markdown path has no registered owner domain",
+                result.stderr,
+            )
+
+    def test_snapshot_repository_bare_platform_url_still_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "ship-spine-overview.md"
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                + f"blob/{PLATFORM_SNAPSHOT_REF}/docs/platform/shared-registry-boundary.md\n",
                 encoding="utf-8",
             )
 
@@ -507,6 +602,50 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
+                    self.assertTrue(
+                        any(
+                            fragment in result.stderr
+                            for fragment in (
+                                "populated raw SKI or SHIP ID",
+                                "populated sensitive field",
+                                "PEM block marker found",
+                                "MAC address found",
+                                "private artifact location/reference field is forbidden",
+                            )
+                        ),
+                        result.stderr,
+                    )
+
+    def test_alphabetic_ship_id_is_not_treated_as_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            add_evidence_backed_page(
+                repo, "protocols/raw-ship-id.md", "SHIP " + "ID: helianthusgateway"
+            )
+
+            result = run_validator(repo)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("populated raw SKI or SHIP ID", result.stderr)
+
+    def test_scratch_skip_requires_no_indexed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            artifact = root / ".tmp" / "control.txt"
+            artifact.parent.mkdir()
+            artifact.write_text("SHIP " + "ID: helianthusgateway\n", encoding="utf-8")
+
+            _untracked_scratch_root.cache_clear()
+            self.assertTrue(_skip_scratch(root, ".tmp/control.txt"))
+            self.assertFalse(_skip_scratch(root, "protocols/.tmp/control.txt"))
+
+            subprocess.run(
+                ["git", "-C", str(root), "add", "--", ".tmp/control.txt"],
+                check=True,
+            )
+            _untracked_scratch_root.cache_clear()
+            self.assertFalse(_skip_scratch(root, ".tmp/control.txt"))
 
     def test_concatenated_identity_labels_fail_on_evidence_backed_page(self) -> None:
         for payload in (
@@ -545,6 +684,103 @@ class PolicyValidatorTests(unittest.TestCase):
                         "restric" "ted-source contamination marker found",
                         result.stderr,
                     )
+
+    def test_public_pins_prose_and_prohibition_are_not_sensitive(self) -> None:
+        pin = forty_hex("aaaaaaa1")
+        cited = forty_hex("bbbbbbb2")
+        body = "\n".join(
+            (
+                "## SHIP Connection State And SPINE Browsing Are Separate",
+                "",
+                "The SHIP connection generation stays separate from browsing.",
+                "There is no current SHIP session.",
+                "4. SHIP completion on that connection.",
+                "",
+                "Public artifacts must not include:",
+                "",
+                "- " + "vendor-" + "restricted protocol details.",
+                "",
+                f"bootstrap_base={pin}",
+                f"bootstrap_validator={cited}",
+                'if [[ "${DOCS_BASE_REF}" == "${bootstrap_base}" ]]; then',
+                '  validator_ref="${bootstrap_validator}"',
+                "fi",
+                f"uses: actions/checkout@{pin} # v4.2.2",
+                "execution_plans_ref:",
+                f"  default: {pin}",
+                f'"owner_commit": "{cited}"',
+                f"recorder_version: https://github.com/Project-Helianthus/helianthus-docs/commit/{pin}",
+                f"operation_version: https://github.com/Project-Helianthus/helianthus-docs/commit/{cited}",
+                (
+                    f"[`{pin}`](https://github.com/Project-Helianthus/"
+                    f"helianthus-eebusreg/commit/{pin})."
+                ),
+                (
+                    "https://api.github.com/repositories/1/contents/"
+                    f"development/policy.md?ref={cited}"
+                ),
+                "ref: https://github.com/Project-Helianthus/helianthus-docs/commit/" + pin,
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            add_evidence_backed_page(repo, "protocols/public-pin-context.md", body)
+
+            result = run_validator(repo)
+
+        self.assertNotIn("full fingerprint or raw SKI", result.stderr)
+        self.assertNotIn("populated raw SKI or SHIP ID", result.stderr)
+        self.assertNotIn("contamination marker found", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_raw_identifier_fingerprint_and_source_claim_still_fail(self) -> None:
+        bare = forty_hex("ccccccc3")
+        body = "\n".join(
+            (
+                "observed " + bare,
+                "Raw SKI " + "abcdef1234567890",
+                "Source class: vendor_" + "restricted",
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            add_evidence_backed_page(repo, "protocols/raw-material.md", body)
+
+            result = run_validator(repo)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "protocols/raw-material.md: full fingerprint or raw SKI",
+            result.stderr,
+        )
+        self.assertIn("populated raw SKI or SHIP ID", result.stderr)
+        self.assertIn("contamination marker found", result.stderr)
+
+    def test_copied_public_context_is_not_a_privacy_finding(self) -> None:
+        copied = (
+            ".github/workflows/platform-contracts-combined-ref.yml",
+            "docs/platform/eebus-ha-network-proof.md",
+            "docs/platform/eebus-interop-smoke.md",
+            "docs/platform/eebus-raw-runtime-freeze.md",
+            "docs/platform/fixtures/synchronized-evidence/v1/m625/positive/bundle.json",
+            "docs/platform/fixtures/synchronized-evidence/v1/m625/positive/replay-result.json",
+            "docs/platform/manifests/msp-0625-public-inputs.yaml",
+            "docs/platform/msp-0625-public-acquisition-methodology.md",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            for relative in copied:
+                source = REPO / relative
+                target = repo / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+
+            result = run_validator(repo)
+
+        self.assertNotIn("full fingerprint or raw SKI", result.stderr)
+        self.assertNotIn("populated raw SKI or SHIP ID", result.stderr)
+        self.assertNotIn("contamination marker found", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_machine_policy_decodes_escaped_shadowed_publication_claims(self) -> None:
         cases = (

@@ -1,0 +1,19 @@
+schema: helianthus.platform.external-inputs
+version: 1
+owner: Project-Helianthus/helianthus-docs-ebus#380
+sources:
+  - repository: Project-Helianthus/helianthus-execution-plans
+    ref: fb384ab57d79f0020c54d2c66416e8a7666f0ceb
+    path: multi-runtime-semantic-platform.locked/118-w30-26-m625-raw-spine-feature-acquisition.md
+    content_sha256: 21c4e525a39090a1c4f4ca6efdedb05978bc9f7588f9acbcaa6039fc21fa4536
+    url: https://github.com/Project-Helianthus/helianthus-execution-plans/blob/fb384ab57d79f0020c54d2c66416e8a7666f0ceb/multi-runtime-semantic-platform.locked/118-w30-26-m625-raw-spine-feature-acquisition.md
+  - repository: Project-Helianthus/helianthus-docs-eebus
+    ref: cedf238e34f879815ba773e9cd76b2b31c2822a3
+    path: development/msp-0625-provenance-policy.md
+    content_sha256: f52a15cab0ec7cfebb67a1932b27259489846619b109ea71e43ca54531191db2
+    url: https://api.github.com/repositories/1293598306/contents/development/msp-0625-provenance-policy.md?ref=cedf238e34f879815ba773e9cd76b2b31c2822a3
+  - repository: Project-Helianthus/helianthus-docs-eebus
+    ref: cedf238e34f879815ba773e9cd76b2b31c2822a3
+    path: architecture/_candidate/msp-0625-raw-feature-command-path.md
+    content_sha256: e782c764e5bed3ca103b3544e2bfcb97f7869416184175ad576a90c8f6302e64
+    url: https://api.github.com/repositories/1293598306/contents/architecture/_candidate/msp-0625-raw-feature-command-path.md?ref=cedf238e34f879815ba773e9cd76b2b31c2822a3

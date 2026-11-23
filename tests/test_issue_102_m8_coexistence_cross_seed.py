@@ -32,7 +32,7 @@ class Issue102M8CoexistenceCrossSeedTests(unittest.TestCase):
         self.assertEqual(metadata["cross_seed_mode"], "summary-only")
         self.assertEqual(
             metadata["cross_seed_target"],
-            f"Project-Helianthus/helianthus-docs-ebus:{PLATFORM_PATH}",
+            f"Project-Helianthus/helianthus-docs:{PLATFORM_PATH}",
         )
         self.assertEqual(
             metadata["cross_seed_snapshot"],

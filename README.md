@@ -25,8 +25,12 @@ It does not own cross-protocol semantics. The
 [common semantic contract](https://github.com/Project-Helianthus/helianthus-docs-semantic/blob/main/api/v1/graph.md)
 in docs-semantic owns cross-protocol semantics, including the identity of
 semantic facts, resources and relations. Language-neutral cross-runtime
-platform contracts live in `helianthus-docs-ebus/docs/platform/`; they do not
+platform contracts live in `helianthus-docs/docs/platform/`; they do not
 own semantic meaning.
+
+The immutable public platform-contract dependency is the pinned
+`helianthus-docs` revision. `./scripts/ci_local.sh` is the normal local
+CI command.
 
 ## Ownership Policy
 
@@ -42,7 +46,7 @@ Canonical ownership is path-based:
   may contain planned scaffolding, but must not invent API facts.
 - `devices/`, `evidence/`, and `re-notes/` remain native owners for device
   pages, redacted evidence records, and reverse-engineering notes.
-- `helianthus-docs-ebus/docs/platform/` owns only language-neutral
+- `helianthus-docs/docs/platform/` owns only language-neutral
   cross-runtime contracts. This repo may summarize those contracts only when it
   links to the canonical platform page.
 - docs-semantic owns cross-protocol semantics through the common semantic
@@ -68,7 +72,7 @@ supported material within the boundaries above. MSP-DOCS-CLEAN later deletes
 `helianthus-eebusreg/docs/` and installs the absence gate. This repository must
 not claim those files are already physically absent.
 
-Cross-seeding from eeBUS docs to `helianthus-docs-ebus/docs/platform/` is
+Cross-seeding from eeBUS docs to `helianthus-docs/docs/platform/` is
 allowed only for language-neutral cross-runtime contracts. A cross-seed must
 name the target platform page, keep the local page summary-only, and pass the
 repository policy validator.
@@ -97,7 +101,7 @@ compatibility claim; other candidate amendments retain their existing status.
 ## Summary-Only Rule
 
 When this repo refers to platform contracts, the page must link to the
-canonical `helianthus-docs-ebus/docs/platform/` page and remain summary-only.
+canonical `helianthus-docs/docs/platform/` page and remain summary-only.
 It must not duplicate requirements, acceptance criteria, versioning policy, or
 approval steps.
 

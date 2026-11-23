@@ -26,7 +26,7 @@ Path ownership is exact:
 - `api/` owns eeBUS-specific Go API schema, reference, and examples.
 - `devices/`, `evidence/`, and `re-notes/` remain native owners for their
   device, evidence, and reverse-engineering records.
-- `helianthus-docs-ebus/docs/platform/` owns only language-neutral
+- `helianthus-docs/docs/platform/` owns only language-neutral
   cross-runtime platform contracts.
 
 Cross-protocol contracts are linked from platform docs and are not duplicated
@@ -53,7 +53,7 @@ migration/adjudication inputs only. MSP-DOCS-E2 decides migration or discard;
 MSP-DOCS-CLEAN later deletes the code-repo docs directory and installs the
 absence gate.
 
-Cross-seeding to `helianthus-docs-ebus/docs/platform/` is allowed only for
+Cross-seeding to `helianthus-docs/docs/platform/` is allowed only for
 language-neutral cross-runtime contracts and must keep this repo summary-only.
 
 ## Provenance Classes

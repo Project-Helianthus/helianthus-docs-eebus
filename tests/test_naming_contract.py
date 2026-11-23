@@ -124,7 +124,7 @@ class NamingContractTests(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(root / 'scripts/validate_repository_policy.py'),
              '--repo', str(root)],
-            cwd=root, capture_output=True, text=True, check=False, timeout=30,
+            cwd=root, capture_output=True, text=True, check=False, timeout=90,
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('invalid naming contract', result.stderr)

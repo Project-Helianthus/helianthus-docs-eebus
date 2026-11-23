@@ -9,6 +9,7 @@ import os
 import posixpath
 import re
 import stat
+import subprocess
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -1535,7 +1536,7 @@ SCAFFOLD_PAGES = {
 
 SCAFFOLD_ARTIFACT_SHA256 = {
     # Owner pointer names the common semantic contract; issue #178.
-    "README.md": "a4654d0d0c88a98e6c7edb23801b8d58" "85b9076a6613c3f6099699412f7633f8",
+    "README.md": "83a446e032eb4396df545381a70ef0fd" "f07b49c5f9642d21552353fb3e62dd4d",
     # Output-binding candidate named; issue #179.
     # Output publication rule named; issue #186.
     # Consumption limit applied as allocated current; issue #189.
@@ -1547,7 +1548,7 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     ),
     "re-notes/template.md": "eaedfc96d49a573455f43df8f1542e0f" "d8724ef3770dcb9d0aac485ef23f8f32",
     "development/contributing.md": (
-        "f52c046edb8bafeca43cdb1e9159e493" "55688ce7b114339bfe34cf02a1038586"
+        "c9a8784065a3e9dbb13424a23a3b9a6d" "7c17608b2f4099e4ce3a88ed80da270f"
     ),
 }
 
@@ -1559,7 +1560,7 @@ PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "a3ae5a2f9b96f11732f3ee953cb95cf6" "e15ccf7625472a2496bf2a3a9816fa3c"
+        "46f848bd630435aa8ea4fb695d8fccf9" "9c56ddf2d4dfba044a48691ee58e2b36"
     ),
 }
 
@@ -1571,7 +1572,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "fc840de033c674032a10b3824d9c276a" "95e4469c1ade529d4c7d26ef5c76a45b"
+CI_LOCAL_SHA256 = "a1c2079519875d8bca6b709296663796" "caac980a7ad4dd9fa3de82dac1f7ba67"
 LICENSE_SHA256 = "a16cda9cb4b92973b563238dc27e133c3" "d34e1b774a6530b5276862c75d2c721"
 LICENSE_TEXT_SHA256 = {
     "LICENSES/CC0-1.0.txt": (
@@ -1626,10 +1627,18 @@ LICENSE_ACK_LABEL = (
 
 CONTROL_MD = {
     "AGENTS.md",
+    "api/eebus-northbound-integrator-reference.md",
+    "api/eebus-operator-admin.md",
+    "docs/platform/eebus-ha-network-proof.md",
+    "docs/platform/eebus-interop-smoke.md",
+    "docs/platform/eebus-raw-first-contract.md",
+    "docs/platform/eebus-raw-runtime-freeze.md",
+    "docs/platform/msp-0625-public-acquisition-methodology.md",
 }
 
 PLATFORM_SNAPSHOT_REF = "9cede4c61a4f73019142b7418cf6f875" "37cf645c"
-PLATFORM_REPO = "Project-Helianthus/helianthus-docs-ebus"
+PLATFORM_SNAPSHOT_REPO = "Project-Helianthus/helianthus-docs-ebus"
+PLATFORM_REPO = "Project-Helianthus/helianthus-docs"
 PLATFORM_SNAPSHOT_PATH = "scripts/platform_cross_seed_snapshot.yaml"
 PLATFORM_SNAPSHOT_SHA256 = "10c31fc3a0dcd9980d2eac7e844664cf2fba1d9bcb8b331534eb36daf738462b"
 PLATFORM_SNAPSHOT_TARGETS = {
@@ -1648,7 +1657,7 @@ PLATFORM_SNAPSHOT_TARGETS = {
 }
 PUBLICATION_CHANNELS_PATH = "scripts/publication_channels.yaml"
 PLATFORM_SNAPSHOT_PATTERN = re.compile(
-    rf"{re.escape(PLATFORM_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
+    rf"{re.escape(PLATFORM_SNAPSHOT_REPO)}@([0-9a-f]{{40}}):(docs/platform/[A-Za-z0-9._/-]+\.md)"
 )
 CANDIDATE_API_ROOT = PurePosixPath("api/_candidate")
 CANDIDATE_API_CHANNELS = (
@@ -1900,7 +1909,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
             "evidence-acceptance boundaries."
         ),
         "cross_seed_target": (
-            "Project-Helianthus/helianthus-docs-ebus:"
+            "Project-Helianthus/helianthus-docs:"
             "docs/platform/shared-registry-boundary.md"
         ),
         "cross_seed_mode": "summary-only",
@@ -1932,7 +1941,7 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
             "authority, isolation, or scope boundaries summarized here."
         ),
         "cross_seed_target": (
-            "Project-Helianthus/helianthus-docs-ebus:"
+            "Project-Helianthus/helianthus-docs:"
             "docs/platform/multi-runtime-coexistence-no-drift-v1.md"
         ),
         "cross_seed_mode": "summary-only",
@@ -2031,7 +2040,7 @@ FIXTURE_REVIEWED_ACTIVE_ARCHITECTURE = {
         "hypothesis_status": "publishable",
         "falsifier": "A publishable public source contradicts this runtime boundary.",
         "cross_seed_target": (
-            "Project-Helianthus/helianthus-docs-ebus:"
+            "Project-Helianthus/helianthus-docs:"
             "docs/platform/shared-registry-boundary.md"
         ),
         "cross_seed_mode": "summary-only",
@@ -2187,7 +2196,7 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
             "or the exact outdoor-temperature source binding recorded below."
         ),
         "cross_seed_target": (
-            "Project-Helianthus/helianthus-docs-ebus:"
+            "Project-Helianthus/helianthus-docs-eebus:"
             "docs/platform/eebus-raw-first-contract.md"
         ),
         "cross_seed_mode": "summary-only",
@@ -2315,6 +2324,46 @@ ALLOWED_RESTRICTED_POLICY_LINE = (
 ALLOWED_RESTRICTED_POLICY_PATTERN = re.compile(
     r"\b(?:do not|must not|never|forbid(?:s|den)?|prohibit(?:s|ed)?|reject(?:s|ed)?)\b"
     r"[^\n]{0,120}\brestric" r"ted(?:[\s_-]+source|[\s_-]+material)?\b",
+    re.IGNORECASE,
+)
+_GIT_PIN_STRONG_KEY = re.compile(
+    r"(?i)(?:^|_)(?:commit|blob|oid|ref|revision|pin)(?:_|$)"
+)
+_GIT_PIN_WEAK_KEY = re.compile(r"(?i)(?:^|_)(?:base|validator)(?:_|$)")
+_GIT_PIN_FORBIDDEN_KEY = re.compile(
+    r"(?i)ski|ship|peer|device|cert|fingerprint|secret|token|password|credential|serial"
+)
+_GIT_PIN_FIELD_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_.-])"
+    r"[\"']?(?P<key>[A-Za-z][A-Za-z0-9_.-]*)[\"']?"
+    r"\s*[:=]\s*[\"']?(?P<pin>[0-9a-fA-F]{40})(?![0-9A-Fa-f])"
+)
+_GIT_PIN_EMBEDDED_PATTERN = re.compile(
+    r"(?:https?://\S+/(?:blob|commit|commits|raw|tree)/"
+    r"|https?://api\.github\.com/(?:repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|repositories/[0-9]+)/contents/[^\s<>\"']*?[?&](?:ref|commit|sha|revision)=)"
+    r"([0-9a-fA-F]{40})(?![0-9A-Fa-f])",
+    re.IGNORECASE,
+)
+_GIT_PIN_ACTION_PATTERN = re.compile(
+    r"(?im)^\s*uses\s*:\s*\S+@([0-9a-fA-F]{40})\b"
+)
+_GIT_PIN_DEFAULT_PATTERN = re.compile(
+    r"(?m)^(?P<indent>[ ]*)default\s*:\s*(?P<pin>[0-9a-fA-F]{40})(?![0-9A-Fa-f])"
+)
+_GIT_PIN_PARENT_KEY_PATTERN = re.compile(
+    r"^(?P<indent>[ ]*)[\"']?(?P<key>[A-Za-z][A-Za-z0-9_-]*)[\"']?\s*:"
+)
+_PROHIBITION_INTRODUCER_PATTERN = re.compile(
+    r"\b(?:do not|must not|never|forbid(?:s|den)?|prohibit(?:s|ed)?|reject(?:s|ed)?)\b",
+    re.IGNORECASE,
+)
+_LIST_ITEM_PREFIX_PATTERN = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+_RESTRICTED_ASSERTION_PATTERN = re.compile(
+    r"\b(?:paraphras(?:e|ed|ing)|source\s+class|used|copied|quoted|extracted)\b",
+    re.IGNORECASE,
+)
+_VENDOR_RESTRICTED_CATEGORY_PATTERN = re.compile(
+    r"vendor[\s_-]+restric" r"ted(?:\s+[A-Za-z][A-Za-z-]*)*[.!]?\Z",
     re.IGNORECASE,
 )
 
@@ -3281,7 +3330,7 @@ def _load_platform_snapshot(root: Path) -> tuple[dict[str, Any] | None, list[str
     expected = {
         "schema": "helianthus.platform-cross-seed-snapshot",
         "version": "1",
-        "repository": PLATFORM_REPO,
+        "repository": PLATFORM_SNAPSHOT_REPO,
         "commit": PLATFORM_SNAPSHOT_REF,
         "source_manifest_path": "docs/platform/manifests/eebus-doc-ownership.yaml",
         "source_manifest_entry": "cross-runtime-platform-contracts",
@@ -4197,20 +4246,34 @@ def _platform_normative_copy_targets(
     return copied
 
 
+def _bare_platform_url_patterns() -> tuple[tuple[str, str], ...]:
+    return (
+        (PLATFORM_REPO, r"docs/platform/[^\s<>\"']+\.md"),
+        (PLATFORM_SNAPSHOT_REPO, r"docs/platform/[^\s<>\"']+\.md"),
+        (
+            "Project-Helianthus/helianthus-docs-eebus",
+            r"docs/platform/eebus-[^\s<>\"']+\.md",
+        ),
+    )
+
+
 def _contains_non_link_platform_url(text: str) -> bool:
     visible = _visible_markdown_text(text)
-    return re.search(
-        rf"(?:https?:)?//(?:www\.)?github\.com/{re.escape(PLATFORM_REPO)}/"
-        r"[^\s<>\"']*docs/platform/[^\s<>\"']+\.md\b",
-        visible,
-        re.IGNORECASE,
-    ) is not None
+    for repository, path_pattern in _bare_platform_url_patterns():
+        if re.search(
+            rf"(?:https?:)?//(?:www\.)?github\.com/{re.escape(repository)}/"
+            rf"[^\s<>\"']*{path_pattern}\b",
+            visible,
+            re.IGNORECASE,
+        ) is not None:
+            return True
+    return False
 
 
 def _platform_links(text: str) -> list[tuple[str, str, bool]]:
     """Return visible platform destinations and whether each is exactly canonical."""
     links: list[tuple[str, str, bool]] = []
-    repo_owner, repo_name = PLATFORM_REPO.split("/", 1)
+    snapshot_owner, snapshot_name = PLATFORM_SNAPSHOT_REPO.split("/", 1)
     for destination in _visible_link_destinations(text):
         decoded = _fully_decode_reference(destination).replace("\\", "/")
         host_root = decoded.startswith("/") and not decoded.startswith("//")
@@ -4236,11 +4299,6 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
         segments = [segment for segment in normalized_path.split("/") if segment]
         if len(segments) < 6:
             continue
-        if segments[0].casefold() != repo_owner.casefold() or segments[
-            1
-        ].casefold() != repo_name.casefold():
-            continue
-
         raw_host = (
             hostname is not None
             and hostname.rstrip(".").casefold() == "raw.githubusercontent.com"
@@ -4261,8 +4319,27 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
         target = "docs/platform/" + "/".join(segments[platform_index + 2 :])
         if not target.casefold().endswith(".md"):
             continue
+        full_name = f"{segments[0]}/{segments[1]}".casefold()
+        platform_page = (
+            re.fullmatch(r"docs/platform/[A-Za-z0-9._/-]+\.md", target) is not None
+        )
+        eebus_page = (
+            re.fullmatch(r"docs/platform/eebus-.*\.md", target, re.IGNORECASE)
+            is not None
+        )
+        accepted = (
+            full_name in {
+                PLATFORM_SNAPSHOT_REPO.casefold(),
+                PLATFORM_REPO.casefold(),
+            }
+            and platform_page
+        ) or (
+            full_name == "project-helianthus/helianthus-docs-eebus" and eebus_page
+        )
+        if not accepted:
+            continue
         canonical_url = (
-            f"https://github.com/{PLATFORM_REPO}/blob/{ref}/{target}"
+            f"https://github.com/{PLATFORM_SNAPSHOT_REPO}/blob/{ref}/{target}"
         )
         canonical = (
             destination == canonical_url
@@ -4275,8 +4352,8 @@ def _platform_links(text: str) -> list[tuple[str, str, bool]]:
             and not parsed.query
             and not parsed.fragment
             and parsed.path == normalized_path
-            and segments[0] == repo_owner
-            and segments[1] == repo_name
+            and segments[0] == snapshot_owner
+            and segments[1] == snapshot_name
             and not raw_host
             and segments[2] == "blob"
             and platform_index == 4
@@ -4322,16 +4399,232 @@ def _expected_domain_and_license(rel: str) -> tuple[str, str] | None:
     return None
 
 
+def _coalesce_spans(
+    spans: list[tuple[int, int]] | tuple[tuple[int, int], ...],
+) -> tuple[tuple[int, int], ...]:
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            previous_start, previous_end = merged[-1]
+            merged[-1] = (previous_start, max(previous_end, end))
+        else:
+            merged.append((start, end))
+    return tuple(merged)
+
+
+def _git_pin_key_strength(key: str) -> str | None:
+    if _GIT_PIN_FORBIDDEN_KEY.search(key):
+        return None
+    if _GIT_PIN_STRONG_KEY.search(key):
+        return "strong"
+    if _GIT_PIN_WEAK_KEY.search(key):
+        return "weak"
+    return None
+
+
+def _weak_git_pin_used_as_ref(text: str, key: str, value_end: int) -> bool:
+    window = text[value_end : value_end + 500]
+    name = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(key)}(?![A-Za-z0-9_])")
+    if name.search(window) is None:
+        return False
+    return re.search(r"(?i)_ref\b|rev-parse|cat-file", window) is not None
+
+
+def _field_git_pin_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    for match in _GIT_PIN_FIELD_PATTERN.finditer(text):
+        line_start = text.rfind("\n", 0, match.start()) + 1
+        prefix = text[line_start : match.start()]
+        if _GIT_PIN_FORBIDDEN_KEY.search(prefix):
+            continue
+        if re.search(r"https?://[^\s<>\"']*[?&]$", prefix):
+            continue
+        strength = _git_pin_key_strength(match.group("key"))
+        pin_end = match.end("pin")
+        used_as_ref = strength == "weak" and _weak_git_pin_used_as_ref(
+            text, match.group("key"), pin_end
+        )
+        if strength == "strong" or used_as_ref:
+            spans.append(match.span("pin"))
+    return spans
+
+
+def _parent_git_pin_key(text: str, position: int, indent: int) -> str | None:
+    lines = text[:position].splitlines()
+    for line in reversed(lines[-40:]):
+        key_match = _GIT_PIN_PARENT_KEY_PATTERN.match(line)
+        if key_match is None or len(key_match.group("indent")) >= indent:
+            continue
+        return key_match.group("key")
+    return None
+
+
+def _default_git_pin_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    for match in _GIT_PIN_DEFAULT_PATTERN.finditer(text):
+        parent = _parent_git_pin_key(text, match.start(), len(match.group("indent")))
+        if parent is not None and _git_pin_key_strength(parent) == "strong":
+            spans.append(match.span("pin"))
+    return spans
+
+
+def _citation_git_pin_spans(
+    text: str, pins: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    values_by_line: dict[int, set[str]] = {}
+    for start, end in pins:
+        pin_text = text[start:end]
+        if re.fullmatch(r"[0-9a-fA-F]{40}", pin_text) is None:
+            continue
+        line_start = text.rfind("\n", 0, start) + 1
+        values_by_line.setdefault(line_start, set()).add(pin_text)
+    spans: list[tuple[int, int]] = []
+    for line_start, values in values_by_line.items():
+        line_end = text.find("\n", line_start)
+        if line_end < 0:
+            line_end = len(text)
+        line = text[line_start:line_end]
+        for value in values:
+            pattern = re.compile(
+                rf"(?<![0-9A-Fa-f]){re.escape(value)}(?![0-9A-Fa-f])"
+            )
+            spans.extend(
+                (line_start + item.start(), line_start + item.end())
+                for item in pattern.finditer(line)
+            )
+    return spans
+
+
+def _public_yaml_ref_context(text: str, position: int, pin: str, rel: str) -> bool:
+    before = text[:position].splitlines()[-8:]
+    repository = next(
+        (
+            line for line in reversed(before[-4:])
+            if re.match(r"^\s*(?:-\s*)?repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", line)
+        ),
+        None,
+    )
+    if repository is None:
+        return False
+    if rel.startswith(".github/workflows/"):
+        return any(re.match(r"^\s*uses:\s*actions/checkout@[0-9a-fA-F]{40}\b", line) for line in before)
+    after = text[position:].splitlines()[1:7]
+    return any(
+        re.match(r"^\s*url:\s*https://(?:github\.com|api\.github\.com)/", line)
+        and pin in line
+        for line in after
+    )
+
+
+def _public_git_pin_spans(text: str, rel: str) -> tuple[tuple[int, int], ...]:
+    """Exempt public revision pins and same-line citations of those pins."""
+    spans = [match.span(1) for match in _GIT_PIN_EMBEDDED_PATTERN.finditer(text)]
+    spans.extend(match.span(1) for match in _GIT_PIN_ACTION_PATTERN.finditer(text))
+    if rel.startswith("docs/platform/fixtures/synchronized-evidence/"):
+        version_pin = re.compile(
+            r'"(?:operation|recorder|replay)_version"\s*:\s*"'
+            r'(?:[0-9]+(?:\.[0-9]+){2}\+)?git[.:]([0-9a-fA-F]{40})'
+        )
+        spans.extend(match.span(1) for match in version_pin.finditer(text))
+    field_spans = _field_git_pin_spans(text)
+    bare_reference_spans = {
+        match.span("pin")
+        for match in _GIT_PIN_FIELD_PATTERN.finditer(text)
+        if re.search(r"(?i)(?:^|_)(?:ref|revision|pin)(?:_|$)", match.group("key"))
+        and (
+            PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+            or (
+                match.group("key").casefold() != "ref"
+                and not rel.startswith(".github/workflows/")
+            )
+            or (
+                match.group("key").casefold() == "ref"
+                and not _public_yaml_ref_context(text, match.start(), match.group("pin"), rel)
+            )
+        )
+    }
+    field_spans = [span for span in field_spans if span not in bare_reference_spans]
+    spans.extend(field_spans)
+    spans.extend(_default_git_pin_spans(text))
+    spans.extend(_citation_git_pin_spans(text, spans))
+    return _coalesce_spans(spans)
+
+
+def _is_raw_eebus_identifier(value: str, label: str) -> bool:
+    """Explicit ID labels carry identifiers even when the value is alphabetic."""
+    if re.search(r"\b(?:ski|ship)[\s_-]*(?:id|identifier)\b", label, re.IGNORECASE):
+        return True
+    identifier_text = value.strip().strip("`\"'").rstrip(".,;:!?")
+    if re.fullmatch(r"[0-9A-Fa-f]{8,}", identifier_text):
+        return True
+    return re.search(r"\d", identifier_text) is not None
+
+
+@lru_cache(maxsize=16)
+def _untracked_scratch_root(root: Path) -> bool:
+    """Ignore root scratch only when Git confirms it has no indexed files."""
+    if not (root / ".git").exists():
+        return False
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--cached", "-z", "--", ".tmp"],
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0 and not result.stdout
+
+
+def _skip_scratch(root: Path, rel: str) -> bool:
+    return (rel == ".tmp" or rel.startswith(".tmp/")) and _untracked_scratch_root(root)
+
+
+def _list_item_text(line: str) -> str:
+    return _LIST_ITEM_PREFIX_PATTERN.sub("", line, count=1).strip()
+
+
+def _is_vendor_restricted_category(line: str) -> bool:
+    text = _list_item_text(line)
+    if _RESTRICTED_ASSERTION_PATTERN.search(text):
+        return False
+    return _VENDOR_RESTRICTED_CATEGORY_PATTERN.fullmatch(text) is not None
+
+
+def _under_prohibition_list(lines: list[str], index: int) -> bool:
+    if _LIST_ITEM_PREFIX_PATTERN.match(lines[index]) is None:
+        return False
+    for previous in range(index - 1, max(-1, index - 20), -1):
+        candidate = lines[previous]
+        if not candidate.strip() or _LIST_ITEM_PREFIX_PATTERN.match(candidate):
+            continue
+        return _PROHIBITION_INTRODUCER_PATTERN.search(candidate) is not None
+    return False
+
+
+def _prohibition_category_lines(text: str) -> set[str]:
+    lines = text.splitlines()
+    allowed: set[str] = set()
+    for index, line in enumerate(lines):
+        if not _is_vendor_restricted_category(line):
+            continue
+        if not _under_prohibition_list(lines, index):
+            continue
+        item = _list_item_text(line)
+        allowed.add(line.strip())
+        allowed.add(item)
+        allowed.add(item.rstrip("."))
+    return allowed
+
+
 def _provenance_fingerprint_exempt_spans(
     text: str, rel: str
 ) -> tuple[tuple[int, int], ...]:
     spans = list(git_fingerprint_exempt_spans(text))
+    spans.extend(_public_git_pin_spans(text, rel))
     for fingerprint in PROVENANCE_TEXT_FINGERPRINTS.get(rel, set()):
         pattern = re.compile(
             rf"(?<![0-9A-Fa-f]){re.escape(fingerprint)}(?![0-9A-Fa-f])"
         )
         spans.extend(match.span() for match in pattern.finditer(text))
-    return tuple(sorted(spans))
+    return _coalesce_spans(spans)
 
 
 @lru_cache(maxsize=8192)
@@ -4407,13 +4700,16 @@ def _privacy_errors(
                 add(category, line)
         for match in RAW_EEBUS_ID_PATTERN.finditer(variant):
             value = match.group(1)
-            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is None:
-                line = (
-                    variant.count("\n", 0, match.start()) + 1
-                    if source_positions_valid
-                    else None
-                )
-                add("populated raw SKI or SHIP ID", line)
+            if SAFE_REDACTED_VALUE_PATTERN.fullmatch(value) is not None:
+                continue
+            if not _is_raw_eebus_identifier(value, match.group(0)):
+                continue
+            line = (
+                variant.count("\n", 0, match.start()) + 1
+                if source_positions_valid
+                else None
+            )
+            add("populated raw SKI or SHIP ID", line)
         for match in IPV4_CANDIDATE_PATTERN.finditer(variant):
             if classify_ipv4(match.group(0)) == "private network":
                 line = (
@@ -4445,12 +4741,18 @@ def _restricted_source_errors(
         return ()
     errors: list[str] = []
     markdown = PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+    allowed_categories = _prohibition_category_lines(text)
     for variant in _policy_text_variants(text, markdown=markdown):
         source_positions_valid = variant == text
         for line_number, line in enumerate(variant.splitlines(), start=1):
             if RESTRICTED_SOURCE_PATTERN.search(line) is None:
                 continue
             if ALLOWED_RESTRICTED_POLICY_PATTERN.search(line) is not None:
+                continue
+            if (
+                line.strip() in allowed_categories
+                or _list_item_text(line) in allowed_categories
+            ):
                 continue
             location = (
                 rel
@@ -4702,6 +5004,7 @@ def _discover_publication_artifacts(
             not path.is_file()
             or path.is_symlink()
             or ".git" in path.parts
+            or _skip_scratch(root, path.relative_to(root).as_posix())
             or ".pytest_cache" in path.parts
             or "__pycache__" in path.parts
         ):
@@ -5039,6 +5342,8 @@ def _repository_lstat_preflight(
             path = Path(entry.path)
             rel = _rel(path, root)
             if rel == ".git" or rel.startswith(".git/"):
+                continue
+            if _skip_scratch(root, rel):
                 continue
             try:
                 mode = entry.stat(follow_symlinks=False).st_mode
@@ -8677,7 +8982,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         "architecture/` owns Helianthus eeBUS runtime",
         "api/` owns eeBUS-specific Go API schema",
         "devices/`, `evidence/`, and `re-notes/` remain native owners",
-        "helianthus-docs-ebus/docs/platform/` owns only language-neutral",
+        "helianthus-docs/docs/platform/` owns only language-neutral",
         "Code repositories are external-only",
         "Cross-seeding",
         "Provenance Classes",
@@ -8697,6 +9002,8 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if path.is_file() and path.suffix.lower() in MARKDOWN_SUFFIXES
     ):
         if ".git" in path.parts:
+            continue
+        if _skip_scratch(root, path.relative_to(root).as_posix()):
             continue
         if ".pytest_cache" in path.parts:
             continue
@@ -8772,7 +9079,14 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
 
         platform_links = _platform_links(page_text)
         links = {(ref, target) for ref, target, _ in platform_links}
-        targets = {f"{PLATFORM_REPO}:{target}" for _, target in links}
+        targets = {
+            (
+                f"Project-Helianthus/helianthus-docs-eebus:{target}"
+                if re.fullmatch(r"docs/platform/eebus-.*\.md", target)
+                else f"{PLATFORM_REPO}:{target}"
+            )
+            for _, target in links
+        }
         declared_target = metadata.get("cross_seed_target")
         declared_mode = metadata.get("cross_seed_mode")
         declared_snapshot = metadata.get("cross_seed_snapshot")
@@ -8845,7 +9159,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             if (
                 platform_snapshot is None
                 or target_path not in platform_snapshot["targets"]
-                or platform_snapshot["repository"] != PLATFORM_REPO
+                or platform_snapshot["repository"] != PLATFORM_SNAPSHOT_REPO
                 or platform_snapshot["commit"] != PLATFORM_SNAPSHOT_REF
             ):
                 errors.append(
@@ -9004,6 +9318,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
     ):
         if (
             ".git" in path.parts
+            or _skip_scratch(root, path.relative_to(root).as_posix())
             or ".pytest_cache" in path.parts
             or "__pycache__" in path.parts
         ):

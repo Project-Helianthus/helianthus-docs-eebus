@@ -2290,7 +2290,7 @@ class APISurfaceV1ContractTests(unittest.TestCase):
         validator = "python3 scripts/validate_api_surface_v1.py"
         contracts = "python3 -m unittest"
         self.assertEqual(text.count(validator), 1)
-        self.assertEqual(text.count(contracts), 1)
+        self.assertEqual(text.count(contracts), 4)
         self.assertLess(text.index(validator), text.index(contracts))
 
 

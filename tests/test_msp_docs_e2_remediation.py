@@ -357,7 +357,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             oversized.write_bytes(b"x" * (MAX_REPOSITORY_TEXT_SCAN_BYTES + 1))
 
             result = subprocess.run(
-                ["bash", "scripts/ci_local.sh"],
+                ["bash", "scripts/ci_docs_fast.sh"],
                 cwd=repo,
                 check=False,
                 text=True,
@@ -369,7 +369,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "oversized.md: repository artifact exceeds scan size limit",
                 result.stderr,
             )
-            self.assertNotIn("==> verify markdown files are present", result.stdout)
+            self.assertNotIn("==> verify markdown formatting", result.stdout)
 
     def test_ci_keeps_regular_markdown_content_checks(self) -> None:
         cases = {
@@ -396,7 +396,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 self.assertTrue(stat.S_ISREG(control.lstat().st_mode))
 
                 result = subprocess.run(
-                    ["bash", "scripts/ci_local.sh"],
+                    ["bash", "scripts/ci_docs_fast.sh"],
                     cwd=repo,
                     check=False,
                     text=True,
@@ -431,7 +431,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             self.assertNotIn(marker, validator_output)
 
             result = subprocess.run(
-                ["bash", "scripts/ci_local.sh"],
+                ["bash", "scripts/ci_docs_fast.sh"],
                 cwd=repo,
                 check=False,
                 text=True,
@@ -1210,11 +1210,11 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 f"blob/{PLATFORM_COMMIT}/docs/platform/shared-registry-boundary.md"
             ),
             "mutable ref": (
-                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "https://github.com/Project-Helianthus/helianthus-docs/"
                 "blob/main/docs/platform/shared-registry-boundary.md"
             ),
             "mutable slash ref": (
-                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "https://github.com/Project-Helianthus/helianthus-docs/"
                 "blob/heads/main/docs/platform/shared-registry-boundary.md"
             ),
             "alternate raw host": (
@@ -1501,7 +1501,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             page = repo / "architecture/README.md"
             mutable = (
-                "/Project-Helianthus/helianthus-docs-ebus/blob/main/"
+                "/Project-Helianthus/helianthus-docs/blob/main/"
                 "docs/platform/shared-registry-boundary.md"
             )
             page.write_text(
@@ -1646,7 +1646,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "hypothesis_status": "publishable",
                 "falsifier": "A publishable canonical contract supersedes this summary.",
                 "cross_seed_target": (
-                    "Project-Helianthus/helianthus-docs-ebus:"
+                    "Project-Helianthus/helianthus-docs:"
                     "docs/platform/shared-registry-boundary.md"
                 ),
                 "cross_seed_mode": "summary-only",
