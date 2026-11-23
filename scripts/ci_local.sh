@@ -56,6 +56,12 @@ pin_checkout \
   "${PLATFORM_M625_EXECUTION_PLANS_ROOT}" \
   "${plans_rev}"
 
+if python3 -c 'import sys; raise SystemExit(sys.prefix != sys.base_prefix)'; then
+  python3.12 -m venv "${repo_root}/.tmp/ci-local-venv"
+  # shellcheck source=/dev/null
+  source "${repo_root}/.tmp/ci-local-venv/bin/activate"
+fi
+
 python3 -m pip install --disable-pip-version-check --no-deps \
   --no-build-isolation --require-hashes \
   -r "${PLATFORM_CONTRACTS_ROOT}/requirements-ci.txt"
