@@ -70,7 +70,9 @@ def materialize_claim(
             f"{PLATFORM_COMMIT}:{target}"
         )
         specification["body"] = specification["body"].replace(
-            "/blob/main/", f"/blob/{PLATFORM_COMMIT}/"
+            "https://github.com/Project-Helianthus/helianthus-docs/blob/main/",
+            "https://github.com/Project-Helianthus/helianthus-docs-ebus/blob/"
+            f"{PLATFORM_COMMIT}/",
         )
     if relative_path is not None:
         specification["relative_path"] = relative_path
@@ -155,14 +157,14 @@ class MspDocsE2RedTests(unittest.TestCase):
                 relative_path="architecture/stale-cross-seed.md",
                 metadata={
                     "cross_seed_target": (
-                        "Project-Helianthus/helianthus-docs-ebus:" + missing_target
+                        "Project-Helianthus/helianthus-docs:" + missing_target
                     )
                 },
                 body=(
                     "# Stale Cross-Seed\n\n"
                     "Canonical platform source: "
                     "[missing](https://github.com/Project-Helianthus/"
-                    "helianthus-docs-ebus/blob/main/"
+                    "helianthus-docs/blob/main/"
                     f"{missing_target})\n"
                 ),
             )
@@ -187,7 +189,7 @@ class MspDocsE2RedTests(unittest.TestCase):
                     "Every adapter must implement the canonical platform merge rule.\n\n"
                     "Canonical platform source: "
                     "[shared registry boundary](https://github.com/"
-                    "Project-Helianthus/helianthus-docs-ebus/blob/main/"
+                    "Project-Helianthus/helianthus-docs/blob/main/"
                     "docs/platform/shared-registry-boundary.md)\n"
                 ),
             )

@@ -1,0 +1,422 @@
+name: Platform Contracts Combined Ref
+
+on:
+  workflow_call:
+    inputs:
+      docs_repository:
+        description: Repository containing the immutable docs candidate commit
+        required: true
+        type: string
+      docs_ref:
+        description: Immutable helianthus-docs commit
+        required: true
+        type: string
+      docs_base_ref:
+        description: Immutable trusted helianthus-docs prior commit
+        required: true
+        type: string
+      docs_eebus_ref:
+        description: Immutable helianthus-docs-eebus commit
+        required: true
+        type: string
+      eebusreg_ref:
+        description: Immutable helianthus-eebusreg commit
+        required: true
+        type: string
+      execution_plans_ref:
+        description: Immutable M6.25 execution-plan source commit
+        required: true
+        type: string
+      enforce_through:
+        description: Owning milestone enforced by this combined-ref run
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      docs_repository:
+        description: Repository containing the immutable docs candidate commit
+        required: true
+        default: Project-Helianthus/helianthus-docs
+      docs_ref:
+        description: Immutable helianthus-docs commit
+        required: true
+        type: string
+      docs_base_ref:
+        description: Immutable trusted helianthus-docs prior commit
+        required: true
+        type: string
+      docs_eebus_ref:
+        description: Immutable helianthus-docs-eebus commit
+        required: true
+        type: string
+      eebusreg_ref:
+        description: Immutable helianthus-eebusreg commit
+        required: true
+        type: string
+      execution_plans_ref:
+        description: Immutable M6.25 execution-plan source commit
+        required: true
+        default: fb384ab57d79f0020c54d2c66416e8a7666f0ceb
+        type: string
+      enforce_through:
+        description: Owning milestone enforced by this combined-ref run
+        required: true
+        type: choice
+        options:
+          - MSP-DOCS-PLATFORM
+          - MSP-DOCS-E2
+          - MSP-DOCS-CLEAN
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Explicit Combined Refs
+    # fork pull requests never run on the persistent runners
+    # dispatch inputs may name an arbitrary repository; never on the persistent runners
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)) && 'ubuntu-latest' || 'synology' }}
+    timeout-minutes: 20
+    steps:
+      - name: Reject moving refs
+        env:
+          DOCS_REPOSITORY: ${{ inputs.docs_repository }}
+          DOCS_REF: ${{ inputs.docs_ref }}
+          DOCS_BASE_REF: ${{ inputs.docs_base_ref }}
+          DOCS_EEBUS_REF: ${{ inputs.docs_eebus_ref }}
+          EEBUSREG_REF: ${{ inputs.eebusreg_ref }}
+          EXECUTION_PLANS_REF: ${{ inputs.execution_plans_ref }}
+          ENFORCE_THROUGH: ${{ inputs.enforce_through }}
+        run: |
+          repository='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+          immutable_ref='^[0-9a-fA-F]{40}$'
+          [[ "${DOCS_REPOSITORY}" =~ ${repository} ]]
+          [[ "${DOCS_REF}" =~ ${immutable_ref} ]]
+          [[ "${DOCS_BASE_REF}" =~ ${immutable_ref} ]]
+          [[ "${DOCS_EEBUS_REF}" =~ ${immutable_ref} ]]
+          [[ "${EEBUSREG_REF}" =~ ${immutable_ref} ]]
+          [[ "${EXECUTION_PLANS_REF}" =~ ${immutable_ref} ]]
+          case "${ENFORCE_THROUGH}" in
+            MSP-DOCS-PLATFORM|MSP-DOCS-E2|MSP-DOCS-CLEAN) ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Select trusted validator ref
+        id: trusted_validator
+        env:
+          DOCS_BASE_REF: ${{ inputs.docs_base_ref }}
+        run: |
+          bootstrap_base=114072fe8bdf027cfdd3472d7f2b0896a2496db4
+          bootstrap_validator=c4d87b2d1fbdc9627a3a2aedaae298547f1908d2
+          if [[ "${DOCS_BASE_REF}" == "${bootstrap_base}" ]]; then
+            validator_ref="${bootstrap_validator}"
+          else
+            validator_ref="${DOCS_BASE_REF}"
+          fi
+          printf 'ref=%s\n' "${validator_ref}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout trusted validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Project-Helianthus/helianthus-docs
+          ref: ${{ steps.trusted_validator.outputs.ref }}
+          path: checkouts/docs-validator
+          clean: true
+          persist-credentials: false
+
+      - name: Verify trusted validator checkout
+        env:
+          TRUSTED_VALIDATOR_REF: ${{ steps.trusted_validator.outputs.ref }}
+        run: |
+          set -euo pipefail
+          validator_root="${GITHUB_WORKSPACE}/checkouts/docs-validator"
+          [[ "$(git -C "${validator_root}" cat-file -t "${TRUSTED_VALIDATOR_REF}")" == "commit" ]]
+          [[ "$(git -C "${validator_root}" rev-parse --verify HEAD)" == "${TRUSTED_VALIDATOR_REF}" ]]
+          for path in requirements-ci.txt scripts/validate_platform_contracts.py; do
+            [[ -f "${validator_root}/${path}" && ! -L "${validator_root}/${path}" ]]
+          done
+
+      - name: Checkout docs ref
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ inputs.docs_repository }}
+          ref: ${{ inputs.docs_ref }}
+          path: checkouts/docs
+          clean: true
+          persist-credentials: false
+
+      - name: Checkout trusted docs prior manifest
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Project-Helianthus/helianthus-docs
+          ref: ${{ inputs.docs_base_ref }}
+          path: checkouts/docs-base
+          clean: true
+          persist-credentials: false
+
+      # A same-repository pull request validates only when docs/platform/** or
+      # the validator inputs (scripts/**, the workflows, requirements-ci.txt)
+      # differ between the trusted base and the candidate; both validators read
+      # nothing else from docs. The job itself always runs, so the required
+      # check keeps its name and reports. Main pushes (whose superseded runs may
+      # be cancelled, so a skipped transition could otherwise go unchecked), fork
+      # pull requests, the nightly schedule, manual dispatches and any comparison
+      # that cannot be completed always validate.
+      - name: Classify platform input changes
+        id: platform_inputs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SAME_REPOSITORY: ${{ inputs.docs_repository == github.repository }}
+        run: |
+          set -euo pipefail
+          changed=true
+          if [[ "${EVENT_NAME}" == "pull_request" && "${SAME_REPOSITORY}" == "true" ]]; then
+            changed=false
+            base_root="${GITHUB_WORKSPACE}/checkouts/docs-base"
+            head_root="${GITHUB_WORKSPACE}/checkouts/docs"
+            for path in docs/platform scripts .github/workflows requirements-ci.txt; do
+              status=0
+              diff -rq --exclude=.git --exclude=__pycache__ -- \
+                "${base_root}/${path}" "${head_root}/${path}" > /dev/null || status=$?
+              if [[ "${status}" -ne 0 ]]; then
+                echo "Platform input changed or not comparable: ${path}"
+                changed=true
+              fi
+            done
+          fi
+          if [[ "${changed}" == "true" ]]; then
+            echo "Combined-ref validation runs."
+          else
+            echo "Skipping combined-ref validation: no platform input changed (the nightly run still validates main)."
+          fi
+          printf 'changed=%s\n' "${changed}" >> "${GITHUB_OUTPUT}"
+
+      - name: Materialize trusted prior manifest
+        if: steps.platform_inputs.outputs.changed == 'true'
+        id: prior_manifest
+        shell: bash
+        env:
+          TRUSTED_BASE_REF: ${{ inputs.docs_base_ref }}
+        run: |
+          set -euo pipefail
+          base_root="${GITHUB_WORKSPACE}/checkouts/docs-base"
+          manifest_path="docs/platform/manifests/eebus-doc-ownership.yaml"
+          materialized_root="${RUNNER_TEMP}/helianthus-trusted-prior-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          materialized="${materialized_root}/eebus-doc-ownership.yaml"
+
+          trusted_type="$(git -C "${base_root}" cat-file -t "${TRUSTED_BASE_REF}")"
+          if [[ "${trusted_type}" != "commit" ]]; then
+            exit 1
+          fi
+          trusted_commit="$(git -C "${base_root}" rev-parse --verify "${TRUSTED_BASE_REF}")"
+          actual_commit="$(git -C "${base_root}" rev-parse --verify HEAD)"
+          if [[ "${actual_commit}" != "${trusted_commit}" ]]; then
+            exit 1
+          fi
+
+          IFS='/' read -r -a components <<< "${manifest_path}"
+          prefix=""
+          manifest_oid=""
+          manifest_present=true
+          last_index=$((${#components[@]} - 1))
+          for index in "${!components[@]}"; do
+            prefix="${prefix:+${prefix}/}${components[${index}]}"
+            entry="$(git -C "${base_root}" ls-tree "${trusted_commit}" -- "${prefix}")"
+            if [[ -z "${entry}" ]]; then
+              manifest_present=false
+              break
+            fi
+            metadata="${entry%%$'\t'*}"
+            read -r mode object_type object_id <<< "${metadata}"
+            if ((index < last_index)); then
+              if [[ "${mode}" != "040000" || "${object_type}" != "tree" ]]; then
+                exit 1
+              fi
+            else
+              if [[ ! "${mode}" =~ ^100(644|755)$ || "${object_type}" != "blob" ]]; then
+                exit 1
+              fi
+              manifest_oid="${object_id}"
+            fi
+          done
+
+          if [[ "${manifest_present}" == "true" ]]; then
+            umask 077
+            mkdir -p "${materialized_root}"
+            if [[ ! -d "${materialized_root}" || -L "${materialized_root}" ]]; then
+              exit 1
+            fi
+            git -C "${base_root}" cat-file blob "${manifest_oid}" > "${materialized}"
+            if [[ ! -f "${materialized}" || -L "${materialized}" ]]; then
+              exit 1
+            fi
+            printf 'path=%s\n' "${materialized}" >> "${GITHUB_OUTPUT}"
+          else
+            printf 'path=\n' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Checkout docs-eebus ref
+        if: steps.platform_inputs.outputs.changed == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Project-Helianthus/helianthus-docs-eebus
+          ref: ${{ inputs.docs_eebus_ref }}
+          path: checkouts/docs-eebus
+          clean: true
+          persist-credentials: false
+
+      - name: Checkout eebusreg ref
+        if: steps.platform_inputs.outputs.changed == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Project-Helianthus/helianthus-eebusreg
+          ref: ${{ inputs.eebusreg_ref }}
+          path: checkouts/eebusreg
+          clean: true
+          persist-credentials: false
+
+      - name: Checkout M6.25 docs-eebus source
+        if: steps.platform_inputs.outputs.changed == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Project-Helianthus/helianthus-docs-eebus
+          ref: cedf238e34f879815ba773e9cd76b2b31c2822a3
+          path: checkouts/m625-docs-eebus
+          clean: true
+          persist-credentials: false
+
+      - name: Checkout M6.25 execution-plan source
+        if: steps.platform_inputs.outputs.changed == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Project-Helianthus/helianthus-execution-plans
+          ref: ${{ inputs.execution_plans_ref }}
+          path: checkouts/m625-execution-plans
+          clean: true
+          persist-credentials: false
+
+      - name: Prepare hash-locked pip bootstrap
+        if: steps.platform_inputs.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          bootstrap_dir="${RUNNER_TEMP}/helianthus-pip-bootstrap"
+          wheel="${bootstrap_dir}/pip-25.0.1-py3-none-any.whl"
+          mkdir -p "${bootstrap_dir}"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            --output "${wheel}.part" \
+            https://files.pythonhosted.org/packages/c9/bc/b7db44f5f39f9d0494071bddae6880eb645970366d0a200022a1a93d57f5/pip-25.0.1-py3-none-any.whl
+          printf '%s  %s\n' \
+            c46efd13b6aa8279f33f2864459c8ce587ea6a1a59ee20de055868d8f7688f7f \
+            "${wheel}.part" | sha256sum --check --strict
+          mv "${wheel}.part" "${wheel}"
+
+      - name: Set up pinned Python
+        if: steps.platform_inputs.outputs.changed == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        env:
+          PIP_FIND_LINKS: ${{ runner.temp }}/helianthus-pip-bootstrap
+          PIP_NO_INDEX: "1"
+        with:
+          python-version: "3.12.10"
+
+      - name: Create job-local virtualenv with hash-locked pip
+        if: steps.platform_inputs.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          wheel="${RUNNER_TEMP}/helianthus-pip-bootstrap/pip-25.0.1-py3-none-any.whl"
+          rm -rf "${RUNNER_TEMP}/venv"
+          python -m venv --without-pip "${RUNNER_TEMP}/venv"
+          "${RUNNER_TEMP}/venv/bin/python" "${wheel}/pip" install \
+            --no-index --no-deps --disable-pip-version-check "${wheel}"
+          echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Verify pinned Python and pip
+        if: steps.platform_inputs.outputs.changed == 'true'
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          import sys
+
+          if sys.version_info[:3] != (3, 12, 10):
+              raise SystemExit("unexpected Python bootstrap version")
+          if importlib.metadata.version("pip") != "25.0.1":
+              raise SystemExit("unexpected pip bootstrap version")
+          PY
+
+      - name: Install pinned validator dependencies
+        if: steps.platform_inputs.outputs.changed == 'true'
+        run: |
+          python -m pip install --disable-pip-version-check --no-deps \
+            --no-build-isolation --require-hashes \
+            -r checkouts/docs-validator/requirements-ci.txt
+          python -m pip check
+
+      - name: Validate PR M6.25 provenance contract
+        if: steps.platform_inputs.outputs.changed == 'true'
+        env:
+          ENFORCE_THROUGH: ${{ inputs.enforce_through }}
+          PRIOR_MANIFEST: ${{ steps.prior_manifest.outputs.path }}
+        run: |
+          test -n "${PRIOR_MANIFEST}"
+          python3 checkouts/docs/scripts/validate_platform_combined_ref.py \
+            --docs-root checkouts/docs \
+            --docs-repository "${{ inputs.docs_repository }}" \
+            --docs-eebus-root checkouts/docs-eebus \
+            --eebusreg-root checkouts/eebusreg \
+            --m625-docs-eebus-root checkouts/m625-docs-eebus \
+            --m625-execution-plans-root checkouts/m625-execution-plans \
+            --docs-ref "${{ inputs.docs_ref }}" \
+            --docs-eebus-ref "${{ inputs.docs_eebus_ref }}" \
+            --eebusreg-ref "${{ inputs.eebusreg_ref }}" \
+            --prior-manifest "${PRIOR_MANIFEST}" \
+            --enforce-through "${ENFORCE_THROUGH}" \
+            --toolchain-mode exact
+
+      - name: Validate combined refs
+        if: steps.platform_inputs.outputs.changed == 'true'
+        env:
+          ENFORCE_THROUGH: ${{ inputs.enforce_through }}
+          PRIOR_MANIFEST: ${{ steps.prior_manifest.outputs.path }}
+        run: |
+          test -n "${PRIOR_MANIFEST}"
+          python3 checkouts/docs-validator/scripts/validate_platform_combined_ref.py \
+            --docs-root checkouts/docs \
+            --docs-repository "${{ inputs.docs_repository }}" \
+            --docs-eebus-root checkouts/docs-eebus \
+            --eebusreg-root checkouts/eebusreg \
+            --m625-docs-eebus-root checkouts/m625-docs-eebus \
+            --m625-execution-plans-root checkouts/m625-execution-plans \
+            --docs-ref "${{ inputs.docs_ref }}" \
+            --docs-eebus-ref "${{ inputs.docs_eebus_ref }}" \
+            --eebusreg-ref "${{ inputs.eebusreg_ref }}" \
+            --prior-manifest "${PRIOR_MANIFEST}" \
+            --enforce-through "${ENFORCE_THROUGH}" \
+            --toolchain-mode exact
+
+      - name: Enforce trusted manifest expiry
+        if: steps.platform_inputs.outputs.changed == 'true'
+        env:
+          DOCS_REPOSITORY: ${{ inputs.docs_repository }}
+          ENFORCE_THROUGH: ${{ inputs.enforce_through }}
+        run: |
+          evaluated_at="$(python3 - <<'PY'
+          import datetime
+
+          print(
+              datetime.datetime.now(datetime.timezone.utc)
+              .isoformat()
+              .replace("+00:00", "Z")
+          )
+          PY
+          )"
+          python3 checkouts/docs-validator/scripts/validate_platform_contracts.py \
+            --mode main-expiry \
+            --docs-root checkouts/docs \
+            --docs-repository "${DOCS_REPOSITORY}" \
+            --m625-docs-eebus-root checkouts/m625-docs-eebus \
+            --m625-execution-plans-root checkouts/m625-execution-plans \
+            --evaluated-at "${evaluated_at}" \
+            --evaluation-source github.runner.utc_now \
+            --enforce-through "${ENFORCE_THROUGH}" \
+            --toolchain-mode exact

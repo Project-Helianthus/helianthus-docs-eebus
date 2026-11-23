@@ -10,7 +10,7 @@ REPO = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 
 from tests.policy_test_support import check_repository_result, materialize_policy_fixture
-from validate_repository_policy import check_repository
+from validate_repository_policy import PLATFORM_SNAPSHOT_REF, check_repository
 
 
 def assignment(label: str, value: str) -> str:
@@ -27,6 +27,10 @@ def synthetic_ipv6(*groups: str) -> str:
 
 def synthetic_mac() -> str:
     return ":".join(("00", "11", "22", "33", "44", "55"))
+
+
+def forty_hex(prefix: str) -> str:
+    return (prefix + "0123456789abcdef" + "fedcba9876543210")[:40]
 
 
 def copy_repo(tmp_path: Path) -> Path:
@@ -387,7 +391,7 @@ class PolicyValidatorTests(unittest.TestCase):
             page = repo / "protocols" / "ship-spine-overview.md"
             page.write_text(
                 page.read_text(encoding="utf-8")
-                + "\n<https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                + "\n<https://github.com/Project-Helianthus/helianthus-docs-eebus/"
                 "blob/main/docs/platform/eebus-raw-first-contract.md>\n",
                 encoding="utf-8",
             )
@@ -421,9 +425,40 @@ class PolicyValidatorTests(unittest.TestCase):
             page = repo / "protocols" / "ship-spine-overview.md"
             page.write_text(
                 page.read_text(encoding="utf-8")
-                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-eebus/"
                 "blob/main/docs/platform/eebus-raw-first-contract.md.\n"
                 "\n## Requirements\n\n- duplicated\n",
+                encoding="utf-8",
+            )
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("cross_seed_target must match", result.stderr)
+
+    def test_unlisted_platform_page_has_no_registered_owner_domain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "docs" / "platform" / "shared-registry-boundary.md"
+            page.parent.mkdir(parents=True)
+            page.write_text("# Unlisted platform page\n", encoding="utf-8")
+
+            result = run_validator(repo)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "docs/platform/shared-registry-boundary.md: publishable markdown path has no registered owner domain",
+                result.stderr,
+            )
+
+    def test_snapshot_repository_bare_platform_url_still_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            page = repo / "protocols" / "ship-spine-overview.md"
+            page.write_text(
+                page.read_text(encoding="utf-8")
+                + "\nhttps://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                + f"blob/{PLATFORM_SNAPSHOT_REF}/docs/platform/shared-registry-boundary.md\n",
                 encoding="utf-8",
             )
 
@@ -507,6 +542,19 @@ class PolicyValidatorTests(unittest.TestCase):
                     result = run_validator(repo)
 
                     self.assertEqual(result.returncode, 1)
+                    self.assertTrue(
+                        any(
+                            fragment in result.stderr
+                            for fragment in (
+                                "populated raw SKI or SHIP ID",
+                                "populated sensitive field",
+                                "PEM block marker found",
+                                "MAC address found",
+                                "private artifact location/reference field is forbidden",
+                            )
+                        ),
+                        result.stderr,
+                    )
 
     def test_concatenated_identity_labels_fail_on_evidence_backed_page(self) -> None:
         for payload in (
@@ -545,6 +593,103 @@ class PolicyValidatorTests(unittest.TestCase):
                         "restric" "ted-source contamination marker found",
                         result.stderr,
                     )
+
+    def test_public_pins_prose_and_prohibition_are_not_sensitive(self) -> None:
+        pin = forty_hex("aaaaaaa1")
+        cited = forty_hex("bbbbbbb2")
+        body = "\n".join(
+            (
+                "## SHIP Connection State And SPINE Browsing Are Separate",
+                "",
+                "The SHIP connection generation stays separate from browsing.",
+                "There is no current SHIP session.",
+                "4. SHIP completion on that connection.",
+                "",
+                "Public artifacts must not include:",
+                "",
+                "- " + "vendor-" + "restricted protocol details.",
+                "",
+                f"bootstrap_base={pin}",
+                f"bootstrap_validator={cited}",
+                'if [[ "${DOCS_BASE_REF}" == "${bootstrap_base}" ]]; then',
+                '  validator_ref="${bootstrap_validator}"',
+                "fi",
+                f"uses: actions/checkout@{pin} # v4.2.2",
+                "execution_plans_ref:",
+                f"  default: {pin}",
+                f'"owner_commit": "{cited}"',
+                f"recorder_version: 1.0.0+git.{pin}",
+                f"operation_version: git:{cited}",
+                (
+                    f"[`{pin}`](https://github.com/Project-Helianthus/"
+                    f"helianthus-eebusreg/commit/{pin})."
+                ),
+                (
+                    "https://api.github.com/repositories/1/contents/"
+                    f"development/policy.md?ref={cited}"
+                ),
+                "ref: " + pin,
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            add_evidence_backed_page(repo, "protocols/public-pin-context.md", body)
+
+            result = run_validator(repo)
+
+        self.assertNotIn("full fingerprint or raw SKI", result.stderr)
+        self.assertNotIn("populated raw SKI or SHIP ID", result.stderr)
+        self.assertNotIn("contamination marker found", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_raw_identifier_fingerprint_and_source_claim_still_fail(self) -> None:
+        bare = forty_hex("ccccccc3")
+        body = "\n".join(
+            (
+                "observed " + bare,
+                "Raw SKI " + "abcdef1234567890",
+                "Source class: vendor_" + "restricted",
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            add_evidence_backed_page(repo, "protocols/raw-material.md", body)
+
+            result = run_validator(repo)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "protocols/raw-material.md: full fingerprint or raw SKI",
+            result.stderr,
+        )
+        self.assertIn("populated raw SKI or SHIP ID", result.stderr)
+        self.assertIn("contamination marker found", result.stderr)
+
+    def test_copied_public_context_is_not_a_privacy_finding(self) -> None:
+        copied = (
+            ".github/workflows/platform-contracts-combined-ref.yml",
+            "docs/platform/eebus-ha-network-proof.md",
+            "docs/platform/eebus-interop-smoke.md",
+            "docs/platform/eebus-raw-runtime-freeze.md",
+            "docs/platform/fixtures/synchronized-evidence/v1/m625/positive/bundle.json",
+            "docs/platform/fixtures/synchronized-evidence/v1/m625/positive/replay-result.json",
+            "docs/platform/manifests/msp-0625-public-inputs.yaml",
+            "docs/platform/msp-0625-public-acquisition-methodology.md",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = copy_repo(Path(tmp))
+            for relative in copied:
+                source = REPO / relative
+                target = repo / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+
+            result = run_validator(repo)
+
+        self.assertNotIn("full fingerprint or raw SKI", result.stderr)
+        self.assertNotIn("populated raw SKI or SHIP ID", result.stderr)
+        self.assertNotIn("contamination marker found", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_machine_policy_decodes_escaped_shadowed_publication_claims(self) -> None:
         cases = (

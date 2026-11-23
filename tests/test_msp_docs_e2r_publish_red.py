@@ -408,7 +408,7 @@ class MspDocsE2RPublishRedTests(unittest.TestCase):
         self.assertEqual(metadata.get("milestone_state"), "active")
         body = text[end + 5:]
         self.assertIn("eeBUS-native", body)
-        self.assertIn("helianthus-docs-ebus/docs/platform/", body)
+        self.assertIn("helianthus-docs/docs/platform/", body)
         self.assertRegex(body, r"(?s)`protocols/` owns eeBUS/SHIP/SPINE.*`architecture/` owns.*`api/` owns")
 
     def test_publish_evidence_token_is_canonical_bound_and_deterministic(self) -> None:

@@ -1210,11 +1210,11 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 f"blob/{PLATFORM_COMMIT}/docs/platform/shared-registry-boundary.md"
             ),
             "mutable ref": (
-                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "https://github.com/Project-Helianthus/helianthus-docs/"
                 "blob/main/docs/platform/shared-registry-boundary.md"
             ),
             "mutable slash ref": (
-                "https://github.com/Project-Helianthus/helianthus-docs-ebus/"
+                "https://github.com/Project-Helianthus/helianthus-docs/"
                 "blob/heads/main/docs/platform/shared-registry-boundary.md"
             ),
             "alternate raw host": (
@@ -1501,7 +1501,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
             repo = copy_repo(Path(tmp))
             page = repo / "architecture/README.md"
             mutable = (
-                "/Project-Helianthus/helianthus-docs-ebus/blob/main/"
+                "/Project-Helianthus/helianthus-docs/blob/main/"
                 "docs/platform/shared-registry-boundary.md"
             )
             page.write_text(
@@ -1646,7 +1646,7 @@ class MspDocsE2RemediationTests(unittest.TestCase):
                 "hypothesis_status": "publishable",
                 "falsifier": "A publishable canonical contract supersedes this summary.",
                 "cross_seed_target": (
-                    "Project-Helianthus/helianthus-docs-ebus:"
+                    "Project-Helianthus/helianthus-docs:"
                     "docs/platform/shared-registry-boundary.md"
                 ),
                 "cross_seed_mode": "summary-only",
