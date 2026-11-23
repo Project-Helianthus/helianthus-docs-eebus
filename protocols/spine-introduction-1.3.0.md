@@ -99,7 +99,7 @@ The introduction names the three-level model, the feature roles, and the command
 | A datagram is one SPINE message: a header and a payload. Figures 10, 11, and 12 draw that shape; their bodies are not recorded. §3.1 | §3.1 |
 | The header is the first part. The prose says it contains elements for the source (the sender), the destination (the recipient), a classifier, and other elements (“etc.”). The prose list is therefore not closed. Detail: [ProtocolSpecification], SPINE Datagram, subsections Introduction, Header, and Payload. §3.1, | §3.1 |
 | The payload holds the actual data and is described as a container, because the data varies. Figure 12 groups the constituents; the groups are not recorded. §3.1 | §3.1 |
-| Names that appear in the worked datagram and are not given a separate definition in the prose (§3.3): header, specificationVersion (example fill 1.3.0), addressSource, addressDestination, device, entity, feature, msgCounter (example integer), msgCounterReference (example integer), cmdClassifier, payload, cmd, function, filter, cmdControl, partial (empty element in the example), measurementListData, measurementData. The example is an XML document. No rule on these pages says every SPINE message is XML or uses that schema file. §2.3, §3.3 | §3.3, §2.3 |
+| Names that appear in the worked datagram and are not given a separate definition in the prose (§3.3): header, specificationVersion (filled in the worked datagram; the fill is not a required version), addressSource, addressDestination, device, entity, feature, msgCounter (example integer), msgCounterReference (example integer), cmdClassifier, payload, cmd, function, filter, cmdControl, partial (empty element in the example), measurementListData, measurementData. The example is an XML document. No rule on these pages says every SPINE message is XML or uses that schema file. §2.3, §3.3 | §3.3, §2.3 |
 | Inside cmd, the example’s function element carries the function name measurementListData. §3.3 | §3.3 |
 | The example’s cmdClassifier value is reply. §3.3 | §3.3 |
 | Where writing is allowed, the server’s information may be written. What “allowed” means is not defined in that sentence. §2.1 | §2.1 |
@@ -120,17 +120,17 @@ The introduction names the three-level model, the feature roles, and the command
 | Clients use a subscription to receive updates they did not solicit. New temperature values are the printed example. §3.6 | §3.6 |
 | Detail is in [ProtocolSpecification], chapter Functional commissioning. Binding has its own part. Subscription has its own part. §3.6 | §3.6 |
 | No failsafe value is printed. | clause not printed |
-| No heartbeat send interval, no heartbeat state machine, and no meaning for heartbeatCounter or heartbeatTimeout is printed. fills heartbeatTimeout with PT15M and heartbeatCounter with 238. Those are example fills, not specified timers. | clause not printed |
+| No heartbeat send interval, no heartbeat state machine, and no meaning for heartbeatCounter or heartbeatTimeout is printed. A figure on these pages fills those elements. Those fills are not specified timers (SPINE Introduction 1.3.0). | clause not printed |
 | No acknowledgement timer and no response timer is printed. Delays can be communicated, without a number. §3.5 | §3.5 |
-| No power, energy, or other engineering bound is printed. The measurement example’s number 225 and scale -1 are example fills. §3.3 | §3.3 |
-| No state transition is printed. operatingState example literal normalOperation is an instance fill. | clause not printed |
+| No power, energy, or other engineering bound is printed. A measurement example on these pages fills a number and a scale. Those fills are not bounds (SPINE Introduction 1.3.0 §3.3). | §3.3 |
+| No state transition is printed. An operatingState instance on these pages is a figure fill, not a state machine (SPINE Introduction 1.3.0). | clause not printed |
 | Address bounds that are printed: each entity element and each feature element is a 32-bit integer; the cardinalities in §3.8, including a sub-entity count from zero up to N; and the device-string ERE, including the excluded Unicode categories. §3.8 | §3.8 |
 | Discovery verbs, all lower case, as already listed in section 4: shall for announcing server functionality; may for announcing client functionality; should for announcing one or more client features. After discovery, the device may close the connection or keep it open. §3.7 | §3.7 |
 | The device-string character repertoire uses capital MAY. §3.8 | §3.8 |
 | A datagram is one SPINE message: a header and a payload. Figures 10, 11, and 12 draw that shape; their bodies are not recorded. §3.1 | §3.1 |
 | The header is the first part. The prose says it contains elements for the source (the sender), the destination (the recipient), a classifier, and other elements (“etc.”). The prose list is therefore not closed. Detail: [ProtocolSpecification], SPINE Datagram, subsections Introduction, Header, and Payload. §3.1, | §3.1 |
 | The payload holds the actual data and is described as a container, because the data varies. Figure 12 groups the constituents; the groups are not recorded. §3.1 | §3.1 |
-| Names that appear in the worked datagram and are not given a separate definition in the prose (§3.3): header, specificationVersion (example fill 1.3.0), addressSource, addressDestination, device, entity, feature, msgCounter (example integer), msgCounterReference (example integer), cmdClassifier, payload, cmd, function, filter, cmdControl, partial (empty element in the example), measurementListData, measurementData. The example is an XML document. No rule on these pages says every SPINE message is XML or uses that schema file. §2.3, §3.3 | §3.3, §2.3 |
+| Names that appear in the worked datagram and are not given a separate definition in the prose (§3.3): header, specificationVersion (filled in the worked datagram; the fill is not a required version), addressSource, addressDestination, device, entity, feature, msgCounter (example integer), msgCounterReference (example integer), cmdClassifier, payload, cmd, function, filter, cmdControl, partial (empty element in the example), measurementListData, measurementData. The example is an XML document. No rule on these pages says every SPINE message is XML or uses that schema file. §2.3, §3.3 | §3.3, §2.3 |
 | Inside cmd, the example’s function element carries the function name measurementListData. §3.3 | §3.3 |
 | The example’s cmdClassifier value is reply. §3.3 | §3.3 |
 | Classifier: read; What these pages say: Asks for information. A filter (§3.10) may be sent with it. When processing of that request succeeds, the answer uses reply; Locator: §3.2, §2.1 | §3.10, §3.2, §2.1 |
@@ -158,10 +158,10 @@ The introduction names the three-level model, the feature roles, and the command
 | Clients use a subscription to receive updates they did not solicit. New temperature values are the printed example. §3.6 | §3.6 |
 | Detail is in [ProtocolSpecification], chapter Functional commissioning. Binding has its own part. Subscription has its own part. §3.6 | §3.6 |
 | No failsafe value is printed. | clause not printed |
-| No heartbeat send interval, no heartbeat state machine, and no meaning for heartbeatCounter or heartbeatTimeout is printed. fills heartbeatTimeout with PT15M and heartbeatCounter with 238. Those are example fills, not specified timers. | clause not printed |
+| No heartbeat send interval, no heartbeat state machine, and no meaning for heartbeatCounter or heartbeatTimeout is printed. A figure on these pages fills those elements. Those fills are not specified timers (SPINE Introduction 1.3.0). | clause not printed |
 | No acknowledgement timer and no response timer is printed. Delays can be communicated, without a number. §3.5 | §3.5 |
-| No power, energy, or other engineering bound is printed. The measurement example’s number 225 and scale -1 are example fills. §3.3 | §3.3 |
-| No state transition is printed. operatingState example literal normalOperation is an instance fill. | clause not printed |
+| No power, energy, or other engineering bound is printed. A measurement example on these pages fills a number and a scale. Those fills are not bounds (SPINE Introduction 1.3.0 §3.3). | §3.3 |
+| No state transition is printed. An operatingState instance on these pages is a figure fill, not a state machine (SPINE Introduction 1.3.0). | clause not printed |
 | Address bounds that are printed: each entity element and each feature element is a 32-bit integer; the cardinalities in §3.8, including a sub-entity count from zero up to N; and the device-string ERE, including the excluded Unicode categories. §3.8 | §3.8 |
 | Discovery verbs, all lower case, as already listed in section 4: shall for announcing server functionality; may for announcing client functionality; should for announcing one or more client features. After discovery, the device may close the connection or keep it open. §3.7 | §3.7 |
 | The device-string character repertoire uses capital MAY. §3.8 | §3.8 |
@@ -186,7 +186,7 @@ The introduction names the three-level model, the feature roles, and the command
 | A filter is described with a read, with a notification of only what changed, and with a partial write. The worked message puts filter / cmdControl / partial on a reply. The report does not explain that combination. §2.1, §3.2, §3.3 | §2.1, §3.2, §3.3 |
 | §3.7 says client functionality may be announced in detailed discovery, and that one or more client features should be announced (Generic is the example). The same section says detailed discovery can miss client functionality, and then Use Case Discovery is available. Both are printed. §3.7, | §3.7 |
 | “Possible operations” published in discovery are not enumerated. The classifier list is in another section and is not tied by the text to that discovery field. §2.2, §3.2 | §2.2, §3.2 |
-| Repeating the entity element is shown in the worked address (three on the source, one on the destination) and is not stated as the rule for sub-entities. Sub-entity cardinality is 0..N. §3.3, §3.8, §2.4 | §3.3, §3.8, §2.4 |
+| Repeating the entity element is shown in a worked address and is not stated as the rule for sub-entities. Sub-entity cardinality is 0..N (SPINE Introduction 1.3.0 §3.3, §3.8, §2.4). | §3.3, §3.8, §2.4 |
 | The device-string branches i: and n: are not glossed. Only i: examples are printed. §3.8, | §3.8 |
 | Restricted exchange is sometimes required. The cases are not listed. The two-child write limit is one unnamed §3.10 | §3.10 |
 | Common data types are said to be in [ResourceSpecification] Common technical details and are not printed here. §2.3 | §2.3 |

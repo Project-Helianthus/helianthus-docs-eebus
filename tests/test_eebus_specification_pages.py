@@ -441,6 +441,7 @@ class SpecificationPagesTest(unittest.TestCase):
             protocol,
         )
 
+    def test_ship_worked_examples_state_the_rule_without_values(self):
         protocol_page_11 = (ROOT / "protocols/ship-1.1.0.md").read_text(encoding="utf-8")
         for banned in ("10.89", "15.51", "33 × 0.33", "47 × 0.33", "0.33 mm"):
             self.assertNotIn(banned, protocol_page_11, banned)
@@ -457,7 +458,155 @@ class SpecificationPagesTest(unittest.TestCase):
         self.assertIn("Module size at least 330×10⁻⁶ m", protocol_page_11)
         self.assertIn("Quiet zone at least 4 modules wide.", protocol_page_11)
         self.assertIn("Field order that is printed: SHIP;", protocol_page_11)
+        for banned in (
+            "worked figures",
+            "64 is cut to 32",
+            "(a) is 8 and (b) is 32",
+            "printed numerical case",
+            "uses local as the domain",
+            "user-trust figure of 8",
+            "second-factor figure of 32",
+        ):
+            self.assertNotIn(banned, protocol_page_11, banned)
+        self.assertIn(
+            "Item 2 of §12.3.1 sets user trust to 8 for auto accept plus a PIN. "
+            "The Table 10 cell for that same row prints user trust 32.",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "These clauses do not pick one user-trust integer.",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "If the received trust d is above x, it SHALL be cut down to x.",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "A worked case in §12.3.1.6 applies the cap above to one received SKI. "
+            "The case is an illustration. The cap is the rule "
+            "(SHIP Specification 1.1.0 §12.3.1.6).",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "The <Service> label is _ + ship + . + _tcp. "
+            "A worked example’s domain label is not a required domain "
+            "(SHIP Specification 1.1.0 §7.2).",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "§12.3.1 item 2 sets user trust 8 and a second-factor range 16–32. "
+            "Table 10 prints user trust 32 for that row (§12.3.2).",
+            protocol_page_11,
+        )
 
+        protocol_page_101 = (ROOT / "protocols/ship-1.0.1.md").read_text(encoding="utf-8")
+        self.assertNotIn("worked figures", protocol_page_101)
+        self.assertNotIn("second-factor 32. These clauses", protocol_page_101)
+        self.assertIn(
+            "§12.3.1 item 2 sets user trust 8 and a second-factor range 16–32. "
+            "Table 10 prints user trust 32 for that row (§12.3.2). "
+            "These clauses do not pick one user-trust integer.",
+            protocol_page_101,
+        )
+        self.assertIn(
+            "SHIP 1.0.1’s mode table assigns auto accept user trust 8",
+            protocol_page_101,
+        )
+
+    def test_spine_introduction_examples_state_the_rule_without_values(self):
+        introduction = (ROOT / "protocols/spine-introduction-1.3.0.md").read_text(
+            encoding="utf-8"
+        )
+        for banned in (
+            "PT15M",
+            "example fill 1.3.0",
+            "number 225",
+            "scale -1",
+            "heartbeatCounter with 238",
+            "example literal normalOperation",
+            "three on the source",
+        ):
+            self.assertNotIn(banned, introduction, banned)
+        self.assertEqual(
+            introduction.count(
+                "No heartbeat send interval, no heartbeat state machine, and no meaning "
+                "for heartbeatCounter or heartbeatTimeout is printed. "
+                "A figure on these pages fills those elements. "
+                "Those fills are not specified timers (SPINE Introduction 1.3.0)."
+            ),
+            2,
+        )
+        self.assertEqual(
+            introduction.count(
+                "A measurement example on these pages fills a number and a scale. "
+                "Those fills are not bounds (SPINE Introduction 1.3.0 §3.3)."
+            ),
+            2,
+        )
+        self.assertEqual(
+            introduction.count(
+                "specificationVersion (filled in the worked datagram; "
+                "the fill is not a required version)"
+            ),
+            2,
+        )
+        self.assertIn(
+            "Sub-entity cardinality is 0..N (SPINE Introduction 1.3.0 §3.3, §3.8, §2.4).",
+            introduction,
+        )
+
+    def test_spine_resources_examples_state_the_rule_without_values(self):
+        resources = (ROOT / "protocols/spine-resources-1.3.0.md").read_text(encoding="utf-8")
+        for banned in ("[1, 3, 7]", "[3..5, 8..13, 18..20]", "averageDerivativeValue"):
+            self.assertNotIn(banned, resources, banned)
+        self.assertIn(
+            "ScaledNumberSetType MAY contain gaps. "
+            "An example on these pages shows a value list and a range list. "
+            "Those lists are not a required set "
+            "(SPINE Resource Specification 1.3.0 §3.10.1.9.1).",
+            resources,
+        )
+        self.assertIn(
+            "A different valueType may use a unit derived from this one. "
+            "A named example on these pages is not that value-type list "
+            "(SPINE Resource Specification 1.3.0 Table 251).",
+            resources,
+        )
+
+    def test_spine_protocol_annex_examples_state_the_rule_without_values(self):
+        protocol = (ROOT / "protocols/spine-protocol-1.3.0.md").read_text(encoding="utf-8")
+        for banned in (
+            "EEBus_SPINE_Spec_Example",
+            "SOME_specification_V1.0.0_RC2",
+            "SOME_specification_V1.0.0_beta6_snapshot_1539",
+            "SOME_specification_V1.0.0_final",
+            "draft15",
+            "alpha15",
+            "beta15",
+            "msgCounter is 1114",
+            "example 3001",
+            "example 377",
+            "Protocol XYZ",
+            "light switch on A",
+            "(RC1, RC2)",
+        ):
+            self.assertNotIn(banned, protocol, banned)
+        self.assertIn("A release candidate appends RC and a numeral.", protocol)
+        self.assertIn(
+            "each tag is followed by a numeral that increases.",
+            protocol,
+        )
+        self.assertIn(
+            "The annex fills for those counters are illustrations, not required constants "
+            "(SPINE Protocol Specification 1.3.0 Annex E).",
+            protocol,
+        )
+        self.assertIn(
+            "No list, one element: the element was absent before.",
+            protocol,
+        )
+
+    def test_spine_data_example_cells_state_the_rule_without_values(self):
         data = (ROOT / "protocols/spine-resources-1.3.0-data-points.tsv").read_text(
             encoding="utf-8"
         )
@@ -466,8 +615,35 @@ class SpecificationPagesTest(unittest.TestCase):
             "1.0.0, 1.5.3",
             "charge, discharge, idle",
             "m^3, m^3/h, m/s^2, kg_m^2",
+            "PT15M",
+            "example fill 238",
+            "example fill 225",
+            "example fill -1",
+            "example fill 18",
+            "example fill 1 only",
+            "example fill 0",
+            "example literal normalOperation",
+            "example literal good",
+            "example literal measuredValue",
+            "outsideTemperature",
+            "averageDerivativeValue",
+            "example token in the text is shutter",
         ):
             self.assertNotIn(banned, data, banned)
+        self.assertIn(
+            "heartbeatCounter; id: not defined on these pages; range: no counter rule is printed. "
+            "A figure fill is not a specified counter",
+            data,
+        )
+        self.assertIn(
+            "value / number; id: not defined on these pages; range: no engineering bound is printed. "
+            "A figure fill is not a bound",
+            data,
+        )
+        self.assertIn(
+            "a named example is not the closed list",
+            data,
+        )
         self.assertIn(
             "specificationVersionList; id: SPINE specification versions the device supports; "
             "range: at least the child below (SPINE Protocol Specification 1.3.0 Table 11)",
