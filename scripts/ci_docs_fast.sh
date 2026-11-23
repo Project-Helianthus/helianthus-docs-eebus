@@ -39,11 +39,16 @@ python3 scripts/validate_repository_policy.py
 
 echo "==> verify markdown formatting"
 find . -path './.tmp' -prune -o -type f \( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' \) -print -quit | grep -q .
-if grep -RIn --exclude-dir=.tmp $'\t' --include='*.[mM][dD]' --include='*.[mM][aA][rR][kK][dD][oO][wW][nN]' --include='*.[mM][dD][oO][wW][nN]' --include='*.[mM][kK][dD]' --include='*.[mM][kK][dD][nN]' .; then
+markdown_name=( -iname '*.md' -o -iname '*.markdown' -o -iname '*.mdown' -o -iname '*.mkd' -o -iname '*.mkdn' )
+tab_hits="$(find . -path './.tmp' -prune -o -type f \( "${markdown_name[@]}" \) -exec grep -nH $'\t' {} + || true)"
+if [[ -n "$tab_hits" ]]; then
+  printf '%s\n' "$tab_hits"
   echo "Tab characters are not allowed in markdown files." >&2
   exit 1
 fi
-if grep -RInE --exclude-dir=.tmp ' +$' --include='*.[mM][dD]' --include='*.[mM][aA][rR][kK][dD][oO][wW][nN]' --include='*.[mM][dD][oO][wW][nN]' --include='*.[mM][kK][dD]' --include='*.[mM][kK][dD][nN]' .; then
+trailing_hits="$(find . -path './.tmp' -prune -o -type f \( "${markdown_name[@]}" \) -exec grep -nHE ' +$' {} + || true)"
+if [[ -n "$trailing_hits" ]]; then
+  printf '%s\n' "$trailing_hits"
   echo "Trailing spaces are not allowed in markdown files." >&2
   exit 1
 fi
@@ -61,7 +66,7 @@ failed = False
 for path in sorted(Path(".").rglob("*")):
     if not path.is_file() or path.suffix.lower() not in suffixes:
         continue
-    if ".tmp" in path.parts:
+    if path.parts[0] == ".tmp":
         continue
     text = path.read_text(encoding="utf-8")
     for match in IPV4_CANDIDATE_PATTERN.finditer(text):

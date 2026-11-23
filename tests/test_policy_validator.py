@@ -111,10 +111,18 @@ class PolicyValidatorTests(unittest.TestCase):
             + value
         )
         self.assertFalse(_privacy_errors(public_commit, "protocols/probe.md"))
-        public_ref = (
-            "repository: Project-Helianthus/helianthus-docs\nref: " + value
+        bare_ref = "repository: Project-Helianthus/helianthus-docs\nref: " + value
+        self.assertTrue(_privacy_errors(bare_ref, "protocols/probe.yaml"))
+        cited_ref = bare_ref + "\nurl: https://github.com/Project-Helianthus/helianthus-docs/commit/" + value
+        self.assertFalse(_privacy_errors(cited_ref, "protocols/probe.yaml"))
+        checkout_ref = (
+            "  uses: actions/checkout@11bd71901bbe5b1630"
+            "ceea73d27597364c9af683\n"
+            "  with:\n"
+            "    repository: Project-Helianthus/helianthus-docs\n"
+            "    ref: " + value
         )
-        self.assertFalse(_privacy_errors(public_ref, "protocols/probe.yaml"))
+        self.assertFalse(_privacy_errors(checkout_ref, ".github/workflows/probe.yml"))
 
     def test_additional_yaml_pull_request_workflow_fails(self) -> None:
         triggers = ("on:\n  pull_request:\n", "on: [push, pull_request]\n")

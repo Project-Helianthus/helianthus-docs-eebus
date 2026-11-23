@@ -4489,14 +4489,25 @@ def _citation_git_pin_spans(
     return spans
 
 
-def _public_repository_before(text: str, position: int) -> bool:
-    for line in text[:position].splitlines()[-4:]:
-        if re.match(
-            r"^\s*(?:-\s*)?repository:\s*(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|\$\{\{[^}]+\}\})\s*$",
-            line,
-        ):
-            return True
-    return False
+def _public_yaml_ref_context(text: str, position: int, pin: str, rel: str) -> bool:
+    before = text[:position].splitlines()[-8:]
+    repository = next(
+        (
+            line for line in reversed(before[-4:])
+            if re.match(r"^\s*(?:-\s*)?repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", line)
+        ),
+        None,
+    )
+    if repository is None:
+        return False
+    if rel.startswith(".github/workflows/"):
+        return any(re.match(r"^\s*uses:\s*actions/checkout@[0-9a-fA-F]{40}\b", line) for line in before)
+    after = text[position:].splitlines()[1:7]
+    return any(
+        re.match(r"^\s*url:\s*https://(?:github\.com|api\.github\.com)/", line)
+        and pin in line
+        for line in after
+    )
 
 
 def _public_git_pin_spans(text: str, rel: str) -> tuple[tuple[int, int], ...]:
@@ -4510,7 +4521,7 @@ def _public_git_pin_spans(text: str, rel: str) -> tuple[tuple[int, int], ...]:
         if match.group("key").casefold() in {"ref", "revision", "pin"}
         and (
             PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
-            or not _public_repository_before(text, match.start())
+            or not _public_yaml_ref_context(text, match.start(), match.group("pin"), rel)
         )
     }
     field_spans = [span for span in field_spans if span not in bare_reference_spans]
