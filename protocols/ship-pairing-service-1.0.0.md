@@ -176,7 +176,7 @@ The octet encoding of devA-secret and devZ-nonce when building K is not stated. 
 | §4.5 leaves devZ’s reaction to a long absence of SHIP message exchange unspecified, and recommends against an automatic new request. | §4.5 |
 | A later version is expected to add request types beyond addCu (§4.2; §10.3). Those types are not defined here. | §4.2, §10.3 |
 | The word Dynamic is defined and no Table 1 key uses it (§5.4). The legend defines O and no Table 1 key is O. | Table 1, §5.4 |
-| includes SKI in the scanned QR list. Note 1 says that SKI is not used by this service’s process (§4.1). Chapter 12 and §C.3 still require SKI material on the QR code (§12;). The figure has no separate line numbers; labels are taken from the drawing. | §4.1, §12 |
-| is a picture of the Annex A example QR code. It adds no separate normative field. | Annex A |
+| Figure 1 includes SKI in the scanned QR list. Note 1 says that SKI is not used by this service’s process (§4.1). Chapter 12 and §C.3 still require SKI material on the QR code (§12). Figure content beyond those labels is not recorded. | §4.1, §12 |
+| Figure 2 is a picture of the Annex A example QR code. It adds no separate normative field. | Annex A |
 | The printed clauses of this document are the ones cited above. There is no later clause of this document. Clauses that point outside the document are those citations. | clause not printed |
 | No heartbeat, failsafe, polling period, subscription maximum, or SPINE bind rule is printed. | clause not printed |

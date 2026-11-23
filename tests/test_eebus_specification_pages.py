@@ -18,7 +18,7 @@ TSV_HEADER = [
     "server actor",
     "client actor",
     "operations",
-    "shard locators",
+    "locators",
 ]
 
 PAGE_SECTIONS = {
@@ -146,7 +146,15 @@ LOCATOR_LEAK = re.compile(
     r"|pages \d+–\d+"
     r"|open points? \d+"
     r"|(?:first|second) shard"
-    r"|\bshards?\b(?!\s+locators)",
+    r"|\bshards?\b"
+    r"|text extract"
+    r"|extracted steps"
+    r"|extracted glyphs"
+    r"|in the extract"
+    r"|not recoverable"
+    r"|recoverable direction"
+    r"|separate line numbers"
+    r"|taken from the drawing",
     re.IGNORECASE,
 )
 
@@ -197,6 +205,14 @@ class SpecificationPagesTest(unittest.TestCase):
             "Open points 12–13",
             "first shard",
             "second shard",
+            "shard locators",
+            "text extract",
+            "extracted steps",
+            "in the extract",
+            "not recoverable from the text",
+            "without a recoverable direction",
+            "no separate line numbers",
+            "labels are taken from the drawing",
             "facts-spine-protocol.md",
             "l.452",
             "p.53",
@@ -208,7 +224,9 @@ class SpecificationPagesTest(unittest.TestCase):
             "outside this class",
             "outside this element",
             "phase a or L1",
-            "shard locators",
+            "locators",
+            "extracts the public key",
+            "extracts SHIP messages",
             "See open points.",
             "cardinality 1..unbounded",
             "16–32",
@@ -264,6 +282,65 @@ class SpecificationPagesTest(unittest.TestCase):
         self.assertIn("failsafeDurationMinimum", resources)
         self.assertIn("256", resources)
         self.assertIn("4096", resources)
+
+    def test_figure_notes_do_not_name_a_reading(self):
+        intro = (ROOT / "protocols/spine-introduction-1.3.0.md").read_text(
+            encoding="utf-8"
+        )
+        resources = (ROOT / "protocols/spine-resources-1.3.0.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Figure 3 is the specification stack", intro)
+        self.assertIn(
+            "Figure 4 is that picture; its body is not recorded",
+            intro,
+        )
+        self.assertIn(
+            "Figures 10, 11, and 12 draw that shape; their bodies are not recorded",
+            intro,
+        )
+        self.assertIn(
+            "Figure 12 groups the constituents; the groups are not recorded",
+            intro,
+        )
+        self.assertIn(
+            "Figure 6 prints 1 and n beside the function band and beside the element band. Which side is 1 and which side is n is not recorded.",
+            intro,
+        )
+        protocol_page_11 = (ROOT / "protocols/ship-1.1.0.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Figure 3 draws the complete mutually authenticated TLS 1.2 handshake. Figure 4 draws the shorter handshake that resumes a session. Step labels inside the drawings are not recorded.",
+            protocol_page_11,
+        )
+        self.assertIn(
+            "Figure 9 names these layers from the application side downward",
+            protocol_page_11,
+        )
+        self.assertIn("Which boxes are white and which are grey is not recorded.", protocol_page_11)
+        protocol = (ROOT / "protocols/spine-protocol-1.3.0.md").read_text(encoding="utf-8")
+        self.assertIn("The steps of Figure 27 are not recorded.", protocol)
+        self.assertIn("The figure content is not recorded.", protocol)
+        pairing = (ROOT / "protocols/ship-pairing-service-1.0.0.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Figure 1 includes SKI in the scanned QR list.", pairing)
+        self.assertIn("Figure content beyond those labels is not recorded.", pairing)
+        self.assertIn(
+            "Figure 2 is a picture of the Annex A example QR code.",
+            pairing,
+        )
+        data = (ROOT / "protocols/spine-resources-1.3.0-data-points.tsv").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "Figure 13 is about referencing this function and loadControlLimitDescriptionListData; the drawing is not recorded",
+            data,
+        )
+        self.assertIn("which side is which is not recorded", data)
+        self.assertNotIn("section 5..", resources)
+        self.assertIn("section 5.", resources)
+        self.assertIn("and locators.", resources)
+        self.assertNotIn("shard", resources.casefold())
 
     def test_data_file_has_header_and_one_row_per_index_point(self):
         path = ROOT / "protocols/spine-resources-1.3.0-data-points.tsv"

@@ -961,7 +961,7 @@ The heartbeat counter increases after each heartbeatTimeout, not on every transm
 | Time values | daysOfWeek may carry several days at once. | clause not printed |
 | Time values | recurringIntervalStep selects a stride when not every occurrence is active. executionCount ends the series after that many occurrences. lastExecution ends it after an instant, and that instant need not be an occurrence. firstExecution sets a first time other than the next occurrence. | clause not printed |
 | Time values | DayOfMonthType is 1 through 31. CalendarWeekType is 1 through 53.. | clause not printed |
-| Time values | AddressDeviceType strings are limited to 256 characters and must match the pattern in section 5.. | clause not printed |
+| Time values | AddressDeviceType strings are limited to 256 characters and must match the pattern in section 5. | clause not printed |
 | resultData | Notifies an error that belongs to another function. A failed write is the stated example. | clause not printed |
 | resultData | May stand in for an ordinary reply when no well-formed reply can be built in the same function group as that read. | clause not printed |
 | resultData | errorNumber 0 is no error. Any value greater than 0 is an error. The named codes are in Table 19 (section 5). | Table 19 |
@@ -1299,7 +1299,7 @@ The heartbeat counter increases after each heartbeatTimeout, not on every transm
 | DeviceConfiguration | Subscribed clients are notified when a value changes. The notify example is §5.3.8.2.4.2 | §5.3.8.2.4.2 |
 | DeviceConfiguration | Key meanings that are limits, defaults, failsafe values, or waits (no numeric value is printed for any of them): | clause not printed |
 | DeviceConfiguration | Locators: Table 196. | Table 196 |
-| Partial filters in labelled examples | alarmListData notify, partial filter abbreviated in the extract. §5.3.3.2.4.1 | §5.3.3.2.4.1 |
+| Partial filters in labelled examples | alarmListData notify; the partial filter is not recorded in full. §5.3.3.2.4.1 | §5.3.3.2.4.1 |
 | Partial filters in labelled examples | billConstraintsListData read. §5.3.4.3.4.1 | §5.3.4.3.4.1 |
 | Partial filters in labelled examples | deviceConfigurationKeyValueListData read. §5.3.8.2.4.1 | §5.3.8.2.4.1 |
 | Device diagnosis states | Literal: normalOperation; Meaning on these pages: Ordinary operation, with no error and no limitation. | clause not printed |
@@ -1647,7 +1647,7 @@ The heartbeat counter increases after each heartbeatTimeout, not on every transm
 
 ## Data file
 
-protocols/spine-resources-1.3.0-data-points.tsv has one row for each of the 6507 data points. The columns are feature, function, element / identifier values, type, unit / scale, use cases and scenarios (M/R/O), server actor, client actor, operations, and shard locators. Ranges stay in the element cell. Server actor and client actor are not in the sources on every row. The locator cell cites the specification by title, version, and clause. An illustration value is not copied.
+protocols/spine-resources-1.3.0-data-points.tsv has one row for each of the 6507 data points. The columns are feature, function, element / identifier values, type, unit / scale, use cases and scenarios (M/R/O), server actor, client actor, operations, and locators. Ranges stay in the element cell. Server actor and client actor are not in the sources on every row. The locator cell cites the specification by title, version, and clause. An illustration value is not copied.
 
 ## Open points
 
