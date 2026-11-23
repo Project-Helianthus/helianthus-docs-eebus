@@ -107,6 +107,12 @@ class PolicyValidatorTests(unittest.TestCase):
             with self.subTest(label="git", rel=rel):
                 errors = _privacy_errors(f"git:{value}", rel)
                 self.assertTrue(any("full fingerprint" in error for error in errors))
+            with self.subTest(label="ski-commit", rel=rel):
+                errors = _privacy_errors(f"SKI commit: {value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+            with self.subTest(label="peer-ref", rel=rel):
+                errors = _privacy_errors(f"peer_ref: {value}", rel)
+                self.assertTrue(any("full fingerprint" in error for error in errors))
         for label in ("ref", "revision", "pin"):
             with self.subTest(label=label):
                 errors = _privacy_errors(f"{label}: {value}", "protocols/probe.md")

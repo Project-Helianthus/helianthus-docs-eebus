@@ -2331,7 +2331,7 @@ _GIT_PIN_STRONG_KEY = re.compile(
 )
 _GIT_PIN_WEAK_KEY = re.compile(r"(?i)(?:^|_)(?:base|validator)(?:_|$)")
 _GIT_PIN_FORBIDDEN_KEY = re.compile(
-    r"(?i)ski|ship|fingerprint|secret|token|password|credential|serial"
+    r"(?i)ski|ship|peer|fingerprint|secret|token|password|credential|serial"
 )
 _GIT_PIN_FIELD_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_.-])"
@@ -4433,6 +4433,9 @@ def _weak_git_pin_used_as_ref(text: str, key: str, value_end: int) -> bool:
 def _field_git_pin_spans(text: str) -> list[tuple[int, int]]:
     spans: list[tuple[int, int]] = []
     for match in _GIT_PIN_FIELD_PATTERN.finditer(text):
+        line_start = text.rfind("\n", 0, match.start()) + 1
+        if re.search(r"(?i)\b(?:ski|ship)\b", text[line_start : match.start()]):
+            continue
         strength = _git_pin_key_strength(match.group("key"))
         pin_end = match.end("pin")
         used_as_ref = strength == "weak" and _weak_git_pin_used_as_ref(
