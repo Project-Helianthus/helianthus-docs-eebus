@@ -16,6 +16,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--eebusreg-root", type=pathlib.Path, required=True)
     result.add_argument("--docs-ref", required=True)
     result.add_argument("--docs-eebus-ref", required=True)
+    result.add_argument(
+        "--docs-eebus-repository",
+        default="Project-Helianthus/helianthus-docs-eebus",
+    )
     result.add_argument("--eebusreg-ref", required=True)
     result.add_argument("--prior-manifest", type=pathlib.Path, required=True)
     result.add_argument("--m625-docs-eebus-root", type=pathlib.Path, required=True)
@@ -45,6 +49,7 @@ def main() -> int:
         mode="combined-ref",
         docs_ref=args.docs_ref,
         docs_eebus_ref=args.docs_eebus_ref,
+        docs_eebus_repository=args.docs_eebus_repository,
         eebusreg_ref=args.eebusreg_ref,
         docs_repository=args.docs_repository,
         enforce_through=args.enforce_through,

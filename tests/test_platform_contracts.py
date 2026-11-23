@@ -847,6 +847,7 @@ def validate(
     workspace: Workspace,
     *,
     prior_manifest: pathlib.Path | None = None,
+    docs_eebus_repository: str = "Project-Helianthus/helianthus-docs-eebus",
 ) -> list[str]:
     diagnostics = validator.validate_workspace(
         docs_root=workspace.docs,
@@ -855,6 +856,7 @@ def validate(
         mode="combined-ref",
         docs_ref=workspace.docs_ref,
         docs_eebus_ref=workspace.docs_eebus_ref,
+        docs_eebus_repository=docs_eebus_repository,
         eebusreg_ref=workspace.eebusreg_ref,
         docs_repository=workspace.docs_repository,
         enforce_through=workspace.enforce_through,
@@ -2449,14 +2451,17 @@ def test_ci_workflow_uses_locked_python_pip_and_dependencies(
         for step in steps
         if "python -m pip install" in step.get("run", "")
     ]
-    assert len(pip_install_steps) == 1
-    pip_install_step = pip_install_steps[0]
-    assert "PIP_NO_INDEX" not in pip_install_step.get("env", {})
-    install = pip_install_step["run"]
-    assert "--require-hashes" in install
-    assert "--no-deps" in install
-    assert "--no-build-isolation" in install
-    assert "requirements-ci.txt" in install
+    expected_count = (
+        3 if workflow_path.name == "platform-contracts-combined-ref.yml" else 1
+    )
+    assert len(pip_install_steps) == expected_count
+    for pip_install_step in pip_install_steps:
+        assert "PIP_NO_INDEX" not in pip_install_step.get("env", {})
+        install = pip_install_step["run"]
+        assert "--require-hashes" in install
+        assert "--no-deps" in install
+        assert "--no-build-isolation" in install
+        assert "requirements-ci.txt" in install
 
 
 def test_combined_ref_expiry_uses_trusted_validator_and_runner_clock() -> None:
@@ -2497,7 +2502,7 @@ def test_combined_ref_expiry_uses_trusted_validator_and_runner_clock() -> None:
     assert '--evaluated-at "${evaluated_at}"' in script
     assert "github.event.head_commit.timestamp" not in script
     assert "--evaluation-source github.runner.utc_now" in script
-    assert "--owner-manifest-root checkouts/docs-eebus" in script
+    assert "--owner-manifest-root checkouts/docs-base" in script
 
     caller = yaml.safe_load(
         (REPO_ROOT / ".github/workflows/docs-ci.yml").read_text(encoding="utf-8")
@@ -2544,7 +2549,11 @@ def test_combined_ref_caller_runs_pr_m625_validator_with_trusted_guard() -> None
     assert "Validate PR M6.25 provenance contract" in reusable
     assert "checkouts/docs-eebus/scripts/validate_platform_combined_ref.py" in reusable
     assert "checkouts/docs-validator/scripts/validate_platform_combined_ref.py" in reusable
-    assert reusable.count("--owner-manifest-root checkouts/docs-eebus") == 3
+    assert reusable.count("--owner-manifest-root checkouts/docs-eebus") == 1
+    assert reusable.count("--owner-manifest-root checkouts/docs-base") == 2
+    assert '--docs-eebus-repository "${{ inputs.docs_eebus_repository }}"' in reusable
+    assert "-r checkouts/docs-eebus/requirements-ci.txt" in reusable
+    assert reusable.count("-r checkouts/docs-validator/requirements-ci.txt") == 2
 
 
 def test_docs_ci_binds_pr_head_and_runs_trusted_expiry_on_push() -> None:
@@ -3507,6 +3516,21 @@ def test_combined_ref_accepts_fork_candidate_origin(tmp_path: pathlib.Path) -> N
     assert validate(load_validator(), build_workspace(tmp_path, fork_origin)) == []
 
 
+def test_combined_ref_accepts_verified_eebus_fork_origin(
+    tmp_path: pathlib.Path,
+) -> None:
+    fork_repository = "contributor/helianthus-docs-eebus"
+
+    def fork_origin(spec: dict[str, Any]) -> None:
+        spec["remotes"]["docs_eebus"] = fork_repository
+
+    workspace = build_workspace(tmp_path, fork_origin)
+    assert validate(load_validator(), workspace) == ["input.repository-root"]
+    assert validate(
+        load_validator(), workspace, docs_eebus_repository=fork_repository
+    ) == []
+
+
 def test_main_expiry_accepts_declared_fork_candidate_origin(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -4292,15 +4316,15 @@ def test_toolchain_checks_actual_versions_not_caller_claims(
 ) -> None:
     validator = load_validator()
     monkeypatch.setattr(
-        validator, "_actual_tool_versions", lambda: ((3, 12, 10), "6.0.2", "6.0.2")
+        validator, "_actual_tool_versions", lambda: ((3, 12, 10), "6.0.3", "6.0.3")
     )
     assert validator._toolchain_categories("exact") == set()
     monkeypatch.setattr(
-        validator, "_actual_tool_versions", lambda: ((3, 12, 9), "6.0.2", "6.0.2")
+        validator, "_actual_tool_versions", lambda: ((3, 12, 9), "6.0.3", "6.0.3")
     )
     assert validator._toolchain_categories("exact") == {"toolchain.python"}
     monkeypatch.setattr(
-        validator, "_actual_tool_versions", lambda: ((3, 14, 5), "6.0.3", "6.0.2")
+        validator, "_actual_tool_versions", lambda: ((3, 14, 5), "6.0.2", "6.0.3")
     )
     assert validator._toolchain_categories("supported") == {"toolchain.pyyaml"}
 

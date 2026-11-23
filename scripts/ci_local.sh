@@ -78,6 +78,7 @@ python3 scripts/validate_platform_contracts.py \
   --docs-root "${PLATFORM_CONTRACTS_ROOT}" \
   --docs-repository "Project-Helianthus/helianthus-docs" \
   --owner-manifest-root . \
+  --owner-manifest-repository "${PLATFORM_DOCS_REPOSITORY:-Project-Helianthus/helianthus-docs-eebus}" \
   --m625-docs-eebus-root "${PLATFORM_M625_DOCS_EEBUS_ROOT}" \
   --m625-execution-plans-root "${PLATFORM_M625_EXECUTION_PLANS_ROOT}" \
   --prior-manifest "${prior_manifest}" \
@@ -93,6 +94,7 @@ if [[ -n "${PLATFORM_DOCS_EEBUS_ROOT:-}${PLATFORM_EEBUSREG_ROOT:-}${PLATFORM_DOC
   python3 scripts/validate_platform_combined_ref.py \
     --docs-root "${PLATFORM_CONTRACTS_ROOT}" \
     --docs-eebus-root . \
+    --docs-eebus-repository "${PLATFORM_DOCS_REPOSITORY:-Project-Helianthus/helianthus-docs-eebus}" \
     --eebusreg-root "${PLATFORM_EEBUSREG_ROOT}" \
     --docs-ref "${PLATFORM_DOCS_REF}" \
     --docs-eebus-ref "${PLATFORM_DOCS_EEBUS_REF}" \

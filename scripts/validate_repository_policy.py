@@ -1572,7 +1572,7 @@ EVIDENCE_SOURCE_CLASSES = {
 }
 HYPOTHESIS_STATUSES = {"draft", "publishable", "blocked", "withdrawn"}
 EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{8}-\d{3}")
-CI_LOCAL_SHA256 = "6dce3e2b474067a996d959d00461e8f42" "47f0bcda8bf29475e81ab14fd61e8cf"
+CI_LOCAL_SHA256 = "c7d47fd7babbd9a42e6609755ca5c32" "a1cf0a8daf5d903b0ff62eef510326b91"
 LICENSE_SHA256 = "a16cda9cb4b92973b563238dc27e133c3" "d34e1b774a6530b5276862c75d2c721"
 LICENSE_TEXT_SHA256 = {
     "LICENSES/CC0-1.0.txt": (
@@ -4489,11 +4489,32 @@ def _citation_git_pin_spans(
     return spans
 
 
-def _public_git_pin_spans(text: str) -> tuple[tuple[int, int], ...]:
+def _public_repository_before(text: str, position: int) -> bool:
+    for line in text[:position].splitlines()[-4:]:
+        if re.match(
+            r"^\s*(?:-\s*)?repository:\s*(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|\$\{\{[^}]+\}\})\s*$",
+            line,
+        ):
+            return True
+    return False
+
+
+def _public_git_pin_spans(text: str, rel: str) -> tuple[tuple[int, int], ...]:
     """Exempt public revision pins and same-line citations of those pins."""
     spans = [match.span(1) for match in _GIT_PIN_EMBEDDED_PATTERN.finditer(text)]
     spans.extend(match.span(1) for match in _GIT_PIN_ACTION_PATTERN.finditer(text))
-    spans.extend(_field_git_pin_spans(text))
+    field_spans = _field_git_pin_spans(text)
+    bare_reference_spans = {
+        match.span("pin")
+        for match in _GIT_PIN_FIELD_PATTERN.finditer(text)
+        if match.group("key").casefold() in {"ref", "revision", "pin"}
+        and (
+            PurePosixPath(rel).suffix.lower() in MARKDOWN_SUFFIXES
+            or not _public_repository_before(text, match.start())
+        )
+    }
+    field_spans = [span for span in field_spans if span not in bare_reference_spans]
+    spans.extend(field_spans)
     spans.extend(_default_git_pin_spans(text))
     spans.extend(_citation_git_pin_spans(text, spans))
     return _coalesce_spans(spans)
@@ -4567,7 +4588,7 @@ def _provenance_fingerprint_exempt_spans(
     text: str, rel: str
 ) -> tuple[tuple[int, int], ...]:
     spans = list(git_fingerprint_exempt_spans(text))
-    spans.extend(_public_git_pin_spans(text))
+    spans.extend(_public_git_pin_spans(text, rel))
     for fingerprint in PROVENANCE_TEXT_FINGERPRINTS.get(rel, set()):
         pattern = re.compile(
             rf"(?<![0-9A-Fa-f]){re.escape(fingerprint)}(?![0-9A-Fa-f])"

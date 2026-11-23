@@ -516,25 +516,14 @@ jobs:
           PRIOR_MANIFEST: ${{ steps.prior_manifest.outputs.path }}
         run: |
           test -n "${PRIOR_MANIFEST}"
-          python3 - <<'PY'
-          import pathlib
-          import sys
-
-          sys.path.insert(0, "checkouts/docs-eebus/scripts")
-          from validate_platform_contracts import _repository_root_valid
-
-          for name, repository in (
-              ("docs", "Project-Helianthus/helianthus-docs"),
-              ("docs-eebus", "Project-Helianthus/helianthus-docs-eebus"),
-              ("eebusreg", "Project-Helianthus/helianthus-eebusreg"),
-          ):
-              root = pathlib.Path("checkouts") / name
-              print(f"repository-root {name}: {_repository_root_valid(root, repository)}")
-          PY
+          python -m pip install --disable-pip-version-check --no-deps \
+            --no-build-isolation --require-hashes \
+            -r checkouts/docs-eebus/requirements-ci.txt
           python3 checkouts/docs-eebus/scripts/validate_platform_combined_ref.py \
             --docs-root checkouts/docs \
             --docs-repository "${{ inputs.docs_repository }}" \
             --docs-eebus-root checkouts/docs-eebus \
+            --docs-eebus-repository "${{ inputs.docs_eebus_repository }}" \
             --owner-manifest-root checkouts/docs-eebus \
             --eebusreg-root checkouts/eebusreg \
             --m625-docs-eebus-root checkouts/m625-docs-eebus \
@@ -553,11 +542,14 @@ jobs:
           PRIOR_MANIFEST: ${{ steps.prior_manifest.outputs.path }}
         run: |
           test -n "${PRIOR_MANIFEST}"
+          python -m pip install --disable-pip-version-check --no-deps \
+            --no-build-isolation --require-hashes \
+            -r checkouts/docs-validator/requirements-ci.txt
           python3 checkouts/docs-validator/scripts/validate_platform_combined_ref.py \
             --docs-root checkouts/docs \
             --docs-repository "${{ inputs.docs_repository }}" \
             --docs-eebus-root checkouts/docs-eebus \
-            --owner-manifest-root checkouts/docs-eebus \
+            --owner-manifest-root checkouts/docs-base \
             --eebusreg-root checkouts/eebusreg \
             --m625-docs-eebus-root checkouts/m625-docs-eebus \
             --m625-execution-plans-root checkouts/m625-execution-plans \
@@ -588,7 +580,7 @@ jobs:
             --mode main-expiry \
             --docs-root checkouts/docs \
             --docs-repository "${DOCS_REPOSITORY}" \
-            --owner-manifest-root checkouts/docs-eebus \
+            --owner-manifest-root checkouts/docs-base \
             --m625-docs-eebus-root checkouts/m625-docs-eebus \
             --m625-execution-plans-root checkouts/m625-execution-plans \
             --evaluated-at "${evaluated_at}" \

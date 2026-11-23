@@ -58,7 +58,7 @@ MILESTONE_INDEX = {name: index for index, name in enumerate(MILESTONES)}
 TARGET_STATES = {"candidate", "active", "withdrawn"}
 
 EXACT_PYTHON = (3, 12, 10)
-EXACT_PYYAML = "6.0.2"
+EXACT_PYYAML = "6.0.3"
 SUPPORTED_PYTHON_MIN = (3, 12, 0)
 SUPPORTED_PYTHON_MAX = (3, 15, 0)
 SUPPORTED_PYYAML_MIN = (6, 0, 2)
@@ -2407,6 +2407,7 @@ def validate_repository(
     mode: str,
     enforce_through: str,
     toolchain_mode: str,
+    owner_manifest_repository: str = "Project-Helianthus/helianthus-docs-eebus",
     prior_manifest: pathlib.Path | None = None,
     evaluated_at: str | None = None,
     evaluation_source: str | None = None,
@@ -2432,7 +2433,7 @@ def validate_repository(
         else root
     )
     owner_root_valid = owner_manifest_root is None or _repository_root_valid(
-        manifest_root, "Project-Helianthus/helianthus-docs-eebus"
+        manifest_root, owner_manifest_repository
     )
     if not owner_root_valid:
         categories.add("input.repository-root")
@@ -2480,6 +2481,7 @@ def validate_workspace(
     mode: str,
     docs_ref: str | None,
     docs_eebus_ref: str | None,
+    docs_eebus_repository: str = "Project-Helianthus/helianthus-docs-eebus",
     eebusreg_ref: str | None,
     docs_repository: str,
     enforce_through: str,
@@ -2517,7 +2519,7 @@ def validate_workspace(
 
     expected_repositories = {
         "helianthus-docs": docs_repository,
-        "helianthus-docs-eebus": "Project-Helianthus/helianthus-docs-eebus",
+        "helianthus-docs-eebus": docs_eebus_repository,
         "helianthus-eebusreg": "Project-Helianthus/helianthus-eebusreg",
     }
     if GITHUB_REPOSITORY.fullmatch(docs_repository) is None:
@@ -2540,7 +2542,7 @@ def validate_workspace(
     if owner_manifest_root is not None:
         manifest_root = pathlib.Path(owner_manifest_root)
         if not _repository_root_valid(
-            manifest_root, "Project-Helianthus/helianthus-docs-eebus"
+            manifest_root, docs_eebus_repository
         ):
             categories.add("input.repository-root")
         else:
@@ -2621,6 +2623,14 @@ def _parser() -> argparse.ArgumentParser:
         default="Project-Helianthus/helianthus-docs",
     )
     parser.add_argument("--docs-eebus-ref")
+    parser.add_argument(
+        "--docs-eebus-repository",
+        default="Project-Helianthus/helianthus-docs-eebus",
+    )
+    parser.add_argument(
+        "--owner-manifest-repository",
+        default="Project-Helianthus/helianthus-docs-eebus",
+    )
     parser.add_argument("--eebusreg-ref")
     parser.add_argument("--evaluated-at")
     parser.add_argument("--evaluation-source")
@@ -2644,6 +2654,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=args.mode,
             enforce_through=args.enforce_through,
             toolchain_mode=args.toolchain_mode,
+            owner_manifest_repository=args.owner_manifest_repository,
             prior_manifest=args.prior_manifest,
             evaluated_at=args.evaluated_at,
             evaluation_source=args.evaluation_source,
@@ -2661,6 +2672,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=args.mode,
             docs_ref=args.docs_ref,
             docs_eebus_ref=args.docs_eebus_ref,
+            docs_eebus_repository=args.docs_eebus_repository,
             eebusreg_ref=args.eebusreg_ref,
             docs_repository=args.docs_repository,
             enforce_through=args.enforce_through,

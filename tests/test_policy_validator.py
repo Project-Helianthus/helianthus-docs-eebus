@@ -13,6 +13,7 @@ VALIDATOR = REPO / "scripts" / "validate_repository_policy.py"
 from tests.policy_test_support import check_repository_result, materialize_policy_fixture
 from validate_repository_policy import (
     PLATFORM_SNAPSHOT_REF,
+    _privacy_errors,
     _skip_scratch,
     _untracked_scratch_root,
     check_repository,
@@ -96,6 +97,25 @@ def add_evidence_backed_page(repo: Path, relative_path: str, body: str) -> Path:
 
 
 class PolicyValidatorTests(unittest.TestCase):
+    def test_bare_ref_or_revision_does_not_hide_a_fingerprint(self) -> None:
+        value = forty_hex("abc12345")
+        for label in ("ref", "revision", "pin"):
+            with self.subTest(label=label):
+                errors = _privacy_errors(f"{label}: {value}", "protocols/probe.md")
+                self.assertTrue(any("full fingerprint" in error for error in errors))
+                yaml_errors = _privacy_errors(f"{label}: {value}", "protocols/probe.yaml")
+                self.assertTrue(any("full fingerprint" in error for error in yaml_errors))
+
+        public_commit = (
+            "https://github.com/Project-Helianthus/helianthus-docs/commit/"
+            + value
+        )
+        self.assertFalse(_privacy_errors(public_commit, "protocols/probe.md"))
+        public_ref = (
+            "repository: Project-Helianthus/helianthus-docs\nref: " + value
+        )
+        self.assertFalse(_privacy_errors(public_ref, "protocols/probe.yaml"))
+
     def test_additional_yaml_pull_request_workflow_fails(self) -> None:
         triggers = ("on:\n  pull_request:\n", "on: [push, pull_request]\n")
         triggers += (
