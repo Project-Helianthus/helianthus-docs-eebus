@@ -15,6 +15,8 @@ PAGE_REL = Path("api/_candidate/eebus-output-binding-contract-v1.md")
 MARKERS = (
     "The named input lenses are `lens.equipment_composition` and `lens.installation_hierarchy`, both read on the one retained captured cut.",
     "Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut.",
+    "Same cut means both links carry one cut identifier.",
+    "The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected.",
     "An entity composed from an index is rejected.",
     "A name and an address are rejected by the same rule as an index.",
     "An operation is admitted only through that resource's own capability.",
@@ -80,6 +82,7 @@ VECTOR_ROWS = (
     ("operation_through_own_capability", "admitted"),
     ("ev_under_evse_two_links", "admitted"),
     ("ev_under_evse_link_missing", "rejected"),
+    ("ev_under_evse_two_cuts", "rejected"),
 )
 
 
@@ -233,16 +236,18 @@ class OutputBindingContractTest(unittest.TestCase):
         """EV nesting fields: basis, both links, cited, coherent, in_plane, qualified.
 
         basis cited_contains stays admitted.
-        basis evse_connector_vehicle with both links is admitted.
+        basis evse_connector_vehicle with both links of one cut is admitted.
         a missing connector_vehicle link is rejected.
+        the same link names from two cuts are rejected.
+        link names without a cut identifier are rejected.
         any other basis is rejected.
         """
         outcome = repository_policy.entity_composition_outcome
         admitted = {
             "basis": "evse_connector_vehicle",
             "links": (
-                "evse.relation.evse_connector",
-                "evse.relation.connector_vehicle",
+                ("evse.relation.evse_connector", "cut-a"),
+                ("evse.relation.connector_vehicle", "cut-a"),
             ),
             "cited": True,
             "coherent": True,
@@ -252,8 +257,20 @@ class OutputBindingContractTest(unittest.TestCase):
         self.assertEqual(outcome(admitted), "admitted")
         self.assertEqual(outcome(ADMITTED_ENTITY), "admitted")
         missing = dict(admitted)
-        missing["links"] = ("evse.relation.evse_connector",)
+        missing["links"] = (("evse.relation.evse_connector", "cut-a"),)
         self.assertEqual(outcome(missing), "rejected")
+        two_cuts = dict(admitted)
+        two_cuts["links"] = (
+            ("evse.relation.evse_connector", "cut-a"),
+            ("evse.relation.connector_vehicle", "cut-b"),
+        )
+        self.assertEqual(outcome(two_cuts), "rejected")
+        names_only = dict(admitted)
+        names_only["links"] = (
+            "evse.relation.evse_connector",
+            "evse.relation.connector_vehicle",
+        )
+        self.assertEqual(outcome(names_only), "rejected")
         other = dict(admitted)
         other["basis"] = "index"
         self.assertEqual(outcome(other), "rejected")
@@ -274,6 +291,8 @@ class OutputBindingContractTest(unittest.TestCase):
             "valueSource",
             "calculatedValue",
             "A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.",
+            "Same cut means both links carry one cut identifier.",
+            "The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected.",
             "Electrical context is medium `electrical` on a cited element, and it is never taken from a second lens.",
             "This output computes no sum (SUM-1).",
             "A sum is not an entity and not a feature.",

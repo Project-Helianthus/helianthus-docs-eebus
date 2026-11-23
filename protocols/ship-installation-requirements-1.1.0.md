@@ -156,43 +156,43 @@ Numbered requirements keep the identifier, the capital-keyword obligation, and t
 
 | topic | statement | clause |
 | --- | --- | --- |
-| TXT values, SHIP ID, categories | Already-sold devices: changing the SHIP ID is a SHOULD NOT. SRIP-220/4 §2.2 –209 See SHIP-ID change semantics below. | §2.2 |
-| TXT values, SHIP ID, categories | Devices built newly, and not sharing firmware with units already sold: SHALL adopt the new format. SRIP-220/5 §2.2 –211 | §2.2 |
-| TXT values, SHIP ID, categories | Every remaining case: a conforming node SHOULD use an id that matches the new format. This bullet has no SRIP id. The remaining cases are not listed. §2.2 –213 | §2.2 |
-| TXT values, SHIP ID, categories | <IANA PEN> SHALL be one to six characters, the manufacturer’s [IANA PEN]. SRIP-220/6 §2.2 –218 | §2.2 |
-| TXT values, SHIP ID, categories | <VPID> SHALL be globally unique for that PEN. The pair (PEN, VPID) SHALL identify this SHIP node globally. SRIP-220/7 §2.2 –221 | §2.2 |
-| TXT values, SHIP ID, categories | VPID SHOULD be the device serial number, or similar information printed on the device. SRIP-220/8 §2.2 –223 | §2.2 |
-| TXT values, SHIP ID, categories | A conforming node SHALL NOT treat a peer SHIP ID of a different format as an error. SRIP-220/9 §2.2 –225 | §2.2 |
-| Trust states | Pre-trust: trust is in place before a TLS handshake starts, or before that handshake completes successfully. This is the preferred method. §2.4 –298 The terms are first defined in SHIP 1.1.0; the principles are said to apply since SHIP 1.0.0 because they are not tied to one protocol detail. §A.3 –530 | §2.4 |
-| Trust states | For node A in pre-trust, applications on A accept an incoming SHIP attempt from B only after A’s user has already trusted B. §A.3 –532 | clause not printed |
-| Trust states | Post-trust: trust is established after the TLS handshake has completed. §2.4 –298 If A allows post-trust, it first accepts an incoming attempt from a still-untrusted B, then asks the user to trust that node before further communication. §A.3 –546 | §2.4 |
-| Trust states | As TLS server in that post-trust case, A accepts the received TLS client certificate during the handshake without checking its public key. §A.3 –548 | clause not printed |
-| Trust states | State Hello, together with the messages of that state, gives the user time to check a certificate that is still untrusted. §A.3 –550 | clause not printed |
-| Trust states | Post-trust means an unknown certificate is accepted automatically during the TLS handshake and is dropped when the user withholds acceptance of the node or of the certificate. The text says this needs careful implementation. §A.3 –553 | clause not printed |
+| TXT values, SHIP ID, categories | Already-sold devices: changing the SHIP ID is a SHOULD NOT. SRIP-220/4 §2.2 See SHIP-ID change semantics below. | §2.2 |
+| TXT values, SHIP ID, categories | Devices built newly, and not sharing firmware with units already sold: SHALL adopt the new format. SRIP-220/5 §2.2 | §2.2 |
+| TXT values, SHIP ID, categories | Every remaining case: a conforming node SHOULD use an id that matches the new format. This bullet has no SRIP id. The remaining cases are not listed. §2.2 | §2.2 |
+| TXT values, SHIP ID, categories | <IANA PEN> SHALL be one to six characters, the manufacturer’s [IANA PEN]. SRIP-220/6 §2.2 | §2.2 |
+| TXT values, SHIP ID, categories | <VPID> SHALL be globally unique for that PEN. The pair (PEN, VPID) SHALL identify this SHIP node globally. SRIP-220/7 §2.2 | §2.2 |
+| TXT values, SHIP ID, categories | VPID SHOULD be the device serial number, or similar information printed on the device. SRIP-220/8 §2.2 | §2.2 |
+| TXT values, SHIP ID, categories | A conforming node SHALL NOT treat a peer SHIP ID of a different format as an error. SRIP-220/9 §2.2 | §2.2 |
+| Trust states | Pre-trust: trust is in place before a TLS handshake starts, or before that handshake completes successfully. This is the preferred method. §2.4 The terms are first defined in SHIP 1.1.0; the principles are said to apply since SHIP 1.0.0 because they are not tied to one protocol detail. §A.3 | §2.4 |
+| Trust states | For node A in pre-trust, applications on A accept an incoming SHIP attempt from B only after A’s user has already trusted B. §A.3 | clause not printed |
+| Trust states | Post-trust: trust is established after the TLS handshake has completed. §2.4 If A allows post-trust, it first accepts an incoming attempt from a still-untrusted B, then asks the user to trust that node before further communication. §A.3 | §2.4 |
+| Trust states | As TLS server in that post-trust case, A accepts the received TLS client certificate during the handshake without checking its public key. §A.3 | clause not printed |
+| Trust states | State Hello, together with the messages of that state, gives the user time to check a certificate that is still untrusted. §A.3 | clause not printed |
+| Trust states | Post-trust means an unknown certificate is accepted automatically during the TLS handshake and is dropped when the user withholds acceptance of the node or of the certificate. The text says this needs careful implementation. §A.3 | clause not printed |
 | Trust states | SHIP Pairing Service is also a pre-trust mechanism. §2.4 | §2.4 |
-| Trust states | Several curves on one node produce a distinct SKI per curve, and a distinct certificate or fingerprint per curve. Curve details and priority rules are in [SHIP]. §2.4 –301 | [SHIP], §2.4 |
-| Pairing methodologies | That MPO control unit, or a smart-meter gateway, SHALL implement devZ from [SHIPPairingService]. §2.5 –315 | §2.5 |
-| Pairing methodologies | A consumer node that implements at least one of LPC or LPP SHALL implement devA. §2.5 –317 | §2.5 |
-| Pairing methodologies | A consumer node that implements neither LPC nor LPP, but has another use case aimed at such an MPO unit, with POEN and TOUT as the printed instances, SHOULD implement devA. §2.5 –321 | §2.5 |
-| Pairing methodologies | A future extension of [SHIPPairingService] that could pair any SHIP node with any other might make SHIP Pairing Service mandatory for every SHIP node. That is not a present obligation. §2.5 –324 | §2.5 |
-| Certificates, curves, cipher suites, regulation | TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 SHALL be supported. For critical infrastructure it might be required only together with TLS extension encrypt_then_mac, per [RFC7366]. §A.4 –584 | [RFC7366] |
-| Certificates, curves, cipher suites, regulation | TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: support is recommended. The sentence uses an exclamation, not a capital SHOULD. §A.4 –586 | clause not printed |
-| Certificates, curves, cipher suites, regulation | TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 is marked SHOULD NOT (SRIP-A40/1). The text says regulators are likely to forbid it for critical infrastructure, and that [RFC8447] no longer recommends it. §A.4 –590 | [RFC8447] |
-| Certificates, curves, cipher suites, regulation | encrypt_then_MAC ([RFC7366]): recommended when CBC cipher suites are used, and possibly required by regulators in critical infrastructure. §A.4 –597 The earlier sentence spells the same extension encrypt_then_mac. §A.4 | [RFC7366] |
-| Certificates, curves, cipher suites, regulation | truncated_hmac is marked SHOULD NOT (SRIP-A40/2). Regulators may forbid it in critical infrastructure. §A.4 –600 | clause not printed |
+| Trust states | Several curves on one node produce a distinct SKI per curve, and a distinct certificate or fingerprint per curve. Curve details and priority rules are in [SHIP]. §2.4 | [SHIP], §2.4 |
+| Pairing methodologies | That MPO control unit, or a smart-meter gateway, SHALL implement devZ from [SHIPPairingService]. §2.5 | §2.5 |
+| Pairing methodologies | A consumer node that implements at least one of LPC or LPP SHALL implement devA. §2.5 | §2.5 |
+| Pairing methodologies | A consumer node that implements neither LPC nor LPP, but has another use case aimed at such an MPO unit, with POEN and TOUT as the printed instances, SHOULD implement devA. §2.5 | §2.5 |
+| Pairing methodologies | A future extension of [SHIPPairingService] that could pair any SHIP node with any other might make SHIP Pairing Service mandatory for every SHIP node. That is not a present obligation. §2.5 | §2.5 |
+| Certificates, curves, cipher suites, regulation | TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 SHALL be supported. For critical infrastructure it might be required only together with TLS extension encrypt_then_mac, per [RFC7366]. §A.4 | [RFC7366] |
+| Certificates, curves, cipher suites, regulation | TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: support is recommended. The sentence uses an exclamation, not a capital SHOULD. §A.4 | clause not printed |
+| Certificates, curves, cipher suites, regulation | TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8 is marked SHOULD NOT (SRIP-A40/1). The text says regulators are likely to forbid it for critical infrastructure, and that [RFC8447] no longer recommends it. §A.4 | [RFC8447] |
+| Certificates, curves, cipher suites, regulation | encrypt_then_MAC ([RFC7366]): recommended when CBC cipher suites are used, and possibly required by regulators in critical infrastructure. §A.4 The earlier sentence spells the same extension encrypt_then_mac. §A.4 | [RFC7366] |
+| Certificates, curves, cipher suites, regulation | truncated_hmac is marked SHOULD NOT (SRIP-A40/2). Regulators may forbid it in critical infrastructure. §A.4 | clause not printed |
 | Certificates, curves, cipher suites, regulation | topic: Permitted lifetime; what this publication says about SHIP: SHIP sets no upper bound.; what it says regulators may do: May require a lifetime of only a few years, or shorter. No integer is printed. | clause not printed |
 | Certificates, curves, cipher suites, regulation | topic: Checking lifetime; what this publication says about SHIP: SHIP permits accepting an expired certificate, and then recommends treating it like a self-signed certificate.; what it says regulators may do: Usually stricter for a PKI. Sometimes a self-signed certificate is allowed for one node that an authorized role manages, that role staying responsible for communication security for the node’s life in that installation. In those cases the lifetime of that self-signed certificate need not be checked. | clause not printed |
 | Certificates, curves, cipher suites, regulation | topic: Self-signed certificates; what this publication says about SHIP: Allowed.; what it says regulators may do: A PKI may be required. Self-signed certificates are still usually allowed when a particular role authenticates and maintains them. | clause not printed |
-| Bounds collected | item: SHIP ID; bound: maximum 63 bytes; unique; new pattern i:<IANA PEN>_u:<VPID>; locator: §2.2 –221 | §2.2 |
-| Bounds collected | item: IANA PEN in that pattern; bound: 1 to 6 characters; locator: SRIP-220/6 §2.2 –218 | §2.2 |
+| Bounds collected | item: SHIP ID; bound: maximum 63 bytes; unique; new pattern i:<IANA PEN>_u:<VPID>; locator: §2.2 | §2.2 |
+| Bounds collected | item: IANA PEN in that pattern; bound: 1 to 6 characters; locator: SRIP-220/6 §2.2 | §2.2 |
 | Bounds collected | item: brand, type, model, serial; bound: at most 32 characters; locator: SRIP-220/10, SRIP-220/12, SRIP-220/13, SRIP-220/14 | clause not printed |
 | Bounds collected | item: cat; bound: pattern <dc>[,<dc>]*; numbers 1–7; no whitespace; no duplicate; locator: SRIP-220/16, SRIP-220/17, Table 1 | Table 1 |
 | Bounds collected | item: TXT ski; bound: 40 hex digits; 160-bit secp256r1 SKI; locator: Table 2 | Table 2 |
 | Bounds collected | item: QR SKI and PIN; bound: groups of four; space every four hex digits; locator: SRIP-310/9 | clause not printed |
-| Bounds collected | item: QR public keys; bound: unprefixed hex; space every four hex digits; case 0-9/A-F/a-f; form matches the certificate; locator: SRIP-321/1, SRIP-321/2, §3.2.1 –478 | §3.2.1 |
+| Bounds collected | item: QR public keys; bound: unprefixed hex; space every four hex digits; case 0-9/A-F/a-f; form matches the certificate; locator: SRIP-321/1, SRIP-321/2, §3.2.1 | §3.2.1 |
 | Bounds collected | item: NOMINALPOWER; bound: <a>,<b>; a integer ≤ 0; b integer ≥ 0; watts; no scale factor; locator: SRIP-310/12–SRIP-310/14 | clause not printed |
 | Bounds collected | item: QR size; bound: at least the larger of 2 cm by 2 cm and 0.33 mm per module; locator: SRIP-310/6 | clause not printed |
-| Bounds collected | item: auto accept duration; bound: not more than 2 minutes, as restated from [SHIP]; locator: §B.1 –674 | [SHIP] |
+| Bounds collected | item: auto accept duration; bound: not more than 2 minutes, as restated from [SHIP]; locator: §B.1 | [SHIP] |
 | Bounds collected | item: Certificate lifetime; bound: no upper bound in SHIP, as restated in Table 3; locator: §A.5 Table 3 | Table 3 |
 
 ## Open points

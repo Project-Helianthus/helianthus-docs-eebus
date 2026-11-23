@@ -133,7 +133,21 @@ PAGE_HEADERS = {
 }
 
 LOCATOR_LEAK = re.compile(
-    r"facts-[A-Za-z0-9._-]+\.md|`l\.\d+|`p\.\d+|(?<![A-Za-z])l\.\d+|(?<![A-Za-z])p\.\d+"
+    r"facts-[A-Za-z0-9._-]+\.md"
+    r"|`l\.\d+|`p\.\d+"
+    r"|(?<![A-Za-z])l\.\d+"
+    r"|(?<![A-Za-z])p\.\d+"
+    r"|(?<![A-Za-z0-9])L(?!(?:[123])(?!\d))\d+"
+    r"|(?<![A-Za-z])lines?\s+\d+"
+    r"|(?<=[\s(])–\d+"
+    r"|outside this (?:shard|range|page range)"
+    r"|(?:not )?in this (?:page )?range"
+    r"|\(\s*outside\s*\)"
+    r"|pages \d+–\d+"
+    r"|open points? \d+"
+    r"|(?:first|second) shard"
+    r"|\bshards?\b(?!\s+locators)",
+    re.IGNORECASE,
 )
 
 
@@ -163,6 +177,44 @@ def _tables(text):
 
 
 class SpecificationPagesTest(unittest.TestCase):
+    def test_locator_leak_catches_shard_lines_offsets_and_anchors(self):
+        samples = (
+            "L330–L332",
+            "L363–L369 (–3042)",
+            "L165–L166",
+            "lines 1707–1708",
+            "lines 2948–2949",
+            "(–335)",
+            "(–2722)",
+            "outside this shard",
+            "outside this range",
+            "outside this page range",
+            "not in this range",
+            "not in this page range",
+            "§3.2 (outside)",
+            "pages 1–64",
+            "open point 18",
+            "Open points 12–13",
+            "first shard",
+            "second shard",
+            "facts-spine-protocol.md",
+            "l.452",
+            "p.53",
+        )
+        for sample in samples:
+            self.assertIsNotNone(LOCATOR_LEAK.search(sample), sample)
+        for spared in (
+            "outside this specification",
+            "outside this class",
+            "outside this element",
+            "phase a or L1",
+            "shard locators",
+            "See open points.",
+            "cardinality 1..unbounded",
+            "16–32",
+        ):
+            self.assertIsNone(LOCATOR_LEAK.search(spared), spared)
+
     def test_each_page_has_named_sections_and_clause_cells(self):
         for rel, sections in PAGE_SECTIONS.items():
             path = ROOT / rel
@@ -223,6 +275,57 @@ class SpecificationPagesTest(unittest.TestCase):
         text = path.read_text(encoding="utf-8")
         self.assertIsNone(LOCATOR_LEAK.search(text))
         self.assertNotIn("Illustration", text)
+
+    def test_introduction_does_not_name_source_files(self):
+        text = (ROOT / "protocols/spine-introduction-1.3.0.md").read_text(encoding="utf-8")
+        self.assertNotIn(".pdf", text)
+        self.assertIsNone(re.search(r"\b[\w.-]+\.(?:pdf|xsd)\b", text))
+        self.assertIn('source_class: "vendor_public"', text)
+        self.assertIn("extension .xsd", text)
+
+    def test_binding_operation_names_the_topic(self):
+        text = (ROOT / "protocols/spine-protocol-1.3.0.md").read_text(encoding="utf-8")
+        section = text.split("## Binding and subscription", 1)[1].split("\n## ", 1)[0]
+        rows = []
+        for line in section.splitlines():
+            if not line.startswith("|") or line.startswith("| ---") or line.startswith("| operation"):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            self.assertEqual(len(cells), 3, line[:80])
+            rows.append(cells)
+
+        def operation_for(fragment):
+            matches = [operation for operation, rule, _clause in rows if fragment in rule]
+            self.assertEqual(len(matches), 1, fragment)
+            return matches[0]
+
+        self.assertEqual(
+            operation_for("Final versus preliminary use-case documents"),
+            "Use-case document",
+        )
+        self.assertEqual(
+            operation_for("The specification phase is the time between official releases"),
+            "Release versioning",
+        )
+        self.assertEqual(operation_for("A release candidate appends RC"), "Release versioning")
+        self.assertEqual(operation_for("Two gateway kinds are described"), "Annex E")
+        self.assertEqual(operation_for("E.5 SPINE proxy"), "Annex E")
+        self.assertEqual(
+            operation_for("Schema version numbers have a natural order"),
+            "Schema versioning",
+        )
+        for operation, rule, _clause in rows:
+            if operation != "Subscription":
+                continue
+            lowered = rule.casefold()
+            self.assertTrue("subscription" in lowered or "§7.4" in rule, rule[:120])
+            for banned in (
+                "release candidate",
+                "gateway kinds",
+                "useCaseDocumentSubRevision",
+                "SPINE proxy",
+            ):
+                self.assertNotIn(banned, rule)
 
 
 if __name__ == "__main__":

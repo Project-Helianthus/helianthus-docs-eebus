@@ -182,19 +182,19 @@ Certificate and SKI rules are §12.1 and §12.2. The double-connection rule is �
 | Table 1 parameter values | Parameter as printed: Wait-For-Ready-Timer prolongation; Chapter column: 13.4.4.1; Range column: 60-240s; Recommendation column: 120s | clause not printed |
 | Table 1 parameter values | Parameter as printed: PIN entry penalty after the 3rd invalid attempt; Chapter column: 13.4.4.3; Range column: 10-15s; Recommendation column: 15s | clause not printed |
 | Table 1 parameter values | Parameter as printed: PIN entry penalty after the 6th invalid attempt; Chapter column: 13.4.4.3; Range column: 60-90s; Recommendation column: 90s | clause not printed |
-| Registration (§5) | The node SHALL look for nodes whose SKI it already trusts and connect to them. (–328) | clause not printed |
-| Registration (§5) | If registration does not finish as in §5.1, the node SHALL keep retrying that SKI. (–330) | §5.1 |
-| Registration (§5) | If the other local node aborts SME hello (procedure in §13.4.4.1, outside this shard), this node SHOULD NOT retry while the other node’s register flag is false. If that flag is true, a node that already holds the trusted SKI SHALL retry. (–335) | §13.4.4.1 |
-| Registration (§5) | While the mode is active, the node SHALL set its own discovery register flag to true, and SHALL discover other nodes whose register flag is true. (–340) | clause not printed |
-| Registration (§5) | If both sides use only auto accept, neither checks an SKI. The text says a man-in-the-middle cannot then be ruled out. Supporting at least one further verification mode is marked STRONGLY RECOMMENDED. (–347) | clause not printed |
-| Registration (§5) | If more than one discovered node has register true, the node SHALL choose one by any means it finds appropriate, including other discovery data. (–350) | clause not printed |
-| Registration (§5) | When auto accept is inactive, the node SHALL set its register flag to false and SHALL stop looking for nodes with register true. (–353) | clause not printed |
-| Registration (§5) | Only auto accept changes the register flag. User verify, user input, and commissioning SHALL NOT change it. (–356) | clause not printed |
+| Registration (§5) | The node SHALL look for nodes whose SKI it already trusts and connect to them. | clause not printed |
+| Registration (§5) | If registration does not finish as in §5.1, the node SHALL keep retrying that SKI. | §5.1 |
+| Registration (§5) | If the other local node aborts SME hello (procedure in §13.4.4.1), this node SHOULD NOT retry while the other node’s register flag is false. If that flag is true, a node that already holds the trusted SKI SHALL retry. | §13.4.4.1 |
+| Registration (§5) | While the mode is active, the node SHALL set its own discovery register flag to true, and SHALL discover other nodes whose register flag is true. | clause not printed |
+| Registration (§5) | If both sides use only auto accept, neither checks an SKI. The text says a man-in-the-middle cannot then be ruled out. Supporting at least one further verification mode is marked STRONGLY RECOMMENDED. | clause not printed |
+| Registration (§5) | If more than one discovered node has register true, the node SHALL choose one by any means it finds appropriate, including other discovery data. | clause not printed |
+| Registration (§5) | When auto accept is inactive, the node SHALL set its register flag to false and SHALL stop looking for nodes with register true. | clause not printed |
+| Registration (§5) | Only auto accept changes the register flag. User verify, user input, and commissioning SHALL NOT change it. | clause not printed |
 | Discovery, service name, port, TXT (§7) | Key: txtvers; Value rule on these pages: Version number. SHALL be 1.; Runtime column: Static; Required column: Mandatory | clause not printed |
 | Discovery, service name, port, TXT (§7) | Key: id; Value rule on these pages: Identifier. Globally unique SHIP id, maximum 63 bytes.; Runtime column: Static; Required column: Mandatory | clause not printed |
 | Discovery, service name, port, TXT (§7) | Key: path; Value rule on these pages: String carrying the wss path.; Runtime column: Static; Required column: Mandatory | clause not printed |
 | Discovery, service name, port, TXT (§7) | Key: ski; Value rule on these pages: Printed value cell: 40 byte hexadecimal digits representing the 160 bit SKI value. See the conflict note below.; Runtime column: Static; Required column: Mandatory | clause not printed |
-| Discovery, service name, port, TXT (§7) | Key: register; Value rule on these pages: Boolean. Indicates whether auto accept is active. (also ); Runtime column: Static; Required column: Mandatory | clause not printed |
+| Discovery, service name, port, TXT (§7) | Key: register; Value rule on these pages: Boolean. Indicates whether auto accept is active. (also); Runtime column: Static; Required column: Mandatory | clause not printed |
 | TCP (§8) | A node MUST support at least 1 simultaneously active connection. | clause not printed |
 | TCP (§8) | If the local node is limited to 1: it SHALL provide a listening TCP server, and SHALL close that server port only when it wants to connect out as a TCP client. After the client connection it SHALL close the client connection as soon as possible and listen on the server port again. | clause not printed |
 | TCP (§8) | If the limit x is greater than 1: the node SHALL reserve one connection for the TCP server port, so at most x-1 connections are TCP clients. | clause not printed |
@@ -222,7 +222,7 @@ Certificate and SKI rules are §12.1 and §12.2. The double-connection rule is �
 | TLS (§9) | If it is used, it SHALL support only a length of 1024 bytes. | clause not printed |
 | TLS (§9) | Outgoing TLSPlaintext.length SHALL NOT exceed 1024 bytes even when the extension is not supported. | clause not printed |
 | TLS (§9) | Table 1’s range cell for this parameter is 512 bytes. Conflict: see Open points. | Table 1 |
-| TLS (§9) | SNI MUST be supported, as WebSocket requires in RFC 6455. The client requirement is repeated in §10.1 (–620). | §10.1 |
+| TLS (§9) | SNI MUST be supported, as WebSocket requires in RFC 6455. The client requirement is repeated in §10.1. | §10.1 |
 | TLS (§9) | A local SHIP node SHALL ignore the SNI value. | clause not printed |
 | TLS (§9) | A web-server SHIP node MAY use SNI when it has a fixed DNS host name. | clause not printed |
 | TLS (§9) | For a local connection the server name SHALL equal the local server’s mDNS host name. | clause not printed |
@@ -322,99 +322,99 @@ Certificate and SKI rules are §12.1 and §12.2. The double-connection rule is �
 | Named exchanges that are not specified on these pages | optional PIN verification | clause not printed |
 | Named exchanges that are not specified on these pages | SME data exchange | clause not printed |
 | Named exchanges that are not specified on these pages | connection termination (§13.4.7) | §13.4.7 |
-| QR-code fields that finish on these pages (§12.6) | TYPE, optional, may follow BRAND. The first 5 bytes are the UTF-8 string TYPE:. The following bytes are a UTF-8 type string and must not contain; . The last byte is UTF-8; . §12.6 –1158. | §12.6 |
-| QR-code fields that finish on these pages (§12.6) | MODEL, optional, may follow TYPE. The first 6 bytes are the UTF-8 string MODEL:. The following bytes are a UTF-8 model string and must not contain; . The last byte is UTF-8; . §12.6 –1166. | §12.6 |
-| QR-code fields that finish on these pages (§12.6) | An example of a SKI-and-PIN payload is printed at –1170. An example that also includes ID, BRAND, TYPE, and MODEL is printed at –1178. The second example's field order is the SHIP prefix, then SKI, PIN, ID, BRAND, TYPE, MODEL. | clause not printed |
-| QR-code fields that finish on these pages (§12.6) | () draws a QR Code Model 2 symbol at ECC low and 0.33 mm per module, carrying SKI and PIN. Drawn size 33 × 0.33 mm = 10.89 mm, quiet zone excluded. –1173. | clause not printed |
-| QR-code fields that finish on these pages (§12.6) | : same QR parameters with all values. Drawn size 47 × 0.33 mm = 15.51 mm, quiet zone excluded. Another payload can differ in size because ID, BRAND, TYPE, and MODEL vary in length. –1182, . | clause not printed |
-| Message model (§13.2) | server and client in this chapter are connection-technology roles, not functional roles. Details in §13.4.1. –1206. | §13.4.1 |
-| Message model (§13.2) | A SHIP message has a definition. Description forms cited: XSD, binary structure, table. A message can also have a process for its use. –1211. | clause not printed |
-| Message model (§13.2) | A message is parts. A part has a representation, called a wire format. Named representations: JSON-UTF8, JSON-UTF16, binary, and mixed or message-dependent. Which ones are allowed depends on the scope or the variant. For one variant, every allowed representation has a lossless conversion to the others. A later version may add representations. –1223. | clause not printed |
-| Message model (§13.2) | The message wire format is the composition of the parts and must make every representation determinable. Unless a clause says otherwise, "SHIP message" means the wire format. In that format a message has a limited size, a start, and an end. No numeric size limit is printed. –1228. | clause not printed |
-| Message model (§13.2) | Each wire format has a format descriptor, usable in the handshake to agree the later wire format. –1232. | clause not printed |
-| Message model (§13.2) | A variant is fixed either by the transmission context or by a variant identifier in the message. Named examples: the CMI message (§13.4.3) and connectionHello (§13.4.4.1). Each variant belongs to one type in Table 13: init, control, data, end. –1240. | §13.4.3, §13.4.4.1, Table 13 |
-| Message model (§13.2) | RFU regions can be specified later only by the specification authority, and must not be used for a manufacturer extension. A later release may assign a former RFU region even if a manufacturer has used it. –1252. | clause not printed |
-| Message model (§13.2) | By default a well-defined parent allows only its known children. Where a clause states default structure extensibility, a later specification may add children after the last known child, as immediate children only, not before or between known children, and not as manufacturer children. The recursive form applies the same rule down through children that are themselves parents. –1273. | clause not printed |
-| Stack (§13.3,) | In ISO-OSI terms, SME-AP is SME-I's access point for services. It delivers received SHIP messages upward and accepts SHIP messages aimed at another SME-AP. The application sends and receives through SME-AP. –1288. | clause not printed |
-| Stack (§13.3,) | What SME-I speaks on the wire is the SHIP message. SME-I uses an access point on a SHIP Transport instance. Detail is §13.4. –1291. | §13.4 |
-| Stack (§13.3,) | A later version may add a SHIP Stream beside SME-I. Not defined here. –1294. | clause not printed |
-| Stack (§13.3,) | SHIP Transport extracts SHIP messages from received data for SME-I, and transmits data for messages taken from SME-I. –1298. | clause not printed |
-| Stack (§13.3,) | In this revision, transport uses the WebSocket message frame, depending on the security method in use. Exactly one wire-format SHIP message is carried in exactly one WebSocket message. The FIN bit is set on the last fragment of that SHIP message, and only there. –1303. | clause not printed |
-| Stack (§13.3,) | A remark says a later version may use something other than WebSocket, and that CMI is the prepared extension point. –1310. | clause not printed |
-| SME connection (§13.4.1) | Opening the underlying connection is outside this specification. It assumes a lower layer or an internal mechanism supplies a connection that is open or closed. –1316. | clause not printed |
-| SME connection (§13.4.1) | The SME connection follows that open or closed state. Each SME instance also has further states that change with SHIP messages. –1321. | clause not printed |
-| SME connection (§13.4.1) | Roles: see Actors. –1335. | clause not printed |
-| CMI (§13.4.3) | CMI_STATE_CLIENT_SEND: send CMI whose MessageValue is 0, then enter CMI_STATE_CLIENT_WAIT at once. –1376. | clause not printed |
-| CMI (§13.4.3) | CMI_STATE_CLIENT_WAIT: wait for the server's CMI message. –1388. | clause not printed |
-| CMI (§13.4.3) | CMI_STATE_CLIENT_EVALUATE: if MessageType is not 0, close at once. If CmiHead is decimal 0, enter Connection data preparation. If CmiHead is decimal greater than 0, close at once. –1394. | clause not printed |
-| CMI (§13.4.3) | CMI_STATE_SERVER_WAIT: wait for the client's CMI message. . | clause not printed |
-| CMI (§13.4.3) | CMI_STATE_SERVER_EVALUATE: if MessageType is not 0, send CMI whose MessageValue is 0, then close. If CmiHead is decimal 0, send CMI whose MessageValue is 0 and enter Connection data preparation. If CmiHead is decimal greater than 0, send CMI whose MessageValue is 0, then close. –1386. | clause not printed |
-| Hello (§13.4.4.1) | READY only if the partner is already trusted. The user will go on once the partner also reports ready, and will wait only a limited time. The partner can ask to extend that time. –1447. | clause not printed |
-| Hello (§13.4.4.1) | PENDING means this side still withholds permission to continue. It still waits a limited time for the partner's READY, and the partner can ask to extend that time. Before the wait ends it must either move to READY and tell the partner, or ask the partner for more time, or abort if it decides not to trust the partner. –1458. | clause not printed |
-| Hello (§13.4.4.1) | HELLO_OK is reached only under the conditions in the following subsections. –1460. | clause not printed |
-| Hello (§13.4.4.1) | Wait-For-Ready-Timer. Default T_hello_init. The partner must send READY, or a prolongation request, before it expires. –1471. | clause not printed |
-| Hello (§13.4.4.1) | Send-Prolongation-Request-Timer. Local timer so a prolongation request is sent before the partner's Wait-For-Ready-Timer expires. –1474. | clause not printed |
-| Hello (§13.4.4.1) | Prolongation-Request-Reply-Timer. Detects a missing answer to a prolongation request. –1476. | clause not printed |
-| Hello (§13.4.4.1) | T_hello_init: a duration chosen in the closed interval that starts at 60 seconds and ends at 240 seconds. The choice stays constant during a connection. It should also stay constant across connections. –1484. | clause not printed |
-| Hello (§13.4.4.1) | T_hello_inc equals T_hello_init. . | clause not printed |
-| Hello (§13.4.4.1) | T_hello_prolong_thr_inc: 30 seconds. . | clause not printed |
-| Hello (§13.4.4.1) | T_hello_prolong_waiting_gap: 15 seconds. . | clause not printed |
-| Hello (§13.4.4.1) | T_hello_prolong_min: 1 second. . | clause not printed |
-| Hello (§13.4.4.1) | phase ready: enter HELLO_OK. . | clause not printed |
-| Hello (§13.4.4.1) | phase pending and no prolongationRequest: ignore. –1524. | clause not printed |
-| Hello (§13.4.4.1) | phase pending and prolongationRequest true: run the incoming-prolongation procedure, then send a Hello update. –1528. | clause not printed |
-| Hello (§13.4.4.1) | phase aborted: abort procedure. –1530. | clause not printed |
-| Hello (§13.4.4.1) | Any non-Hello: abort procedure. –1532. | clause not printed |
-| Hello (§13.4.4.1) | phase ready and no waiting: abort. –1547. | clause not printed |
-| Hello (§13.4.4.1) | phase ready and waiting present: stop Wait-For-Ready-Timer and Prolongation-Request-Reply-Timer. When waiting meets or exceeds T_hello_prolong_thr_inc, set Send-Prolongation-Request-Timer to the calculated value and start it; otherwise deactivate it. –1553. | clause not printed |
-| Hello (§13.4.4.1) | phase pending, waiting present, no prolongationRequest: stop Prolongation-Request-Reply-Timer, then the same threshold rule for Send-Prolongation-Request-Timer. –1560. | clause not printed |
-| Hello (§13.4.4.1) | phase pending, no waiting, prolongationRequest true: incoming-prolongation procedure, then a Hello update. –1564. | clause not printed |
-| Hello (§13.4.4.1) | phase aborted: abort. –1566. | clause not printed |
-| Hello (§13.4.4.1) | Any other shape: abort. –1568. | clause not printed |
-| Hello (§13.4.4.1) | A non-Hello: abort. –1571. | clause not printed |
-| Hello (§13.4.4.1) | A final decision not to trust the partner: abort. –1573. | clause not printed |
-| Hello (§13.4.4.1) | Wait-For-Ready-Timer: abort. . | clause not printed |
-| Hello (§13.4.4.1) | Send-Prolongation-Request-Timer: send a Hello with phase pending, prolongationRequest true, and no other child. Set Prolongation-Request-Reply-Timer to the partner's last waiting. If no waiting has been received, use 1.1 times the current Wait-For-Ready-Timer. Start Prolongation-Request-Reply-Timer and return to the previous state. –1593. | clause not printed |
-| Hello (§13.4.4.1) | Prolongation-Request-Reply-Timer: abort. –1595. | clause not printed |
-| PIN verification (§13.4.4.3) | Fewer than three invalid PINs: no penalty. . | clause not printed |
-| PIN verification (§13.4.4.3) | From three to five: enter SME_PIN_STATE_CHECK_BUSY_WAIT for at least 10 seconds. The period should go beyond 15 seconds only for a higher security need. –1839. | clause not printed |
-| PIN verification (§13.4.4.3) | More than five: enter SME_PIN_STATE_CHECK_BUSY_WAIT for at least 60 seconds. The period should go beyond 90 seconds only for a higher security need. –1843. | clause not printed |
-| PIN verification (§13.4.4.3) | required: the node must receive its own valid PIN. Connection data exchange is not reached until a received PIN checks successfully. A note says this value should be used only in some cases, that a node cannot know whether the peer can enter a PIN, and that a manufacturer who sets required should also provide a SHIP commissioning tool that can enter a PIN. –1867. | clause not printed |
-| PIN verification (§13.4.4.3) | optional: the node's own PIN is not required, and data are limited. Connection data exchange can start without the PIN, restricted to data that do not need the PIN. A valid PIN then opens all data. The partner is not forced to send a PIN. The node can keep pinState optional, speak in Connection data exchange with the reduced set, and still listen for a later PIN. –1878. | clause not printed |
-| PIN verification (§13.4.4.3) | pinOk: the valid PIN was already received; data are unrestricted; Connection data exchange can start at once. –1882. | clause not printed |
-| PIN verification (§13.4.4.3) | none: the node has no PIN; data are unrestricted; Connection data exchange can start at once. –1885. | clause not printed |
-| PIN verification (§13.4.4.3) | busy: a connectionPinInput is not accepted for checking now. –1892. | clause not printed |
-| PIN verification (§13.4.4.3) | ok: a connectionPinInput is accepted for checking now. –1894. | clause not printed |
-| PIN verification (§13.4.4.3) | If pinState is pinOk or none, inputPermission must be absent, and a PIN input is not accepted. –1897. | clause not printed |
-| PIN verification (§13.4.4.3) | If pinState is required or optional, inputPermission must be present. It must be busy while a penalty toward that partner is in force, and ok otherwise. –1900. | clause not printed |
-| PIN verification (§13.4.4.3) | Send the current PIN requirement. –1916. | clause not printed |
-| PIN verification (§13.4.4.3) | If pinState is required: Connection data exchange stays disabled. Enter SME_PIN_STATE_CHECK_BUSY_WAIT when inputPermission is busy, otherwise SME_PIN_STATE_CHECK_LISTEN. –1921. | clause not printed |
-| PIN verification (§13.4.4.3) | If pinState is optional: run the procedure that enables Connection data exchange, then the same busy or listen choice. –1926. | clause not printed |
-| PIN verification (§13.4.4.3) | If pinState is pinOk or none: run that enable procedure and enter SME_PIN_STATE_CHECK_OK. –1929. | clause not printed |
-| PIN verification (§13.4.4.3) | A received PIN that matches: set pinState to pinOk, remove inputPermission, send the PIN requirement, run the enable procedure, enter SME_PIN_STATE_CHECK_OK. –1939. | clause not printed |
-| PIN verification (§13.4.4.3) | A received PIN that does not match: enter SME_PIN_STATE_CHECK_ERROR. –1942. | clause not printed |
-| PIN verification (§13.4.4.3) | Close if a received message breaks the §13.4.4.3.5.1 child rules. –1986. | §13.4.4.3.5.1 |
-| PIN verification (§13.4.4.3) | A PIN error for wrong PIN means a PIN input sent earlier was wrong. The user should wait for a new PIN-state message. –1990. | clause not printed |
-| PIN verification (§13.4.4.3) | Every PIN-state message whose pinState is not required causes the enable procedure. –1993. | clause not printed |
-| PIN verification (§13.4.4.3) | inputPermission busy: the partner is not ready to check a PIN input. The node ought to pause until the partner signals that readiness. The node can still send a PIN input before that. A remark says sending early is a way to obtain a state confirmation after a penalty that has run unexpectedly long. –2002. | clause not printed |
-| PIN verification (§13.4.4.3) | inputPermission ok: the printed sentence says the partner is ready to evaluate a PIN-state message. The node also reads pinState and decides whether to send a PIN input. –2006. | clause not printed |
-| PIN verification (§13.4.4.3) | pinState required or optional: also read inputPermission before choosing to transmit a PIN input. –2010. | clause not printed |
-| PIN verification (§13.4.4.3) | pinState pinOk or none: enter SME_PIN_STATE_ASK_OK. –2013. | clause not printed |
-| PIN verification (§13.4.4.3) | Decision when pinState is required: either send a PIN input, which requires inputPermission ok and a PIN on hand, or close. –2019. | clause not printed |
-| PIN verification (§13.4.4.3) | Decision when pinState is optional: enter SME_PIN_STATE_ASK_RESTRICTED_OK if unrestricted data are not needed, or send a PIN input under the same two conditions, or close. –2025. | clause not printed |
-| PIN verification (§13.4.4.3) | After a PIN input was sent in response to required or optional, the wait for a fresh PIN-state message has a floor of 30 seconds and a ceiling of 120 seconds, then the user either stays in this state or closes. This wait is separate from any choice to send the PIN again. It is about the lack of a PIN-state update, in particular inputPermission busy or ok. –2032. | clause not printed |
-| PIN verification (§13.4.4.3) | This state stays active, and the user keeps listening, unless a rule says otherwise. –2034. | clause not printed |
-| Connection data exchange (§13.4.5) | The base specifies forward compatibility: a later version can add content, and a base implementation accepts that content and processes at least the parts the base already defines. It may skip unknown parts. –2094. | clause not printed |
-| Connection data exchange (§13.4.5) | Each compatible successor also specifies forward compatibility, and those rules must not break the base rules. –2096. | clause not printed |
-| Connection data exchange (§13.4.5) | A version has zero or one immediate successor, and zero or one immediate predecessor. –2100. | clause not printed |
-| Connection data exchange (§13.4.5) | An implementation of a given version accepts content from a compatible predecessor and processes that content as a whole. –2103. | clause not printed |
-| Connection termination (§13.4.7) | unspecific is used when no other value fits better. A remark says this is typically a temporary disconnect, with examples of a node that can keep only one connection, or a reboot for a firmware update, and that a later connection is likely. –2297. | clause not printed |
-| Connection termination (§13.4.7) | removedConnection means the peer was dropped from the node's known-device list or its accepted-device list. A remark says a later connection can still happen, and the device is then treated as new or unknown. –2303. | clause not printed |
-| Connection termination (§13.4.7) | Send phase announce, maxTime as the millisecond duration from the send time until DEV-A will close at the latest even with no confirmation, and reason set. –2312. | clause not printed |
-| Connection termination (§13.4.7) | Close at the latest when that maxTime ends, even with no confirmation. –2315. | clause not printed |
-| Connection termination (§13.4.7) | If DEV-B's confirmation arrives before maxTime ends, close at once. –2318. | clause not printed |
-| Connection termination (§13.4.7) | Get ready to halt the data-exchange state ahead of the announced maxTime. When that halt finishes inside the limit and the socket remains up, send phase confirm with no other child, then close. –2324. | clause not printed |
-| Connection termination (§13.4.7) | If the confirmation is not sent in time, treat the connection as closed when the received maxTime ends. –2327. | clause not printed |
+| QR-code fields that finish on these pages (§12.6) | TYPE, optional, may follow BRAND. The first 5 bytes are the UTF-8 string TYPE:. The following bytes are a UTF-8 type string and must not contain;. The last byte is UTF-8;. §12.6. | §12.6 |
+| QR-code fields that finish on these pages (§12.6) | MODEL, optional, may follow TYPE. The first 6 bytes are the UTF-8 string MODEL:. The following bytes are a UTF-8 model string and must not contain;. The last byte is UTF-8;. §12.6. | §12.6 |
+| QR-code fields that finish on these pages (§12.6) | An example of a SKI-and-PIN payload is printed at. An example that also includes ID, BRAND, TYPE, and MODEL is printed at. The second example's field order is the SHIP prefix, then SKI, PIN, ID, BRAND, TYPE, MODEL. | clause not printed |
+| QR-code fields that finish on these pages (§12.6) | draws a QR Code Model 2 symbol at ECC low and 0.33 mm per module, carrying SKI and PIN. Drawn size 33 × 0.33 mm = 10.89 mm, quiet zone excluded. | clause not printed |
+| QR-code fields that finish on these pages (§12.6) |: same QR parameters with all values. Drawn size 47 × 0.33 mm = 15.51 mm, quiet zone excluded. Another payload can differ in size because ID, BRAND, TYPE, and MODEL vary in length. | clause not printed |
+| Message model (§13.2) | server and client in this chapter are connection-technology roles, not functional roles. Details in §13.4.1. | §13.4.1 |
+| Message model (§13.2) | A SHIP message has a definition. Description forms cited: XSD, binary structure, table. A message can also have a process for its use. | clause not printed |
+| Message model (§13.2) | A message is parts. A part has a representation, called a wire format. Named representations: JSON-UTF8, JSON-UTF16, binary, and mixed or message-dependent. Which ones are allowed depends on the scope or the variant. For one variant, every allowed representation has a lossless conversion to the others. A later version may add representations. | clause not printed |
+| Message model (§13.2) | The message wire format is the composition of the parts and must make every representation determinable. Unless a clause says otherwise, "SHIP message" means the wire format. In that format a message has a limited size, a start, and an end. No numeric size limit is printed. | clause not printed |
+| Message model (§13.2) | Each wire format has a format descriptor, usable in the handshake to agree the later wire format. | clause not printed |
+| Message model (§13.2) | A variant is fixed either by the transmission context or by a variant identifier in the message. Named examples: the CMI message (§13.4.3) and connectionHello (§13.4.4.1). Each variant belongs to one type in Table 13: init, control, data, end. | §13.4.3, §13.4.4.1, Table 13 |
+| Message model (§13.2) | RFU regions can be specified later only by the specification authority, and must not be used for a manufacturer extension. A later release may assign a former RFU region even if a manufacturer has used it. | clause not printed |
+| Message model (§13.2) | By default a well-defined parent allows only its known children. Where a clause states default structure extensibility, a later specification may add children after the last known child, as immediate children only, not before or between known children, and not as manufacturer children. The recursive form applies the same rule down through children that are themselves parents. | clause not printed |
+| Stack (§13.3) | In ISO-OSI terms, SME-AP is SME-I's access point for services. It delivers received SHIP messages upward and accepts SHIP messages aimed at another SME-AP. The application sends and receives through SME-AP. | clause not printed |
+| Stack (§13.3) | What SME-I speaks on the wire is the SHIP message. SME-I uses an access point on a SHIP Transport instance. Detail is §13.4. | §13.4 |
+| Stack (§13.3) | A later version may add a SHIP Stream beside SME-I. Not defined here. | clause not printed |
+| Stack (§13.3) | SHIP Transport extracts SHIP messages from received data for SME-I, and transmits data for messages taken from SME-I. | clause not printed |
+| Stack (§13.3) | In this revision, transport uses the WebSocket message frame, depending on the security method in use. Exactly one wire-format SHIP message is carried in exactly one WebSocket message. The FIN bit is set on the last fragment of that SHIP message, and only there. | clause not printed |
+| Stack (§13.3) | A remark says a later version may use something other than WebSocket, and that CMI is the prepared extension point. | clause not printed |
+| SME connection (§13.4.1) | Opening the underlying connection is outside this specification. It assumes a lower layer or an internal mechanism supplies a connection that is open or closed. | clause not printed |
+| SME connection (§13.4.1) | The SME connection follows that open or closed state. Each SME instance also has further states that change with SHIP messages. | clause not printed |
+| SME connection (§13.4.1) | Roles: see Actors. | clause not printed |
+| CMI (§13.4.3) | CMI_STATE_CLIENT_SEND: send CMI whose MessageValue is 0, then enter CMI_STATE_CLIENT_WAIT at once. | clause not printed |
+| CMI (§13.4.3) | CMI_STATE_CLIENT_WAIT: wait for the server's CMI message. | clause not printed |
+| CMI (§13.4.3) | CMI_STATE_CLIENT_EVALUATE: if MessageType is not 0, close at once. If CmiHead is decimal 0, enter Connection data preparation. If CmiHead is decimal greater than 0, close at once. | clause not printed |
+| CMI (§13.4.3) | CMI_STATE_SERVER_WAIT: wait for the client's CMI message. | clause not printed |
+| CMI (§13.4.3) | CMI_STATE_SERVER_EVALUATE: if MessageType is not 0, send CMI whose MessageValue is 0, then close. If CmiHead is decimal 0, send CMI whose MessageValue is 0 and enter Connection data preparation. If CmiHead is decimal greater than 0, send CMI whose MessageValue is 0, then close. | clause not printed |
+| Hello (§13.4.4.1) | READY only if the partner is already trusted. The user will go on once the partner also reports ready, and will wait only a limited time. The partner can ask to extend that time. | clause not printed |
+| Hello (§13.4.4.1) | PENDING means this side still withholds permission to continue. It still waits a limited time for the partner's READY, and the partner can ask to extend that time. Before the wait ends it must either move to READY and tell the partner, or ask the partner for more time, or abort if it decides not to trust the partner. | clause not printed |
+| Hello (§13.4.4.1) | HELLO_OK is reached only under the conditions in the following subsections. | clause not printed |
+| Hello (§13.4.4.1) | Wait-For-Ready-Timer. Default T_hello_init. The partner must send READY, or a prolongation request, before it expires. | clause not printed |
+| Hello (§13.4.4.1) | Send-Prolongation-Request-Timer. Local timer so a prolongation request is sent before the partner's Wait-For-Ready-Timer expires. | clause not printed |
+| Hello (§13.4.4.1) | Prolongation-Request-Reply-Timer. Detects a missing answer to a prolongation request. | clause not printed |
+| Hello (§13.4.4.1) | T_hello_init: a duration chosen in the closed interval that starts at 60 seconds and ends at 240 seconds. The choice stays constant during a connection. It should also stay constant across connections. | clause not printed |
+| Hello (§13.4.4.1) | T_hello_inc equals T_hello_init. | clause not printed |
+| Hello (§13.4.4.1) | T_hello_prolong_thr_inc: 30 seconds. | clause not printed |
+| Hello (§13.4.4.1) | T_hello_prolong_waiting_gap: 15 seconds. | clause not printed |
+| Hello (§13.4.4.1) | T_hello_prolong_min: 1 second. | clause not printed |
+| Hello (§13.4.4.1) | phase ready: enter HELLO_OK. | clause not printed |
+| Hello (§13.4.4.1) | phase pending and no prolongationRequest: ignore. | clause not printed |
+| Hello (§13.4.4.1) | phase pending and prolongationRequest true: run the incoming-prolongation procedure, then send a Hello update. | clause not printed |
+| Hello (§13.4.4.1) | phase aborted: abort procedure. | clause not printed |
+| Hello (§13.4.4.1) | Any non-Hello: abort procedure. | clause not printed |
+| Hello (§13.4.4.1) | phase ready and no waiting: abort. | clause not printed |
+| Hello (§13.4.4.1) | phase ready and waiting present: stop Wait-For-Ready-Timer and Prolongation-Request-Reply-Timer. When waiting meets or exceeds T_hello_prolong_thr_inc, set Send-Prolongation-Request-Timer to the calculated value and start it; otherwise deactivate it. | clause not printed |
+| Hello (§13.4.4.1) | phase pending, waiting present, no prolongationRequest: stop Prolongation-Request-Reply-Timer, then the same threshold rule for Send-Prolongation-Request-Timer. | clause not printed |
+| Hello (§13.4.4.1) | phase pending, no waiting, prolongationRequest true: incoming-prolongation procedure, then a Hello update. | clause not printed |
+| Hello (§13.4.4.1) | phase aborted: abort. | clause not printed |
+| Hello (§13.4.4.1) | Any other shape: abort. | clause not printed |
+| Hello (§13.4.4.1) | A non-Hello: abort. | clause not printed |
+| Hello (§13.4.4.1) | A final decision not to trust the partner: abort. | clause not printed |
+| Hello (§13.4.4.1) | Wait-For-Ready-Timer: abort. | clause not printed |
+| Hello (§13.4.4.1) | Send-Prolongation-Request-Timer: send a Hello with phase pending, prolongationRequest true, and no other child. Set Prolongation-Request-Reply-Timer to the partner's last waiting. If no waiting has been received, use 1.1 times the current Wait-For-Ready-Timer. Start Prolongation-Request-Reply-Timer and return to the previous state. | clause not printed |
+| Hello (§13.4.4.1) | Prolongation-Request-Reply-Timer: abort. | clause not printed |
+| PIN verification (§13.4.4.3) | Fewer than three invalid PINs: no penalty. | clause not printed |
+| PIN verification (§13.4.4.3) | From three to five: enter SME_PIN_STATE_CHECK_BUSY_WAIT for at least 10 seconds. The period should go beyond 15 seconds only for a higher security need. | clause not printed |
+| PIN verification (§13.4.4.3) | More than five: enter SME_PIN_STATE_CHECK_BUSY_WAIT for at least 60 seconds. The period should go beyond 90 seconds only for a higher security need. | clause not printed |
+| PIN verification (§13.4.4.3) | required: the node must receive its own valid PIN. Connection data exchange is not reached until a received PIN checks successfully. A note says this value should be used only in some cases, that a node cannot know whether the peer can enter a PIN, and that a manufacturer who sets required should also provide a SHIP commissioning tool that can enter a PIN. | clause not printed |
+| PIN verification (§13.4.4.3) | optional: the node's own PIN is not required, and data are limited. Connection data exchange can start without the PIN, restricted to data that do not need the PIN. A valid PIN then opens all data. The partner is not forced to send a PIN. The node can keep pinState optional, speak in Connection data exchange with the reduced set, and still listen for a later PIN. | clause not printed |
+| PIN verification (§13.4.4.3) | pinOk: the valid PIN was already received; data are unrestricted; Connection data exchange can start at once. | clause not printed |
+| PIN verification (§13.4.4.3) | none: the node has no PIN; data are unrestricted; Connection data exchange can start at once. | clause not printed |
+| PIN verification (§13.4.4.3) | busy: a connectionPinInput is not accepted for checking now. | clause not printed |
+| PIN verification (§13.4.4.3) | ok: a connectionPinInput is accepted for checking now. | clause not printed |
+| PIN verification (§13.4.4.3) | If pinState is pinOk or none, inputPermission must be absent, and a PIN input is not accepted. | clause not printed |
+| PIN verification (§13.4.4.3) | If pinState is required or optional, inputPermission must be present. It must be busy while a penalty toward that partner is in force, and ok otherwise. | clause not printed |
+| PIN verification (§13.4.4.3) | Send the current PIN requirement. | clause not printed |
+| PIN verification (§13.4.4.3) | If pinState is required: Connection data exchange stays disabled. Enter SME_PIN_STATE_CHECK_BUSY_WAIT when inputPermission is busy, otherwise SME_PIN_STATE_CHECK_LISTEN. | clause not printed |
+| PIN verification (§13.4.4.3) | If pinState is optional: run the procedure that enables Connection data exchange, then the same busy or listen choice. | clause not printed |
+| PIN verification (§13.4.4.3) | If pinState is pinOk or none: run that enable procedure and enter SME_PIN_STATE_CHECK_OK. | clause not printed |
+| PIN verification (§13.4.4.3) | A received PIN that matches: set pinState to pinOk, remove inputPermission, send the PIN requirement, run the enable procedure, enter SME_PIN_STATE_CHECK_OK. | clause not printed |
+| PIN verification (§13.4.4.3) | A received PIN that does not match: enter SME_PIN_STATE_CHECK_ERROR. | clause not printed |
+| PIN verification (§13.4.4.3) | Close if a received message breaks the §13.4.4.3.5.1 child rules. | §13.4.4.3.5.1 |
+| PIN verification (§13.4.4.3) | A PIN error for wrong PIN means a PIN input sent earlier was wrong. The user should wait for a new PIN-state message. | clause not printed |
+| PIN verification (§13.4.4.3) | Every PIN-state message whose pinState is not required causes the enable procedure. | clause not printed |
+| PIN verification (§13.4.4.3) | inputPermission busy: the partner is not ready to check a PIN input. The node ought to pause until the partner signals that readiness. The node can still send a PIN input before that. A remark says sending early is a way to obtain a state confirmation after a penalty that has run unexpectedly long. | clause not printed |
+| PIN verification (§13.4.4.3) | inputPermission ok: the printed sentence says the partner is ready to evaluate a PIN-state message. The node also reads pinState and decides whether to send a PIN input. | clause not printed |
+| PIN verification (§13.4.4.3) | pinState required or optional: also read inputPermission before choosing to transmit a PIN input. | clause not printed |
+| PIN verification (§13.4.4.3) | pinState pinOk or none: enter SME_PIN_STATE_ASK_OK. | clause not printed |
+| PIN verification (§13.4.4.3) | Decision when pinState is required: either send a PIN input, which requires inputPermission ok and a PIN on hand, or close. | clause not printed |
+| PIN verification (§13.4.4.3) | Decision when pinState is optional: enter SME_PIN_STATE_ASK_RESTRICTED_OK if unrestricted data are not needed, or send a PIN input under the same two conditions, or close. | clause not printed |
+| PIN verification (§13.4.4.3) | After a PIN input was sent in response to required or optional, the wait for a fresh PIN-state message has a floor of 30 seconds and a ceiling of 120 seconds, then the user either stays in this state or closes. This wait is separate from any choice to send the PIN again. It is about the lack of a PIN-state update, in particular inputPermission busy or ok. | clause not printed |
+| PIN verification (§13.4.4.3) | This state stays active, and the user keeps listening, unless a rule says otherwise. | clause not printed |
+| Connection data exchange (§13.4.5) | The base specifies forward compatibility: a later version can add content, and a base implementation accepts that content and processes at least the parts the base already defines. It may skip unknown parts. | clause not printed |
+| Connection data exchange (§13.4.5) | Each compatible successor also specifies forward compatibility, and those rules must not break the base rules. | clause not printed |
+| Connection data exchange (§13.4.5) | A version has zero or one immediate successor, and zero or one immediate predecessor. | clause not printed |
+| Connection data exchange (§13.4.5) | An implementation of a given version accepts content from a compatible predecessor and processes that content as a whole. | clause not printed |
+| Connection termination (§13.4.7) | unspecific is used when no other value fits better. A remark says this is typically a temporary disconnect, with examples of a node that can keep only one connection, or a reboot for a firmware update, and that a later connection is likely. | clause not printed |
+| Connection termination (§13.4.7) | removedConnection means the peer was dropped from the node's known-device list or its accepted-device list. A remark says a later connection can still happen, and the device is then treated as new or unknown. | clause not printed |
+| Connection termination (§13.4.7) | Send phase announce, maxTime as the millisecond duration from the send time until DEV-A will close at the latest even with no confirmation, and reason set. | clause not printed |
+| Connection termination (§13.4.7) | Close at the latest when that maxTime ends, even with no confirmation. | clause not printed |
+| Connection termination (§13.4.7) | If DEV-B's confirmation arrives before maxTime ends, close at once. | clause not printed |
+| Connection termination (§13.4.7) | Get ready to halt the data-exchange state ahead of the announced maxTime. When that halt finishes inside the limit and the socket remains up, send phase confirm with no other child, then close. | clause not printed |
+| Connection termination (§13.4.7) | If the confirmation is not sent in time, treat the connection as closed when the received maxTime ends. | clause not printed |
 
 ## Open points
 
@@ -431,9 +431,9 @@ Certificate and SKI rules are §12.1 and §12.2. The double-connection rule is �
 | hello unit conversion | waiting is in milliseconds. The T_hello constants are in seconds. No conversion is printed. | SHIP Specification 1.0.1 §13.4.4.1 |
 | message size | A limited size is named. No numeric maximum is printed. | SHIP Specification 1.0.1 §13 |
 | register runtime column | Table 2 prints Static. §5 requires the flag to change with auto accept. Both are printed. | SHIP Specification 1.0.1 §5, §7 Table 2 |
-| TLS maximum fragment length, SHIP 1.0.1 and SHIP 1.1.0, each inside its first shard. Table 1 range cell is 512 bytes. §9.2 says the fragment-length extension, when used, offers only 1024 bytes, and outgoing TLSPlaintext.length SHALL NOT exceed 1024 bytes. Both editions print both numbers. Table 1 and §9.2 (–580); Table 1 §4.2 and §9.2 –716. | Table 1, §9.2, §4.2 | clause not printed |
-| SHIP 1.1.0 auto accept together with a PIN. §12.3.1 item 2 sets user trust 8 and a second-factor range 16–32 (). Table 10 prints user trust 32 for that row (§12.3.2 ). The worked figures in §12.3.1.6 use user trust 8 and second-factor 32 (–1576). The shard does not pick one user-trust integer. L330–L332. SHIP 1.0.1’s mode table assigns auto accept user trust 8 and does not print that extra user-trust row; its second-factor PIN cell is 16 or 32 in Table 12 () and 16-32 in the §12.3.2 paragraph (–1050). L498–L504 and L549–L564. | §12.3.1, Table 10, §12.3.2, §12.3.1.6, Table 12 | clause not printed |
-| SHIP 1.0.1 SKI length, first shard. Table 1 and §12.2 say 20 bytes and 40 hexadecimal digits (, ). Table 2’s value cell says “40 byte hexadecimal digits” and also “160 bit”. The shard does not choose a reading. open point 6. | Table 1, §12.2, Table 2 | clause not printed |
-| General-communication trust gate is user trust at least 8 in both SHIP editions. SHIP 1.0.1 says that below 8, hello is aborted, and points the abort procedure at §13.4.4.1 (–1042). SHIP 1.1.0 says that below 8, communication SHALL be aborted (§12.3.2 –1600). The abort target is not the same sentence. | §13.4.4.1, §12.3.2 | clause not printed |
-| Trusted-node cross-reference. SHIP 1.0.1 points chapter 12.2.2 (), and the heading of §12.2.2 on those pages is the double-connection rule (–948). SHIP 1.1.0 points §12.2.3 (§3 ), and on those pages §12.2.3 is the double-connection close. Verification modes are §12.3 in both editions. open point 8; open point on §3 . | §12.2.2, §12.2.3, §3, §12.3 | clause not printed |
-| Clause numbers for the same late SHIP phase differ by edition. SHIP 1.0.1’s second shard places connection termination in §13.4.7. SHIP 1.1.0’s second shard places key-material messages in §13.4.7 and regular close in §13.4.8. heading §13.4.7; scenarios table. | §13.4.7, §13.4.8 | clause not printed |
+| TLS maximum fragment length, SHIP 1.0.1 and SHIP 1.1.0. Table 1 range cell is 512 bytes. §9.2 says the fragment-length extension, when used, offers only 1024 bytes, and outgoing TLSPlaintext.length SHALL NOT exceed 1024 bytes. Both editions print both numbers. Table 1 and §9.2; Table 1 §4.2 and §9.2. | Table 1, §9.2, §4.2 | clause not printed |
+| SHIP 1.1.0 auto accept together with a PIN. §12.3.1 item 2 sets user trust 8 and a second-factor range 16–32. Table 10 prints user trust 32 for that row (§12.3.2). The worked figures in §12.3.1.6 use user trust 8 and second-factor 32. These clauses do not pick one user-trust integer. SHIP 1.0.1’s mode table assigns auto accept user trust 8 and does not print that extra user-trust row; its second-factor PIN cell is 16 or 32 in Table 12 and 16-32 in the §12.3.2 paragraph. | §12.3.1, Table 10, §12.3.2, §12.3.1.6, Table 12 | clause not printed |
+| SHIP 1.0.1 SKI length. Table 1 and §12.2 say 20 bytes and 40 hexadecimal digits. Table 2’s value cell says “40 byte hexadecimal digits” and also “160 bit”. These clauses do not choose a reading. | Table 1, §12.2, Table 2 | clause not printed |
+| General-communication trust gate is user trust at least 8 in both SHIP editions. SHIP 1.0.1 says that below 8, hello is aborted, and points the abort procedure at §13.4.4.1. SHIP 1.1.0 says that below 8, communication SHALL be aborted (§12.3.2). The abort target is not the same sentence. | §13.4.4.1, §12.3.2 | clause not printed |
+| Trusted-node cross-reference. SHIP 1.0.1 points chapter 12.2.2, and the heading of §12.2.2 on those pages is the double-connection rule. SHIP 1.1.0 points §12.2.3 (§3), and on those pages §12.2.3 is the double-connection close. Verification modes are §12.3 in both editions. | §12.2.2, §12.2.3, §3, §12.3 | clause not printed |
+| Clause numbers for the same late SHIP phase differ by edition. SHIP 1.0.1 places connection termination in §13.4.7. SHIP 1.1.0 places key-material messages in §13.4.7 and regular close in §13.4.8. | §13.4.7, §13.4.8 | clause not printed |

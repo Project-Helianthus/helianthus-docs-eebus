@@ -91,7 +91,7 @@ entities. An empty lens result is no device and no invented entity (LRS-6).
 
 One resource in the lens result is one SPINE entity (CID-1).
 
-Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut. The containing resource is the parent. The contained
+Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut. Same cut means both links carry one cut identifier. The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected. The containing resource is the parent. The contained
 resource is the child. The cited instance is qualified, coherent, and in a
 plane of the named lens (TRV-1, LRS-1, LRS-2, TGT-2). An instance that is not
 coherent is not a current edge. There is no direct EVSE-to-vehicle `contains`
@@ -186,8 +186,9 @@ outcomes of the rules above.
 | `operation_from_visibility` | capability visible in the lens result, without the resource's own qualified capability | rejected |
 | `entity_from_cited_contains` | one qualified coherent in-plane `contains` instance cited in this report | admitted |
 | `operation_through_own_capability` | the resource's own qualified capability, with lens visibility ignored | admitted |
-| `ev_under_evse_two_links` | same-cut `evse.relation.evse_connector` and `evse.relation.connector_vehicle`, cited, coherent, in plane, qualified | admitted |
+| `ev_under_evse_two_links` | both links carry one cut identifier, cited, coherent, in plane, qualified | admitted |
 | `ev_under_evse_link_missing` | one of those two links missing | rejected |
+| `ev_under_evse_two_cuts` | `evse.relation.evse_connector` and `evse.relation.connector_vehicle` from two cuts | rejected |
 
 ## Promotion decision
 

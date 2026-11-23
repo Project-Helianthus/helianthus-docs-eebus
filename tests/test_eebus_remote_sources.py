@@ -74,10 +74,11 @@ class RemoteSourcesPageTests(unittest.TestCase):
         text = " ".join(PAGE.read_text(encoding="utf-8").split())
         for phrase in (
             "output pages",
-            "ledger",
+            "normative source record",
             "inbound heating mapping",
         ):
             self.assertIn(phrase, text)
+        self.assertNotIn("ledger", text)
 
     def test_vectors_match_the_conversion_sign_identity_and_trust_rules(self) -> None:
         self.assertEqual(vector_outcomes(PAGE.read_text(encoding="utf-8")), EXPECTED | {

@@ -249,6 +249,8 @@ ISSUE179_ELEMENT_OUTCOMES = {
 ISSUE179_REQUIRED_MARKERS = (
     "The named input lenses are `lens.equipment_composition` and `lens.installation_hierarchy`, both read on the one retained captured cut.",
     "Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut.",
+    "Same cut means both links carry one cut identifier.",
+    "The two relation names alone do not admit the nesting, and a record that cites those links from two cuts is rejected.",
     "An entity composed from an index is rejected.",
     "A name and an address are rejected by the same rule as an index.",
     "An operation is admitted only through that resource's own capability.",
@@ -5569,13 +5571,28 @@ def assign_entity_address(
     return "persisted"
 
 
+def _link_name_and_cut(link: object) -> tuple[str, str] | None:
+    if not isinstance(link, tuple) or len(link) != 2:
+        return None
+    name, cut = link
+    if not isinstance(name, str) or not isinstance(cut, str) or cut == "":
+        return None
+    return name, cut
+
+
 def _evse_two_links(record: dict[str, object]) -> bool:
     links = record.get("links")
     if not isinstance(links, tuple):
         return False
+    parsed = [_link_name_and_cut(link) for link in links]
+    if any(item is None for item in parsed):
+        return False
+    names = [item[0] for item in parsed if item is not None]
+    cuts = {item[1] for item in parsed if item is not None}
     return (
-        "evse.relation.evse_connector" in links
-        and "evse.relation.connector_vehicle" in links
+        len(cuts) == 1
+        and "evse.relation.evse_connector" in names
+        and "evse.relation.connector_vehicle" in names
     )
 
 
@@ -5677,8 +5694,8 @@ ISSUE179_VECTORS = (
         {
             "basis": "evse_connector_vehicle",
             "links": (
-                "evse.relation.evse_connector",
-                "evse.relation.connector_vehicle",
+                ("evse.relation.evse_connector", "cut-a"),
+                ("evse.relation.connector_vehicle", "cut-a"),
             ),
             "cited": True,
             "coherent": True,
@@ -5692,7 +5709,23 @@ ISSUE179_VECTORS = (
         entity_composition_outcome,
         {
             "basis": "evse_connector_vehicle",
-            "links": ("evse.relation.evse_connector",),
+            "links": (("evse.relation.evse_connector", "cut-a"),),
+            "cited": True,
+            "coherent": True,
+            "in_plane": True,
+            "qualified": True,
+        },
+        "rejected",
+    ),
+    (
+        "ev_under_evse_two_cuts",
+        entity_composition_outcome,
+        {
+            "basis": "evse_connector_vehicle",
+            "links": (
+                ("evse.relation.evse_connector", "cut-a"),
+                ("evse.relation.connector_vehicle", "cut-b"),
+            ),
             "cited": True,
             "coherent": True,
             "in_plane": True,

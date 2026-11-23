@@ -45,7 +45,7 @@ with its SHIP state and has no trusted data flow.
 | Visualization of Aggregated Battery Data 1.0.0 RC1 | Visualization Appliance; discovery string `VisualizationAppliance` (section 3.2.1.1) | the remote that serves the aggregate |
 
 For a trusted remote the node also takes the client actor of every command use
-case the ledger records that the remote offers. The specification's own
+case the normative source record lists that the remote offers. The specification's own
 mandatory, recommended or optional marking is the only selector. The node's
 entity role remains CEM.
 
@@ -102,8 +102,8 @@ with its reported SHIP state and supplies no trusted data flow.
 
 ## Unchanged surfaces
 
-This page does not change the output pages, the ledger, or the inbound heating
-mapping.
+This page does not change the output pages, the normative source record, or
+the inbound heating mapping.
 
 ## Vectors
 
