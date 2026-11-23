@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sys
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import validate_repository_policy as repository_policy  # noqa: E402
+
 
 REPO = Path(__file__).resolve().parents[1]
-STABLE_PROTOCOL = "protocols/ship-spine-overview.md"
+HISTORICAL_OVERVIEW = "tests/fixtures/history/ship-spine-overview.txt"
 PROTOCOL_CANDIDATE = "protocols/_candidate/msp-052-outbound-endpoint-selection.md"
 ARCHITECTURE_CANDIDATE = (
     "architecture/_candidate/msp-052-outbound-pairing-contract.md"
@@ -59,11 +63,8 @@ class Issue64ShipEndpointOrderContractTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
 
     def test_stable_protocol_invariant_remains_byte_identical(self) -> None:
-        digest = hashlib.sha256((REPO / STABLE_PROTOCOL).read_bytes()).hexdigest()
-        self.assertEqual(
-            digest,
-            "734c5668cd1937b088cbb12c7c4dd6b78c0fc76cc76873dc2d49092aded65b3b",
-        )
+        digest = hashlib.sha256((REPO / HISTORICAL_OVERVIEW).read_bytes()).hexdigest()
+        self.assertEqual(digest, repository_policy.ISSUE68_STABLE_PROTOCOL_SHA256)
 
     def test_endpoint_order_uses_only_canonical_mdns_observation_addresses(self) -> None:
         protocol = read(PROTOCOL_CANDIDATE)

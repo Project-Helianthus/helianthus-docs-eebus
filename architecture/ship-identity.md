@@ -78,9 +78,13 @@ and the canonical SHIP ID must remain exactly unchanged. If the protected
 `StoreInstance` cannot be recovered exactly, that repair fails closed rather
 than creating a different store identity within the same operation.
 
-The DNS-SD instance also remains
-`Helianthus EnergyManagementSystem eebusreg`. It is a fixed human-facing label,
-not a value derived from the certificate or store.
+The DNS-SD instance is a user-facing name of at most 63 bytes and is re-chosen
+on a collision. It is not an identity. After a real repair the next
+advertisement carries the unchanged `id` and the changed `ski`, each checked
+independently of the display name, and there is no equality of the DNS-SD
+instance. A renamed instance with the same SHIP id is the same node. An
+announcement without `type` is conformant. An announcement with a permitted
+additional key within 400 bytes is conformant.
 
 ## Observation Ownership
 

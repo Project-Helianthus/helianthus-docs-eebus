@@ -299,7 +299,10 @@ class MSP04BFirstTrustContractTest(unittest.TestCase):
             self.assertIn(phrase, architecture)
 
         for phrase in (
-            "`register=true` means that bounded pairing registration is available",
+            "`register` is the mandatory Boolean that indicates whether auto accept is active",
+            "`register=true` with auto accept inactive is not conformant",
+            "`register=false` with auto accept inactive is conformant",
+            "implementation divergence",
             "does not mean that the peer is trusted",
             "does not enable automatic handshake acceptance",
             "withdraw or replace the announcement with `register=false`",

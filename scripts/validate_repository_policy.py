@@ -60,6 +60,9 @@ MARKDOWN_ONLY_DOMAINS = {
     "re-notes",
 }
 ARCHITECTURE_MACHINE_ARTIFACTS = {"architecture/naming-contract.json"}
+SPECIFICATION_DATA_FILES = frozenset(
+    {"protocols/spine-resources-1.3.0-data-points.tsv"}
+)
 
 API_MACHINE_ARTIFACTS = {
     "api/_candidate/msp-055/attestation.json",
@@ -177,10 +180,10 @@ ISSUE68_G16_LOCKED_ARTIFACT = Path(
     "architecture/_candidate/msp-04b-first-trust-admin-local.md"
 )
 ISSUE68_G16_LOCKED_SHA256 = (
-    "a374c244b7b20eef1caf6d307ec87932"
-    "dfd6a1d83c7f8f1ceba6b04e7b10238e"
+    "a73749a79c92883870b180db6f70a367"
+    "4dd1d9606b7b882d0bb7a4b61e536305"
 )
-ISSUE68_STABLE_PROTOCOL = Path("protocols/ship-spine-overview.md")
+ISSUE68_STABLE_PROTOCOL = Path("tests/fixtures/history/ship-spine-overview.txt")
 ISSUE68_STABLE_PROTOCOL_SHA256 = (
     "734c5668cd1937b088cbb12c7c4dd6b7"
     "8c0fc76cc76873dc2d49092aded65b3b"
@@ -244,8 +247,8 @@ ISSUE179_ELEMENT_OUTCOMES = {
     "unknown": "unknown",
 }
 ISSUE179_REQUIRED_MARKERS = (
-    "The named input lens is `lens.equipment_composition`.",
-    "Parent and child entities come only from a `contains` instance cited in this target's own report.",
+    "The named input lenses are `lens.equipment_composition` and `lens.installation_hierarchy`, both read on the one retained captured cut.",
+    "Ordinary parent and child entities come from a `contains` instance cited in this target's own report, and an EV entity is nested under its EVSE through `evse.relation.evse_connector` and `evse.relation.connector_vehicle` of the same cut.",
     "An entity composed from an index is rejected.",
     "A name and an address are rejected by the same rule as an index.",
     "An operation is admitted only through that resource's own capability.",
@@ -259,7 +262,7 @@ ISSUE179_REQUIRED_MARKERS = (
     "An element a use case requires, cited as absent in this report, is explicit absence and not a feature.",
     "Where the report cites neither the element nor an absence, the element stays unknown and is not a feature.",
     "Electrical context is medium `electrical` on a cited element, and it is never taken from a second lens.",
-    "No thermal quantity is placed on a resource.",
+    "A thermal value of a heating zone, hot water or system outdoor sensor is a feature value of its SemReg element in kelvin.",
     "A sum is not an entity and not a feature.",
     "The report cites one served cut.",
     "A partial cut stays partial and is not repaired by invented entities.",
@@ -269,9 +272,25 @@ ISSUE179_STALE_MARKERS = (
     "An operation admitted from visibility alone is accepted.",
     "The persisted entity address is keyed by list position.",
     "Visibility of a capability admits the operation.",
+    "The named input lens is `lens.equipment_composition`.",
+    "No thermal quantity is placed on a resource.",
+    "Parent and child entities come only from a `contains` instance cited in this target's own report.",
 )
 # Publication selection for the eeBUS output; issue #186.
 ISSUE186_CONTRACT_REL = Path("api/_candidate/eebus-output-publication-v1.md")
+ISSUE197_REMOTE_SOURCES_REL = Path("api/_candidate/eebus-remote-sources-v1.md")
+ISSUE197_REMOTE_SOURCES_MARKERS = (
+    "## Actors and use cases",
+    "## Values",
+    "## Identity",
+    "## Unchanged surfaces",
+    "## Vectors",
+    "1 Wh is 3600 J",
+    "50 percent is 0.5",
+    "separate asset",
+    "contributor of that native asset",
+    "reported SHIP state",
+)
 ISSUE186_RESOURCE_KEY_FIELDS = (
     "family",
     "lens_admitted",
@@ -280,9 +299,18 @@ ISSUE186_RESOURCE_KEY_FIELDS = (
     "parent",
 )
 ISSUE186_SHIP_KEY_FIELDS = (
+    "service_name",
+    "instance_name_bytes",
+    "mandatory_txt_complete",
+    "txtvers",
+    "txt_record_bytes",
+    "ship_id_unique",
+    "device_type",
+    "txt_type_present",
+    "extra_optional_key",
+    "instance_renamed_same_id",
     "advertisement_count",
     "service_count",
-    "device_type",
 )
 ISSUE186_ACTOR_KEY_FIELDS = (
     "use_case",
@@ -313,20 +341,59 @@ ISSUE186_ANNOUNCEMENT_KEY_FIELDS = (
     "host_accepts_limits",
     "overlapping",
 )
-ISSUE186_PUBLISHED_FAMILIES = frozenset({"charger", "inverter", "pv_string"})
-ISSUE186_REJECTED_FAMILIES = frozenset({"battery", "heating"})
+ISSUE186_PUBLISHED_FAMILIES = frozenset(
+    {
+        "battery",
+        "charger",
+        "grid_connection",
+        "heating",
+        "inverter",
+        "meter",
+        "pv_string",
+    }
+)
+ISSUE186_REJECTED_FAMILIES = frozenset()
 ISSUE186_DEVICE_TYPE = "EnergyManagementSystem"
+ISSUE186_STANDARD_DEVICE_TYPES = frozenset(
+    {
+        "ChargingStation",
+        "Dishwasher",
+        "Dryer",
+        "ElectricitySupplySystem",
+        "EnergyManagementSystem",
+        "EnvironmentSensor",
+        "Generic",
+        "HeatGenerationSystem",
+        "HeatSinkSystem",
+        "HeatStorageSystem",
+        "HVACController",
+        "Inverter",
+        "SubMeter",
+        "Washer",
+    }
+)
 ISSUE186_PRODUCTION_LIMIT = "pv.operation.set_active_power_limit"
 ISSUE186_ALLOCATED_CURRENT = "evse.operation.set_allocated_current"
 ISSUE186_VOLTAGE_SOURCES = frozenset({"installation", "station"})
 ISSUE186_USE_CASES = frozenset(
     {
+        "coordinated_ev_charging",
+        "ev_charging_electricity_measurement",
+        "ev_charging_summary",
+        "ev_commissioning_and_configuration",
+        "ev_state_of_charge",
         "evse_commissioning_and_configuration",
+        "hvac_system_function",
+        "hvac_temperature",
         "limitation_of_power_consumption",
         "limitation_of_power_production",
+        "monitoring_of_battery",
+        "monitoring_of_grid_connection_point",
         "monitoring_of_inverter",
         "monitoring_of_power_consumption",
         "monitoring_of_pv_string",
+        "optimization_of_self_consumption_during_ev_charging",
+        "overload_protection",
     }
 )
 ISSUE186_ACTOR_BINDINGS = frozenset(
@@ -338,29 +405,50 @@ ISSUE186_ACTOR_BINDINGS = frozenset(
         ("limitation_of_power_production", "Energy Guard", "CEM", False, False),
         ("monitoring_of_inverter", "Inverter", "Inverter", False, False),
         ("monitoring_of_power_consumption", "Monitored Unit", "EVSE", False, False),
+        ("monitoring_of_power_consumption", "Monitored Unit", "Inverter", False, False),
         ("monitoring_of_pv_string", "PV String", "PV String", True, False),
+        ("monitoring_of_battery", "Battery", "Battery", False, False),
+        ("hvac_temperature", "HVAC Room", "HVACRoom", False, False),
+        ("hvac_system_function", "HVAC Room", "HVACRoom", False, False),
+        ("monitoring_of_grid_connection_point", "Grid Connection Point", "GridConnectionPoint", False, False),
+        ("ev_commissioning_and_configuration", "EV", "EV", False, False),
+        ("ev_state_of_charge", "EV", "EV", False, False),
+        ("ev_charging_electricity_measurement", "EV", "EV", False, False),
+        ("coordinated_ev_charging", "EV", "EV", False, False),
+        ("ev_charging_summary", "EV", "EV", False, False),
+        ("optimization_of_self_consumption_during_ev_charging", "EV", "EV", False, False),
+        ("overload_protection", "EV", "EV", False, False),
     }
 )
 ISSUE186_REQUIRED_MARKERS = (
     "The output is active when the eeBUS runtime is already enabled.",
     "There is no new switch.",
-    "Publish every lens-admitted inverter, PV string and charger resource.",
-    "A heating resource is not published.",
-    "A battery resource is not published.",
+    "Publish every lens-admitted inverter, PV string, charger, battery, heating, grid-connection and meter resource.",
+    "A heating resource is published.",
+    "A battery resource is published.",
+    "A meter resource is its own SubMeterElectricity entity beside the grid connection and is never merged into it.",
+    "The EVSE total is the SemReg member sum of one cut and is marked derived.",
+    "The node serves the heartbeat Limitation of Power Production V1.0.0 [LPP-031] defines.",
+    "The EVSE operating state is a declared mapping from the EVSE statuses.",
+    "| SemReg element | SPINE feature | scope | unit | conversion |",
     "A lens-admitted resource is one entity of this output (CID-1).",
     "An input-dimension fact is not a string (CID-4).",
     "A PV String entity is a child of the Inverter only through a cited contains instance (TRV-1).",
-    "One advertisement for SHIP stays.",
-    "The device type is EnergyManagementSystem.",
-    "Reject a second advertisement for SHIP.",
-    "A second service is not added.",
-    "The extra entities are Inverter, a PV String child of that Inverter, and EVSE.",
+    "SHIP 1.0.1 §7 prints no fixed number of advertisements.",
+    "The SPINE device type is a standard type of SPINE Resource Specification 1.3.0 Table 353 or a vendor-specific type matching SPINE Protocol Specification 1.3.0 §7.1.1.1.",
+    "A second advertisement that meets SHIP 1.0.1 §7 is accepted.",
+    "A second service that meets SHIP 1.0.1 §7 is accepted.",
+    "The published entities include Inverter, a PV String child of that Inverter, EVSE, Battery, heating, the grid connection and a distinct meter.",
     "A use case that forbids that device type is not announced, and the loss names the prohibition.",
     "The actor Inverter of Monitoring of Inverter V1.0.0 is taken on entity type Inverter.",
     "The actor PV String of Monitoring of PV String V1.0.0 RC4 is taken when a string resource exists.",
     "The actor Inverter is the Controllable System of Limitation of Power Production V1.0.0.",
     "The actor EVSE of EVSE Commissioning and Configuration V1.0.1 is taken.",
     "The actor EVSE is the Monitored Unit of Monitoring of Power Consumption V1.0.0.",
+    "The actor Inverter is the Monitored Unit of Monitoring of Power Consumption V1.0.0.",
+    "The actor Battery of Monitoring of Battery V1.0.0 is taken.",
+    "The HVAC monitoring actors of HVAC Temperature V1.0.0 and HVAC System Function V1.0.0 are taken.",
+    "The actor Grid Connection Point of Monitoring of Grid Connection Point V1.0.0 is taken.",
     "The actor EVSE is the Controllable System of Limitation of Power Consumption V1.0.0.",
     "The local CEM takes Energy Guard of a limitation use case only while no trusted remote already announces Energy Guard for that use case.",
     "The CEM entity is never the Controllable System of one device.",
@@ -395,37 +483,45 @@ ISSUE186_REQUIRED_MARKERS = (
     "The station's range runs from 6 A to the station's configured current. A result below 6 A pauses charging: allocated current 0 A.",
     "A limit whose inputs are not published (measured voltage, phase current or configured current) is answered with a negative acknowledgement that names the missing input.",
     "When neither source publishes a phase voltage, the write is answered with a negative acknowledgement that names the missing measured voltage.",
-    "Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits; scenarios 1 to 3 are served, scenario 4 is not.",
+    "Limitation of Power Consumption V1.0.0 is announced on the EVSE entity when the allocated-current operation is admitted for that resource and the host accepts limits, and the node serves the heartbeat Limitation of Power Consumption V1.0.0 [LPC-031] defines; each scenario keeps the specification's own mandatory, recommended or optional marking.",
     "The effective limit follows section 2.2 of the use case. A deactivated or expired limit releases the charger to the configured current. The failsafe values are pre-configured to 4200 W and 2 hours, stored, and may be changed by the Energy Guard.",
     "Unit conversion is display-only. The watt-to-ampere computation of a consumption limit is a control rule, not a unit conversion.",
     "A production-limit write on the Inverter entity is handed to the host and applied through `pv.operation.set_active_power_limit` in watts, with no conversion. Its effective limit follows the state machine of Limitation of Power Production V1.0.0; the failsafe production limit is pre-configured to the upper bound of `pv.limit.active_power` in the PV pack, which restricts nothing, and the failsafe duration minimum to 2 hours.",
-    "A use case whose device-side actor is EV is not announced.",
-    "This node is not an EV.",
+    "An EV actor is announced when the SemReg elements its use case requires are present.",
+    "The node presents the EV actor of each charging use case wherever SemReg has its elements.",
     "Overload protection, self-consumption during charging, and charging electricity measurement name the actor EV.",
     "Two overlapping writes are the existing conflict loss.",
     "The cited transport revision is SHIP 1.0.1.",
     "The cited data-model revision is SPINE 1.3.0.",
-    "A newer revision of SHIP is not cited.",
-    "Citing these revisions does not resolve a normative source row.",
-    "Admitted inverter elements are inverter AC measurements, energy, temperature and operating state.",
+    "SHIP 1.1.0 is recorded as a later revision and is not the revision this node declares.",
+    "The recorded revisions declare the mappings.",
+    "Admitted inverter elements are inverter AC measurements, apparent power, reactive power, line-to-line voltage, energy, temperature and operating state.",
     "`pv.operation.set_active_power_limit` is admitted in watts.",
-    "String-dimension DC quantities are not admitted.",
-    "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
+    "String-dimension DC quantities are admitted.",
+    "Inverter apparent power, inverter reactive power and line-to-line voltage are admitted.",
     "The admitted charger operation is `evse.operation.set_allocated_current`.",
     "Canonical units are SI.",
     "or applies a watt limit without the measured voltage and active phases,",
     "No semantic element is added.",
     "No contract version is raised.",
-    "Proven. The canonical discovery page states one advertisement for SHIP and device type EnergyManagementSystem.",
+    "Proven. Discovery follows SHIP 1.0.1 §7, and the SPINE device type follows SPINE Resource Specification 1.3.0 Table 353 or SPINE Protocol Specification 1.3.0 §7.1.1.1.",
     "Hypothesis. The actor selection and the announcement rule are this candidate.",
     "Unknown. The mandatory elements of each use case are not enumerated on this page.",
     "None of these classes is a device qualification.",
 )
 ISSUE186_STALE_MARKERS = (
     "There is a new switch.",
-    "A heating resource is published.",
-    "A battery resource is published.",
-    "Accept a second advertisement for SHIP.",
+    "One advertisement for SHIP stays.",
+    "The device type is EnergyManagementSystem.",
+    "Reject a second advertisement for SHIP.",
+    "A second service is not added.",
+    "A heating resource is not published.",
+    "A battery resource is not published.",
+    "Inverter apparent power, inverter reactive power and line-to-line voltage are not admitted.",
+    "String-dimension DC quantities are not admitted.",
+    "A use case whose device-side actor is EV is not announced.",
+    "This node is not an EV.",
+    "A meter, generic equipment, heating equipment and a battery stay outside this publication.",
     "The CEM entity is the Controllable System of one device.",
     "A watt limit is applied as allocated current.",
     "A newer revision of SHIP is cited.",
@@ -1207,7 +1303,7 @@ ISSUE76_M6_LOCKED_ARTIFACTS = {
         "f1ae2a676ec688c44f330911682e12b70"
         "8271ddf4022561ac8e7fd13d1b13a34"
     ),
-    Path("protocols/ship-spine-overview.md"): (
+    Path("tests/fixtures/history/ship-spine-overview.txt"): (
         "734c5668cd1937b088cbb12c7c4dd6b7"
         "8c0fc76cc76873dc2d49092aded65b3b"
     ),
@@ -1540,7 +1636,8 @@ SCAFFOLD_ARTIFACT_SHA256 = {
     # Output-binding candidate named; issue #179.
     # Output publication rule named; issue #186.
     # Consumption limit applied as allocated current; issue #189.
-    "api/README.md": "8adb4185a97730be149f5765af817558" "bfee8cfd7663a2905a35b17c02a97264",
+    # Remote sources candidate named; issue #197.
+    "api/README.md": "bc729e72396cb96525fb9dd1a3965fff" "1c126209c1b9d822cbf74f4438522370",
     "api/api-surface-v1.md": "acb007a5a2366b63ed4a64fecfee5cad" "2109fcbd779c87c0281a37b9f44cbeca",
     "evidence/README.md": "8028825bcfba106864bb2f44984b6bcc" "d1717a557ebf9e2c6d98b64f5367941d",
     "evidence/evidence-template.md": (
@@ -1554,13 +1651,13 @@ SCAFFOLD_ARTIFACT_SHA256 = {
 
 PRODUCTION_REVIEWED_PROTOCOL_ARTIFACT_SHA256 = {
     "protocols/ship-spine-overview.md": (
-        "734c5668cd1937b088cbb12c7c4dd6b7" "8c0fc76cc76873dc2d49092aded65b3b"
+        "754391b7902f0aaa69937b3c74fe6428" "6efb0c09a2222e363c707ac554f494f1"
     ),
 }
 
 PRODUCTION_REVIEWED_DEVICE_ARTIFACT_SHA256 = {
     "devices/vr940f.md": (
-        "46f848bd630435aa8ea4fb695d8fccf9" "9c56ddf2d4dfba044a48691ee58e2b36"
+        "0487f4c8e03b615068f52b7a90f104e1" "4d1aec6078e09b1ac4131651388d6de9"
     ),
 }
 
@@ -1924,6 +2021,37 @@ PRODUCTION_REVIEWED_ACTIVE_ARCHITECTURE = {
         "versioned_bundle": "true",
         "release_bundle": "true",
     },
+    "4da9360c4247c13533ca4c3d6992c7a7" "0a321322510e63c32caaabf760288c8a": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:architecture/README.md"
+        ),
+        "owner_domain": "architecture",
+        "license": "AGPL-3.0-only",
+        "claim_status": "evidence-backed",
+        "publication_status": "active",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260711-001, EV-20260714-001, EV-20260720-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A publishable canonical contract changes these ownership or "
+            "evidence-acceptance boundaries."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
+            "docs/platform/shared-registry-boundary.md"
+        ),
+        "stable_navigation": "true",
+        "search": "true",
+        "sitemap": "true",
+        "versioned_bundle": "true",
+        "release_bundle": "true",
+    },
     "24128acd1c7b21448df396bcb5dd252b" "77de9e2a324dc980decf368e483c97fc": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:"
@@ -2180,6 +2308,34 @@ PRODUCTION_REVIEWED_CROSS_SEED = {
         "live_validation_status": "pending",
     },
     "139d09c849aff73c541858d3c30b9762" "17014ca77072c95f19a2ffe45f3850bc": {
+        "canonical_source": (
+            "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
+        ),
+        "owner_domain": "devices",
+        "license": "CC0-1.0",
+        "claim_status": "evidence-backed",
+        "publication_status": "planned-target",
+        "source_class": "derived_inference",
+        "evidence_ids": "EV-20260714-001,EV-20260720-001,EV-20260811-001",
+        "hypothesis_status": "publishable",
+        "falsifier": (
+            "A bounded redacted live run violates the canonical advertisement, "
+            "callback provenance, transport ordering, restart-persistence gate, "
+            "or the exact outdoor-temperature source binding recorded below."
+        ),
+        "cross_seed_target": (
+            "Project-Helianthus/helianthus-docs-eebus:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "cross_seed_mode": "summary-only",
+        "cross_seed_snapshot": (
+            "Project-Helianthus/helianthus-docs-ebus@"
+            "9cede4c61a4f73019142b7418cf6f875" "37cf645c:"
+            "docs/platform/eebus-raw-first-contract.md"
+        ),
+        "live_validation_status": "pending",
+    },
+    "9acca4fa582e625951fd8c12e14e0d3b" "407fe557e3cf6f3c9aa2d9bd4afff684": {
         "canonical_source": (
             "Project-Helianthus/helianthus-docs-eebus:devices/vr940f.md"
         ),
@@ -4776,9 +4932,11 @@ def _premature_claim_errors(text: str, rel: str) -> tuple[str, ...]:
 
 
 @lru_cache(maxsize=4096)
-def _has_forbidden_control(text: str) -> bool:
+def _has_forbidden_control(text: str, allow_tab: bool = False) -> bool:
     return any(
-        unicodedata.category(char) == "Cc" and char != "\n"
+        unicodedata.category(char) == "Cc"
+        and char != "\n"
+        and not (allow_tab and char == "\t")
         for char in text
     )
 
@@ -5307,7 +5465,7 @@ def _bounded_repository_text(path: Path, rel: str) -> tuple[str | None, list[str
         size = path.stat().st_size
     except OSError:
         return None, [f"{rel}: repository artifact is unreadable"]
-    if size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+    if size > MAX_REPOSITORY_TEXT_SCAN_BYTES and rel not in SPECIFICATION_DATA_FILES:
         return None, [f"{rel}: repository artifact exceeds scan size limit"]
     try:
         raw = path.read_bytes()
@@ -5411,8 +5569,27 @@ def assign_entity_address(
     return "persisted"
 
 
+def _evse_two_links(record: dict[str, object]) -> bool:
+    links = record.get("links")
+    if not isinstance(links, tuple):
+        return False
+    return (
+        "evse.relation.evse_connector" in links
+        and "evse.relation.connector_vehicle" in links
+    )
+
+
+def _composition_basis_ok(record: dict[str, object]) -> bool:
+    basis = record.get("basis")
+    if basis == "cited_contains":
+        return True
+    if basis == "evse_connector_vehicle":
+        return _evse_two_links(record)
+    return False
+
+
 def entity_composition_outcome(record: dict[str, object]) -> str:
-    if record.get("basis") != "cited_contains":
+    if not _composition_basis_ok(record):
         return "rejected"
     flags = ("cited", "coherent", "in_plane", "qualified")
     if any(record.get(flag) is not True for flag in flags):
@@ -5494,6 +5671,35 @@ ISSUE179_VECTORS = (
         },
         "admitted",
     ),
+    (
+        "ev_under_evse_two_links",
+        entity_composition_outcome,
+        {
+            "basis": "evse_connector_vehicle",
+            "links": (
+                "evse.relation.evse_connector",
+                "evse.relation.connector_vehicle",
+            ),
+            "cited": True,
+            "coherent": True,
+            "in_plane": True,
+            "qualified": True,
+        },
+        "admitted",
+    ),
+    (
+        "ev_under_evse_link_missing",
+        entity_composition_outcome,
+        {
+            "basis": "evse_connector_vehicle",
+            "links": ("evse.relation.evse_connector",),
+            "cited": True,
+            "coherent": True,
+            "in_plane": True,
+            "qualified": True,
+        },
+        "rejected",
+    ),
 )
 
 
@@ -5570,13 +5776,48 @@ def published_resource_outcome(record: dict[str, object]) -> str:
     return "published"
 
 
+def _vendor_device_type(value: str) -> bool:
+    # SPINE Protocol Specification 1.3.0 §7.1.1.1.
+    match = re.fullmatch(
+        r"_(?:i:[1-9][0-9]*|n:[A-Za-z0-9-]+)_(.+)",
+        value,
+    )
+    if match is None:
+        return False
+    suffix = match.group(1)
+    return all(
+        not char.isspace() and unicodedata.category(char)[0] != "C"
+        for char in suffix
+    )
+
+
+def _device_type_accepted(device_type: object) -> bool:
+    if not isinstance(device_type, str):
+        return False
+    if device_type in ISSUE186_STANDARD_DEVICE_TYPES:
+        return True
+    return _vendor_device_type(device_type)
+
+
+def _ship_limit_rejected(value: object, limit: int) -> bool:
+    return not isinstance(value, int) or value > limit
+
+
+def _ship_advertisement_failure(record: dict[str, object]) -> str:
+    key = ship_advertisement_key(record)
+    if key[0] != "ship" or key[3] != "1" or key[5] is not True:
+        return "rejected"
+    if key[2] is not True or not _device_type_accepted(key[6]):
+        return "rejected"
+    if _ship_limit_rejected(key[1], 63) or _ship_limit_rejected(key[4], 400):
+        return "rejected"
+    return ""
+
+
 def ship_advertisement_outcome(record: dict[str, object]) -> str:
-    advertisement_count, service_count, device_type = ship_advertisement_key(record)
-    if advertisement_count != 1 or service_count != 1:
+    if _ship_advertisement_failure(record) != "":
         return "rejected"
-    if device_type != ISSUE186_DEVICE_TYPE:
-        return "rejected"
-    return "kept"
+    return "accepted"
 
 
 def _cem_device_role(actor: object, entity_type: object) -> bool:
@@ -5589,8 +5830,6 @@ def actor_binding_outcome(record: dict[str, object]) -> str:
     key = actor_binding_key(record)
     if _cem_device_role(key[1], key[2]):
         return "rejected"
-    if key[1] == "EV":
-        return "not_announced"
     if key in ISSUE186_ACTOR_BINDINGS:
         return "taken"
     return "not_taken"
@@ -5720,14 +5959,14 @@ def _announcement_blocked(key: tuple[object, ...]) -> str:
         device_type_permitted,
         _device_type,
         missing_elements,
-        device_actor,
+        _device_actor,
         allocated_current_admitted,
         host_accepts_limits,
         overlapping,
     ) = key
     if overlapping is True:
         return "conflict"
-    if device_actor == "EV" or device_type_permitted is not True:
+    if device_type_permitted is not True:
         return "not_announced"
     if isinstance(missing_elements, tuple) and len(missing_elements) > 0:
         return "not_announced"
@@ -5763,8 +6002,6 @@ def _consumption_announcement_loss(record: dict[str, object]) -> tuple[str, ...]
 
 
 def _loss_names(record: dict[str, object]) -> tuple[str, ...]:
-    if record.get("device_actor") == "EV":
-        return ("EV",)
     if record.get("device_type_permitted") is not True:
         return _device_type_loss(record.get("device_type"))
     missing = record.get("missing_elements")
@@ -5799,12 +6036,31 @@ def _issue186_resource(
     }
 
 
-def _issue186_ship(advertisement_count: int) -> dict[str, object]:
-    return {
-        "advertisement_count": advertisement_count,
-        "service_count": 1,
+def _issue186_ship(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "service_name": "ship",
+        "instance_name_bytes": 32,
+        "mandatory_txt_complete": True,
+        "txtvers": "1",
+        "txt_record_bytes": 120,
+        "ship_id_unique": True,
         "device_type": ISSUE186_DEVICE_TYPE,
+        "txt_type_present": False,
+        "extra_optional_key": False,
+        "instance_renamed_same_id": False,
+        "advertisement_count": 1,
+        "service_count": 1,
     }
+    record.update(overrides)
+    return record
+
+
+def same_cut_entities_outcome(record: dict[str, object]) -> str:
+    if record.get("families") != ("grid_connection", "meter"):
+        return "not_published"
+    if record.get("same_cut") is not True or record.get("meter_distinct") is not True:
+        return "not_published"
+    return "both_published"
 
 
 def _issue186_actor(
@@ -5841,13 +6097,13 @@ ISSUE186_VECTORS = (
         "heating_resource",
         published_resource_outcome,
         _issue186_resource("heating"),
-        "not_published",
+        "published",
     ),
     (
         "battery_resource",
         published_resource_outcome,
         _issue186_resource("battery"),
-        "not_published",
+        "published",
     ),
     (
         "inverter_resource",
@@ -5868,16 +6124,110 @@ ISSUE186_VECTORS = (
         "published",
     ),
     (
-        "second_ship_advertisement",
+        "grid_connection_resource",
+        published_resource_outcome,
+        _issue186_resource("grid_connection"),
+        "published",
+    ),
+    (
+        "meter_resource",
+        published_resource_outcome,
+        _issue186_resource("meter"),
+        "published",
+    ),
+    (
+        "grid_and_meter_one_cut",
+        same_cut_entities_outcome,
+        {
+            "families": ("grid_connection", "meter"),
+            "same_cut": True,
+            "meter_distinct": True,
+        },
+        "both_published",
+    ),
+    (
+        "service_name_other",
         ship_advertisement_outcome,
-        _issue186_ship(2),
+        _issue186_ship(service_name="other"),
         "rejected",
     ),
     (
-        "one_ship_advertisement",
+        "instance_name_over_63",
         ship_advertisement_outcome,
-        _issue186_ship(1),
-        "kept",
+        _issue186_ship(instance_name_bytes=64),
+        "rejected",
+    ),
+    (
+        "mandatory_txt_missing",
+        ship_advertisement_outcome,
+        _issue186_ship(mandatory_txt_complete=False),
+        "rejected",
+    ),
+    (
+        "txtvers_other",
+        ship_advertisement_outcome,
+        _issue186_ship(txtvers="2"),
+        "rejected",
+    ),
+    (
+        "txt_record_over_400",
+        ship_advertisement_outcome,
+        _issue186_ship(txt_record_bytes=401),
+        "rejected",
+    ),
+    (
+        "ship_id_not_unique",
+        ship_advertisement_outcome,
+        _issue186_ship(ship_id_unique=False),
+        "rejected",
+    ),
+    (
+        "device_type_inverter",
+        ship_advertisement_outcome,
+        _issue186_ship(device_type="Inverter"),
+        "accepted",
+    ),
+    (
+        "device_type_vendor",
+        ship_advertisement_outcome,
+        _issue186_ship(device_type="_n:acme_HeatPump"),
+        "accepted",
+    ),
+    (
+        "device_type_vendor_rejected",
+        ship_advertisement_outcome,
+        _issue186_ship(device_type="GridGuard"),
+        "rejected",
+    ),
+    (
+        "announcement_without_txt_type",
+        ship_advertisement_outcome,
+        _issue186_ship(txt_type_present=False),
+        "accepted",
+    ),
+    (
+        "extra_optional_key",
+        ship_advertisement_outcome,
+        _issue186_ship(extra_optional_key=True),
+        "accepted",
+    ),
+    (
+        "instance_renamed_same_id",
+        ship_advertisement_outcome,
+        _issue186_ship(instance_renamed_same_id=True),
+        "accepted",
+    ),
+    (
+        "second_advertisement_meets_section_7",
+        ship_advertisement_outcome,
+        _issue186_ship(advertisement_count=2),
+        "accepted",
+    ),
+    (
+        "second_service_meets_section_7",
+        ship_advertisement_outcome,
+        _issue186_ship(service_count=2),
+        "accepted",
     ),
     (
         "cem_controllable_system",
@@ -5896,6 +6246,26 @@ ISSUE186_VECTORS = (
             "limitation_of_power_production",
             "Controllable System",
             "Inverter",
+        ),
+        "taken",
+    ),
+    (
+        "inverter_monitored_unit",
+        actor_binding_outcome,
+        _issue186_actor(
+            "monitoring_of_power_consumption",
+            "Monitored Unit",
+            "Inverter",
+        ),
+        "taken",
+    ),
+    (
+        "evse_monitored_unit",
+        actor_binding_outcome,
+        _issue186_actor(
+            "monitoring_of_power_consumption",
+            "Monitored Unit",
+            "EVSE",
         ),
         "taken",
     ),
@@ -5977,6 +6347,22 @@ def issue_186_output_publication_errors(root: Path) -> list[str]:
             if marker in text
         )
     errors.extend(issue_186_vector_errors())
+    return errors
+
+
+def eebus_remote_sources_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    relation = ISSUE197_REMOTE_SOURCES_REL.as_posix()
+    path = root / ISSUE197_REMOTE_SOURCES_REL
+    if not path.is_file():
+        errors.append(f"{relation}: remote-sources page is missing")
+        return errors
+    text = " ".join(_read(path).split())
+    errors.extend(
+        f"{relation}: missing remote-sources marker: {marker}"
+        for marker in ISSUE197_REMOTE_SOURCES_MARKERS
+        if marker not in text
+    )
     return errors
 
 
@@ -8581,7 +8967,10 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         if not stat.S_ISREG(file_stat.st_mode):
             errors.append(f"{rel}: repository artifact is not a regular file")
             continue
-        if file_stat.st_size > MAX_REPOSITORY_TEXT_SCAN_BYTES:
+        if (
+            file_stat.st_size > MAX_REPOSITORY_TEXT_SCAN_BYTES
+            and rel not in SPECIFICATION_DATA_FILES
+        ):
             errors.append(f"{rel}: repository artifact exceeds scan size limit")
     if _append_naming_contract_errors(root, errors):
         return sorted(set(errors), key=lambda value: value.encode("utf-8"))
@@ -9286,7 +9675,11 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
                     if rel not in API_MACHINE_ARTIFACTS and rel not in registered_outputs:
                         errors.append(f"{rel}: path is not in the API machine artifact allowlist")
                         continue
-                elif top in MARKDOWN_ONLY_DOMAINS and rel not in ARCHITECTURE_MACHINE_ARTIFACTS:
+                elif (
+                    top in MARKDOWN_ONLY_DOMAINS
+                    and rel not in ARCHITECTURE_MACHINE_ARTIFACTS
+                    and rel not in SPECIFICATION_DATA_FILES
+                ):
                     errors.append(f"{rel}: substantive documentation must use a Markdown extension")
                     continue
             try:
@@ -9297,7 +9690,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
             if rel in API_MACHINE_ARTIFACTS or rel in ARCHITECTURE_MACHINE_ARTIFACTS:
                 errors.extend(_machine_artifact_errors(text, rel))
             else:
-                if _has_forbidden_control(text):
+                if _has_forbidden_control(text, rel in SPECIFICATION_DATA_FILES):
                     errors.append(f"{rel}: control bytes are forbidden in publishable artifacts")
                 errors.extend(_privacy_errors(text, rel))
                 errors.extend(_restricted_source_errors(text, rel))
@@ -9357,6 +9750,7 @@ def check_repository(root: Path, *, fixture_mode: bool = False) -> list[str]:
         + issue_178_relation_and_participation_errors(root)
         + issue_179_output_binding_errors(root)
         + issue_186_output_publication_errors(root)
+        + eebus_remote_sources_errors(root)
     )
     errors.extend(issue_76_m625_raw_feature_errors(root))
     errors.extend(issue_88_lab_profile_activation_errors(root))

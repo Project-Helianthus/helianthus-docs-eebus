@@ -403,3 +403,18 @@ semantic fact, candidate reference, GraphQL field, Portal model, Home
 Assistant entity, or consumer command. M6 remains complete. M6.5 live
 acquisition and candidate-only M7 or later work remain blocked on the M6.25
 implementation and live gate.
+
+## Inbound Subscription-Fed Values
+
+This section applies only to the runtime's own acquisition of inbound values
+from a trusted, paired remote. The runtime subscribes to the server features
+it reads and serves the last notified data to the inbound mapping. When no
+notification is fresh, it performs an on-demand full read of that feature
+(SPINE 1.3.0; SHIP 1.0.1 section 13.4.4).
+
+This route is separate from the explicit raw `features.data.get` operation. A
+fresh notification neither satisfies nor suppresses a raw READ. Neither that
+notification nor this section's on-demand full read mints or publishes a read
+token. A feature-data READ requested through the raw operation remains a live
+correlated round trip, and cached function data cannot satisfy it or mint a
+current read token.

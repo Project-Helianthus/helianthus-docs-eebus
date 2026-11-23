@@ -49,23 +49,37 @@ class STD01PublicDependencyBaselineTests(unittest.TestCase):
             "Dated installation-process dependency metadata; not a current SPINE revision.",
             f"does not establish a current {ship_name()}, SPINE, or use-case corpus revision",
             "a use-case revision; an implementation conformance result; or a semantic mapping",
-            "unknown_pending_normative_source",
         ):
             self.assertIn(marker, text)
 
-    def test_current_source_rows_and_mapping_boundary_remain_unresolved(self) -> None:
+    def test_current_source_rows_record_revisions_and_declare_mappings(self) -> None:
         text = normalized(LEDGER)
-        for family in (
+        for marker in (
             ship_name(),
             "SPINE",
             "E-Mobility / EVSE",
             "Grid connection point",
             "Inverter / PV and stationary BESS",
             "HVAC",
+            f"{ship_name()} Specification 1.0.1 (2019-11-04)",
+            f"{ship_name()} Specification 1.1.0 (2025-09-22)",
+            f"{ship_name()} Pairing Service 1.0.0 (2025-12-03)",
+            f"{ship_name()} Requirements for Installation Process 1.1.0 (2025-10-10)",
+            "SPINE Introduction 1.3.0 (2023-08-31)",
+            "SPINE Protocol Specification 1.3.0 (2023-08-31)",
+            "SPINE Resource Specification 1.3.0 (2023-08-31)",
+            "Visualization of Heating Area Name 1.0.0 (2022-11-22)",
+            "Monitoring of Grid Connection Point 1.0.0 (2022-12-22)",
+            "Monitoring of Inverter 1.0.0 (2023-12-31)",
+            "The recorded revisions declare the mappings.",
+            "Flexible Load / Smart Heater DHW is unavailable",
+            "Monitoring and Control of Smart Grid Ready Conditions is unavailable",
         ):
-            self.assertIn(family, text)
-        self.assertGreaterEqual(text.casefold().count("unresolved"), 8)
-        self.assertIn("The five cross-protocol mapping records remain `unknown_pending_normative_source`", text)
+            self.assertIn(marker, text)
+        self.assertNotIn(
+            "The five cross-protocol mapping records remain `unknown_pending_normative_source`",
+            text,
+        )
 
 
 if __name__ == "__main__":

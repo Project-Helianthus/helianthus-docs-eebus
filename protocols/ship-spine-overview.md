@@ -9,60 +9,74 @@ evidence_ids: "EV-20260714-001,EV-20260720-001"
 hypothesis_status: "publishable"
 contract_status: "normative"
 live_validation_status: "pending"
-falsifier: "A bounded redacted live run violates the canonical advertisement, callback provenance, transport ordering, or identity-repair stability gate."
+falsifier: "A cited clause of SHIP Specification 1.0.1 or SPINE 1.3.0 disagrees with the declared discovery, transport or detailed discovery, or a recorded verification level is treated as a condition on that declaration."
 ---
 
 # Canonical Discovery For SHIP And G17/G19 Interop Gates
 
 ## Scope And Classification
 
-This page defines the single normative discovery design for SHIP and the
-pending live acceptance boundary for the G17/G19 gates. The design is derived
-from project identity, security, and redaction requirements. Earlier evidence
-informs the gate shape but does not prove this identity or TXT behavior. This
-page does not establish deployed support, SPINE semantics, or a consumer
-surface.
+Discovery, SHIP transport and SPINE detailed discovery are declared from
+[SHIP Specification 1.0.1](ship-1.0.1.md) and
+[SPINE Protocol Specification 1.3.0](spine-protocol-1.3.0.md).
+The later revision [SHIP Specification 1.1.0](ship-1.1.0.md), the
+[SHIP Pairing Service 1.0.0](ship-pairing-service-1.0.0.md), the
+[SHIP Requirements for Installation Process 1.1.0](ship-installation-requirements-1.1.0.md),
+the [SPINE Introduction 1.3.0](spine-introduction-1.3.0.md) and the
+[SPINE Resource Specification 1.3.0](spine-resources-1.3.0.md) are recorded
+beside that declaration. A live run is a recorded verification level (run, not
+run, result) and conditions nothing. This page does not establish deployed support, or a consumer surface.
 
 ## Canonical Local Advertisement
 
-The runtime has exactly one canonical SHIP/mDNS publisher. It publishes
-exactly one `_ship._tcp` service after the exact listener is bound. Its DNS-SD
-instance is:
+SHIP 1.0.1 §7 states the discovery requirements. It prints
+no fixed number of advertisements and no universal device type. The service
+name is `ship`. The instance is a user-facing name of at most 63 bytes and is
+re-chosen on a collision. The SHIP id is the separate identifier of at most 63
+bytes, so a renamed instance with the same SHIP id is the same node.
 
-```text
-Helianthus EnergyManagementSystem eebusreg
-```
+The mandatory TXT keys are `txtvers` (first key, value 1), `id`, `path`, `ski`
+and `register`. The optional keys are `brand`, `type` and `model`, and further
+optional keys are each optional, all within the TXT record limit of 400 bytes.
+Unknown keys are ignored, and an announcement without `type` is conformant. An announcement with a permitted additional key within 400 bytes is conformant.
 
-The TXT record has this closed field set:
+| Key | Presence | Rule |
+| --- | --- | --- |
+| `txtvers` | mandatory, first | value 1 |
+| `id` | mandatory | SHIP id, at most 63 bytes |
+| `path` | mandatory | 1 to 32 bytes |
+| `ski` | mandatory | certificate subject key identifier |
+| `register` | mandatory | equals the auto-accept state |
+| `brand` | optional | at most 32 bytes |
+| `type` | optional | at most 32 bytes; not a device-type list |
+| `model` | optional | at most 32 bytes |
 
-| Key | Value |
-| --- | --- |
-| `txtvers` | `1` |
-| `path` | `/ship/` |
-| `id` | `HLS-<nodeToken>` |
-| `ski` | `<certificate SKI>` |
-| `brand` | `Helianthus` |
-| `model` | `eebusreg` |
-| `type` | `EnergyManagementSystem` |
-| `register` | `<window>` |
+`id` is the canonical SHIP id derived from the protected `StoreInstance`.
+`ski` is the current certificate subject key identifier and has a separate
+lifecycle. The DNS-SD instance is not an identity. The advertised address and
+port equal the bound listener.
 
-`id` is the canonical SHIP ID derived from the protected `StoreInstance`.
-`ski` is the current certificate SKI and has a separate lifecycle. The DNS-SD
-instance is a fixed human-facing label and does not participate in either
-identity. The advertised address and port equal the one bound listener.
-`<window>` is `true` only while the bounded local registration window is open;
-otherwise it is `false`. No second publisher, probe identity, or advertisement
-path exists.
+`register` is the mandatory Boolean that indicates whether auto accept is
+active. The node sets it to true while auto accept is active and to false when
+it is not. Only auto accept changes it. `register=true` with auto accept
+inactive is not conformant. `register=false` with auto accept inactive is
+conformant. The local pairing window (`OPEN_EMPTY`, `CANDIDATE_PENDING` and
+`TRANSIENT_TRUSTED` advertise `register=true` while `auto-accept` remains
+`false`) is an implementation divergence from that meaning. A local-window
+toggle of `register` is not the conformance operand.
 
-## G17: Pending Local Announcement Gate
+The SPINE standard or vendor-specific type check applies to
+`deviceInformation.description.deviceType`. The SHIP TXT `type` stays optional
+and no clause read for this row ties it to that list.
 
-One bounded live run must establish all of the following:
+## G17: Recorded Announcement Observation
 
-- exactly one canonical Helianthus announcement is visible on the selected
-  interface and bound address;
-- an independent LAN observer resolves the exact instance and closed TXT set;
-- the registration window changes only `register` from `false` to `true` and
-  back to `false`;
+A recorded verification level may note the following. It conditions nothing.
+
+- an independent observer resolves the announcement's instance name and TXT
+  keys against the mandatory keys, the optional keys present and the 400-byte
+  limit, with no required `type` and no fixed instance;
+- the observer checks that `register` equals the node's auto-accept state;
 - withdrawal is observed with exact `TTL=0`; and
 - the post-withdrawal negative confirms no inbound connection attributable to
   the withdrawn announcement.
@@ -71,11 +85,11 @@ The announcement alone creates no remote session or pairing candidate.
 
 ### Protected Registration Signal
 
-`register=true` means that bounded pairing registration is
-available. It does not mean that the peer is trusted and does not enable
-automatic handshake acceptance. Opening the local pairing window changes only
-this local value. It does not queue, report, or dial a remote and cannot create
-a remote service, session, topology row, or candidate.
+`register` is the mandatory Boolean that indicates whether auto accept is
+active. It does not mean that the peer is trusted and does not enable
+automatic handshake acceptance. Opening the local pairing window does not queue, report, or dial a remote and cannot create a remote service, session,
+topology row, or candidate. That window's `register=true` while auto accept
+stays inactive is an implementation divergence.
 
 When the bounded lifecycle closes, expires, or reaches a terminal effect, the
 service must withdraw or replace the announcement with `register=false`. No pairing-window
@@ -108,10 +122,11 @@ callback.
 ## Repair Stability Gate
 
 After a real host-key and certificate repair, the certificate SKI must change.
-The decoded raw 32-byte `StoreInstance`, derived `nodeToken`, canonical SHIP ID,
-and DNS-SD instance must remain exactly unchanged. The next advertisement must
-contain the unchanged `id` and the changed `ski`. Failure of any equality or
-inequality check fails the gate.
+The decoded raw 32-byte `StoreInstance`, derived `nodeToken` and canonical SHIP
+ID must remain exactly unchanged. The next advertisement carries the unchanged
+`id` and the changed `ski`, each checked independently of the display name.
+There is no equality of the DNS-SD instance. Failure of any required equality
+or inequality check fails the gate.
 
 ## Run Binding And Redaction
 
@@ -126,4 +141,4 @@ This contract is tracked by
 [docs issue 48](https://github.com/Project-Helianthus/helianthus-docs-eebus/issues/48)
 and
 [runtime issue 54](https://github.com/Project-Helianthus/helianthus-eebusreg/issues/54).
-Live validation remains pending.
+A live run is a recorded verification level and is not admission.

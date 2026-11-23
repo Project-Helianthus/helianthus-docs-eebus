@@ -18,13 +18,18 @@ This is a normative derived gate. It is pending live execution and does not
 claim a deployed result or support. One bounded run passes only when all
 observations below are retained under one fresh run challenge:
 
-1. Exactly one `_ship._tcp` advertisement is observed on `end0` at
-   `<redacted-lab-address>:4712`, with DNS-SD instance
-   `Helianthus EnergyManagementSystem eebusreg` and the closed TXT field set
-   defined by the [protocol discovery page](../protocols/ship-spine-overview.md).
-2. Opening the pairing window changes that advertisement to `register=true`
-   and creates no remote queue, dial, service, session, topology row, or pairing
-   candidate.
+1. An independent observer resolves the announcement's instance name and TXT
+   keys on `end0` at `<redacted-lab-address>:4712` against the mandatory keys
+   `txtvers` (first, value 1), `id`, `path`, `ski` and `register`, the optional
+   keys present, and the 400-byte limit. Here an announcement without `type` is valid.
+   A renamed instance with the same SHIP id is valid. The instance is
+   not a fixed name. The rules are the
+   [protocol discovery page](../protocols/ship-spine-overview.md).
+2. `register` equals the node's auto-accept state and creates no remote queue,
+   dial, service, session, topology row, or pairing candidate.
+   `register=true` with auto accept inactive is not conformant.
+   `register=false` with auto accept inactive is conformant. A local-window
+   toggle of `register` is not the conformance operand.
 3. Before the first observed TCP SYN, `eebus.v1.sessions.list` is empty. A
    visible service may exist only after its mDNS observation callback.
 4. The expected VR940 certificate `ski` matches its exact protected reference.
@@ -33,14 +38,28 @@ observations below are retained under one fresh run challenge:
    first redacted SPINE payload on the same connection generation. No SPINE
    payload receives semantic meaning.
 6. After ordinary runtime restart, the decoded raw 32-byte `StoreInstance`,
-   `nodeToken`, canonical SHIP ID, and DNS-SD instance remain exactly unchanged.
-   Durable policy reloads privately; service, session, topology, and candidate
-   observations remain absent until their live callbacks recur.
+   `nodeToken` and canonical SHIP ID remain exactly unchanged. The DNS-SD
+   instance is not an identity equality. Durable policy reloads privately;
+   service, session, topology, and candidate observations remain absent until
+   their live callbacks recur.
 7. After a real host-key and certificate repair, certificate SKI must change,
    while the raw 32-byte `StoreInstance` must remain byte-for-byte unchanged,
    `nodeToken` must remain exactly unchanged, and the canonical SHIP ID must
    remain exactly unchanged. The repaired advertisement carries the unchanged
-   `id` and changed `ski`.
+   `id` and changed `ski`, each checked independently of the display name.
+   There is no equality of the DNS-SD instance.
+
+| TXT key | Presence |
+| --- | --- |
+| `txtvers` | mandatory, first, value 1 |
+| `id` | mandatory |
+| `path` | mandatory |
+| `ski` | mandatory |
+| `register` | mandatory, equals auto accept |
+| `brand`, `type`, `model` | optional |
+
+A live run of this procedure is a recorded verification level and is not
+admission. This text does not authorize or perform field activity.
 
 The evidence artifact uses only the closed stable `eebus.v1` read-only tools.
 It retains raw stage ordering, counts, redacted references, equality and

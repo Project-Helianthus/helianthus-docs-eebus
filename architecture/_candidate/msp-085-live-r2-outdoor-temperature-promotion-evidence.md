@@ -24,12 +24,12 @@ real Leaf Promotion Dossier. It correlates the VR940 outdoor-temperature
 observation with one exact eBUS B524 register and proposes the candidate leaf
 `/system/outdoor_temperature`.
 
-The page is a capture and equivalence contract, not a promotion decision. It
+The page is a capture and equivalence contract. Here, declared cross-protocol leaves are promoted and exposed by default. A live coexistence or capture result is a
+recorded verification level (run, not run, result) that conditions nothing. It
 does not create V2, aliases, legacy compatibility, mutation, GraphQL, Portal,
-Home Assistant, command routing, or stable semantic-registry exposure. The
-feasibility observation in
-[`EV-20260811-001`](../../evidence/EV-20260811-001.md) is not synchronized
-promotion evidence.
+Home Assistant, or command routing. The feasibility observation in
+[`EV-20260811-001`](../../evidence/EV-20260811-001.md) is a recorded
+verification level.
 
 ## Ownership Boundary
 

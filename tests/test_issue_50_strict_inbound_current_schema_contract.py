@@ -73,8 +73,9 @@ class Issue50StrictInboundCurrentSchemaContractTests(unittest.TestCase):
     def test_canonical_ship_publisher_has_no_rawprobe_runtime_identity(self) -> None:
         normalized = compact(self.protocol)
 
-        self.assertIn("exactly one canonical SHIP/mDNS publisher", normalized)
-        self.assertIn("No second publisher, probe identity", normalized)
+        self.assertIn("SHIP 1.0.1 §7", normalized)
+        self.assertNotIn("exactly one canonical SHIP/mDNS publisher", normalized)
+        self.assertNotIn("No second publisher, probe identity", normalized)
         self.assertNotIn("RawProbe", self.corpus)
 
     def test_stable_protocol_retains_reviewed_passive_discovery_rule(self) -> None:
