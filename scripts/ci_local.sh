@@ -56,6 +56,14 @@ pin_checkout \
   "${PLATFORM_M625_EXECUTION_PLANS_ROOT}" \
   "${plans_rev}"
 
+python3 -m pip install --disable-pip-version-check --no-deps \
+  --no-build-isolation --require-hashes \
+  -r "${PLATFORM_CONTRACTS_ROOT}/requirements-ci.txt"
+python3 -m pip install --disable-pip-version-check --no-deps \
+  --no-build-isolation --require-hashes \
+  -r requirements-ci.txt
+python3 -m pip check
+
 python3 scripts/assemble_m625_validation_root.py
 
 python3 -m pytest -q tests/test_m625_cross_seed_contract.py
