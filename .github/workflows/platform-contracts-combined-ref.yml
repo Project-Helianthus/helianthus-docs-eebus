@@ -516,6 +516,21 @@ jobs:
           PRIOR_MANIFEST: ${{ steps.prior_manifest.outputs.path }}
         run: |
           test -n "${PRIOR_MANIFEST}"
+          python3 - <<'PY'
+          import pathlib
+          import sys
+
+          sys.path.insert(0, "checkouts/docs-eebus/scripts")
+          from validate_platform_contracts import _repository_root_valid
+
+          for name, repository in (
+              ("docs", "Project-Helianthus/helianthus-docs"),
+              ("docs-eebus", "Project-Helianthus/helianthus-docs-eebus"),
+              ("eebusreg", "Project-Helianthus/helianthus-eebusreg"),
+          ):
+              root = pathlib.Path("checkouts") / name
+              print(f"repository-root {name}: {_repository_root_valid(root, repository)}")
+          PY
           python3 checkouts/docs-eebus/scripts/validate_platform_combined_ref.py \
             --docs-root checkouts/docs \
             --docs-repository "${{ inputs.docs_repository }}" \
